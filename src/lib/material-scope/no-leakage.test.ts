@@ -8,19 +8,19 @@ import { describe, expect, it } from "vitest"
 // spreading across every I07 and I13 selector.
 //
 // Two tiers, deliberately:
-//   - `src/lib/sap/**` may NAME these fields. The contract layer's whole job
+//   - `src/lib/material-scope/**` may NAME these fields. The contract layer's whole job
 //     is asserting what SAP exposes, and the scope module's job is deciding
 //     with it.
 //   - Everything else — features, components, app routes, the rest of lib —
-//     may not reference them at all, and must go through lib/sap/scope.
+//     may not reference them at all, and must go through lib/material-scope.
 
 const SRC = "./src"
-const SAP_LAYER = join("src", "lib", "sap")
+const SCOPE_LAYER = join("src", "lib", "material-scope")
 
-/** Field names that identify scope. Allowed only inside the SAP layer. */
+/** Field names that identify scope. Allowed only inside the scope module. */
 const SCOPED_TOKENS = [/\bDismm\b/i, /\bMstae\b/i]
 
-/** String literals carrying scope values. Allowed only inside the SAP layer. */
+/** String literals carrying scope values. Allowed only inside the scope module. */
 const SCOPED_LITERALS = [/(['"])ND\1/, /(['"])PD\1/, /(['"])01\1/]
 
 /**
@@ -46,7 +46,7 @@ function sourceFiles(dir: string): string[] {
 
 // This file necessarily contains every banned token, since it defines them.
 const files = sourceFiles(SRC).filter((f) => !f.endsWith("no-leakage.test.ts"))
-const isInSapLayer = (file: string) => relative(".", file).startsWith(SAP_LAYER + sep)
+const isInSapLayer = (file: string) => relative(".", file).startsWith(SCOPE_LAYER + sep)
 
 function offenders(patterns: RegExp[], candidates: string[]): string[] {
   return candidates.filter((file) => {
@@ -61,11 +61,11 @@ describe("scope identifier leakage", () => {
     expect(files.some(isInSapLayer)).toBe(true)
   })
 
-  it("no file outside lib/sap names Dismm or Mstae", () => {
+  it("no file outside lib/material-scope names Dismm or Mstae", () => {
     expect(offenders(SCOPED_TOKENS, files.filter((f) => !isInSapLayer(f)))).toEqual([])
   })
 
-  it("no file outside lib/sap hard-codes the 'ND' / 'PD' / '01' literals", () => {
+  it("no file outside lib/material-scope hard-codes the 'ND' / 'PD' / '01' literals", () => {
     expect(offenders(SCOPED_LITERALS, files.filter((f) => !isInSapLayer(f)))).toEqual([])
   })
 

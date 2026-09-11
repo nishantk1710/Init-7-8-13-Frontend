@@ -16,7 +16,7 @@ import {
   type RecommendationFactor,
 } from "@/features/initiative-7/types/inventory"
 import type { RiskLevel } from "@/components/shared/risk-badge"
-import { USING_GENERATED_DATA } from "@/lib/sap/dataset-mode"
+import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
 import generatedRecommendations from "@/features/initiative-7/data/generated/recommendations.json"
 
 function materialRef(materialId: string): MaterialReference {
@@ -673,7 +673,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   },
 ]
 
-/** Mapped from SAP + platform rows by `npm run dataset:build`. See lib/sap/dataset-mode. */
+/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
 export const RECOMMENDATIONS: Recommendation[] = USING_GENERATED_DATA
   ? (generatedRecommendations as unknown as Recommendation[])
   : SCENARIO_RECOMMENDATIONS

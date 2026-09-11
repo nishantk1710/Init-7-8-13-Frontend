@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { isInScope, isMaterialInScope, SCOPES, toODataFilter } from "./index"
 import { OAR_MRP_TYPES, OBSOLETE_MATERIAL_STATUS } from "./config"
 import type { FieldRow } from "./types"
+import { generatedSapDir } from "./fixtures-root"
 
 describe("isInScope — the configured oar scope", () => {
   it("selects maintained ND/PD material-plant rows that are not obsolete", () => {
@@ -95,8 +96,8 @@ describe("against the generated synthetic fixture", () => {
     })
   }
 
-  const materials = parseCsv("./data-generator/generated/sap/MaterialSet.csv")
-  const plants = parseCsv("./data-generator/generated/sap/MaterialPlantSet.csv")
+  const materials = parseCsv(`${generatedSapDir()}/MaterialSet.csv`)
+  const plants = parseCsv(`${generatedSapDir()}/MaterialPlantSet.csv`)
   const byMatnr = new Map(materials.map((m) => [m.Matnr!, m]))
 
   const rows = plants.map((plant) => ({ plant, material: byMatnr.get(plant.Matnr!) ?? {} }))

@@ -1,0 +1,69 @@
+# Frontend deployment.
+#
+# NOT WIRED UP, and deliberately so -- for one more reason than the backend's
+# equivalent: nobody has decided where this deploys to. The root README says
+# only "Frontend hosting". Azure Static Web Apps, an Azure App Service running
+# `next start`, and a container are all live options, and they need different
+# workflows:
+#
+#   Static Web Apps   requires a static export; incompatible with any route
+#                     that needs a Node server at request time.
+#   App Service       runs `next start`, keeps server rendering, needs a Node
+#                     runtime and a startup command.
+#   Container         most portable, most infrastructure to own.
+#
+# So this file is a placeholder with the shared parts filled in -- checkout,
+# install, build -- and the deploy step left as the decision it is. Trigger is
+# manual only; committing it cannot break anything.
+#
+# Before this can run:
+#   1. Decide the hosting target above.
+#   2. Set NEXT_PUBLIC_API_BASE_URL to the deployed backend's /api URL. It is
+#      baked in at BUILD time, not read at runtime -- a wrong value here means
+#      rebuilding, not just re-configuring.
+#   3. Add whatever credential that target needs as a repository secret.
+
+name: Deploy (not yet active)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm. Placeholder pipeline -- the hosting target is not chosen yet.'
+        required: true
+        default: ""
+
+jobs:
+  deploy:
+    if: ${{ github.event.inputs.confirm == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Guard -- refuse to deploy until a target is chosen
+        run: |
+          echo "No hosting target configured. See the header of this file."
+          exit 1
+
+      - name: Build
+        env:
+          # Baked into the bundle at build time. Must point at the deployed
+          # backend, not localhost.
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+        run: npm run build
+
+      # - name: Deploy
+      #   Fill in once the target is chosen:
+      #     Static Web Apps -> Azure/static-web-apps-deploy@v1
+      #     App Service     -> azure/webapps-deploy@v3
+      #     Container       -> docker/build-push-action + azure/webapps-deploy

@@ -1,5 +1,5 @@
 // W2.4 — public scope API. This is the only entry point I07/I13 selectors
-// should import from `lib/sap/scope`; everything else in this directory is
+// should import from `lib/material-scope`; everything else in this directory is
 // an implementation detail.
 
 import { SCOPES } from "./config"
