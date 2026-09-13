@@ -12,6 +12,7 @@ import {
 } from "recharts"
 
 import type { RepairChain } from "@/features/initiative-8/types/repair"
+import { vendorLabel } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
 function VendorTooltip({ active, payload, label }: TooltipContentProps) {
@@ -30,7 +31,11 @@ export function RepairsByVendorChart({ chains }: { chains: RepairChain[] }) {
   const byVendor = new Map<string, number>()
   for (const c of chains) {
     if (c.repairStatus === "Closed") continue
-    byVendor.set(c.vendor, (byVendor.get(c.vendor) ?? 0) + 1)
+    // Lines whose PO header is missing have no vendor at all -- 455 of the
+    // 1,225 in the July extract. They are grouped, never dropped: silently
+    // excluding them would under-report the work in progress.
+    const vendor = vendorLabel(c)
+    byVendor.set(vendor, (byVendor.get(vendor) ?? 0) + 1)
   }
   const data = Array.from(byVendor.entries())
     .map(([vendor, count]) => ({ vendor, count }))

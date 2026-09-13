@@ -37,6 +37,21 @@ export type DeclarationSource = "Manual" | "MRP-generated"
 export type AgingBucket = "0-15" | "16-30" | "31-45" | "46-60" | "60+"
 
 /**
+ * Where a repair line stands against its promised return date.
+ *
+ * Served by `GET /api/i8/register` as `overdueStatus`. It exists because
+ * "not overdue" and "nobody ever agreed a date" are different answers, and
+ * collapsing them hides exactly the lines that need chasing — 63 of the 1,225
+ * repair lines in the July extract have no schedule line at all.
+ *
+ * Prefer `isRepairOverdue()` in `utils/status.ts` over comparing
+ * `daysRemainingInRepair` directly: that field is now optional, and
+ * `undefined < 0` is `false`, which would silently mark an undated line as
+ * on time.
+ */
+export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+
+/**
  * A single repairable material's active (or recently closed) repair chain —
  * the core entity behind the Repair Register / Repair Detail / Duplicate
  * Guard pages.
@@ -45,27 +60,89 @@ export interface RepairChain {
   id: string
   material: MaterialReference
   plant: PlantReference
-  stockOnHand: number
-  reorderPoint: number
+
+  /**
+   * Unrestricted stock on hand, summed across storage locations.
+   *
+   * Optional: the backend returns null when the material has no MARD row.
+   * That is "we do not know", which is not the same as zero stock — and zero
+   * stock is what triggers a duplicate purchase, so the two must not be
+   * conflated.
+   */
+  stockOnHand?: number
+
+  /**
+   * Optional, and undefined far more often than you would expect: the MARC
+   * extract covers plants 1300 and 1200 only, so **every Gamsberg material
+   * has no reorder point at all**. Rendering a missing one as 0 would read as
+   * "never reorder this", which is a worse answer than "unknown".
+   */
+  reorderPoint?: number
+
   /** Units physically out for repair right now (0 once received/closed). */
   qtyUnderRepair: number
   repairPR: SAPDocumentReference
   repairPO?: SAPDocumentReference
-  vendor: string
+
+  /**
+   * Optional: the vendor comes from the purchase-order header, and 455 of the
+   * 1,225 repair lines have no header in the July extract (EKKO starts
+   * 07-Jan-2025; EKPO reaches further back). Undefined means "not known from
+   * this data" — an empty string would read as a vendor whose name is blank.
+   *
+   * When it is a bare SAP vendor code, `vendorName` carries the display name
+   * if LFA1 knows it. It usually does not: only 4 of the 61 repair vendors in
+   * the extract resolve to a name.
+   */
+  vendor?: string
+
+  /** Display name for `vendor`, when the vendor master knows it. */
+  vendorName?: string
+
   repairStatus: RepairStatus
   receiptStatus: ReceiptStatus
   declarationStatus: DeclarationStatus
+
+  /**
+   * Where this line stands against its promised date. Authoritative when
+   * present — use `isRepairOverdue()` rather than reading it directly, so the
+   * mock-data path keeps working.
+   */
+  overdueStatus?: OverdueStatus
+
   /** Days since the repair PR was raised. */
   daysOpen: number
   agingBucket: AgingBucket
   raisedAt: string
   poIssuedAt?: string
   sentToVendorAt?: string
-  expectedReturn: string
-  /** Negative once the expected-return date has passed. */
-  daysRemainingInRepair: number
+
+  /**
+   * Optional: 63 of the 1,225 repair lines have no schedule line in SAP, so no
+   * return date was ever agreed. Those are the lines nobody is chasing, which
+   * is precisely why a placeholder date must not be invented for them — they
+   * come through as `overdueStatus: "NO_DUE_DATE"`.
+   */
+  expectedReturn?: string
+
+  /**
+   * Negative once the expected-return date has passed. Undefined when there is
+   * no expected return to count towards.
+   *
+   * Do not test this with `< 0` to mean overdue: `undefined < 0` is `false`,
+   * so an undated line would silently read as on time. Use `isRepairOverdue()`.
+   */
+  daysRemainingInRepair?: number
+
   receivedAt?: string
-  newUnitCost: number
+
+  /**
+   * Optional: no valuation source is in Initiative 8's table set (MBEW was
+   * extracted for I07 and I13), so live data does not carry it. Sending 0
+   * would make every repair look infinitely worth doing.
+   */
+  newUnitCost?: number
+
   repairCost: number
   newUnitLeadTimeDays: number
   notes?: string

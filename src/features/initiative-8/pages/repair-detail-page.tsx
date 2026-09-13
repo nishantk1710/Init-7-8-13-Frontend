@@ -14,6 +14,12 @@ import {
   DECLARATION_STATUS_TONE,
   RECEIPT_STATUS_TONE,
   REPAIR_STATUS_TONE,
+  UNKNOWN,
+  formatDaysRemaining,
+  hasNoDueDate,
+  isRepairOverdue,
+  orUnknown,
+  vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { formatZAR } from "@/lib/utils"
@@ -61,7 +67,7 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
     events.push({
       id: "return",
       label: "Expected return",
-      timestamp: chain.expectedReturn,
+      timestamp: chain.expectedReturn ?? UNKNOWN,
       tone: "default",
     })
     events.push({
@@ -72,15 +78,17 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
       tone: "success",
     })
   } else {
+    // A line with no agreed return date is its own state, not a quiet
+    // "on time" -- it is the one nobody is chasing. 63 of the 1,225 repair
+    // lines in the July extract are in it.
     events.push({
       id: "return",
-      label: "Expected return",
-      timestamp: chain.expectedReturn,
-      description:
-        chain.daysRemainingInRepair < 0
-          ? `Overdue by ${Math.abs(chain.daysRemainingInRepair)} day(s) — Awaiting SAP update.`
-          : `${chain.daysRemainingInRepair} day(s) remaining — Awaiting SAP update.`,
-      tone: chain.daysRemainingInRepair < 0 ? "danger" : "warning",
+      label: hasNoDueDate(chain) ? "No return date agreed" : "Expected return",
+      timestamp: chain.expectedReturn ?? UNKNOWN,
+      description: hasNoDueDate(chain)
+        ? "No schedule line exists for this PO item, so no return was ever promised. Chase the buyer for a date."
+        : `${formatDaysRemaining(chain)} — Awaiting SAP update.`,
+      tone: isRepairOverdue(chain) ? "danger" : "warning",
     })
   }
 
@@ -106,7 +114,7 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
   }
 
   const declaration = DECLARATIONS.find((d) => d.relatedRepairId === chain.id)
-  const isOverdue = chain.repairStatus !== "Closed" && chain.daysRemainingInRepair < 0
+  const isOverdue = isRepairOverdue(chain)
 
   const declarationTimeline: TimelineEvent[] = declaration
     ? [
@@ -159,11 +167,18 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <div className="text-xs text-muted-foreground">Stock on hand</div>
-              <div className="text-lg font-semibold text-foreground">{chain.stockOnHand}</div>
+              <div className="text-lg font-semibold text-foreground">
+                {orUnknown(chain.stockOnHand)}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Reorder point</div>
-              <div className="text-lg font-semibold text-foreground">{chain.reorderPoint}</div>
+              {/* Undefined for every Gamsberg material: the MARC extract covers
+                  plants 1300 and 1200 only. Showing 0 would read as "never
+                  reorder", which is worse than showing nothing. */}
+              <div className="text-lg font-semibold text-foreground">
+                {orUnknown(chain.reorderPoint)}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Under repair</div>
@@ -171,7 +186,9 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Expected availability</div>
-              <div className="text-lg font-semibold text-foreground">{chain.expectedReturn}</div>
+              <div className="text-lg font-semibold text-foreground">
+                {chain.expectedReturn ?? UNKNOWN}
+              </div>
             </div>
           </div>
         </div>
@@ -184,8 +201,8 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
         )}
         {isOverdue && (
           <AlertBanner tone="warning" title="Repair overdue">
-            Expected return was {chain.expectedReturn} — {Math.abs(chain.daysRemainingInRepair)} day(s)
-            past due. Follow up with {chain.vendor}.
+            Expected return was {chain.expectedReturn ?? UNKNOWN} — {formatDaysRemaining(chain)}.
+            Follow up with {vendorLabel(chain)}.
           </AlertBanner>
         )}
 
@@ -207,21 +224,21 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
               <div className="mb-3 text-sm font-medium text-foreground">Vendor & economics</div>
               <dl className="grid grid-cols-2 gap-y-2 text-xs">
                 <dt className="text-muted-foreground">Vendor</dt>
-                <dd className="text-right text-foreground">{chain.vendor}</dd>
+                <dd className="text-right text-foreground">{vendorLabel(chain)}</dd>
                 <dt className="text-muted-foreground">Days open</dt>
                 <dd className="text-right text-foreground">{chain.daysOpen}</dd>
                 <dt className="text-muted-foreground">New-unit cost</dt>
-                <dd className="text-right text-foreground">{formatZAR(chain.newUnitCost)}</dd>
+                {/* No valuation source in Initiative 8's table set -- stated as
+                    unavailable rather than implied as zero. */}
+                <dd className="text-right text-foreground">
+                  {chain.newUnitCost === undefined ? "Not available" : formatZAR(chain.newUnitCost)}
+                </dd>
                 <dt className="text-muted-foreground">Repair cost</dt>
                 <dd className="text-right text-foreground">{formatZAR(chain.repairCost)}</dd>
                 <dt className="text-muted-foreground">New-unit lead time</dt>
                 <dd className="text-right text-foreground">{chain.newUnitLeadTimeDays} days</dd>
                 <dt className="text-muted-foreground">Repair return time</dt>
-                <dd className="text-right text-foreground">
-                  {chain.daysRemainingInRepair >= 0
-                    ? `${chain.daysRemainingInRepair} days remaining`
-                    : `${Math.abs(chain.daysRemainingInRepair)} days overdue`}
-                </dd>
+                <dd className="text-right text-foreground">{formatDaysRemaining(chain)}</dd>
               </dl>
               {chain.notes && (
                 <p className="mt-3 border-t border-dashed border-border pt-2 text-[11px] text-muted-foreground italic">

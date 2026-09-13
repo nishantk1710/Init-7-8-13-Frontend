@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import { formatZAR } from "@/lib/utils"
+import { formatDaysRemaining, vendorLabel } from "@/features/initiative-8/utils/status"
 
 const DEFAULT_MATERIAL_ID = "800-14201" // Scenario C
 
@@ -124,7 +125,7 @@ export function DuplicateGuardFlow() {
           </p>
           <dl className="grid grid-cols-2 gap-y-1.5 sm:grid-cols-4">
             <dt className="text-muted-foreground">Vendor</dt>
-            <dd className="col-span-1 sm:col-span-3">{chain.vendor}</dd>
+            <dd className="col-span-1 sm:col-span-3">{vendorLabel(chain)}</dd>
             <dt className="text-muted-foreground">Repair PO</dt>
             <dd className="col-span-1 sm:col-span-3">
               {chain.repairPO ? <SAPDocumentChip doc={chain.repairPO} /> : "Not yet raised"}
@@ -132,23 +133,26 @@ export function DuplicateGuardFlow() {
             <dt className="text-muted-foreground">Quantity at vendor</dt>
             <dd className="col-span-1 sm:col-span-3">{chain.qtyUnderRepair}</dd>
             <dt className="text-muted-foreground">Expected return</dt>
-            <dd className="col-span-1 sm:col-span-3">{chain.expectedReturn}</dd>
+            <dd className="col-span-1 sm:col-span-3">
+              {chain.expectedReturn ?? "No return date agreed"}
+            </dd>
             <dt className="text-muted-foreground">Days remaining</dt>
             <dd className="col-span-1 sm:col-span-3">
-              {chain.daysRemainingInRepair >= 0
-                ? `${chain.daysRemainingInRepair} days`
-                : `Overdue by ${Math.abs(chain.daysRemainingInRepair)} days`}
+              {formatDaysRemaining(chain)}
             </dd>
             <dt className="text-muted-foreground">New-unit cost vs repair cost</dt>
             <dd className="col-span-1 sm:col-span-3">
-              {formatZAR(chain.newUnitCost)} vs {formatZAR(chain.repairCost)}
+              {/* No valuation source exists in Initiative 8's table set, so the
+                  comparison is stated as one-sided rather than implied against
+                  a fabricated zero -- which would make every repair look
+                  infinitely worth doing. */}
+              {chain.newUnitCost === undefined
+                ? `Repair ${formatZAR(chain.repairCost)} — new-unit cost not available`
+                : `${formatZAR(chain.newUnitCost)} vs ${formatZAR(chain.repairCost)}`}
             </dd>
             <dt className="text-muted-foreground">New-unit lead time vs repair return</dt>
             <dd className="col-span-1 sm:col-span-3">
-              {chain.newUnitLeadTimeDays} days vs{" "}
-              {chain.daysRemainingInRepair >= 0
-                ? `${chain.daysRemainingInRepair} days`
-                : "overdue"}
+              {chain.newUnitLeadTimeDays} days vs {formatDaysRemaining(chain)}
             </dd>
           </dl>
 

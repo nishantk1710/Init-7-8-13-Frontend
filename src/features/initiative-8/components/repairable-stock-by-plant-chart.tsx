@@ -29,7 +29,9 @@ function PlantTooltip({ active, payload, label }: TooltipContentProps) {
 export function RepairableStockByPlantChart({ chains }: { chains: RepairChain[] }) {
   const byPlant = new Map<string, number>()
   for (const c of chains) {
-    byPlant.set(c.plant.name, (byPlant.get(c.plant.name) ?? 0) + c.stockOnHand)
+    // Unknown stock contributes nothing rather than breaking the sum. It is
+    // not the same as zero, so the bar is an understatement, not an invention.
+    byPlant.set(c.plant.name, (byPlant.get(c.plant.name) ?? 0) + (c.stockOnHand ?? 0))
   }
   const data = Array.from(byPlant.entries()).map(([plant, stock]) => ({ plant, stock }))
 

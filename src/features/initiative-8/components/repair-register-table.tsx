@@ -26,7 +26,14 @@ import {
 } from "@/components/ui/table"
 import { REPAIR_CHAINS, REPAIR_VENDORS } from "@/features/initiative-8/data/repair-chains"
 import type { AgingBucket, DeclarationStatus, RepairStatus } from "@/features/initiative-8/types/repair"
-import { AGING_BUCKETS, DECLARATION_STATUS_TONE, RECEIPT_STATUS_TONE } from "@/features/initiative-8/utils/status"
+import {
+  AGING_BUCKETS,
+  DECLARATION_STATUS_TONE,
+  RECEIPT_STATUS_TONE,
+  UNKNOWN,
+  orUnknown,
+  vendorLabel,
+} from "@/features/initiative-8/utils/status"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { PLANTS } from "@/lib/shared-data/plants"
 
@@ -54,7 +61,7 @@ export function RepairRegisterTable() {
   const filtered = useMemo(() => {
     return REPAIR_CHAINS.filter((c) => {
       if (plant !== ALL && c.plant.plantId !== plant) return false
-      if (vendor !== ALL && c.vendor !== vendor) return false
+      if (vendor !== ALL && vendorLabel(c) !== vendor) return false
       if (repairStatus !== ALL && c.repairStatus !== repairStatus) return false
       if (declarationStatus !== ALL && c.declarationStatus !== declarationStatus) return false
       if (aging !== ALL && c.agingBucket !== aging) return false
@@ -189,8 +196,14 @@ export function RepairRegisterTable() {
                     {c.material.description}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
-                  <TableCell className="text-right text-foreground">{c.stockOnHand}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{c.reorderPoint}</TableCell>
+                  <TableCell className="text-right text-foreground">
+                    {orUnknown(c.stockOnHand)}
+                  </TableCell>
+                  {/* Undefined for every Gamsberg material -- MARC covers plants
+                      1300 and 1200 only. A dash, never a 0. */}
+                  <TableCell className="text-right text-muted-foreground">
+                    {orUnknown(c.reorderPoint)}
+                  </TableCell>
                   <TableCell>
                     <SAPDocumentChip doc={c.repairPR} />
                   </TableCell>
@@ -202,10 +215,12 @@ export function RepairRegisterTable() {
                     )}
                   </TableCell>
                   <TableCell className="max-w-[160px] truncate text-muted-foreground">
-                    {c.vendor}
+                    {vendorLabel(c)}
                   </TableCell>
                   <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.expectedReturn}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {c.expectedReturn ?? UNKNOWN}
+                  </TableCell>
                   <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
                   <TableCell>
                     <StatusBadge tone={RECEIPT_STATUS_TONE[c.receiptStatus]}>

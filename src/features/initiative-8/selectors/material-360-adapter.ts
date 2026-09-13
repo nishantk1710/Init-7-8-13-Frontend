@@ -1,6 +1,7 @@
 import type { Material360Signal } from "@/lib/domain/contracts"
 import { getRepairChainByMaterialId } from "@/features/initiative-8/data/repair-chains"
 import { initiative8Manifest } from "@/features/initiative-8/manifest"
+import { UNKNOWN, isRepairOverdue, vendorLabel } from "@/features/initiative-8/utils/status"
 
 /**
  * Returns a repair-chain summary for the global Material 360 drawer.
@@ -13,7 +14,7 @@ export function getInitiative8Material360Signal(materialId: string): Material360
   if (!chain) return null
 
   const isClosed = chain.repairStatus === "Closed"
-  const isOverdue = !isClosed && chain.daysRemainingInRepair < 0
+  const isOverdue = isRepairOverdue(chain)
 
   const status: Material360Signal["status"] =
     chain.declarationStatus === "Flagged"
@@ -30,11 +31,15 @@ export function getInitiative8Material360Signal(materialId: string): Material360
     href: `/repairable-spares/repair-register/${chain.id}`,
     status,
     lines: [
-      { label: "Repair status", value: `${chain.repairStatus} — ${chain.vendor}` },
+      { label: "Repair status", value: `${chain.repairStatus} — ${vendorLabel(chain)}` },
       { label: "Qty under repair", value: String(chain.qtyUnderRepair) },
       {
+        // An undated line says so rather than showing a blank cell: it is the
+        // one the planner most needs to chase.
         label: isClosed ? "Received" : "Expected return",
-        value: isClosed ? (chain.receivedAt ?? "—") : chain.expectedReturn,
+        value: isClosed
+          ? (chain.receivedAt ?? UNKNOWN)
+          : (chain.expectedReturn ?? "No date agreed"),
       },
       { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised (Simulated)" },
     ],

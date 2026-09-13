@@ -6,6 +6,7 @@ import { RepairableStockByPlantChart } from "@/features/initiative-8/components/
 import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
 import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs-by-vendor-chart"
 import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
+import { isRepairOverdue } from "@/features/initiative-8/utils/status"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 
 export function RefurbishableSparesOverviewPage() {
@@ -16,9 +17,7 @@ export function RefurbishableSparesOverviewPage() {
   const pendingDeclarations = DECLARATIONS.filter(
     (d) => d.status === "Required" || d.status === "Pending"
   ).length
-  const overdue = REPAIR_CHAINS.filter(
-    (c) => c.repairStatus !== "Closed" && c.daysRemainingInRepair < 0
-  ).length
+  const overdue = REPAIR_CHAINS.filter(isRepairOverdue).length
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">

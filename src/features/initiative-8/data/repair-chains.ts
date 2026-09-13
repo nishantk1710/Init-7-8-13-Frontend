@@ -1,5 +1,6 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
+import { vendorLabel } from "@/features/initiative-8/utils/status"
 import generatedRepairChains from "@/features/initiative-8/data/generated/repair-chains.json"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
@@ -255,4 +256,7 @@ export function getRepairChainByMaterialId(materialId: string): RepairChain | un
   return REPAIR_CHAINS.find((rc) => rc.material.materialId === materialId)
 }
 
-export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map((rc) => rc.vendor))).sort()
+// Display labels, not raw vendor codes, so a line whose PO header is missing
+// -- and therefore has no vendor at all -- is still selectable in the filter as
+// "Unknown vendor" instead of vanishing from the dropdown and the results.
+export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map(vendorLabel))).sort()
