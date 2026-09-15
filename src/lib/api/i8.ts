@@ -1,15 +1,16 @@
 /**
- * Typed client for the Initiative 8 backend — `GET /api/i8/*`.
+ * Typed client for the Initiative 8 backend — `/api/i8/*`.
  *
- * Read-only. Every endpoint here is a GET, because W5.1 and W5.2 are read
- * models: there is no write path to SAP or to the backend's database anywhere
- * in Initiative 8 yet. The first one will be W5.3's attestation.
+ * **Almost read-only, and the exception is worth knowing.** Every endpoint here
+ * is a GET except one: `createAttestation` POSTs to `/api/i8/attestations`,
+ * which is the single write path in the whole of Initiative 8 (W5.3). It writes
+ * to a table the backend owns, it is append-only, and **nothing in Initiative 8
+ * writes to SAP** — the platform reads SAP and records its own findings beside
+ * it. That last part is the guarantee that matters and it has not changed.
  *
- * Nothing in the UI calls this yet. The pages still render the scenario
- * fixtures in `features/initiative-8/data/`, and swapping them over is W5.4's
- * work. This exists so that when the swap happens the wire shape is already
- * described in one place and typed — rather than each page inventing its own
- * `fetch` and its own idea of what comes back.
+ * Consumed under `NEXT_PUBLIC_DATASET=live` by the register, the repair detail
+ * page and the declaration queue (W5.4). Every other page, selector and
+ * cross-initiative adapter still reads the scenario fixtures in every mode.
  *
  * ## Three things to know before wiring a page to this
  *
@@ -255,6 +256,152 @@ export type ApiSnapshot = {
   rules: Record<string, string | number>
 }
 
+// --- W5.3: attestations, declarations and exceptions ----------------------
+
+/** One row of `GET /api/i8/declarations`. Mirrors `DeclarationItem`. */
+export type ApiDeclarationItem = {
+  id: string
+  /** Null where the repair line carries no requisition number. */
+  pr: ApiSAPDocumentReference | null
+  material: ApiMaterialReference
+  plant: ApiPlantReference | null
+  /**
+   * EKPO's requisitioner, and a CODE rather than a name — no person directory
+   * was delivered. Populated on all 1,225 repair lines, 27 distinct values.
+   */
+  requester: string | null
+  /**
+   * **Null on every row, and that is the honest answer.**
+   *
+   * The SAP table that would decide Manual vs MRP-generated covers 521 of the
+   * 1,201 repair requisitions, and every one of those 521 reads "created from
+   * an order" — which is neither. Both labels are false for every row we can
+   * see and unknown for the rest, so neither is sent.
+   */
+  source: "Manual" | "MRP-generated" | null
+  hasActiveRepair: boolean
+  relatedRepairId: string
+  /**
+   * "Pending" is never sent: it means "submitted, awaiting sign-off" and no
+   * such state exists — there is no approval workflow in SAP or in the backend.
+   */
+  status: "Required" | "Pending" | "Completed" | "Flagged"
+  declaredBy: string | null
+  declaredAt: string | null
+  condition: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
+  nextAction: string
+  createdAt: string | null
+}
+
+export type ApiDeclarationMeta = {
+  total: number
+  byStatus: Record<string, number>
+  /** Required + Flagged — the rows wanting somebody's attention. */
+  outstanding: number
+  /** The matching rule that produced these statuses. */
+  attestationWindowDays: number
+}
+
+/** One row of `GET /api/i8/exceptions`. No frontend type existed before this. */
+export type ApiExceptionItem = {
+  id: string
+  type: string
+  severity: "info" | "warning" | "critical"
+  material: ApiMaterialReference
+  plant: ApiPlantReference | null
+  repairLine: ApiSAPDocumentReference
+  title: string
+  /** Says what is missing AND what was searched for. */
+  detail: string
+  /** The repair line's own date, not when the check ran. */
+  raisedAt: string | null
+  isOpenRepair: boolean
+}
+
+export type ApiExceptionMeta = {
+  total: number
+  byType: Record<string, number>
+  bySeverity: Record<string, number>
+  linesChecked: number
+  linesCovered: number
+  attestationWindowDays: number
+  /**
+   * Which exception types the backend actually raises. MISSING_SESSION_ID and
+   * UNJUSTIFIED_ACQUISITION are declared but never raised, so an empty count is
+   * distinguishable from an unimplemented check.
+   */
+  typesRaised: string[]
+}
+
+/** One recorded attestation. */
+export type ApiAttestation = {
+  id: string
+  material: ApiMaterialReference
+  plant: ApiPlantReference
+  quantity: string
+  conditionDescription: string
+  faultCategory: string
+  recommendation: string
+  /** The same judgement in DeclarationCondition wording, so the UI needs no
+   *  second mapping. */
+  condition: string
+  serialNumber: string | null
+  evidenceReference: string | null
+  attestor: string
+  attestedAt: string
+  /** Always null. FR-8 session linkage is not in Initiative 8's scope. */
+  sessionId: string | null
+  supersedes: string | null
+  /** Set when a later amendment replaced this one. The original is never
+   *  edited or removed — this is how a reader knows it is not current. */
+  supersededBy: string | null
+
+  /**
+   * Register line ids this attestation covers. **Present on POST only**, null
+   * when reading history.
+   *
+   * Read `coverageNote` with it. An empty array is a real and expected answer:
+   * the attestation's timestamp is server-set and the extract is a frozen
+   * July-2026 snapshot, so a new assessment is months outside the matching
+   * window of every line in the register and covers none of them.
+   */
+  coversRepairLines: string[] | null
+  /** Why `coversRepairLines` is what it is, in words meant to be SHOWN to the
+   *  person who submitted the form — not logged. Present on POST only. */
+  coverageNote: string | null
+}
+
+export type ApiAttestationResponse = {
+  items: ApiAttestation[]
+  total: number
+  /** The configured controlled list, served with the data so a form never
+   *  hard-codes VZI's vocabulary. */
+  faultCategories: string[]
+}
+
+/** The condition-to-repair form, as submitted.
+ *
+ * Note what is absent: `attestor` and `attestedAt`. Both are set by the server
+ * — an audit record whose author and timestamp are the author's to choose is
+ * not an audit record. Sending an `attestor` is ignored.
+ */
+export type AttestationRequest = {
+  materialId: string
+  plant: string
+  quantity: number
+  conditionDescription: string
+  /** Must be one of `faultCategories` from `GET /api/i8/attestations`. */
+  faultCategory: string
+  recommendation: "REPAIRABLE" | "BEYOND_ECONOMICAL_REPAIR" | "SCRAP"
+  serialNumber?: string
+  /** A reference string only — file upload is descoped and SharePoint is not
+   *  provisioned, so the platform does not pretend to hold the artefact. */
+  evidenceReference?: string
+  /** The attestation this one amends. Attestations are never edited: an
+   *  amendment is a new record pointing at the one it replaces. */
+  supersedes?: string
+}
+
 // --- Query parameters -----------------------------------------------------
 
 export type UniverseQuery = {
@@ -342,6 +489,78 @@ export function getVendorTurnaround(): Promise<ApiVendorResponse> {
  */
 export function getSnapshot(): Promise<ApiSnapshot> {
   return apiFetch("/i8/snapshot")
+}
+
+export type DeclarationQuery = {
+  plant?: string
+  status?: string
+  /** Only rows wanting attention — Required and Flagged. */
+  outstandingOnly?: boolean
+  page?: number
+  pageSize?: number
+}
+
+/** `GET /api/i8/declarations` — the condition-to-repair declaration queue. */
+export function getDeclarations(
+  query: DeclarationQuery = {},
+): Promise<ApiPage<ApiDeclarationItem, ApiDeclarationMeta>> {
+  return apiFetch(`/i8/declarations${queryString(query)}`)
+}
+
+export type ExceptionQuery = {
+  type?: string
+  plant?: string
+  /** Only exceptions on repairs still out at a vendor — the actionable ones. */
+  openOnly?: boolean
+  page?: number
+  pageSize?: number
+}
+
+/**
+ * `GET /api/i8/exceptions` — repair lines that went out with no recorded
+ * condition assessment.
+ *
+ * Expect this to be large. Every historical repair line raises it, because the
+ * control did not exist before this platform — that number is the business case
+ * for W5.3, not a bug in it.
+ */
+export function getExceptions(
+  query: ExceptionQuery = {},
+): Promise<ApiPage<ApiExceptionItem, ApiExceptionMeta>> {
+  return apiFetch(`/i8/exceptions${queryString(query)}`)
+}
+
+/** `GET /api/i8/attestations` — recorded attestations, newest first. */
+export function getAttestations(
+  query: { materialId?: string; plant?: string; currentOnly?: boolean } = {},
+): Promise<ApiAttestationResponse> {
+  return apiFetch(`/i8/attestations${queryString(query)}`)
+}
+
+/**
+ * `POST /api/i8/attestations` — **the only write in Initiative 8.**
+ *
+ * Writes one row to a table the backend owns. It does not write to SAP and
+ * cannot, which is why this control can be recorded and reported but never
+ * enforced.
+ *
+ * Attestations are never updated. To correct one, POST again with `supersedes`
+ * set to the original's id: that creates a new row, leaves the original
+ * readable, and the pair is the audit trail.
+ *
+ * **Read `coverageNote` on the result and show it.** A successful POST often
+ * covers no repair line at all — see the field docs — and a UI that stays
+ * silent about that looks broken.
+ *
+ * Throws `ApiError` with status 422 when a business rule is broken (an unknown
+ * fault category, a `supersedes` pointing nowhere); `detail` says what is
+ * allowed.
+ */
+export function createAttestation(body: AttestationRequest): Promise<ApiAttestation> {
+  return apiFetch("/i8/attestations", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
 }
 
 // --- Helpers --------------------------------------------------------------

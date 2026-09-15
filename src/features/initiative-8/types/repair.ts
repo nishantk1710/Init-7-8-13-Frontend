@@ -166,6 +166,21 @@ export interface DeclarationItem {
   id: string
   pr: SAPDocumentReference
   material: MaterialReference
+
+  /**
+   * Optional, and only populated by the live API.
+   *
+   * The condition-to-repair attestation is recorded per material-PLANT, not per
+   * material — the same part can be assessed at Black Mountain and at Gamsberg
+   * and the two are different records. So the form needs the plant, and the
+   * queue row is where it comes from.
+   *
+   * The scenario fixtures omit it: their declarations were written before the
+   * write path existed, and inventing a plant for them would put a site on an
+   * audit record that never named one.
+   */
+  plant?: PlantReference
+
   requester: string
   source: DeclarationSource
   hasActiveRepair: boolean

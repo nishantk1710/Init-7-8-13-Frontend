@@ -1,15 +1,90 @@
+import { connection } from "next/server"
+
 import { PageHeader } from "@/components/shared/page-header"
 import { DeclarationQueueTable } from "@/features/initiative-8/components/declaration-queue-table"
+import { loadLiveDeclarations } from "@/features/initiative-8/data/live-declarations"
+import type { DeclarationItem } from "@/features/initiative-8/types/repair"
+import { getAttestations } from "@/lib/api/i8"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
-export function DeclarationQueuePage() {
+/**
+ * The Declaration Queue (W5.3's read side, wired in W5.4).
+ *
+ * Same shape as the register: an async server component fetches, and the
+ * "use client" table filters and submits. Unset `NEXT_PUBLIC_DATASET` and the
+ * table falls back to the scenario fixtures, so the default path is untouched.
+ *
+ * **Expect this screen to be almost entirely "Required" under `live`, and do
+ * not treat that as a bug.** All 1,225 repair lines read Required until
+ * somebody records an attestation, because until this platform there was
+ * nowhere to record one. That is the business case for W5.3.
+ */
+export async function DeclarationQueuePage() {
+  if (!USING_LIVE_DATA) {
+    return (
+      <Shell description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard." />
+    )
+  }
+
+  // Not statically prerendered: this page both reads and writes the attestation
+  // table, so a build-time snapshot would show a queue that can never change.
+  await connection()
+
+  try {
+    // The fault-category list comes from the API rather than the UI, because it
+    // is VZI's vocabulary, it will change, and the backend validates against
+    // the same list it serves. Fetched alongside the queue so the form has it
+    // before anybody opens the dialog.
+    const [live, attestations] = await Promise.all([
+      loadLiveDeclarations(),
+      getAttestations(),
+    ])
+
+    const outstanding = live.meta.outstanding.toLocaleString()
+    const total = live.meta.total.toLocaleString()
+
+    return (
+      <Shell
+        description={
+          `${outstanding} of ${total} repair lines have no condition assessment on ` +
+          `record. Matched on material, plant and a ±${live.meta.attestationWindowDays}-day window.`
+        }
+        items={live.items}
+        faultCategories={attestations.faultCategories}
+      />
+    )
+  } catch (error) {
+    return (
+      <Shell
+        description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard."
+        items={[]}
+        loadError={error instanceof Error ? error.message : String(error)}
+      />
+    )
+  }
+}
+
+function Shell({
+  description,
+  items,
+  faultCategories,
+  loadError,
+}: {
+  description: string
+  /** Omitted in the default path, so the table falls back to fixtures. */
+  items?: DeclarationItem[]
+  faultCategories?: string[]
+  loadError?: string | null
+}) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        <PageHeader
-          title="Declaration Queue"
-          description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard."
+        <PageHeader title="Declaration Queue" description={description} />
+        <DeclarationQueueTable
+          items={items}
+          faultCategories={faultCategories}
+          loadError={loadError}
         />
-        <DeclarationQueueTable />
       </div>
     </div>
   )

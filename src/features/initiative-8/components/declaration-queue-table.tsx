@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -34,6 +35,8 @@ import {
 import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import type { DeclarationCondition, DeclarationItem, DeclarationStatus } from "@/features/initiative-8/types/repair"
 import { DECLARATION_STATUS_TONE } from "@/features/initiative-8/utils/status"
+import { createAttestation } from "@/lib/api/i8"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
@@ -41,12 +44,55 @@ const STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flag
 const CONDITIONS: DeclarationCondition[] = ["Repairable", "Beyond Economical Repair", "Scrap"]
 const TODAY = "3 Sep 2026"
 
-export function DeclarationQueueTable() {
+/** The UI's condition wording -> the API's recommendation enum. */
+const RECOMMENDATION: Record<
+  DeclarationCondition,
+  "REPAIRABLE" | "BEYOND_ECONOMICAL_REPAIR" | "SCRAP"
+> = {
+  Repairable: "REPAIRABLE",
+  "Beyond Economical Repair": "BEYOND_ECONOMICAL_REPAIR",
+  Scrap: "SCRAP",
+}
+
+export type DeclarationQueueTableProps = {
+  /** Rows to render. Defaults to the scenario fixtures, so every mode except
+   *  `live` behaves exactly as before. */
+  items?: DeclarationItem[]
+  /**
+   * The configured fault-category list, served by the API alongside the data.
+   * Never hard-coded here: it is VZI's vocabulary and it will change, and the
+   * backend validates against the same list it serves.
+   */
+  faultCategories?: string[]
+  /** Set when the rows could not be loaded. Rendered as a visible failure,
+   *  never as an empty queue -- "nothing to declare" is the most misleading
+   *  possible way to report a failed request on this screen. */
+  loadError?: string | null
+}
+
+export function DeclarationQueueTable({
+  items = DECLARATIONS,
+  faultCategories = [],
+  loadError = null,
+}: DeclarationQueueTableProps = {}) {
+  const router = useRouter()
   const { openMaterial360 } = useMaterial360()
-  const [rows, setRows] = useState<DeclarationItem[]>(DECLARATIONS)
+  const [rows, setRows] = useState<DeclarationItem[]>(items)
   const [status, setStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [condition, setCondition] = useState<DeclarationCondition>("Repairable")
+  // The two fields the real attestation form needs beyond the condition.
+  // Collected only under `live`, because only there do they go anywhere.
+  const [description, setDescription] = useState("")
+  const [faultCategory, setFaultCategory] = useState(faultCategories[0] ?? "")
+  const [submitting, setSubmitting] = useState(false)
+
+  // router.refresh() re-runs the server component and hands down new rows, so
+  // the local copy has to follow them. Without this the queue would keep
+  // showing the pre-submit snapshot and the refresh would look like a no-op.
+  useEffect(() => {
+    setRows(items)
+  }, [items])
 
   const filtered = useMemo(
     () => rows.filter((r) => status === ALL || r.status === status),
@@ -57,10 +103,18 @@ export function DeclarationQueueTable() {
 
   function openDialog(id: string) {
     setCondition("Repairable")
+    setDescription("")
+    setFaultCategory(faultCategories[0] ?? "")
     setDialogFor(id)
   }
 
-  function confirmDeclaration() {
+  /**
+   * The fixture path: mutate local state and say it is simulated.
+   *
+   * Unchanged. It is the honest description of what happens in every mode
+   * except `live` -- nothing is written anywhere.
+   */
+  function declareLocally() {
     if (!activeRow) return
     setRows((prev) =>
       prev.map((r) =>
@@ -83,6 +137,95 @@ export function DeclarationQueueTable() {
     )
     toast.success(`Declared ${activeRow.material.materialId} as "${condition}" — Simulated, not yet written to SAP.`)
     setDialogFor(null)
+  }
+
+  /**
+   * The live path: actually POST the attestation. The only write in I08.
+   *
+   * Three things this deliberately does NOT do.
+   *
+   * **It does not optimistically mark the row Completed.** The status is
+   * computed by the backend from a material + plant + date-window match, and a
+   * successful POST very often does NOT move it: the attestation is stamped
+   * with the server clock, and every line in this July-2026 extract was raised
+   * months earlier, outside the window. Showing "Completed" anyway would be the
+   * UI asserting something the API has just told us is false.
+   *
+   * **It does not hide that.** `coverageNote` on the response explains, in
+   * words written to be shown to a person, what the write achieved and why the
+   * queue may not have moved. It goes in the toast rather than being swallowed,
+   * because a silent no-op is exactly what makes the next person widen the
+   * matching window until the screen stops looking broken.
+   *
+   * **It does not say "Simulated, not yet written to SAP".** Under `live` the
+   * first half is false -- the attestation IS written, to a table the platform
+   * owns. The second half is still true and still worth saying, so the message
+   * says precisely that instead.
+   */
+  async function declareLive() {
+    if (!activeRow) return
+
+    const plant = activeRow.plant?.plantId
+    if (!plant) {
+      // An attestation is per material-plant. Recording one against a guessed
+      // plant would put a site on an audit record that never named one.
+      toast.error("Cannot declare this row", {
+        description:
+          "The queue row carries no plant, and an attestation is recorded per material and plant.",
+      })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const created = await createAttestation({
+        materialId: activeRow.material.materialId,
+        plant,
+        quantity: 1,
+        conditionDescription: description.trim(),
+        faultCategory,
+        recommendation: RECOMMENDATION[condition],
+      })
+
+      // The API's own words about what the write covered.
+      toast.success(`Attestation ${created.id} recorded`, {
+        description: created.coverageNote ?? undefined,
+        duration: 12000,
+      })
+      setDialogFor(null)
+      // Re-read from the server so the queue shows the truth rather than a
+      // guess. The status is the backend's to compute, not ours to assume.
+      router.refresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      toast.error("The attestation was not recorded", { description: message })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function confirmDeclaration() {
+    if (USING_LIVE_DATA) {
+      void declareLive()
+      return
+    }
+    declareLocally()
+  }
+
+  if (loadError) {
+    return (
+      <div
+        role="alert"
+        className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center text-sm"
+      >
+        <p className="font-medium text-foreground">The declaration queue could not be loaded.</p>
+        <p className="mt-1 text-muted-foreground">{loadError}</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          This is not an empty queue — it is a failed request. Check that the
+          backend is running and that NEXT_PUBLIC_API_BASE_URL points at it.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -136,10 +279,18 @@ export function DeclarationQueueTable() {
                     <MaterialIdentity material={r.material} onOpen={openMaterial360} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{r.requester}</TableCell>
+                  {/* Null on every live row: the SAP table that would decide
+                      Manual vs MRP-generated covers 521 of 1,201 repair
+                      requisitions and every one reads "created from an order",
+                      which is neither. Shown as unknown rather than guessed. */}
                   <TableCell>
-                    <StatusBadge tone={r.source === "MRP-generated" ? "warning" : "default"}>
-                      {r.source}
-                    </StatusBadge>
+                    {r.source === "Manual" || r.source === "MRP-generated" ? (
+                      <StatusBadge tone={r.source === "MRP-generated" ? "warning" : "default"}>
+                        {r.source}
+                      </StatusBadge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{r.source}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {r.hasActiveRepair ? "Yes" : "No"}
@@ -193,11 +344,65 @@ export function DeclarationQueueTable() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Only under `live`. These two fields are required by the real
+              attestation, and asking for them in a mode where nothing is
+              written would be collecting information to throw away. */}
+          {USING_LIVE_DATA ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground" htmlFor="fault-category">
+                  Fault category
+                </label>
+                <Select value={faultCategory} onValueChange={(v) => setFaultCategory(v ?? "")}>
+                  <SelectTrigger id="fault-category" className="h-9 w-full">
+                    <SelectValue placeholder="Select a fault category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {faultCategories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.replace(/_/g, " ").toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground" htmlFor="condition-description">
+                  Condition description
+                </label>
+                <textarea
+                  id="condition-description"
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="What is wrong with it, and what did you measure?"
+                  className="w-full rounded-md border border-border bg-background p-2 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Required. This is the part a human reads — it is recorded as an
+                  audit record and cannot be edited afterwards, only superseded.
+                </p>
+              </div>
+            </>
+          ) : null}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogFor(null)}>
+            <Button variant="outline" onClick={() => setDialogFor(null)} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={confirmDeclaration}>Confirm declaration</Button>
+            <Button
+              onClick={confirmDeclaration}
+              // Under `live` the backend rejects a blank description or an
+              // unknown fault category with a 422. Disabling here means the
+              // user is told before the round trip rather than after it.
+              disabled={
+                submitting ||
+                (USING_LIVE_DATA && (description.trim() === "" || faultCategory === ""))
+              }
+            >
+              {submitting ? "Recording…" : "Confirm declaration"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
