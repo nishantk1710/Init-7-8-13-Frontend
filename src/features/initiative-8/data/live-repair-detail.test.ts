@@ -98,8 +98,8 @@ describe("loadLiveRepairDetail", () => {
         json: async () => detail,
       })),
     )
-    const module = await import("@/features/initiative-8/data/live-repair-detail")
-    const result = await module.loadLiveRepairDetail(id)
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    const result = await mod.loadLiveRepairDetail(id)
     // Every caller of this helper expects a hit; the 404 contract has its own
     // test below.
     if (result === null) throw new Error(`unexpected 404 for ${id}`)
@@ -118,8 +118,8 @@ describe("loadLiveRepairDetail", () => {
         return { ok: true, status: 200, json: async () => mockDetail() }
       }),
     )
-    const module = await import("@/features/initiative-8/data/live-repair-detail")
-    await module.loadLiveRepairDetail("4500-001052-1310")
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await mod.loadLiveRepairDetail("4500-001052-1310")
 
     expect(seen[0]).toContain("/i8/register/4500-001052/1310")
   })
@@ -136,8 +136,8 @@ describe("loadLiveRepairDetail", () => {
       "fetch",
       vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
     )
-    const module = await import("@/features/initiative-8/data/live-repair-detail")
-    await expect(module.loadLiveRepairDetail("4500001052-1310")).resolves.toBeNull()
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await expect(mod.loadLiveRepairDetail("4500001052-1310")).resolves.toBeNull()
   })
 
   it("still throws when the backend is unreachable", async () => {
@@ -148,15 +148,15 @@ describe("loadLiveRepairDetail", () => {
         throw new TypeError("fetch failed")
       }),
     )
-    const module = await import("@/features/initiative-8/data/live-repair-detail")
-    await expect(module.loadLiveRepairDetail("4500001052-1310")).rejects.toThrow(
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await expect(mod.loadLiveRepairDetail("4500001052-1310")).rejects.toThrow(
       "fetch failed",
     )
   })
 
   it("rejects an id that is not a repair line", async () => {
-    const module = await import("@/features/initiative-8/data/live-repair-detail")
-    await expect(module.loadLiveRepairDetail("nonsense")).rejects.toThrow(
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await expect(mod.loadLiveRepairDetail("nonsense")).rejects.toThrow(
       "is not a repair line id",
     )
   })

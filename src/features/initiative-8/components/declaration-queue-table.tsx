@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -77,7 +77,8 @@ export function DeclarationQueueTable({
 }: DeclarationQueueTableProps = {}) {
   const router = useRouter()
   const { openMaterial360 } = useMaterial360()
-  const [rows, setRows] = useState<DeclarationItem[]>(items)
+  // Local copy for the FIXTURE path only, where "declaring" is a local edit.
+  const [fixtureRows, setFixtureRows] = useState<DeclarationItem[]>(items)
   const [status, setStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [condition, setCondition] = useState<DeclarationCondition>("Repairable")
@@ -87,12 +88,13 @@ export function DeclarationQueueTable({
   const [faultCategory, setFaultCategory] = useState(faultCategories[0] ?? "")
   const [submitting, setSubmitting] = useState(false)
 
-  // router.refresh() re-runs the server component and hands down new rows, so
-  // the local copy has to follow them. Without this the queue would keep
-  // showing the pre-submit snapshot and the refresh would look like a no-op.
-  useEffect(() => {
-    setRows(items)
-  }, [items])
+  // Under `live` the rows ARE the server's answer: the declaration status is
+  // computed from the attestation table, and after a write router.refresh()
+  // re-runs the server component and hands down fresh props. Rendering those
+  // directly is both simpler and more honest than mirroring them into state --
+  // a local copy could only ever drift from, or briefly contradict, the
+  // backend's own answer.
+  const rows = USING_LIVE_DATA ? items : fixtureRows
 
   const filtered = useMemo(
     () => rows.filter((r) => status === ALL || r.status === status),
@@ -116,7 +118,7 @@ export function DeclarationQueueTable({
    */
   function declareLocally() {
     if (!activeRow) return
-    setRows((prev) =>
+    setFixtureRows((prev) =>
       prev.map((r) =>
         r.id === activeRow.id
           ? {

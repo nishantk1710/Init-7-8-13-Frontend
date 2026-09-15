@@ -47,31 +47,42 @@ export async function RepairRegisterPage() {
   // EVERY mode, including the default one, which must stay exactly as it is.
   await connection()
 
+  // The try/catch wraps ONLY the fetch. Building JSX inside it would put the
+  // render under the same handler as the request, so an error thrown while
+  // rendering would be silently reported as a failed load -- which is the
+  // opposite of this page's whole point about distinguishing the two.
+  let live: Awaited<ReturnType<typeof loadLiveRegister>> | null = null
+  let loadError: string | null = null
   try {
-    const live = await loadLiveRegister()
-    return (
-      <Shell
-        description={
-          `${live.meta.totalLines.toLocaleString()} repair lines from the ` +
-          `July extract — ${live.meta.openLines.toLocaleString()} still open, ` +
-          `as at ${live.referenceDate}.`
-        }
-        chains={live.chains}
-        plantOptions={live.plantOptions}
-        vendorOptions={live.vendorOptions}
-      />
-    )
+    live = await loadLiveRegister()
   } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error)
+  }
+
+  if (live === null) {
     // Shown as a failure, never as an empty table. "No repairs" and "cannot
     // reach the server" are different statements and must not look alike.
     return (
       <Shell
         description="Every repairable material currently in, or eligible for, a repair chain."
         chains={[]}
-        loadError={error instanceof Error ? error.message : String(error)}
+        loadError={loadError}
       />
     )
   }
+
+  return (
+    <Shell
+      description={
+        `${live.meta.totalLines.toLocaleString()} repair lines from the ` +
+        `July extract — ${live.meta.openLines.toLocaleString()} still open, ` +
+        `as at ${live.referenceDate}.`
+      }
+      chains={live.chains}
+      plantOptions={live.plantOptions}
+      vendorOptions={live.vendorOptions}
+    />
+  )
 }
 
 function Shell({

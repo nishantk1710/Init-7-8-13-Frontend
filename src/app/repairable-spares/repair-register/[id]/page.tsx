@@ -39,24 +39,27 @@ export default async function Page({
   // lifecycle timeline could never change afterwards.
   await connection()
 
+  // The try/catch wraps ONLY the fetch, never the render.
+  let detail: Awaited<ReturnType<typeof loadLiveRepairDetail>> = null
+  let loadError: string | null = null
   try {
-    const detail = await loadLiveRepairDetail(id)
-
-    // null means the backend answered and said there is no such repair line.
-    // Rendering with no chain gives the "repair not found" empty state, which
-    // is the right answer -- not an error.
-    if (detail === null) {
-      return <RepairDetailPage repairId={id} />
-    }
-    return <RepairDetailPage repairId={id} chain={detail.chain} timeline={detail.timeline} />
+    detail = await loadLiveRepairDetail(id)
   } catch (error) {
-    // Everything else is a failed request -- the backend down, a timeout, a
-    // 500 -- and must say so rather than masquerading as "not found".
-    return (
-      <RepairDetailPage
-        repairId={id}
-        loadError={error instanceof Error ? error.message : String(error)}
-      />
-    )
+    // A failed request -- the backend down, a timeout, a 500 -- and it must say
+    // so rather than masquerading as "not found".
+    loadError = error instanceof Error ? error.message : String(error)
   }
+
+  if (loadError !== null) {
+    return <RepairDetailPage repairId={id} loadError={loadError} />
+  }
+
+  // null means the backend answered and said there is no such repair line.
+  // Rendering with no chain gives the "repair not found" empty state, which is
+  // the right answer -- not an error.
+  if (detail === null) {
+    return <RepairDetailPage repairId={id} />
+  }
+
+  return <RepairDetailPage repairId={id} chain={detail.chain} timeline={detail.timeline} />
 }

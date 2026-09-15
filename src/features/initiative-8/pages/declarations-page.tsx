@@ -30,38 +30,49 @@ export async function DeclarationQueuePage() {
   // table, so a build-time snapshot would show a queue that can never change.
   await connection()
 
+  // The try/catch wraps ONLY the fetch -- see the note on the register page.
+  //
+  // The fault-category list comes from the API rather than the UI, because it
+  // is VZI's vocabulary, it will change, and the backend validates against the
+  // same list it serves. Fetched alongside the queue so the form has it before
+  // anybody opens the dialog.
+  let live: Awaited<ReturnType<typeof loadLiveDeclarations>> | null = null
+  let faultCategories: string[] = []
+  let loadError: string | null = null
   try {
-    // The fault-category list comes from the API rather than the UI, because it
-    // is VZI's vocabulary, it will change, and the backend validates against
-    // the same list it serves. Fetched alongside the queue so the form has it
-    // before anybody opens the dialog.
-    const [live, attestations] = await Promise.all([
+    const [queue, attestations] = await Promise.all([
       loadLiveDeclarations(),
       getAttestations(),
     ])
-
-    const outstanding = live.meta.outstanding.toLocaleString()
-    const total = live.meta.total.toLocaleString()
-
-    return (
-      <Shell
-        description={
-          `${outstanding} of ${total} repair lines have no condition assessment on ` +
-          `record. Matched on material, plant and a ±${live.meta.attestationWindowDays}-day window.`
-        }
-        items={live.items}
-        faultCategories={attestations.faultCategories}
-      />
-    )
+    live = queue
+    faultCategories = attestations.faultCategories
   } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error)
+  }
+
+  if (live === null) {
     return (
       <Shell
         description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard."
         items={[]}
-        loadError={error instanceof Error ? error.message : String(error)}
+        loadError={loadError}
       />
     )
   }
+
+  const outstanding = live.meta.outstanding.toLocaleString()
+  const total = live.meta.total.toLocaleString()
+
+  return (
+    <Shell
+      description={
+        `${outstanding} of ${total} repair lines have no condition assessment on ` +
+        `record. Matched on material, plant and a ±${live.meta.attestationWindowDays}-day window.`
+      }
+      items={live.items}
+      faultCategories={faultCategories}
+    />
+  )
 }
 
 function Shell({
