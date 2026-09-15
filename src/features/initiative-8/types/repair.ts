@@ -144,7 +144,20 @@ export interface RepairChain {
   newUnitCost?: number
 
   repairCost: number
-  newUnitLeadTimeDays: number
+
+  /**
+   * Lead time to buy a NEW one — the number that makes waiting for a repair
+   * worth it.
+   *
+   * Optional, and undefined on **357 of the 1,225 repair lines**: it comes from
+   * the MARC planning extract, which covers plants 1300 and 1200 only, so every
+   * Gamsberg line has none. Exactly the same gap as `reorderPoint`, measured on
+   * exactly the same rows.
+   *
+   * Rendering it as 0 would read as "a new one arrives immediately", which is
+   * the most persuasive possible argument against repairing anything.
+   */
+  newUnitLeadTimeDays?: number
   notes?: string
 }
 

@@ -236,7 +236,14 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
                 <dt className="text-muted-foreground">Repair cost</dt>
                 <dd className="text-right text-foreground">{formatZAR(chain.repairCost)}</dd>
                 <dt className="text-muted-foreground">New-unit lead time</dt>
-                <dd className="text-right text-foreground">{chain.newUnitLeadTimeDays} days</dd>
+                {/* Undefined on every Gamsberg line -- MARC covers plants 1300
+                    and 1200 only. "— days" would read as a lead time of nothing,
+                    which is the strongest possible case against repairing. */}
+                <dd className="text-right text-foreground">
+                  {chain.newUnitLeadTimeDays === undefined
+                    ? UNKNOWN
+                    : `${chain.newUnitLeadTimeDays} days`}
+                </dd>
                 <dt className="text-muted-foreground">Repair return time</dt>
                 <dd className="text-right text-foreground">{formatDaysRemaining(chain)}</dd>
               </dl>

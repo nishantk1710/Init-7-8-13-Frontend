@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import { formatZAR } from "@/lib/utils"
-import { formatDaysRemaining, vendorLabel } from "@/features/initiative-8/utils/status"
+import { UNKNOWN, formatDaysRemaining, vendorLabel } from "@/features/initiative-8/utils/status"
 
 const DEFAULT_MATERIAL_ID = "800-14201" // Scenario C
 
@@ -152,7 +152,10 @@ export function DuplicateGuardFlow() {
             </dd>
             <dt className="text-muted-foreground">New-unit lead time vs repair return</dt>
             <dd className="col-span-1 sm:col-span-3">
-              {chain.newUnitLeadTimeDays} days vs {formatDaysRemaining(chain)}
+              {chain.newUnitLeadTimeDays === undefined
+                ? UNKNOWN
+                : `${chain.newUnitLeadTimeDays} days`}{" "}
+              vs {formatDaysRemaining(chain)}
             </dd>
           </dl>
 

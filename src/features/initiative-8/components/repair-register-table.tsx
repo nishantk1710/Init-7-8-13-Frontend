@@ -25,7 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { REPAIR_CHAINS, REPAIR_VENDORS } from "@/features/initiative-8/data/repair-chains"
-import type { AgingBucket, DeclarationStatus, RepairStatus } from "@/features/initiative-8/types/repair"
+import type {
+  AgingBucket,
+  DeclarationStatus,
+  RepairChain,
+  RepairStatus,
+} from "@/features/initiative-8/types/repair"
 import {
   AGING_BUCKETS,
   DECLARATION_STATUS_TONE,
@@ -50,7 +55,34 @@ const REPAIR_STATUSES: RepairStatus[] = [
 
 const DECLARATION_STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
 
-export function RepairRegisterTable() {
+/** A plant the filter can offer. Structurally `PlantReference`, but the live
+ *  plants come from the data rather than from `lib/shared-data/plants`, whose
+ *  ids (PLANT-GBG) do not exist in the backend (1300). */
+type PlantOption = { plantId: string; name: string }
+
+export type RepairRegisterTableProps = {
+  /** The rows to render. Defaults to the scenario fixtures, so every existing
+   *  caller — and every mode except `live` — behaves exactly as before. */
+  chains?: RepairChain[]
+  plantOptions?: PlantOption[]
+  vendorOptions?: string[]
+  /**
+   * Set when the rows could not be loaded.
+   *
+   * Rendered as a visible failure, never as an empty table. "No repairs match
+   * these filters" and "the server could not be reached" are different
+   * statements, and showing the second as the first is how a broken demo looks
+   * like a clean answer.
+   */
+  loadError?: string | null
+}
+
+export function RepairRegisterTable({
+  chains = REPAIR_CHAINS,
+  plantOptions = PLANTS,
+  vendorOptions = REPAIR_VENDORS,
+  loadError = null,
+}: RepairRegisterTableProps = {}) {
   const { openMaterial360 } = useMaterial360()
   const [plant, setPlant] = useState<string>(ALL)
   const [vendor, setVendor] = useState<string>(ALL)
@@ -58,8 +90,11 @@ export function RepairRegisterTable() {
   const [declarationStatus, setDeclarationStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
   const [aging, setAging] = useState<AgingBucket | typeof ALL>(ALL)
 
+  // Unchanged apart from reading the prop: the same client-side filter over the
+  // full array the table has always done. 1,225 rows is comfortably small
+  // enough for that, so the backend's server-side filter parameters can wait.
   const filtered = useMemo(() => {
-    return REPAIR_CHAINS.filter((c) => {
+    return chains.filter((c) => {
       if (plant !== ALL && c.plant.plantId !== plant) return false
       if (vendor !== ALL && vendorLabel(c) !== vendor) return false
       if (repairStatus !== ALL && c.repairStatus !== repairStatus) return false
@@ -67,7 +102,23 @@ export function RepairRegisterTable() {
       if (aging !== ALL && c.agingBucket !== aging) return false
       return true
     })
-  }, [plant, vendor, repairStatus, declarationStatus, aging])
+  }, [chains, plant, vendor, repairStatus, declarationStatus, aging])
+
+  if (loadError) {
+    return (
+      <div
+        role="alert"
+        className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center text-sm"
+      >
+        <p className="font-medium text-foreground">The repair register could not be loaded.</p>
+        <p className="mt-1 text-muted-foreground">{loadError}</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          This is not an empty register — it is a failed request. Check that the
+          backend is running and that NEXT_PUBLIC_API_BASE_URL points at it.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,13 +127,15 @@ export function RepairRegisterTable() {
           <SelectTrigger className="h-9 w-full sm:w-44">
             <SelectValue placeholder="Plant">
               {(value: string) =>
-                value === ALL ? "All plants" : PLANTS.find((p) => p.plantId === value)?.name ?? value
+                value === ALL
+                  ? "All plants"
+                  : plantOptions.find((p) => p.plantId === value)?.name ?? value
               }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All plants</SelectItem>
-            {PLANTS.map((p) => (
+            {plantOptions.map((p) => (
               <SelectItem key={p.plantId} value={p.plantId}>
                 {p.name}
               </SelectItem>
@@ -98,7 +151,7 @@ export function RepairRegisterTable() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All vendors</SelectItem>
-            {REPAIR_VENDORS.map((v) => (
+            {vendorOptions.map((v) => (
               <SelectItem key={v} value={v}>
                 {v}
               </SelectItem>
