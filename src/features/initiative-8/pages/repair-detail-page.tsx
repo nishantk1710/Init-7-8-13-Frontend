@@ -21,6 +21,7 @@ import {
   orUnknown,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { formatZAR } from "@/lib/utils"
 
@@ -95,9 +96,56 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
   return events
 }
 
-export function RepairDetailPage({ repairId }: { repairId: string }) {
+export type RepairDetailPageProps = {
+  repairId: string
+  /**
+   * The line, when the caller has already fetched it (`NEXT_PUBLIC_DATASET=live`).
+   * Omitted in every other mode, and the fixture lookup below runs instead —
+   * so the default path is exactly what it was.
+   */
+  chain?: RepairChain
+  /**
+   * The backend's lifecycle timeline. Preferred over the one this page builds
+   * locally, because it carries the EVIDENCE for each stage — including the
+   * stages it cannot prove, which are the ones worth reading.
+   */
+  timeline?: TimelineEvent[]
+  /** Set when the fetch failed. Rendered as a failure, never as "not found". */
+  loadError?: string | null
+}
+
+export function RepairDetailPage({
+  repairId,
+  chain: liveChain,
+  timeline: liveTimeline,
+  loadError = null,
+}: RepairDetailPageProps) {
   const { openMaterial360 } = useMaterial360()
-  const chain = getRepairChainById(repairId)
+  const chain = liveChain ?? getRepairChainById(repairId)
+
+  if (loadError) {
+    // Deliberately NOT the "repair not found" empty state. A line that does not
+    // exist and a backend that cannot be reached are different answers, and
+    // showing the second as the first sends someone looking for the wrong bug.
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4">
+          <PageHeader title={`Repair ${repairId}`} />
+          <div
+            role="alert"
+            className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center text-sm"
+          >
+            <p className="font-medium text-foreground">This repair could not be loaded.</p>
+            <p className="mt-1 text-muted-foreground">{loadError}</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              This is not a missing repair — it is a failed request. Check that the
+              backend is running and that NEXT_PUBLIC_API_BASE_URL points at it.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!chain) {
     return (
@@ -106,13 +154,27 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
           <PageHeader title="Repair not found" />
           <EmptyState
             title={`No repair chain "${repairId}"`}
-            description="This repair record does not exist in the mock repair register."
+            description={
+              // Mode-aware, because "mock" is a lie under `live` and the
+              // difference tells the reader where to go looking.
+              USING_LIVE_DATA
+                ? "No repair line with this id exists in the July SAP extract."
+                : "This repair record does not exist in the mock repair register."
+            }
           />
         </div>
       </div>
     )
   }
 
+  // The declaration queue is still fixture-backed here: its rows are keyed to
+  // the RC-80xx scenario ids, which do not exist in the live data. Under `live`
+  // there is simply no matching row, and the declaration panel is omitted --
+  // rather than a fixture declaration being attached to a real repair line,
+  // which would be a fabricated audit trail on a real part.
+  //
+  // The real declaration state IS shown, from chain.declarationStatus, which
+  // the backend now computes from the attestation table (W5.3).
   const declaration = DECLARATIONS.find((d) => d.relatedRepairId === chain.id)
   const isOverdue = isRepairOverdue(chain)
 
@@ -148,7 +210,11 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <PageHeader
           title={`Repair ${chain.id}`}
-          description="Simulated repair chain — no live SAP connection."
+          description={
+            liveChain
+              ? "Live data from the July SAP extract. Every stage below shows the evidence for it, or why there is none."
+              : "Simulated repair chain — no live SAP connection."
+          }
           actions={
             <div className="flex items-center gap-2">
               <StatusBadge tone={REPAIR_STATUS_TONE[chain.repairStatus]}>
@@ -216,7 +282,10 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
                 {chain.receiptStatus}
               </StatusBadge>
             </div>
-            <Timeline events={buildRepairTimeline(chain)} />
+            {/* The backend's timeline when we have one: it carries the evidence
+                for every stage, including the ones it cannot prove. The locally
+                built one is the fixture path and stays unchanged. */}
+            <Timeline events={liveTimeline ?? buildRepairTimeline(chain)} />
           </div>
 
           <div className="flex flex-col gap-4">
