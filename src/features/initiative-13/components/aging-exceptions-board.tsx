@@ -3,194 +3,199 @@
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
-import { MaterialIdentity } from "@/components/shared/material-identity"
+import { FilterBar } from "@/components/shared/filter-bar"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { Timeline } from "@/components/shared/timeline"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useMaterial360 } from "@/lib/material-360-context"
-import { formatCount } from "@/lib/utils"
-import { ESCALATION_TIMELINES } from "@/features/initiative-13/data/escalations"
-import type { UtilizationLedgerLine } from "@/features/initiative-13/types/oar"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import type { I13Exception, I13ExceptionStatus, I13ExceptionType } from "@/features/initiative-13/api/types"
 
-interface ResolvedState {
-  status: "confirmed" | "replanned" | "redeployed"
-  note: string
+const ALL_FILTER = "all"
+
+const TYPE_LABEL: Record<I13ExceptionType, string> = {
+  PLAN_BREACH: "Plan Breach",
+  NO_PLAN: "No Plan",
+  GR_NOT_ISSUED_30_DAY: "GR Not Issued (30d)",
 }
 
-export function AgingExceptionsBoard({ lines }: { lines: UtilizationLedgerLine[] }) {
-  const { openMaterial360 } = useMaterial360()
-  const [resolved, setResolved] = useState<Record<string, ResolvedState>>({})
-  const [replanFor, setReplanFor] = useState<string | null>(null)
-  const [newDate, setNewDate] = useState("")
-  const [reason, setReason] = useState("")
-  const [errors, setErrors] = useState<{ date?: boolean; reason?: boolean }>({})
+const TYPE_RISK: Record<I13ExceptionType, "medium" | "high"> = {
+  PLAN_BREACH: "high",
+  NO_PLAN: "medium",
+  GR_NOT_ISSUED_30_DAY: "high",
+}
 
-  const open = useMemo(() => lines.filter((l) => !resolved[l.id]), [lines, resolved])
-  const activeReplanLine = lines.find((l) => l.id === replanFor)
+const STATUS_TONE: Record<I13ExceptionStatus, "default" | "warning" | "success"> = {
+  OPEN: "default",
+  ACKNOWLEDGED: "warning",
+  RESOLVED: "success",
+}
 
-  function confirmConsumed(line: UtilizationLedgerLine) {
-    setResolved((prev) => ({
-      ...prev,
-      [line.id]: { status: "confirmed", note: "Consumption confirmed by requester" },
-    }))
-    toast.success(`Consumption confirmed — ${line.material.description} (${line.trackingId})`)
-  }
+/** Next simulated status a click on this exception's action button moves it
+ * to. Purely local UI state — the backend's `/exceptions` endpoint is
+ * read-only, so this never claims a write happened (same simulated-SAP
+ * pattern documented in the module README, just re-pointed at the real
+ * `ExceptionStatus` enum instead of the old ledger-exception concept). */
+const NEXT_STATUS: Record<I13ExceptionStatus, I13ExceptionStatus | null> = {
+  OPEN: "ACKNOWLEDGED",
+  ACKNOWLEDGED: "RESOLVED",
+  RESOLVED: null,
+}
 
-  function markNoLongerRequired(line: UtilizationLedgerLine) {
-    setResolved((prev) => ({
-      ...prev,
-      [line.id]: { status: "redeployed", note: "Marked available for redeployment" },
-    }))
+const ACTION_LABEL: Record<I13ExceptionStatus, string> = {
+  OPEN: "Acknowledge",
+  ACKNOWLEDGED: "Mark Resolved",
+  RESOLVED: "Resolved",
+}
+
+export function AgingExceptionsBoard({
+  exceptions,
+  plant,
+  material,
+  exceptionType,
+  status,
+  onFilterPlant,
+  onFilterMaterial,
+  onFilterType,
+  onFilterStatus,
+}: {
+  exceptions: I13Exception[]
+  plant: string
+  material: string
+  exceptionType: string
+  status: string
+  onFilterPlant: (value: string) => void
+  onFilterMaterial: (value: string) => void
+  onFilterType: (value: string) => void
+  onFilterStatus: (value: string) => void
+}) {
+  // Local-only simulated status transitions, keyed by exception id — never
+  // sent to the backend (no write endpoint exists).
+  const [localStatus, setLocalStatus] = useState<Record<string, I13ExceptionStatus>>({})
+
+  const displayed = useMemo(
+    () => exceptions.map((e) => ({ ...e, status: localStatus[e.id] ?? e.status })),
+    [exceptions, localStatus]
+  )
+
+  function advance(exception: I13Exception & { status: I13ExceptionStatus }) {
+    const next = NEXT_STATUS[exception.status]
+    if (!next) return
+    setLocalStatus((prev) => ({ ...prev, [exception.id]: next }))
     toast.success(
-      `${line.material.description} marked available for redeployment — see Redeployment page.`
-    )
-  }
-
-  function openReplan(lineId: string) {
-    setReplanFor(lineId)
-    setNewDate("")
-    setReason("")
-    setErrors({})
-  }
-
-  function submitReplan(e: React.FormEvent) {
-    e.preventDefault()
-    const nextErrors = { date: !newDate, reason: !reason.trim() }
-    if (nextErrors.date || nextErrors.reason) {
-      setErrors(nextErrors)
-      return
-    }
-    const line = activeReplanLine
-    if (line) {
-      setResolved((prev) => ({
-        ...prev,
-        [line.id]: { status: "replanned", note: `Re-planned to ${newDate} — ${reason.trim()}` },
-      }))
-      toast.success(`Re-planned — ${line.material.description} moved to ${newDate}`)
-    }
-    setReplanFor(null)
-  }
-
-  if (open.length === 0) {
-    return (
-      <EmptyState
-        title="No open aging exceptions"
-        description="Every overdue or no-longer-required OAR line has been actioned."
-      />
+      `${exception.material} @ ${exception.plant} — marked ${next === "ACKNOWLEDGED" ? "acknowledged" : "resolved"} (UI-only, not sent to SAP)`
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {open.map((line) => {
-        const escalation = ESCALATION_TIMELINES[line.id]
-        return (
-          <div key={line.id} className="rounded-xl border border-border bg-card p-4">
+      <FilterBar>
+        <Input
+          placeholder="Plant (e.g. 1101)"
+          value={plant}
+          onChange={(e) => onFilterPlant(e.target.value)}
+          className="h-9 sm:w-40"
+        />
+        <Input
+          placeholder="Material"
+          value={material}
+          onChange={(e) => onFilterMaterial(e.target.value)}
+          className="h-9 sm:w-40"
+        />
+        <Select
+          value={exceptionType || ALL_FILTER}
+          onValueChange={(v) => {
+            const value = v ?? ALL_FILTER
+            onFilterType(value === ALL_FILTER ? "" : value)
+          }}
+        >
+          <SelectTrigger className="h-9 w-full sm:w-52">
+            <SelectValue placeholder="Exception type">
+              {(v: string) => (v === ALL_FILTER ? "All exception types" : TYPE_LABEL[v as I13ExceptionType] ?? v)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_FILTER}>All exception types</SelectItem>
+            {Object.entries(TYPE_LABEL).map(([value, text]) => (
+              <SelectItem key={value} value={value}>
+                {text}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={status || ALL_FILTER}
+          onValueChange={(v) => {
+            const value = v ?? ALL_FILTER
+            onFilterStatus(value === ALL_FILTER ? "" : value)
+          }}
+        >
+          <SelectTrigger className="h-9 w-full sm:w-40">
+            <SelectValue placeholder="Status">
+              {(v: string) => (v === ALL_FILTER ? "All statuses" : v)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_FILTER}>All statuses</SelectItem>
+            {Object.keys(STATUS_TONE).map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterBar>
+
+      {displayed.length === 0 ? (
+        <EmptyState
+          title="No exceptions for the selected filters."
+          description="Every open OAR exception has been actioned, or none match the current filters."
+        />
+      ) : (
+        displayed.map((exception) => (
+          <div key={exception.id} className="rounded-xl border border-border bg-card p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <MaterialIdentity material={line.material} onOpen={openMaterial360} />
-                  <SAPDocumentChip doc={line.reservation} />
-                  <RiskBadge level={line.exception === "Consumption Overdue" ? "high" : "medium"}>
-                    {line.exception}
-                  </RiskBadge>
+                  <span className="font-medium text-foreground">{exception.material}</span>
+                  <span className="text-xs text-muted-foreground">@ {exception.plant}</span>
+                  {exception.reservationNumber && (
+                    <SAPDocumentChip doc={{ type: "RESERVATION", documentNumber: exception.reservationNumber }} />
+                  )}
+                  {exception.prNumber && <SAPDocumentChip doc={{ type: "PR", documentNumber: exception.prNumber }} />}
+                  {exception.poNumber && <SAPDocumentChip doc={{ type: "PO", documentNumber: exception.poNumber }} />}
+                  <RiskBadge level={TYPE_RISK[exception.type]}>{TYPE_LABEL[exception.type]}</RiskBadge>
+                  <StatusBadge tone={STATUS_TONE[exception.status]}>{exception.status}</StatusBadge>
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  {line.trackingId} · {line.plant.name} · {line.department} · Requested by{" "}
-                  {line.requester.name} ({line.requester.role})
+                  {exception.reason}
+                  {exception.daysOverdue !== null && ` — ${exception.daysOverdue} days overdue`}
+                  {exception.ownerName ? ` · Owner: ${exception.ownerName}` : exception.ownerId ? ` · Owner: ${exception.ownerId}` : ""}
                 </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Evidence: {exception.evidence}</p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                <Button size="sm" onClick={() => confirmConsumed(line)}>
-                  Confirm Used
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => openReplan(line.id)}>
-                  Use Later
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => markNoLongerRequired(line)}>
-                  No Longer Needed
+                <Button
+                  size="sm"
+                  variant={exception.status === "RESOLVED" ? "outline" : "default"}
+                  disabled={exception.status === "RESOLVED"}
+                  onClick={() => advance(exception)}
+                >
+                  {ACTION_LABEL[exception.status]}
                 </Button>
               </div>
             </div>
-
-            <AlertBanner tone="warning" title="Consumption overdue" className="mt-3">
-              Planned consumption date was <strong>{line.plannedConsumptionDate}</strong> —{" "}
-              {line.agingDays} days ago. {formatCount(line.qtyIssued)} {line.uom} issued,{" "}
-              {formatCount(line.qtyConfirmedUsed)} confirmed used.
-            </AlertBanner>
-
-            {escalation && (
-              <div className="mt-3 rounded-lg border border-border p-3">
-                <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.5px] text-muted-foreground">
-                  Escalation — Requester → HOD → Inventory Control
-                </h4>
-                <Timeline events={escalation} />
-              </div>
-            )}
           </div>
-        )
-      })}
-
-      <Dialog open={replanFor !== null} onOpenChange={(o) => !o && setReplanFor(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Re-plan consumption date</DialogTitle>
-            <DialogDescription>
-              {activeReplanLine
-                ? `${activeReplanLine.material.description} — ${activeReplanLine.trackingId}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitReplan} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">
-                New planned consumption date <span className="text-destructive">*</span>
-              </label>
-              <Input
-                type="date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-                aria-invalid={errors.date}
-              />
-              {errors.date && (
-                <span className="text-[11px] text-destructive">A new date is required.</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">
-                Reason <span className="text-destructive">*</span>
-              </label>
-              <Input
-                placeholder="e.g. Shutdown window moved"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                aria-invalid={errors.reason}
-              />
-              {errors.reason && (
-                <span className="text-[11px] text-destructive">A reason is required.</span>
-              )}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setReplanFor(null)}>
-                Cancel
-              </Button>
-              <Button type="submit">Confirm re-plan</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        ))
+      )}
     </div>
   )
 }

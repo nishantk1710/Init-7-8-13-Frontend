@@ -18,9 +18,14 @@ export const initiative13Manifest: InitiativeManifest = {
         href: "/oar-utilization/ledger",
       },
       {
-        label: "Aging Exceptions",
+        label: "Exceptions",
         icon: "clock",
         href: "/oar-utilization/aging-exceptions",
+      },
+      {
+        label: "WATCH",
+        icon: "eye",
+        href: "/oar-utilization/watch",
       },
       {
         label: "Redeployment",
@@ -31,6 +36,11 @@ export const initiative13Manifest: InitiativeManifest = {
         label: "Reclassification",
         icon: "sliders",
         href: "/oar-utilization/reclassification",
+      },
+      {
+        label: "Validation",
+        icon: "clipboard-check",
+        href: "/oar-utilization/validation",
       },
     ],
   },
