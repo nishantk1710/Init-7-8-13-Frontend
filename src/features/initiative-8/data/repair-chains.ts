@@ -1,7 +1,5 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
 import { vendorLabel } from "@/features/initiative-8/utils/status"
-import generatedRepairChains from "@/features/initiative-8/data/generated/repair-chains.json"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
 // remaining math throughout this module is anchored at 3 Sep 2026.
@@ -243,10 +241,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
   },
 ]
 
-/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const REPAIR_CHAINS: RepairChain[] = USING_GENERATED_DATA
-  ? (generatedRepairChains as unknown as RepairChain[])
-  : SCENARIO_REPAIR_CHAINS
+export const REPAIR_CHAINS: RepairChain[] = SCENARIO_REPAIR_CHAINS
 
 export function getRepairChainById(id: string): RepairChain | undefined {
   return REPAIR_CHAINS.find((rc) => rc.id === id)

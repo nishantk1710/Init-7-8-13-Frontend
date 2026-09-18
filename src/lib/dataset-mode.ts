@@ -1,6 +1,5 @@
 // Which dataset the app renders.
 //
-//   NEXT_PUBLIC_DATASET=generated npm run dev
 //   NEXT_PUBLIC_DATASET=live npm run dev
 //
 // "scenario" (the default) uses the hand-written scenario fixtures in each
@@ -9,26 +8,22 @@
 // RC-8002, OAR-LDG-0004, material 500-14892 -- so they are what makes the
 // prototype demonstrable.
 //
-// "generated" renders the committed JSON in each feature's data/generated/
-// folder.
-//
 // "live" renders what the Python backend serves from the seeded July extracts.
 // See below.
 //
-// HISTORY, because the flag reads oddly without it
+// HISTORY, because the flag reads oddly without a third option having once
+// existed
 //
-// That JSON used to be rebuilt by `npm run dataset:build`, which read
-// SAP-shaped CSVs through a TypeScript CPI client living in src/lib/sap/.
-// That client has been removed: SAP access is owned by the Python backend
-// (backend/app/integrations/sap/), and two implementations of one wire
-// protocol would have to be fixed twice every time SAP drifts -- which it
-// demonstrably does.
-//
-// So the generated JSON is now a FROZEN ARTEFACT. It is still committed and
-// still loadable, but nothing in this repository can regenerate it. It was
-// also built from synthetic data, which Anish's "no synthetic data" ruling
-// superseded. Treat it as a historical fixture; the real path forward is the
-// backend serving data from the seeded July extracts over HTTP.
+// There used to be a "generated" mode, rendering committed JSON that
+// `npm run dataset:build` produced by reading SAP-shaped CSVs through a
+// TypeScript CPI client living in src/lib/sap/. That client was removed --
+// SAP access is owned by the Python backend (backend/app/integrations/sap/),
+// and two implementations of one wire protocol would have to be fixed twice
+// every time SAP drifts -- which it demonstrably does. The generated JSON
+// became an unrebuildable frozen artefact built from synthetic data, which
+// Anish's "no synthetic data" ruling superseded, and both the mode and the
+// JSON files it read (one per feature's data/generated/) were deleted once
+// the live backend path existed to replace it.
 //
 // This file moved here from lib/sap/dataset-mode.ts when that folder was
 // removed. It never had anything to do with SAP -- it reads one env var.
@@ -63,12 +58,10 @@
 // rather than editing one, and it is the easiest thing to break without
 // noticing. There is a test for it.
 
-export type DatasetMode = "scenario" | "generated" | "live"
+export type DatasetMode = "scenario" | "live"
 
 function readMode(): DatasetMode {
   switch (process.env.NEXT_PUBLIC_DATASET) {
-    case "generated":
-      return "generated"
     case "live":
       return "live"
     default:
@@ -80,8 +73,6 @@ function readMode(): DatasetMode {
 }
 
 export const DATASET_MODE: DatasetMode = readMode()
-
-export const USING_GENERATED_DATA = DATASET_MODE === "generated"
 
 /**
  * True when pages should fetch from the backend instead of importing fixtures.
