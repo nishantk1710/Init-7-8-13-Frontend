@@ -32,17 +32,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import type { DeclarationCondition, DeclarationItem, DeclarationStatus } from "@/features/initiative-8/types/repair"
 import { DECLARATION_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { createAttestation } from "@/lib/api/i8"
-import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
 const STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
 const CONDITIONS: DeclarationCondition[] = ["Repairable", "Beyond Economical Repair", "Scrap"]
-const TODAY = "3 Sep 2026"
 
 /** The UI's condition wording -> the API's recommendation enum. */
 const RECOMMENDATION: Record<
@@ -55,8 +52,8 @@ const RECOMMENDATION: Record<
 }
 
 export type DeclarationQueueTableProps = {
-  /** Rows to render. Defaults to the scenario fixtures, so every mode except
-   *  `live` behaves exactly as before. */
+  /** Rows to render — always from the backend. No fixture fallback: an empty
+   *  queue is a real answer, and a failure is reported through `loadError`. */
   items?: DeclarationItem[]
   /**
    * The configured fault-category list, served by the API alongside the data.
@@ -71,14 +68,12 @@ export type DeclarationQueueTableProps = {
 }
 
 export function DeclarationQueueTable({
-  items = DECLARATIONS,
+  items = [],
   faultCategories = [],
   loadError = null,
 }: DeclarationQueueTableProps = {}) {
   const router = useRouter()
   const { openMaterial360 } = useMaterial360()
-  // Local copy for the FIXTURE path only, where "declaring" is a local edit.
-  const [fixtureRows, setFixtureRows] = useState<DeclarationItem[]>(items)
   const [status, setStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [condition, setCondition] = useState<DeclarationCondition>("Repairable")
@@ -88,20 +83,18 @@ export function DeclarationQueueTable({
   const [faultCategory, setFaultCategory] = useState(faultCategories[0] ?? "")
   const [submitting, setSubmitting] = useState(false)
 
-  // Under `live` the rows ARE the server's answer: the declaration status is
-  // computed from the attestation table, and after a write router.refresh()
-  // re-runs the server component and hands down fresh props. Rendering those
-  // directly is both simpler and more honest than mirroring them into state --
-  // a local copy could only ever drift from, or briefly contradict, the
-  // backend's own answer.
-  const rows = USING_LIVE_DATA ? items : fixtureRows
-
+  // The rows ARE the server's answer: the declaration status is computed from
+  // the attestation table, and after a write router.refresh() re-runs the
+  // server component and hands down fresh props. Rendering those directly is
+  // both simpler and more honest than mirroring them into state -- a local
+  // copy could only ever drift from, or briefly contradict, the backend's own
+  // answer.
   const filtered = useMemo(
-    () => rows.filter((r) => status === ALL || r.status === status),
-    [rows, status]
+    () => items.filter((r) => status === ALL || r.status === status),
+    [items, status]
   )
 
-  const activeRow = rows.find((r) => r.id === dialogFor) ?? null
+  const activeRow = items.find((r) => r.id === dialogFor) ?? null
 
   function openDialog(id: string) {
     setCondition("Repairable")
@@ -111,38 +104,7 @@ export function DeclarationQueueTable({
   }
 
   /**
-   * The fixture path: mutate local state and say it is simulated.
-   *
-   * Unchanged. It is the honest description of what happens in every mode
-   * except `live` -- nothing is written anywhere.
-   */
-  function declareLocally() {
-    if (!activeRow) return
-    setFixtureRows((prev) =>
-      prev.map((r) =>
-        r.id === activeRow.id
-          ? {
-              ...r,
-              status: "Completed" as const,
-              condition,
-              declaredBy: "You",
-              declaredAt: TODAY,
-              nextAction:
-                condition === "Repairable"
-                  ? "None — condition declared, PR may proceed."
-                  : condition === "Beyond Economical Repair"
-                    ? "Route to new-unit procurement — repair not economical."
-                    : "Route to disposal — unit declared scrap.",
-            }
-          : r
-      )
-    )
-    toast.success(`Declared ${activeRow.material.materialId} as "${condition}" — Simulated, not yet written to SAP.`)
-    setDialogFor(null)
-  }
-
-  /**
-   * The live path: actually POST the attestation. The only write in I08.
+   * POST the attestation. The only write in I08.
    *
    * Three things this deliberately does NOT do.
    *
@@ -159,12 +121,12 @@ export function DeclarationQueueTable({
    * because a silent no-op is exactly what makes the next person widen the
    * matching window until the screen stops looking broken.
    *
-   * **It does not say "Simulated, not yet written to SAP".** Under `live` the
-   * first half is false -- the attestation IS written, to a table the platform
-   * owns. The second half is still true and still worth saying, so the message
-   * says precisely that instead.
+   * **It does not say "Simulated, not yet written to SAP".** The first half is
+   * false -- the attestation IS written, to a table the platform owns. The
+   * second half is still true and still worth saying, so the message says
+   * precisely that instead.
    */
-  async function declareLive() {
+  async function declare() {
     if (!activeRow) return
 
     const plant = activeRow.plant?.plantId
@@ -204,14 +166,6 @@ export function DeclarationQueueTable({
     } finally {
       setSubmitting(false)
     }
-  }
-
-  function confirmDeclaration() {
-    if (USING_LIVE_DATA) {
-      void declareLive()
-      return
-    }
-    declareLocally()
   }
 
   if (loadError) {
@@ -347,61 +301,51 @@ export function DeclarationQueueTable({
             </Select>
           </div>
 
-          {/* Only under `live`. These two fields are required by the real
-              attestation, and asking for them in a mode where nothing is
-              written would be collecting information to throw away. */}
-          {USING_LIVE_DATA ? (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-muted-foreground" htmlFor="fault-category">
-                  Fault category
-                </label>
-                <Select value={faultCategory} onValueChange={(v) => setFaultCategory(v ?? "")}>
-                  <SelectTrigger id="fault-category" className="h-9 w-full">
-                    <SelectValue placeholder="Select a fault category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {faultCategories.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c.replace(/_/g, " ").toLowerCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-muted-foreground" htmlFor="condition-description">
-                  Condition description
-                </label>
-                <textarea
-                  id="condition-description"
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What is wrong with it, and what did you measure?"
-                  className="w-full rounded-md border border-border bg-background p-2 text-sm"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Required. This is the part a human reads — it is recorded as an
-                  audit record and cannot be edited afterwards, only superseded.
-                </p>
-              </div>
-            </>
-          ) : null}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground" htmlFor="fault-category">
+              Fault category
+            </label>
+            <Select value={faultCategory} onValueChange={(v) => setFaultCategory(v ?? "")}>
+              <SelectTrigger id="fault-category" className="h-9 w-full">
+                <SelectValue placeholder="Select a fault category" />
+              </SelectTrigger>
+              <SelectContent>
+                {faultCategories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c.replace(/_/g, " ").toLowerCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground" htmlFor="condition-description">
+              Condition description
+            </label>
+            <textarea
+              id="condition-description"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is wrong with it, and what did you measure?"
+              className="w-full rounded-md border border-border bg-background p-2 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Required. This is the part a human reads — it is recorded as an
+              audit record and cannot be edited afterwards, only superseded.
+            </p>
+          </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogFor(null)} disabled={submitting}>
               Cancel
             </Button>
             <Button
-              onClick={confirmDeclaration}
-              // Under `live` the backend rejects a blank description or an
-              // unknown fault category with a 422. Disabling here means the
-              // user is told before the round trip rather than after it.
-              disabled={
-                submitting ||
-                (USING_LIVE_DATA && (description.trim() === "" || faultCategory === ""))
-              }
+              onClick={() => void declare()}
+              // The backend rejects a blank description or an unknown fault
+              // category with a 422. Disabling here means the user is told
+              // before the round trip rather than after it.
+              disabled={submitting || description.trim() === "" || faultCategory === ""}
             >
               {submitting ? "Recording…" : "Confirm declaration"}
             </Button>

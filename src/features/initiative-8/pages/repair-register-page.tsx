@@ -4,47 +4,36 @@ import { PageHeader } from "@/components/shared/page-header"
 import { RepairRegisterTable } from "@/features/initiative-8/components/repair-register-table"
 import { loadLiveRegister } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
 /**
  * The Repair Register (FR-10).
  *
- * A server component, and async only so it can fetch. The split is deliberate
- * and is the whole shape of W5.4:
+ * A server component, and async only so it can fetch. The split is deliberate:
  *
  *   this page                    fetches, on the server, once
  *   RepairRegisterTable          "use client", filters rows it is handed
  *
- * The table is unchanged in behaviour — it still filters the full array with
- * `useMemo` exactly as it did over the fixtures. It just receives different
- * rows. That is what let this land without React Query, SWR, a loading skeleton
- * or a new dependency: the component boundary already suited it.
+ * The table filters the full array with `useMemo`. That is what let this land
+ * without React Query, SWR, a loading skeleton or a new dependency: the
+ * component boundary already suited it.
  *
- * With `NEXT_PUBLIC_DATASET` unset — every existing demo — this renders exactly
- * what it rendered before, because the table falls back to the scenario
- * fixtures when it is given no rows. There is a test asserting that path stays
- * untouched, since it is the easiest thing to break without noticing.
+ * **This screen is live-only.** It has no fixture fallback: the demo rows it
+ * used to fall back to described a material (`800-14201` at `PLANT-GBG`) that
+ * does not exist in SAP, and a register that cannot reach its backend must say
+ * so rather than quietly showing eight invented repairs.
  */
 export async function RepairRegisterPage() {
-  if (!USING_LIVE_DATA) {
-    return <Shell description="Every repairable material currently in, or eligible for, a repair chain." />
-  }
-
   // Opt this render out of static prerendering.
   //
-  // Without it the first `next build` with NEXT_PUBLIC_DATASET=live fetches the
-  // register ONCE, at build time, and bakes those 1,225 rows into static HTML.
-  // Two things then go wrong quietly: the page serves whatever the data looked
-  // like when it was built, forever -- so an attestation recorded afterwards
-  // never shows up -- and a build on a machine that cannot reach the backend
-  // fails, or worse, succeeds against a stale cache.
+  // Without it `next build` fetches the register ONCE, at build time, and bakes
+  // those 1,225 rows into static HTML. Two things then go wrong quietly: the
+  // page serves whatever the data looked like when it was built, forever -- so
+  // an attestation recorded afterwards never shows up -- and a build on a
+  // machine that cannot reach the backend fails, or worse, succeeds against a
+  // stale cache.
   //
   // Verified, not assumed: before this line the live build marked
   // /repairable-spares/repair-register as (Static). After it, (Dynamic).
-  //
-  // Deliberately here and not `export const dynamic = "force-dynamic"` on the
-  // route: that is a module-level constant and would make the page dynamic in
-  // EVERY mode, including the default one, which must stay exactly as it is.
   await connection()
 
   // The try/catch wraps ONLY the fetch. Building JSX inside it would put the
@@ -81,6 +70,7 @@ export async function RepairRegisterPage() {
       chains={live.chains}
       plantOptions={live.plantOptions}
       vendorOptions={live.vendorOptions}
+      agingBands={live.agingBands}
     />
   )
 }
@@ -90,13 +80,14 @@ function Shell({
   chains,
   plantOptions,
   vendorOptions,
+  agingBands,
   loadError,
 }: {
   description: string
-  /** Omitted entirely in the default path, so the table falls back to fixtures. */
   chains?: RepairChain[]
   plantOptions?: { plantId: string; name: string }[]
   vendorOptions?: string[]
+  agingBands?: string[]
   loadError?: string | null
 }) {
   return (
@@ -107,6 +98,7 @@ function Shell({
           chains={chains}
           plantOptions={plantOptions}
           vendorOptions={vendorOptions}
+          agingBands={agingBands}
           loadError={loadError}
         />
       </div>

@@ -1,12 +1,11 @@
 "use client"
 
-import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -17,9 +16,16 @@ import {
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import { formatZAR } from "@/lib/utils"
 import { UNKNOWN, formatDaysRemaining, vendorLabel } from "@/features/initiative-8/utils/status"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
 const DEFAULT_MATERIAL_ID = "800-14201" // Scenario C
 
+/**
+ * **Still fixture-backed, and it says so on screen.** The rule this screen
+ * demonstrates is FR-6 (repairable-unit-exists), which is not built on the
+ * backend, so there is nothing real to read yet. The materials it offers
+ * (`800-14201`) do not exist in SAP.
+ */
 export function DuplicateGuardFlow() {
   const [materialId, setMaterialId] = useState(DEFAULT_MATERIAL_ID)
   const [attempted, setAttempted] = useState(false)
@@ -68,6 +74,15 @@ export function DuplicateGuardFlow() {
 
   return (
     <div className="flex flex-col gap-4">
+      {USING_LIVE_DATA && (
+        <AlertBanner tone="warning" title="This walkthrough uses demo data, not SAP">
+          The repairable-unit rule behind it (FR-6) is not built on the backend
+          yet, so the materials offered here are hand-written scenarios that do
+          not exist in SAP. The Repair Register and Repair Detail screens beside
+          it show real July-extract data.
+        </AlertBanner>
+      )}
+
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 text-sm font-medium text-foreground">New Procurement Attempt</div>
         <p className="mb-3 text-xs text-muted-foreground">
@@ -101,12 +116,10 @@ export function DuplicateGuardFlow() {
           actions={
             !proceeded ? (
               <>
-                <Link
-                  href={`/repairable-spares/repair-register/${chain.id}`}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  Review Repair
-                </Link>
+                {/* No "Review Repair" deep link: this chain's id is a fixture
+                    id (RC-80xx), and the repair-detail route now reads the
+                    backend, where it resolves to nothing. A button that always
+                    dead-ends is worse than no button. */}
                 <Button variant="outline" size="sm" onClick={cancelRequest}>
                   Cancel New Request
                 </Button>

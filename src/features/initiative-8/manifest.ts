@@ -27,6 +27,11 @@ export const initiative8Manifest: InitiativeManifest = {
         icon: "file-text",
         href: "/repairable-spares/declarations",
       },
+      {
+        label: "Coding Candidates",
+        icon: "search",
+        href: "/repairable-spares/coding-candidates",
+      },
     ],
   },
 }

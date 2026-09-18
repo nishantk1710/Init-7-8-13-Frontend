@@ -31,14 +31,41 @@ export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Flagged: "danger",
 }
 
-export const AGING_BUCKETS: AgingBucket[] = ["0-15", "16-30", "31-45", "46-60", "60+"]
+/**
+ * The bands rendered before either side could read them from configuration.
+ *
+ * Used as the fallback in `scenario` mode (no backend to ask) and if a live
+ * snapshot fetch fails — never as the source of truth when live data is
+ * available. See `GET /api/i8/snapshot`'s `rules.agingBands`.
+ */
+export const DEFAULT_AGING_BUCKETS: AgingBucket[] = ["0-15", "16-30", "31-45", "46-60", "60+"]
 
-export function agingBucketForDays(days: number): AgingBucket {
-  if (days <= 15) return "0-15"
-  if (days <= 30) return "16-30"
-  if (days <= 45) return "31-45"
-  if (days <= 60) return "46-60"
-  return "60+"
+/**
+ * Verdict -> tone for the coding-candidates screen.
+ *
+ * Not a `Record<Verdict, Tone>` over a closed union: the verdict vocabulary
+ * (`MISCODED_REPAIRABLE`, `REPAIR_SERVICE`, `CONSUMABLE_FOR_REPAIR`,
+ * `UNCLEAR`, `UNSCREENED`) is an implementation decision on the backend, not
+ * an FRS-specified set — see `app/initiatives/i8/coding_candidates.py`. An
+ * unrecognised verdict falls back to `"default"` rather than a type error.
+ */
+export const CODING_VERDICT_TONE: Record<string, Tone> = {
+  MISCODED_REPAIRABLE: "danger",
+  UNCLEAR: "warning",
+  REPAIR_SERVICE: "success",
+  CONSUMABLE_FOR_REPAIR: "success",
+  UNSCREENED: "default",
+}
+
+/**
+ * Confidence -> tone, for the same screen. Independent of verdict tone: this
+ * says how much to trust the row, not what the row found. Empty
+ * (unscreened) falls back to "default".
+ */
+export const CODING_CONFIDENCE_TONE: Record<string, Tone> = {
+  high: "success",
+  medium: "warning",
+  low: "danger",
 }
 
 /** Placeholder for a value the source data does not carry. */

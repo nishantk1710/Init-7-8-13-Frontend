@@ -172,20 +172,25 @@ describe("toRepairChain", () => {
 })
 
 describe("the default dataset mode", () => {
-  it("is scenario when NEXT_PUBLIC_DATASET is unset", async () => {
-    // THE test that matters most in W5.4. The whole reason `live` is a third
-    // mode rather than a replacement is that the default path stays untouched,
-    // and that is the easiest thing to break without noticing.
+  it("is live when NEXT_PUBLIC_DATASET is unset", async () => {
+    // Deliberately inverted from what this asserted through W5.4, when `live`
+    // was an opt-in third mode and the fixture path had to stay byte-identical.
+    // Initiative 8's backed screens now read the backend unconditionally, so a
+    // typo in the env var must not silently serve hand-written demo numbers to
+    // somebody who asked for their real ones.
     const { DATASET_MODE, USING_LIVE_DATA } = await import("@/lib/dataset-mode")
-    expect(DATASET_MODE).toBe("scenario")
-    expect(USING_LIVE_DATA).toBe(false)
+    expect(DATASET_MODE).toBe("live")
+    expect(USING_LIVE_DATA).toBe(true)
   })
 
   it("still resolves Initiative 7's cross-initiative signal", async () => {
     // I07's recommendation page reads material 500-14892 through the RC-8002
-    // fixture. No such material exists in the backend, so if adding `live` ever
-    // made the fixtures stop resolving, their page would silently lose a
-    // feature that was built to be demonstrated.
+    // fixture. No such material exists in the backend.
+    //
+    // This is now the load-bearing test for the fixture cleanup: Initiative 8's
+    // own screens stopped reading these rows, but the cross-initiative
+    // selectors did not, and deleting the fixture files would silently cost
+    // somebody else's page a feature that was built to be demonstrated.
     const { getInitiative8Material360Signal } = await import(
       "@/features/initiative-8/selectors/material-360-adapter"
     )

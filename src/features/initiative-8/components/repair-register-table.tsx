@@ -24,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { REPAIR_CHAINS, REPAIR_VENDORS } from "@/features/initiative-8/data/repair-chains"
 import type {
   AgingBucket,
   DeclarationStatus,
@@ -32,15 +31,14 @@ import type {
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
 import {
-  AGING_BUCKETS,
   DECLARATION_STATUS_TONE,
+  DEFAULT_AGING_BUCKETS,
   RECEIPT_STATUS_TONE,
   UNKNOWN,
   orUnknown,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { useMaterial360 } from "@/lib/material-360-context"
-import { PLANTS } from "@/lib/shared-data/plants"
 
 const ALL = "all"
 
@@ -61,11 +59,15 @@ const DECLARATION_STATUSES: DeclarationStatus[] = ["Required", "Pending", "Compl
 type PlantOption = { plantId: string; name: string }
 
 export type RepairRegisterTableProps = {
-  /** The rows to render. Defaults to the scenario fixtures, so every existing
-   *  caller — and every mode except `live` — behaves exactly as before. */
+  /** The rows to render — always from the backend. There is no fixture
+   *  fallback: an empty array means the register really is empty, and a
+   *  failure is reported through `loadError` instead. */
   chains?: RepairChain[]
   plantOptions?: PlantOption[]
   vendorOptions?: string[]
+  /** The active aging bands, from `LiveRegister.agingBands` in live mode.
+   *  Defaults to the fixed bands the fixtures were written against. */
+  agingBands?: string[]
   /**
    * Set when the rows could not be loaded.
    *
@@ -78,9 +80,10 @@ export type RepairRegisterTableProps = {
 }
 
 export function RepairRegisterTable({
-  chains = REPAIR_CHAINS,
-  plantOptions = PLANTS,
-  vendorOptions = REPAIR_VENDORS,
+  chains = [],
+  plantOptions = [],
+  vendorOptions = [],
+  agingBands = DEFAULT_AGING_BUCKETS,
   loadError = null,
 }: RepairRegisterTableProps = {}) {
   const { openMaterial360 } = useMaterial360()
@@ -205,7 +208,7 @@ export function RepairRegisterTable({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All aging</SelectItem>
-            {AGING_BUCKETS.map((b) => (
+            {agingBands.map((b) => (
               <SelectItem key={b} value={b}>
                 {b} days
               </SelectItem>

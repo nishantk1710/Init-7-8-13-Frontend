@@ -7,8 +7,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
-import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
-import { getRepairChainById } from "@/features/initiative-8/data/repair-chains"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   DECLARATION_STATUS_TONE,
@@ -16,112 +14,35 @@ import {
   REPAIR_STATUS_TONE,
   UNKNOWN,
   formatDaysRemaining,
-  hasNoDueDate,
   isRepairOverdue,
   orUnknown,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { formatZAR } from "@/lib/utils"
-
-function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
-  const events: TimelineEvent[] = [
-    {
-      id: "pr",
-      label: "Repair PR raised",
-      timestamp: chain.raisedAt,
-      description: `${chain.repairPR.documentNumber} raised for ${chain.qtyUnderRepair || "the"} unit(s) — Simulated, not yet reflected in SAP.`,
-      tone: "default",
-    },
-  ]
-
-  if (chain.poIssuedAt && chain.repairPO) {
-    events.push({
-      id: "po",
-      label: "Repair PO issued",
-      timestamp: chain.poIssuedAt,
-      description: `${chain.repairPO.documentNumber} issued to ${chain.vendor} — Simulated SAP PO.`,
-      tone: "default",
-    })
-  } else {
-    events.push({
-      id: "po-pending",
-      label: "Repair PO not yet issued",
-      timestamp: "Pending",
-      description: "Awaiting buyer action to convert the repair PR into a PO.",
-      tone: "warning",
-    })
-  }
-
-  if (chain.sentToVendorAt) {
-    events.push({
-      id: "vendor",
-      label: `Sent to vendor — ${chain.vendor}`,
-      timestamp: chain.sentToVendorAt,
-      description: "Unit dispatched for repair. Awaiting SAP goods-issue confirmation.",
-      tone: "default",
-    })
-  }
-
-  if (chain.repairStatus === "Closed" || chain.receiptStatus === "Received") {
-    events.push({
-      id: "return",
-      label: "Expected return",
-      timestamp: chain.expectedReturn ?? UNKNOWN,
-      tone: "default",
-    })
-    events.push({
-      id: "receipt",
-      label: "Unit received",
-      timestamp: chain.receivedAt ?? "—",
-      description: "Repaired unit receipted back into stores — Simulated SAP GR.",
-      tone: "success",
-    })
-  } else {
-    // A line with no agreed return date is its own state, not a quiet
-    // "on time" -- it is the one nobody is chasing. 63 of the 1,225 repair
-    // lines in the July extract are in it.
-    events.push({
-      id: "return",
-      label: hasNoDueDate(chain) ? "No return date agreed" : "Expected return",
-      timestamp: chain.expectedReturn ?? UNKNOWN,
-      description: hasNoDueDate(chain)
-        ? "No schedule line exists for this PO item, so no return was ever promised. Chase the buyer for a date."
-        : `${formatDaysRemaining(chain)} — Awaiting SAP update.`,
-      tone: isRepairOverdue(chain) ? "danger" : "warning",
-    })
-  }
-
-  return events
-}
 
 export type RepairDetailPageProps = {
   repairId: string
   /**
-   * The line, when the caller has already fetched it (`NEXT_PUBLIC_DATASET=live`).
-   * Omitted in every other mode, and the fixture lookup below runs instead —
-   * so the default path is exactly what it was.
+   * The line and its lifecycle, fetched by the route.
+   *
+   * They arrive together or not at all: the timeline is the backend's, because
+   * it carries the EVIDENCE for each stage — including the stages it cannot
+   * prove, which are the ones worth reading. Absent means the backend answered
+   * and has no such line, which renders the not-found state.
    */
-  chain?: RepairChain
-  /**
-   * The backend's lifecycle timeline. Preferred over the one this page builds
-   * locally, because it carries the EVIDENCE for each stage — including the
-   * stages it cannot prove, which are the ones worth reading.
-   */
-  timeline?: TimelineEvent[]
+  detail?: { chain: RepairChain; timeline: TimelineEvent[] }
   /** Set when the fetch failed. Rendered as a failure, never as "not found". */
   loadError?: string | null
 }
 
 export function RepairDetailPage({
   repairId,
-  chain: liveChain,
-  timeline: liveTimeline,
+  detail,
   loadError = null,
 }: RepairDetailPageProps) {
   const { openMaterial360 } = useMaterial360()
-  const chain = liveChain ?? getRepairChainById(repairId)
+  const chain = detail?.chain
 
   if (loadError) {
     // Deliberately NOT the "repair not found" empty state. A line that does not
@@ -154,67 +75,21 @@ export function RepairDetailPage({
           <PageHeader title="Repair not found" />
           <EmptyState
             title={`No repair chain "${repairId}"`}
-            description={
-              // Mode-aware, because "mock" is a lie under `live` and the
-              // difference tells the reader where to go looking.
-              USING_LIVE_DATA
-                ? "No repair line with this id exists in the July SAP extract."
-                : "This repair record does not exist in the mock repair register."
-            }
+            description="No repair line with this id exists in the July SAP extract."
           />
         </div>
       </div>
     )
   }
 
-  // The declaration queue is still fixture-backed here: its rows are keyed to
-  // the RC-80xx scenario ids, which do not exist in the live data. Under `live`
-  // there is simply no matching row, and the declaration panel is omitted --
-  // rather than a fixture declaration being attached to a real repair line,
-  // which would be a fabricated audit trail on a real part.
-  //
-  // The real declaration state IS shown, from chain.declarationStatus, which
-  // the backend now computes from the attestation table (W5.3).
-  const declaration = DECLARATIONS.find((d) => d.relatedRepairId === chain.id)
   const isOverdue = isRepairOverdue(chain)
-
-  const declarationTimeline: TimelineEvent[] = declaration
-    ? [
-        {
-          id: "d-created",
-          label: `Procurement PR raised — ${declaration.source}`,
-          timestamp: declaration.createdAt,
-          description: `${declaration.pr.documentNumber} · Requested by ${declaration.requester}`,
-          tone: "default",
-        },
-        declaration.status === "Completed"
-          ? {
-              id: "d-declared",
-              label: `Condition declared: ${declaration.condition ?? "—"}`,
-              timestamp: declaration.declaredAt ?? "—",
-              description: `Declared by ${declaration.declaredBy ?? "—"} — Simulated, not yet written to SAP.`,
-              tone: "success" as const,
-            }
-          : {
-              id: "d-pending",
-              label: `Declaration ${declaration.status.toLowerCase()}`,
-              timestamp: "Outstanding",
-              description: declaration.nextAction,
-              tone: declaration.status === "Flagged" ? ("danger" as const) : ("warning" as const),
-            },
-      ]
-    : []
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <PageHeader
           title={`Repair ${chain.id}`}
-          description={
-            liveChain
-              ? "Live data from the July SAP extract. Every stage below shows the evidence for it, or why there is none."
-              : "Simulated repair chain — no live SAP connection."
-          }
+          description="Live data from the July SAP extract. Every stage below shows the evidence for it, or why there is none."
           actions={
             <div className="flex items-center gap-2">
               <StatusBadge tone={REPAIR_STATUS_TONE[chain.repairStatus]}>
@@ -282,10 +157,9 @@ export function RepairDetailPage({
                 {chain.receiptStatus}
               </StatusBadge>
             </div>
-            {/* The backend's timeline when we have one: it carries the evidence
-                for every stage, including the ones it cannot prove. The locally
-                built one is the fixture path and stays unchanged. */}
-            <Timeline events={liveTimeline ?? buildRepairTimeline(chain)} />
+            {/* The backend's timeline: it carries the evidence for every
+                stage, including the ones it cannot prove. */}
+            <Timeline events={detail.timeline} />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -323,15 +197,21 @@ export function RepairDetailPage({
               )}
             </div>
 
+            {/* The backend's own answer, computed from the attestation table
+                against a material + plant + date-window match (W5.3). The
+                fixture declaration timeline that used to sit here was keyed to
+                the RC-80xx scenario ids and could only ever have attached a
+                fabricated audit trail to a real part. */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 text-sm font-medium text-foreground">Declaration history</div>
-              {declaration ? (
-                <Timeline events={declarationTimeline} />
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  No condition-to-repair declaration on file for this repair chain.
-                </p>
-              )}
+              <div className="mb-3 text-sm font-medium text-foreground">Condition declaration</div>
+              <StatusBadge tone={DECLARATION_STATUS_TONE[chain.declarationStatus]}>
+                {chain.declarationStatus}
+              </StatusBadge>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {chain.declarationStatus === "Completed"
+                  ? "A recorded condition assessment covers this repair line."
+                  : "No recorded condition assessment covers this repair line. Until this platform there was nowhere to record one, so nearly every historical line reads Required — that is the finding, not a fault."}
+              </p>
             </div>
           </div>
         </div>

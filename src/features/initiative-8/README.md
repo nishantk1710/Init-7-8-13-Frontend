@@ -100,8 +100,11 @@ side effects, safe to call from server components.
 - `formatZAR`, `cn` from `@/lib/utils`; `toast` from `sonner`
 
 `src/features/initiative-8/utils/status.ts` holds this module's own
-status→tone maps and aging-bucket logic (`AGING_BUCKETS`,
-`agingBucketForDays`) — local, not shared with other initiatives.
+status→tone maps and aging-bucket logic (`DEFAULT_AGING_BUCKETS`,
+`CODING_VERDICT_TONE`, `CODING_CONFIDENCE_TONE`) — local, not shared with
+other initiatives. Aging bands themselves are backend configuration
+(`GET /api/i8/snapshot`'s `rules.agingBands`); `DEFAULT_AGING_BUCKETS` is only
+the `scenario`-mode/fetch-failure fallback.
 
 ## Integration contracts
 

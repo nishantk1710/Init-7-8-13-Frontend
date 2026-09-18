@@ -563,6 +563,129 @@ export function createAttestation(body: AttestationRequest): Promise<ApiAttestat
   })
 }
 
+// --- W5.5: coding candidates ------------------------------------------------
+//
+// Advisory only (FR-2): materials whose PO free text talks about repair but
+// are not 80-series coded. Nothing here writes anywhere -- the endpoint is a
+// GET, same as everything except createAttestation above.
+
+export type ApiCodingCandidateLine = {
+  purchasingDocument: string
+  item: string
+  plant: ApiPlantReference | null
+  /** The text the verdict was reached on -- served so a cataloguer can check
+   *  the call without going back to SAP. */
+  shortText: string
+  matchedKeywords: string[]
+  raisedAt: string | null
+  itemCategory: string | null
+}
+
+export type ApiCodingCandidateTwin = {
+  /** The 80-series material carrying the same text as this candidate. */
+  materialId: string
+  sharedText: string
+}
+
+/**
+ * One material the screen judged.
+ *
+ * `verdict`/`confidence` are plain strings, not a closed union: the verdict
+ * vocabulary is a backend implementation decision (see
+ * `app/initiatives/i8/coding_candidates.py`), not an FRS-specified set, and
+ * could change without a frontend deploy.
+ */
+export type ApiCodingCandidateItem = {
+  materialId: string
+  /** MISCODED_REPAIRABLE / REPAIR_SERVICE / CONSUMABLE_FOR_REPAIR / UNCLEAR /
+   *  UNSCREENED. UNSCREENED means no model has answered yet -- never "not a
+   *  candidate". */
+  verdict: string
+  /** high / medium / low, or "" when unscreened. */
+  confidence: string
+  /** Why, in the model's own words. */
+  reason: string
+  plants: string[]
+  lines: ApiCodingCandidateLine[]
+  distinctTexts: string[]
+  twins: ApiCodingCandidateTwin[]
+  /** SAP itself carries the counter-example: an 80-series material with the
+   *  identical text. The strongest evidence this screen produces. */
+  isCorroborated: boolean
+  /** MISCODED_REPAIRABLE or UNCLEAR -- the ones a human should look at. */
+  isActionable: boolean
+  /** Whether the model's own confidence clears the configured threshold
+   *  (`I8_CODING_CANDIDATE_CONFIDENCE_THRESHOLD`). A sibling to
+   *  `isActionable`, not a replacement -- they answer different questions,
+   *  and a below-threshold candidate is still served here, never dropped. */
+  meetsConfidenceThreshold: boolean
+  /** Expected false on every row -- true would mean this screen and the
+   *  repairable universe (W5.1) disagree about the same material. */
+  inRepairableUniverse: boolean
+  model: string
+  /** WHO answered -- "stub" means nothing was really judged. */
+  provider: string
+  promptVersion: number | null
+  screenedAt: string | null
+}
+
+export type ApiCodingCandidateMeta = {
+  linesWithText: number
+  linesWithRepairLanguage: number
+  linesAlreadyEightySeries: number
+  linesWithoutMaterial: number
+  linesScreened: number
+  materialsFound: number
+  materialsScreened: number
+  /** True when a limit stopped the run short -- reported so a partial screen
+   *  never reads as a complete one. */
+  wasTruncated: boolean
+  corroborated: number
+  byVerdict: Record<string, number>
+  keywords: string[]
+  provider: string
+  model: string
+}
+
+/** Not an `ApiPage`: this response carries no `page`/`pageSize`/`referenceDate`. */
+export type ApiCodingCandidateResponse = {
+  items: ApiCodingCandidateItem[]
+  total: number
+  meta: ApiCodingCandidateMeta
+}
+
+export type CodingCandidatesQuery = {
+  /**
+   * Run the language-judgement model pass. Off by default because it is one
+   * model call per material -- 41 materials took 246 seconds against live
+   * gpt-4o. Omitted, every verdict comes back UNSCREENED from the (instant)
+   * keyword pass alone.
+   */
+  screen?: boolean
+  /** Screen at most this many materials -- for demoing the model pass in
+   *  seconds rather than minutes. */
+  limit?: number
+  verdict?: string
+  actionableOnly?: boolean
+  corroboratedOnly?: boolean
+  meetsConfidenceThresholdOnly?: boolean
+}
+
+/**
+ * `GET /api/i8/coding-candidates` — materials whose PO text says repair but
+ * whose number does not.
+ *
+ * Read `meta` before `items`: it says how many lines were screened, how many
+ * were dropped for carrying no material number, whether a `limit` truncated
+ * the run, and which `provider` answered. `provider: "stub"` means no model
+ * judged anything and every verdict is UNSCREENED.
+ */
+export function getCodingCandidates(
+  query: CodingCandidatesQuery = {},
+): Promise<ApiCodingCandidateResponse> {
+  return apiFetch(`/i8/coding-candidates${queryString(query)}`)
+}
+
 // --- Helpers --------------------------------------------------------------
 
 /**

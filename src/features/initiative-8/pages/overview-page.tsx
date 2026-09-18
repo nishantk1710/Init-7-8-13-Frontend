@@ -1,3 +1,4 @@
+import { AlertBanner } from "@/components/shared/alert-banner"
 import { PageHeader } from "@/components/shared/page-header"
 import { ChartCard } from "@/components/shared/chart-card"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
@@ -8,7 +9,18 @@ import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs
 import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import { isRepairOverdue } from "@/features/initiative-8/utils/status"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
+/**
+ * The Initiative 8 overview.
+ *
+ * **Still fixture-backed, and it says so on screen.** The register, repair
+ * detail, declaration queue and coding-candidate screens all read the backend
+ * now; this one has no endpoint behind it yet. Eight hand-written repair
+ * chains sitting unlabelled beside 1,225 real ones is exactly the confusion
+ * this module exists to prevent, so the banner states it rather than leaving a
+ * reader to infer it from a suspiciously round number.
+ */
 export function RefurbishableSparesOverviewPage() {
   const materialsMonitored = REPAIR_CHAINS.length
   const qtyUnderRepair = REPAIR_CHAINS.reduce((sum, c) => sum + c.qtyUnderRepair, 0)
@@ -26,6 +38,15 @@ export function RefurbishableSparesOverviewPage() {
           title="Repairable Spares"
           description="Repair-chain visibility and duplicate-procurement guarding for repairable spares."
         />
+
+        {USING_LIVE_DATA && (
+          <AlertBanner tone="warning" title="These figures are demo data, not SAP">
+            This overview still reads the hand-written scenario fixtures — eight
+            repair chains against materials that do not exist in SAP. The Repair
+            Register, Repair Detail, Declaration Queue and Coding Candidates
+            screens all show real July-extract data; this one does not yet.
+          </AlertBanner>
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <KPIStatCard label="Repairable materials monitored" value={materialsMonitored} />

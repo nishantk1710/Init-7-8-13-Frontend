@@ -37,14 +37,14 @@
  */
 
 import type {
-  AgingBucket,
   DeclarationStatus,
   ReceiptStatus,
   RepairChain,
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
+import { DEFAULT_AGING_BUCKETS } from "@/features/initiative-8/utils/status"
 import type { ApiRepairChain, ApiRegisterMeta } from "@/lib/api/i8"
-import { formatApiDate, getRegister, toNumber } from "@/lib/api/i8"
+import { formatApiDate, getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /** How many rows to pull. The register is 1,225 lines; the table filters them
@@ -66,8 +66,6 @@ const RECEIPT_STATUSES: readonly ReceiptStatus[] = [
   "Partially Received",
   "Received",
 ]
-
-const AGING: readonly AgingBucket[] = ["0-15", "16-30", "31-45", "46-60", "60+"]
 
 const DECLARATIONS: readonly DeclarationStatus[] = [
   "Required",
@@ -150,7 +148,10 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     overdueStatus: row.overdueStatus,
 
     daysOpen: row.daysOpen ?? 0,
-    agingBucket: oneOf(row.agingBucket, AGING, "0-15"),
+    // Not a closed-set oneOf(): the bands are backend configuration
+    // (I8_AGING_BAND_BOUNDARIES) and can change without a frontend deploy, so
+    // any non-empty string from the API is trusted as-is.
+    agingBucket: row.agingBucket ?? DEFAULT_AGING_BUCKETS[0],
 
     // Dates: the API sends ISO, everything in this app renders "28 Jul 2026".
     // formatApiDate is the one place that conversion happens.
@@ -183,6 +184,12 @@ export type LiveRegister = {
    *  455 lines with no PO header stay findable instead of vanishing from both
    *  the dropdown and the results. */
   vendorOptions: string[]
+  /** The currently configured aging bands (`GET /api/i8/snapshot`'s
+   *  `rules.agingBands`), for the chart and the filter dropdown to render
+   *  instead of a hard-coded list. Falls back to `DEFAULT_AGING_BUCKETS` if
+   *  the snapshot fetch fails, so a config-endpoint outage degrades rather
+   *  than breaking the page. */
+  agingBands: string[]
   meta: ApiRegisterMeta
   referenceDate: string
 }
@@ -216,6 +223,20 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     page += 1
   }
 
+  // Best-effort: the register itself is the primary fetch, and a snapshot
+  // failure should not take the whole page down over a chart's axis labels.
+  let agingBands: string[] = DEFAULT_AGING_BUCKETS
+  try {
+    const snapshot = await getSnapshot()
+    const parsed = String(snapshot.rules.agingBands ?? "")
+      .split(",")
+      .map((band) => band.trim())
+      .filter(Boolean)
+    if (parsed.length > 0) agingBands = parsed
+  } catch {
+    // Keep the default silently -- this is presentation, not data integrity.
+  }
+
   const plants = new Map<string, string>()
   const vendors = new Set<string>()
   for (const chain of chains) {
@@ -229,6 +250,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
       .map(([plantId, name]) => ({ plantId, name }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     vendorOptions: [...vendors].sort((a, b) => a.localeCompare(b)),
+    agingBands,
     meta: meta!,
     referenceDate,
   }

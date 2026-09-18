@@ -13,9 +13,11 @@ import {
 } from "recharts"
 
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { AGING_BUCKETS } from "@/features/initiative-8/utils/status"
+import { DEFAULT_AGING_BUCKETS } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
+// Cycled by index rather than a 1:1 array, since the band count is backend
+// configuration (I8_AGING_BAND_BOUNDARIES) and is not always five.
 const BUCKET_COLORS = [
   "var(--chart-3)",
   "var(--chart-1)",
@@ -36,9 +38,17 @@ function AgingTooltip({ active, payload }: TooltipContentProps) {
   )
 }
 
-export function RepairAgingChart({ chains }: { chains: RepairChain[] }) {
+export function RepairAgingChart({
+  chains,
+  bands = DEFAULT_AGING_BUCKETS,
+}: {
+  chains: RepairChain[]
+  /** The active aging bands, from `LiveRegister.agingBands` in live mode.
+   *  Defaults to the fixed bands the fixtures were written against. */
+  bands?: string[]
+}) {
   const open = chains.filter((c) => c.repairStatus !== "Closed")
-  const data = AGING_BUCKETS.map((bucket) => ({
+  const data = bands.map((bucket) => ({
     bucket,
     count: open.filter((c) => c.agingBucket === bucket).length,
   }))
@@ -66,7 +76,7 @@ export function RepairAgingChart({ chains }: { chains: RepairChain[] }) {
           <Tooltip content={AgingTooltip} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
           <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40} isAnimationActive={false}>
             {data.map((d, i) => (
-              <Cell key={d.bucket} fill={BUCKET_COLORS[i]} />
+              <Cell key={d.bucket} fill={BUCKET_COLORS[i % BUCKET_COLORS.length]} />
             ))}
           </Bar>
         </BarChart>

@@ -34,7 +34,17 @@ export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "
 /** How a procurement request originated. */
 export type DeclarationSource = "Manual" | "MRP-generated"
 
-export type AgingBucket = "0-15" | "16-30" | "31-45" | "46-60" | "60+"
+/**
+ * A label like `"0-15"` or `"60+"`.
+ *
+ * Not a fixed literal union: the day boundaries behind these bands are
+ * configuration on the backend (`I8_AGING_BAND_BOUNDARIES`, FRS open item 5,
+ * pending VZI calibration), so the set of valid labels can change without a
+ * frontend deploy. `DEFAULT_AGING_BUCKETS` in `utils/status.ts` is the
+ * fallback used in `scenario` mode and if a live snapshot fetch fails — it is
+ * a default, not the contract.
+ */
+export type AgingBucket = string
 
 /**
  * Where a repair line stands against its promised return date.
@@ -159,6 +169,76 @@ export interface RepairChain {
    */
   newUnitLeadTimeDays?: number
   notes?: string
+}
+
+/** One PO line whose free text mentioned repair (W5.5 coding-candidate screen). */
+export interface CodingCandidateLine {
+  purchasingDocument: string
+  item: string
+  plant?: PlantReference
+  /** The text the verdict was reached on — served so a cataloguer can check
+   *  the call without going back to SAP. */
+  shortText: string
+  matchedKeywords: string[]
+  raisedAt?: string
+  itemCategory?: string
+}
+
+/**
+ * An 80-series material carrying the identical text as a coding candidate.
+ *
+ * SAP's own counter-example, not a model's opinion: the naming convention was
+ * demonstrably applied to this exact description elsewhere and not here.
+ */
+export interface CodingCandidateTwin {
+  materialId: string
+  sharedText: string
+}
+
+/**
+ * One material the coding-candidate screen judged (FR-2): PO free text talks
+ * about repair, but the material is not 80-series coded. Advisory only —
+ * nothing here writes to SAP or changes a material's coding.
+ *
+ * `verdict`/`confidence` are plain strings, not a closed union: the verdict
+ * vocabulary (`MISCODED_REPAIRABLE`, `REPAIR_SERVICE`,
+ * `CONSUMABLE_FOR_REPAIR`, `UNCLEAR`, `UNSCREENED`) is a backend
+ * implementation decision, not an FRS-specified set — see
+ * `app/initiatives/i8/coding_candidates.py`.
+ */
+export interface CodingCandidate {
+  /** No material-master description exists for most of these (roughly nine
+   *  in ten 80-series materials are outside it, and these are the ones
+   *  furthest from being coded at all) — `description` falls back to the
+   *  first PO short text the material was screened on, which is the only
+   *  descriptive text that actually exists for it. */
+  material: MaterialReference
+  verdict: string
+  /** high / medium / low, as the model reported it. Empty when unscreened —
+   *  never treated as a real judgement, however low a threshold is set. */
+  confidence: string
+  /** Why, in the model's own words. */
+  reason: string
+  plants: string[]
+  lines: CodingCandidateLine[]
+  distinctTexts: string[]
+  twins: CodingCandidateTwin[]
+  /** SAP itself carries the counter-example — the strongest evidence this
+   *  screen produces, and it owes nothing to the model. */
+  isCorroborated: boolean
+  /** MISCODED_REPAIRABLE or UNCLEAR — the ones a human should look at. */
+  isActionable: boolean
+  /** Whether the model's own confidence clears the configured threshold. A
+   *  sibling to `isActionable`, not a replacement — they answer different
+   *  questions. */
+  meetsConfidenceThreshold: boolean
+  /** Expected false on every row — true would mean this screen and the
+   *  repairable universe (FR-1) disagree about the same material. */
+  inRepairableUniverse: boolean
+  model: string
+  /** WHO answered — "stub" means nothing was really judged. */
+  provider: string
+  screenedAt?: string
 }
 
 /** One row in the mandatory Condition-to-Repair Declaration Queue. */

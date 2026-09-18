@@ -1,15 +1,16 @@
 // Which dataset the app renders.
 //
-//   NEXT_PUBLIC_DATASET=live npm run dev
+//   npm run dev                                  # live -- the default
+//   NEXT_PUBLIC_DATASET=scenario npm run dev     # demo fixtures where any remain
 //
-// "scenario" (the default) uses the hand-written scenario fixtures in each
-// feature's data/ folder. They encode specific, deliberately-designed demo
-// situations that pages and cross-initiative adapters reference BY ID --
-// RC-8002, OAR-LDG-0004, material 500-14892 -- so they are what makes the
-// prototype demonstrable.
+// "live" (the default) renders what the Python backend serves from the seeded
+// July extracts.
 //
-// "live" renders what the Python backend serves from the seeded July extracts.
-// See below.
+// "scenario" uses the hand-written scenario fixtures in each feature's data/
+// folder. They encode specific, deliberately-designed demo situations that
+// pages and cross-initiative adapters reference BY ID -- RC-8002,
+// OAR-LDG-0004, material 500-14892 -- which is why they still exist even
+// though Initiative 8's own backed screens no longer read them.
 //
 // HISTORY, because the flag reads oddly without a third option having once
 // existed
@@ -29,11 +30,11 @@
 // removed. It never had anything to do with SAP -- it reads one env var.
 //
 // ---------------------------------------------------------------------------
-// WHY "live" IS A THIRD MODE AND NOT A REPLACEMENT (W5.4)
+// WHY "live" IS NOW THE DEFAULT, AND WHAT IS LEFT OF "scenario"
 // ---------------------------------------------------------------------------
 //
-// The obvious thing would be to point the pages at the API and delete the
-// fixtures. That breaks two things at once, and neither failure is loud:
+// `live` began as a third mode rather than a replacement, because deleting the
+// fixtures outright would have broken two things quietly:
 //
 // 1. THE IDENTIFIERS DO NOT OVERLAP AT ALL. The fixtures use `800-14201` at
 //    `PLANT-GBG`; the backend serves `8000005632` at `1300`. Not a formatting
@@ -42,44 +43,50 @@
 //
 // 2. INITIATIVE 7 READS AN INITIATIVE 8 FIXTURE. Its recommendation page calls
 //    getInitiative8Material360Signal("500-14892"), which resolves through the
-//    RC-8002 fixture. That material does not exist in the backend data. I07's
-//    own README says the component renders nothing when the signal is null,
-//    "including before Initiative 8's data exists" -- so it degrades rather
-//    than crashing. But it silently loses a cross-initiative feature that was
-//    built deliberately to be shown, and that is someone else's demo to agree
-//    to losing, not ours to take.
+//    RC-8002 fixture. That material does not exist in the backend data.
 //
-// A third mode solves both. Real data renders where we point it, every
-// cross-initiative path keeps resolving through fixtures until I07 and I13 are
-// ready to move too, and the switch is one env var at the demo.
+// Initiative 8's four backed screens -- the register, the repair detail, the
+// declaration queue and the coding-candidate screen -- now read the backend
+// UNCONDITIONALLY. They no longer consult this flag and no longer import a
+// fixture, so for them the question is settled.
 //
-// THE DEFAULT PATH MUST STAY BYTE-IDENTICAL. With NEXT_PUBLIC_DATASET unset,
-// nothing about any page changes -- that is the whole point of adding a mode
-// rather than editing one, and it is the easiest thing to break without
-// noticing. There is a test for it.
+// WHAT IS STILL FIXTURE-BACKED, AND WHY THIS FLAG STILL EXISTS
+//
+// Two I08 screens have no backend behind them at all: the Overview and the
+// Duplicate Guard. Duplicate Guard is FR-6 territory, which is not built. The
+// four cross-initiative selectors (summary, global actions, audit events, the
+// Material 360 adapter) are also still fixture-backed: they are SYNCHRONOUS
+// and are consumed by app-wide shared code -- lib/aggregation.ts, the global
+// chat intents, the material router, the Material 360 drawer -- which I07 and
+// I13 read too. Making those live is an async refactor across somebody else's
+// module, not an Initiative 8 cleanup.
+//
+// So the flag's remaining job is NOT to switch a data source. It is to let the
+// screens that are still demo-backed SAY SO while the ones beside them show
+// real SAP data. A hand-written number sitting unlabelled next to a real one is
+// exactly the confusion this module exists to prevent.
 
 export type DatasetMode = "scenario" | "live"
 
 function readMode(): DatasetMode {
   switch (process.env.NEXT_PUBLIC_DATASET) {
-    case "live":
-      return "live"
-    default:
-      // Anything unrecognised falls back to the fixtures rather than erroring.
-      // A typo in an env var must not take the prototype down; it should just
-      // render what it always rendered.
+    case "scenario":
       return "scenario"
+    default:
+      // Anything unrecognised means live. A typo in an env var must not
+      // silently serve hand-written demo numbers to somebody who asked for
+      // their real ones -- that is the more dangerous direction to fail in.
+      return "live"
   }
 }
 
 export const DATASET_MODE: DatasetMode = readMode()
 
 /**
- * True when pages should fetch from the backend instead of importing fixtures.
+ * True unless `NEXT_PUBLIC_DATASET=scenario` was set explicitly.
  *
- * Only Initiative 8's register and repair detail honour this today (W5.4, FR-10).
- * Every other page, selector and cross-initiative adapter continues to read the
- * scenario fixtures in every mode -- deliberately, so that turning this on
- * cannot break somebody else's screen.
+ * Read it to ask "should this screen admit it is showing demo data?", not to
+ * choose a data source -- every screen that has a backend now reads it
+ * unconditionally. See the note above.
  */
 export const USING_LIVE_DATA = DATASET_MODE === "live"

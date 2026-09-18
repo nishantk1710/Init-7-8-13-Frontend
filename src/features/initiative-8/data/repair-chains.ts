@@ -1,8 +1,14 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { vendorLabel } from "@/features/initiative-8/utils/status"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
 // remaining math throughout this module is anchored at 3 Sep 2026.
+//
+// Initiative 8's own backed screens no longer read any of this: the register,
+// repair detail, declaration queue and coding-candidate screens all read the
+// backend. What keeps these rows alive is the four SYNCHRONOUS cross-initiative
+// selectors beside them (summary, global actions, audit events, the Material
+// 360 adapter), which app-wide shared code and Initiative 7 read directly, plus
+// the two screens with no endpoint behind them yet (Overview, Duplicate Guard).
 //
 // RC-8001 is Scenario C from the master spec: low SOH, an open repair PO,
 // 2 units at the vendor, expected return soon — the default material on the
@@ -243,15 +249,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
 
 export const REPAIR_CHAINS: RepairChain[] = SCENARIO_REPAIR_CHAINS
 
-export function getRepairChainById(id: string): RepairChain | undefined {
-  return REPAIR_CHAINS.find((rc) => rc.id === id)
-}
-
 export function getRepairChainByMaterialId(materialId: string): RepairChain | undefined {
   return REPAIR_CHAINS.find((rc) => rc.material.materialId === materialId)
 }
-
-// Display labels, not raw vendor codes, so a line whose PO header is missing
-// -- and therefore has no vendor at all -- is still selectable in the filter as
-// "Unknown vendor" instead of vanishing from the dropdown and the results.
-export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map(vendorLabel))).sort()
