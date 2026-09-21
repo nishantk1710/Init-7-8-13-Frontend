@@ -1,23 +1,16 @@
 "use client"
 
 import { useMemo } from "react"
-import {
-  Activity,
-  Boxes,
-  Clock,
-  Layers,
-  ListChecks,
-  PackageX,
-  TrendingUp,
-  TriangleAlert,
-} from "lucide-react"
+import Link from "next/link"
+import { ArrowUpRight } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { ChartCard } from "@/components/shared/chart-card"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
+import { buttonVariants } from "@/components/ui/button"
 import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DepartmentValueChart } from "@/features/initiative-13/components/department-value-chart"
 import { InflowTrendChart } from "@/features/initiative-13/components/inflow-trend-chart"
+import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import { RedeploymentAvoidanceChart } from "@/features/initiative-13/components/redeployment-avoidance-chart"
 import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
 import { getI13Summary, getI13Watch } from "@/features/initiative-13/api/client"
@@ -27,7 +20,6 @@ import {
   REDEPLOYMENT_AVOIDANCE,
   getUnutilizedValueByDepartment,
 } from "@/features/initiative-13/data/overview-metrics"
-import { formatCount } from "@/lib/utils"
 
 const AGING_BAND_LABELS: Record<string, string> = {
   FAST: "Fast-moving",
@@ -66,63 +58,19 @@ export function OARUtilizationOverviewPage() {
         <PageHeader
           title="OAR Utilization"
           description="End-to-end tracking of OAR spares demand from reservation through utilization."
+          actions={
+            <Link href="/oar-utilization/utilisation-dashboard" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Open Utilisation Dashboard
+              <ArrowUpRight className="size-3.5" />
+            </Link>
+          }
         />
 
         {summary.loading && <LoadingState label="Loading summary…" />}
         {summary.error && (
           <ErrorState message={summary.error} onRetry={summary.refetch} title="Unable to load utilization summary." />
         )}
-        {summary.data && (
-          <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KPIStatCard
-                label="Total OAR positions"
-                value={formatCount(summary.data.totalOarPositions)}
-                icon={<Boxes className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="Fast-moving"
-                value={formatCount(summary.data.fastMovingCount)}
-                icon={<TrendingUp className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="Slow-moving"
-                value={formatCount(summary.data.slowMovingCount)}
-                icon={<Clock className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="Non-moving"
-                value={formatCount(summary.data.nonMovingCount)}
-                icon={<PackageX className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="GR not issued (30d)"
-                value={formatCount(summary.data.grNotIssued30DayCount)}
-                icon={<TriangleAlert className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="Plan breaches"
-                value={formatCount(summary.data.planBreachCount)}
-                icon={<Activity className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="No-plan exceptions"
-                value={formatCount(summary.data.noPlanCount)}
-                icon={<ListChecks className="size-3.5" />}
-              />
-              <KPIStatCard
-                label="Reclassification candidates"
-                value={formatCount(summary.data.reclassificationCandidateCount)}
-                icon={<Layers className="size-3.5" />}
-              />
-            </div>
-            {summary.data.valuationIsMocked && (
-              <p className="text-[11px] text-muted-foreground">
-                Valuation data backing these figures is currently mocked in the backend.
-              </p>
-            )}
-          </>
-        )}
+        {summary.data && <KpiSummary summary={summary.data} />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <ChartCard title="Aging buckets" subtitle="OAR material+plant positions by backend-computed aging band" span={6}>

@@ -28,6 +28,16 @@ export type I13ExceptionStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED"
 
 export type SourceMode = "LIVE" | "MOCK" | "UNAVAILABLE" | string
 
+export type MaterialScope = "OAR" | "MIN_MAX" | "EXCLUDED"
+
+export type ActExceptionType = "PLAN_BREACH" | "NO_PLAN" | "NO_PLAN_GRNI" | "QUANTITY_OVERRIDE"
+
+export type ActExceptionStatus = "OPEN" | "AWAITING_REQUESTER" | "CONFIRMED" | "ESCALATED" | "RESOLVED"
+
+export type AssigneeType = "REQUESTER" | "HOD"
+
+export type RoutingStatus = "RESOLVED" | "ROUTING_PENDING" | "IDENTITY_UNRESOLVED" | "NOT_APPLICABLE"
+
 export interface DataSourceStatus {
   entitySet: string
   mode: SourceMode
@@ -72,11 +82,20 @@ export interface UtilisationLedgerEntry {
 export interface WatchMetric {
   material: string
   plant: string
+  materialScope: MaterialScope | null
+
+  stockOnHand: number | null
+  openPoQuantity: number
+  averageMonthlyConsumption: number
 
   monthsOfCover: number | null
+  projectedMonthsOfCover: number | null
   monthsOfCoverReason: string | null
 
+  lastMovementDate: string | null
   daysSinceLastMovement: number | null
+  lastIssueDate: string | null
+  daysSinceLastIssue: number | null
   consumptionCount12m: number
   consumedQty12m: number
   inventoryTurns: number | null
@@ -85,6 +104,8 @@ export interface WatchMetric {
 
   grNotIssuedFlag: boolean
   grNotIssuedDaysSinceGr: number | null
+  grNotIssuedRelevantGrDate: string | null
+  grNotIssuedThresholdDays: number
   grNotIssuedReceivedQuantity: number
   grNotIssuedIssuedQuantity: number
   grNotIssuedOutstandingQuantity: number
@@ -93,6 +114,10 @@ export interface WatchMetric {
   plannedQuantity: number | null
   receivedQuantity: number
   issuedQuantity: number
+  acquiredVsPlanVarianceQuantity: number | null
+  acquiredVsPlanVariancePercentage: number | null
+
+  calculatedAt: string | null
 }
 
 export interface I13Exception {
@@ -128,6 +153,76 @@ export interface ReclassificationCandidate {
   dataAvailable: boolean
   candidateFlag: boolean
   candidateReasons: string[]
+}
+
+/** W6.6 ACT exception queue — distinct from the older, ephemeral `I13Exception`
+ * above (`/i13/exceptions`). Mirrors `ActExceptionResponse` field-for-field. */
+export interface ActException {
+  exceptionId: string
+  exceptionType: ActExceptionType
+  status: ActExceptionStatus
+
+  material: string
+  plant: string
+
+  reservationNumber: string | null
+  reservationItem: string | null
+  sessionId: string | null
+  ledgerEntryId: string | null
+
+  ownerRequesterId: string | null
+
+  detectedAt: string
+  requesterDueAt: string | null
+  escalatedAt: string | null
+  resolvedAt: string | null
+
+  currentAssigneeType: AssigneeType | null
+  currentAssigneeId: string | null
+  routingStatus: RoutingStatus | null
+
+  reason: string
+  evidence: Record<string, string>
+
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** The structured requester confirmation/justification captured on an ACT
+ * exception — mirrors `RequesterConfirmationResponse`. */
+export interface RequesterConfirmation {
+  exceptionId: string
+  reasonCategory: string
+  freeText: string
+  actorId: string
+  submittedAt: string
+}
+
+export interface CrossPlantStock {
+  material: string
+  plant: string
+  stockOnHand: number
+}
+
+export interface ActExceptionDetail extends ActException {
+  crossPlantStock: CrossPlantStock[]
+  confirmation: RequesterConfirmation | null
+}
+
+/** One requester justification, flattened from an `ActExceptionDetail`'s
+ * `confirmation` for display in the Justification Log — see
+ * `api/client.ts`'s `getI13Justifications` for how this is assembled (there
+ * is no bulk confirmation-listing endpoint). */
+export interface JustificationEntry {
+  exceptionId: string
+  exceptionType: ActExceptionType
+  material: string
+  plant: string
+  ownerRequesterId: string | null
+  reasonCategory: string
+  freeText: string
+  actorId: string
+  submittedAt: string
 }
 
 export interface ReconciliationSourceResult {

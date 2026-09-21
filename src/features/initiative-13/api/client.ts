@@ -5,10 +5,17 @@
 
 import { apiFetch } from "@/lib/api/client"
 import type {
+  ActException,
+  ActExceptionDetail,
+  ActExceptionStatus,
+  ActExceptionType,
+  CrossPlantStock,
   DataSourceStatus,
   I13Exception,
   I13Summary,
+  JustificationEntry,
   ReclassificationCandidate,
+  RequesterConfirmation,
   UtilisationLedgerEntry,
   ValidationResult,
   WatchMetric,
@@ -62,33 +69,111 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   }
 }
 
+function numOrNull(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
 function toWatchMetric(raw: RawRecord): WatchMetric {
   return {
     material: raw.material as string,
     plant: raw.plant as string,
-    monthsOfCover: raw.months_of_cover === null || raw.months_of_cover === undefined ? null : Number(raw.months_of_cover),
+    materialScope: (raw.material_scope as WatchMetric["materialScope"]) ?? null,
+
+    stockOnHand: numOrNull(raw.stock_on_hand),
+    openPoQuantity: Number(raw.open_po_quantity ?? 0),
+    averageMonthlyConsumption: Number(raw.average_monthly_consumption ?? 0),
+
+    monthsOfCover: numOrNull(raw.months_of_cover),
+    projectedMonthsOfCover: numOrNull(raw.projected_months_of_cover),
     monthsOfCoverReason: (raw.months_of_cover_reason as string | null) ?? null,
-    daysSinceLastMovement:
-      raw.days_since_last_movement === null || raw.days_since_last_movement === undefined
-        ? null
-        : Number(raw.days_since_last_movement),
+
+    lastMovementDate: (raw.last_movement_date as string | null) ?? null,
+    daysSinceLastMovement: numOrNull(raw.days_since_last_movement),
+    lastIssueDate: (raw.last_issue_date as string | null) ?? null,
+    daysSinceLastIssue: numOrNull(raw.days_since_last_issue),
     consumptionCount12m: Number(raw.consumption_count_12m ?? 0),
     consumedQty12m: Number(raw.consumed_qty_12m ?? 0),
-    inventoryTurns: raw.inventory_turns === null || raw.inventory_turns === undefined ? null : Number(raw.inventory_turns),
+    inventoryTurns: numOrNull(raw.inventory_turns),
     inventoryTurnsReason: (raw.inventory_turns_reason as string | null) ?? null,
     agingBand: raw.aging_band as WatchMetric["agingBand"],
+
     grNotIssuedFlag: Boolean(raw.gr_not_issued_flag),
-    grNotIssuedDaysSinceGr:
-      raw.gr_not_issued_days_since_gr === null || raw.gr_not_issued_days_since_gr === undefined
-        ? null
-        : Number(raw.gr_not_issued_days_since_gr),
+    grNotIssuedDaysSinceGr: numOrNull(raw.gr_not_issued_days_since_gr),
+    grNotIssuedRelevantGrDate: (raw.gr_not_issued_relevant_gr_date as string | null) ?? null,
+    grNotIssuedThresholdDays: Number(raw.gr_not_issued_threshold_days ?? 0),
     grNotIssuedReceivedQuantity: Number(raw.gr_not_issued_received_quantity ?? 0),
     grNotIssuedIssuedQuantity: Number(raw.gr_not_issued_issued_quantity ?? 0),
     grNotIssuedOutstandingQuantity: Number(raw.gr_not_issued_outstanding_quantity ?? 0),
+
     acquiredVsPlanStatus: raw.acquired_vs_plan_status as WatchMetric["acquiredVsPlanStatus"],
-    plannedQuantity: raw.planned_quantity === null || raw.planned_quantity === undefined ? null : Number(raw.planned_quantity),
+    plannedQuantity: numOrNull(raw.planned_quantity),
     receivedQuantity: Number(raw.received_quantity ?? 0),
     issuedQuantity: Number(raw.issued_quantity ?? 0),
+    acquiredVsPlanVarianceQuantity: numOrNull(raw.acquired_vs_plan_variance_quantity),
+    acquiredVsPlanVariancePercentage: numOrNull(raw.acquired_vs_plan_variance_percentage),
+
+    calculatedAt: (raw.calculated_at as string | null) ?? null,
+  }
+}
+
+function toActException(raw: RawRecord): ActException {
+  return {
+    exceptionId: raw.exception_id as string,
+    exceptionType: raw.exception_type as ActExceptionType,
+    status: raw.status as ActExceptionStatus,
+
+    material: raw.material as string,
+    plant: raw.plant as string,
+
+    reservationNumber: (raw.reservation_number as string | null) ?? null,
+    reservationItem: (raw.reservation_item as string | null) ?? null,
+    sessionId: (raw.session_id as string | null) ?? null,
+    ledgerEntryId: (raw.ledger_entry_id as string | null) ?? null,
+
+    ownerRequesterId: (raw.owner_requester_id as string | null) ?? null,
+
+    detectedAt: raw.detected_at as string,
+    requesterDueAt: (raw.requester_due_at as string | null) ?? null,
+    escalatedAt: (raw.escalated_at as string | null) ?? null,
+    resolvedAt: (raw.resolved_at as string | null) ?? null,
+
+    currentAssigneeType: (raw.current_assignee_type as ActException["currentAssigneeType"]) ?? null,
+    currentAssigneeId: (raw.current_assignee_id as string | null) ?? null,
+    routingStatus: (raw.routing_status as ActException["routingStatus"]) ?? null,
+
+    reason: raw.reason as string,
+    evidence: (raw.evidence as Record<string, string>) ?? {},
+
+    createdAt: (raw.created_at as string | null) ?? null,
+    updatedAt: (raw.updated_at as string | null) ?? null,
+  }
+}
+
+function toRequesterConfirmation(raw: RawRecord): RequesterConfirmation {
+  return {
+    exceptionId: raw.exception_id as string,
+    reasonCategory: raw.reason_category as string,
+    freeText: raw.free_text as string,
+    actorId: raw.actor_id as string,
+    submittedAt: raw.submitted_at as string,
+  }
+}
+
+function toCrossPlantStock(raw: RawRecord): CrossPlantStock {
+  return {
+    material: raw.material as string,
+    plant: raw.plant as string,
+    stockOnHand: Number(raw.stock_on_hand ?? 0),
+  }
+}
+
+function toActExceptionDetail(raw: RawRecord): ActExceptionDetail {
+  const crossPlantStock = (raw.cross_plant_stock as RawRecord[] | undefined) ?? []
+  const confirmation = raw.confirmation as RawRecord | null | undefined
+  return {
+    ...toActException(raw),
+    crossPlantStock: crossPlantStock.map(toCrossPlantStock),
+    confirmation: confirmation ? toRequesterConfirmation(confirmation) : null,
   }
 }
 
@@ -218,4 +303,90 @@ export function getI13Validation(params?: {
     gr_30_day_reference_count: params?.gr30DayReferenceCount,
   })
   return apiFetch<RawRecord>(`/i13/validation${query}`).then(toValidationResult)
+}
+
+// --- W6.6 ACT (persisted WATCH mart + exception queue) ---
+//
+// Read-only over `/api/i13/act/*`. `getI13ActUtilisation` prefers the
+// persisted mart (richer filters: `grni`, `acquiredVsPlanStatus`) over the
+// live-computed `/i13/watch` above for dashboard consumption, per that
+// route's own docstring ("Read-only over the persisted W6.3 mart"). Both
+// endpoints return the same `WatchMetricResponse` shape.
+
+export function getI13ActUtilisation(params?: {
+  plant?: string
+  material?: string
+  agingBand?: string
+  grni?: boolean
+  acquiredVsPlanStatus?: string
+}): Promise<WatchMetric[]> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    aging_band: params?.agingBand,
+    grni: params?.grni === undefined ? undefined : String(params.grni),
+    acquired_vs_plan_status: params?.acquiredVsPlanStatus,
+  })
+  return apiFetch<RawRecord[]>(`/i13/act/utilisation${query}`).then((rows) => rows.map(toWatchMetric))
+}
+
+export function getI13ActExceptions(params?: {
+  plant?: string
+  material?: string
+  type?: string
+  status?: string
+  ownerRequesterId?: string
+}): Promise<ActException[]> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    type: params?.type,
+    status: params?.status,
+    owner_requester_id: params?.ownerRequesterId,
+  })
+  return apiFetch<RawRecord[]>(`/i13/act/exceptions${query}`).then((rows) => rows.map(toActException))
+}
+
+export function getI13ActExceptionDetail(exceptionId: string): Promise<ActExceptionDetail> {
+  return apiFetch<RawRecord>(`/i13/act/exceptions/${encodeURIComponent(exceptionId)}`).then(toActExceptionDetail)
+}
+
+// The ACT API has no bulk "list every confirmation" endpoint (see
+// `app/schemas/i13_act.py` on the backend) -- a confirmation only appears
+// nested inside one exception's detail response. `getI13Justifications`
+// composes the two read-only endpoints that do exist: list exceptions whose
+// status implies a confirmation was recorded (`submit_confirmation` always
+// moves an exception to CONFIRMED; RESOLVED may have passed through
+// CONFIRMED first), then fetches detail for a *bounded* page of those --
+// never the full unfiltered exception set -- and keeps only entries whose
+// `confirmation` actually came back non-null.
+const JUSTIFICATION_CANDIDATE_STATUSES = ["CONFIRMED", "RESOLVED"] as const
+const MAX_JUSTIFICATION_DETAIL_FETCH = 30
+
+export async function getI13Justifications(params?: { plant?: string; material?: string }): Promise<JustificationEntry[]> {
+  const lists = await Promise.all(
+    JUSTIFICATION_CANDIDATE_STATUSES.map((status) =>
+      getI13ActExceptions({ plant: params?.plant, material: params?.material, status })
+    )
+  )
+  const candidates = lists.flat().slice(0, MAX_JUSTIFICATION_DETAIL_FETCH)
+  const details = await Promise.all(candidates.map((c) => getI13ActExceptionDetail(c.exceptionId)))
+  return selectConfirmedExceptions(details)
+}
+
+/** Pure, unit-testable half of `getI13Justifications` -- no network. */
+export function selectConfirmedExceptions(details: ActExceptionDetail[]): JustificationEntry[] {
+  return details
+    .filter((d) => d.confirmation !== null)
+    .map((d) => ({
+      exceptionId: d.exceptionId,
+      exceptionType: d.exceptionType,
+      material: d.material,
+      plant: d.plant,
+      ownerRequesterId: d.ownerRequesterId,
+      reasonCategory: d.confirmation!.reasonCategory,
+      freeText: d.confirmation!.freeText,
+      actorId: d.confirmation!.actorId,
+      submittedAt: d.confirmation!.submittedAt,
+    }))
 }

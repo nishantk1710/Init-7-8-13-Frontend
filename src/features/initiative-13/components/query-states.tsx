@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 
 /** Loading state for an Initiative 13 API-backed screen — never renders
@@ -40,4 +41,12 @@ export function ErrorState({
       {message}
     </AlertBanner>
   )
+}
+
+/** Distinct from `ErrorState` — the backend legitimately does not offer this
+ * capability yet (a 404, not a failed request), so there is nothing to
+ * retry. Used for W6.5/W6.6-dependent sections a W6.3-only deployment won't
+ * have. */
+export function UnavailableState({ title = "Not available yet.", message }: { title?: string; message?: string }) {
+  return <EmptyState title={title} description={message} />
 }

@@ -3,30 +3,13 @@
 import { useState } from "react"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { EmptyState } from "@/components/shared/empty-state"
 import { FilterBar } from "@/components/shared/filter-bar"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { getI13Validation } from "@/features/initiative-13/api/client"
 import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
+import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
 import { useI13Query } from "@/features/initiative-13/hooks/use-i13-query"
-import { formatCount } from "@/lib/utils"
-
-const STATUS_TONE: Record<string, "default" | "success" | "warning" | "danger"> = {
-  MATCH: "success",
-  WITHIN_TOLERANCE: "success",
-  OUT_OF_TOLERANCE: "danger",
-  REFERENCE_UNAVAILABLE: "default",
-}
 
 export function ValidationPage() {
   const [zmm065Input, setZmm065Input] = useState("")
@@ -79,51 +62,7 @@ export function ValidationPage() {
         {validation.error && (
           <ErrorState message={validation.error} onRetry={validation.refetch} title="Unable to load validation data." />
         )}
-        {validation.data && (
-          <>
-            <p className="text-[11px] text-muted-foreground">
-              Tolerance: {validation.data.tolerancePct}%
-            </p>
-            {validation.data.results.length === 0 ? (
-              <EmptyState title="No validation results available." />
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Source</TableHead>
-                      <TableHead className="text-right">Computed</TableHead>
-                      <TableHead className="text-right">Reference</TableHead>
-                      <TableHead className="text-right">Difference</TableHead>
-                      <TableHead className="text-right">Difference %</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {validation.data.results.map((r) => (
-                      <TableRow key={r.sourceName}>
-                        <TableCell className="font-medium text-foreground">{r.sourceName}</TableCell>
-                        <TableCell className="text-right text-foreground">{formatCount(r.computedCount)}</TableCell>
-                        <TableCell className="text-right text-foreground">
-                          {r.referenceCount !== null ? formatCount(r.referenceCount) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-foreground">
-                          {r.absoluteDifference !== null ? formatCount(r.absoluteDifference) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-foreground">
-                          {r.percentageDifference !== null ? `${r.percentageDifference}%` : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge tone={STATUS_TONE[r.status] ?? "default"}>{r.status}</StatusBadge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </>
-        )}
+        {validation.data && <ValidationPanel result={validation.data} />}
       </div>
     </div>
   )
