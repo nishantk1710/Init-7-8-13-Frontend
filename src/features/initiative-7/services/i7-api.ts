@@ -12,7 +12,7 @@
 // prefixed with I7_BASE rather than reusing apiFetch's bare paths the way
 // getHealth() does.
 
-import { apiFetch, ApiError } from "@/lib/api/client"
+import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api/client"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type {
@@ -21,6 +21,9 @@ import type {
   ApiApprovalHistoryResponse,
   ApiApprovalRole,
   ApiDecimal,
+  ApiGenerationStatusResponse,
+  ApiQuarterlyReport,
+  ApiQuarterlyReportListResponse,
   ApiRecommendationDetail,
   ApiRecommendationListResponse,
   ApiRecommendationSummary,
@@ -32,6 +35,7 @@ import type {
   Circuit,
   Criticality,
   DemandPattern,
+  OarConversionInfo,
   Recommendation,
   RecommendationFactor,
   RecommendationStatus,
@@ -326,6 +330,23 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
           note: `Similarity: ${detail.oar.similarity_status ?? "unknown"} · Estimate: ${detail.oar.estimate_status ?? "unknown"}`,
         }
       : undefined,
+    // FRS SOP 3.1.1 -- only OAR materials have a conversion decision at all;
+    // a Min-Max (non-OAR) recommendation never ran conversion.evaluate(), so
+    // showing this for is_oar === false/null would be a fabricated section.
+    oarConversion: detail.oar.is_oar
+      ? {
+          isOar: detail.oar.is_oar,
+          conversionEligibility:
+            (detail.oar.conversion_eligibility as OarConversionInfo["conversionEligibility"]) ?? null,
+          conversionTrigger: (detail.oar.conversion_trigger as OarConversionInfo["conversionTrigger"]) ?? null,
+          conversionDetail: detail.oar.conversion_detail,
+          demandClass: detail.oar.demand_class,
+          consumptionCount12m: detail.oar.consumption_count_12m,
+          consumptionCountThreshold: detail.oar.consumption_count_threshold,
+          productionImpact: detail.oar.production_impact,
+          i13HodApproved: detail.oar.i13_hod_approved,
+        }
+      : undefined,
     generatedAt: detail.generated_at,
     updatedAt: detail.updated_at,
     rationale: { text: detail.rationale.text, source: detail.rationale.source },
@@ -489,6 +510,94 @@ export async function applyApprovalAction(
 
 export async function fetchApprovalHistory(id: string): Promise<ApiApprovalHistoryResponse> {
   return apiFetch<ApiApprovalHistoryResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/approval-history`)
+}
+
+// --- Quarterly Deep-Dive Report (Step 9) ---------------------------------
+//
+// GET/POST /v1/i7/reports/quarterly*, mirroring app/api/i7/reports.py. These
+// functions return the raw Api* shapes as-is (see types/api.ts) rather than
+// reshaping into a camelCase mirror -- the report body is 14 sections of
+// mostly-passthrough display data with no existing frontend type to map onto
+// (unlike recommendations, which reshape into the pre-existing Recommendation
+// type the mock-data UI already used). The one exception is the quarter list,
+// which gets a small camelCase convenience shape since it feeds a picker.
+
+export interface QuarterlyReportListRow {
+  reportId: number
+  quarter: string
+  status: ApiGenerationStatusResponse["status"]
+  reportVersion: string
+  generatedAt: string
+  periodStart: string
+  periodEnd: string
+}
+
+/** GET /reports/quarterly -- summaries only, no report_json. */
+export async function fetchQuarterlyReports(limit = 20): Promise<{ items: QuarterlyReportListRow[]; total: number }> {
+  const response = await apiFetch<ApiQuarterlyReportListResponse>(
+    `${I7_BASE}/reports/quarterly?limit=${encodeURIComponent(String(limit))}`,
+  )
+  return {
+    items: response.items.map((row) => ({
+      reportId: row.report_id,
+      quarter: row.quarter,
+      status: row.status,
+      reportVersion: row.report_version,
+      generatedAt: row.generated_at,
+      periodStart: row.period_start,
+      periodEnd: row.period_end,
+    })),
+    total: response.total,
+  }
+}
+
+/** GET /reports/quarterly/{quarter} -- the full 14-section report body.
+ * Returns null on a 404 (never generated yet), matching
+ * fetchRecommendationDetail's existing not-found idiom. */
+export async function fetchQuarterlyReport(quarter: string): Promise<ApiQuarterlyReport | null> {
+  try {
+    return await apiFetch<ApiQuarterlyReport>(`${I7_BASE}/reports/quarterly/${encodeURIComponent(quarter)}`)
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  }
+}
+
+/** POST /reports/quarterly/generate -- synchronous, typically 40-50s against
+ * current data volumes (see app/api/i7/reports.py's module docstring).
+ * Idempotent per quarter: calling twice overwrites the one row rather than
+ * creating a duplicate. */
+export async function generateQuarterlyReport(quarter: string): Promise<ApiQuarterlyReport> {
+  return apiFetch<ApiQuarterlyReport>(`${I7_BASE}/reports/quarterly/generate`, {
+    method: "POST",
+    body: JSON.stringify({ quarter }),
+  })
+}
+
+/** GET /reports/quarterly/{quarter}/status -- for a polling loop. A quarter
+ * that was never generated returns PENDING (not a 404), per the backend's
+ * explicit polling-shape design -- never thrown as an error here. */
+export async function fetchGenerationStatus(quarter: string): Promise<ApiGenerationStatusResponse> {
+  return apiFetch<ApiGenerationStatusResponse>(`${I7_BASE}/reports/quarterly/${encodeURIComponent(quarter)}/status`)
+}
+
+/** GET /reports/quarterly/{quarter}/export -- the raw-detail Excel workbook,
+ * NOT the management report. Returns a blob URL and suggested filename for
+ * the caller to trigger a browser download; does not perform the download
+ * itself (no existing file-download precedent in this app to defer to). */
+export async function fetchQuarterlyReportExportBlob(
+  quarter: string,
+): Promise<{ blobUrl: string; filename: string }> {
+  const url = `${API_BASE_URL}${I7_BASE}/reports/quarterly/${encodeURIComponent(quarter)}/export`
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new ApiError(`GET ${url} failed with ${response.status}`, response.status)
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? ""
+  const match = /filename="([^"]+)"/.exec(disposition)
+  const filename = match?.[1] ?? `i7-quarterly-report-${quarter.replace(/\s+/g, "_")}.xlsx`
+  const blob = await response.blob()
+  return { blobUrl: URL.createObjectURL(blob), filename }
 }
 
 // --- Adoption tracking (FR-9) --------------------------------------------

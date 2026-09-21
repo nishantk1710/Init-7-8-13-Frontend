@@ -76,7 +76,7 @@ export function RecommendationStatusChart({
   const pieData = legendData.filter((d) => d.count > 0)
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex min-w-0 items-center gap-4">
       <div className="h-[160px] w-[160px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -87,6 +87,13 @@ export function RecommendationStatusChart({
               innerRadius="58%"
               outerRadius="90%"
               paddingAngle={2}
+              // A real but tiny slice (e.g. 1 of 226,930) gets an angle too
+              // small to render as a visible wedge, even though its color is
+              // correct -- minAngle guarantees every non-zero slice is at
+              // least this many degrees, the same "make the real thing
+              // visible" fix already applied to the Stockout Risk bar (see
+              // inventory-health-card.tsx's segmentHeightsPx).
+              minAngle={8}
               stroke="none"
               isAnimationActive={false}
               onClick={(entry) => {
@@ -107,7 +114,7 @@ export function RecommendationStatusChart({
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex flex-1 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         {legendData.map((d) => (
           <button
             key={d.status}

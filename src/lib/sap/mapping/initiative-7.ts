@@ -86,6 +86,12 @@ export const RECOMMENDATION_SOURCES: FieldSourceMap<Recommendation> = {
     from: "gap",
     note: "Similar-material suggestions and a confidence band for OAR materials with no history. An AI output, not a SAP read.",
   },
+  oarConversion: {
+    from: "platform",
+    file: "i7_recommendation",
+    column: "conversion_eligibility/conversion_trigger/conversion_detail/consumption_count_12m/i13_hod_approved",
+    note: "FRS SOP 3.1.1 conversion decision, computed by app/initiatives/i7/recommendations/conversion.py and persisted on the Recommendation row -- not a SAP read.",
+  },
   serviceLevelTarget: {
     from: "gap",
     note: "Target service level per material. Not maintained in SAP and not in any platform file — needs a policy decision from VZI, likely by criticality band.",

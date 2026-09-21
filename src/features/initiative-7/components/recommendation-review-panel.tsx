@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { MessageSquare, Send, ShieldCheck } from "lucide-react"
+import { ArrowRightLeft, MessageSquare, Send, ShieldCheck } from "lucide-react"
 
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { formatCount, formatZAR } from "@/lib/utils"
 import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
-import type { Criticality, Recommendation } from "@/features/initiative-7/types/inventory"
+import type { Criticality, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
 import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
@@ -41,6 +41,70 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
     <div className="min-w-0">
       <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">{label}</dt>
       <dd className="mt-0.5 text-[13px] break-words text-foreground">{children}</dd>
+    </div>
+  )
+}
+
+const CONVERSION_ELIGIBILITY_TONE: Record<string, "success" | "warning" | "default"> = {
+  ELIGIBLE: "success",
+  NOT_ELIGIBLE: "default",
+  UNKNOWN: "warning",
+}
+
+const CONVERSION_TRIGGER_LABEL: Record<string, string> = {
+  CONSUMPTION_FREQUENCY: "Consumption",
+  PRODUCTION_IMPACT: "Criticality",
+  I13_HOD_APPROVED_REQUEST: "HOD-approved request",
+  NONE: "None",
+  UNKNOWN: "Unknown",
+}
+
+/**
+ * FRS SOP 3.1.1 -- OAR-to-Min-Max conversion suggestion. Only rendered when
+ * the caller has already confirmed `rec.oarConversion` is present (i.e. the
+ * material is in OAR scope AND conversion.evaluate() actually ran); this
+ * component never re-derives OAR scope or re-evaluates triggers itself, it
+ * only displays the backend's decision. Demand class is shown as supporting
+ * confidence context, never as a fourth trigger.
+ */
+function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
+  const eligibility = oar.conversionEligibility
+  const trigger = oar.conversionTrigger
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <h4 className="flex items-center gap-1.5 text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
+        <ArrowRightLeft className="size-3.5" />
+        OAR → Min-Max conversion
+      </h4>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "default"}>
+          {eligibility ? eligibility.replace(/_/g, " ") : "Unknown"}
+        </StatusBadge>
+        {trigger && trigger !== "NONE" && (
+          <span className="text-[11px] text-muted-foreground">
+            Trigger: {CONVERSION_TRIGGER_LABEL[trigger] ?? trigger}
+          </span>
+        )}
+      </div>
+      <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+        <Fact label="Consumption (12M)">
+          {oar.consumptionCount12m ?? "—"}
+          {oar.consumptionCountThreshold != null && (
+            <span className="text-muted-foreground"> / threshold {oar.consumptionCountThreshold}</span>
+          )}
+        </Fact>
+        <Fact label="Demand class">{oar.demandClass ?? "—"}</Fact>
+        <Fact label="I13 HOD approved">
+          {oar.i13HodApproved === null ? "Unknown" : oar.i13HodApproved ? "Yes" : "No"}
+        </Fact>
+      </dl>
+      {oar.conversionDetail && (
+        <div className="mt-2.5 border-t border-border pt-2.5">
+          <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">Reason</dt>
+          <dd className="mt-0.5 text-[13px] leading-relaxed text-foreground">{oar.conversionDetail}</dd>
+        </div>
+      )}
     </div>
   )
 }
@@ -126,6 +190,8 @@ export function RecommendationReviewPanel({
           </p>
           <ForecastVsActualChart recommendations={[rec]} />
         </div>
+
+        {rec.oarConversion && <OarConversionSection oar={rec.oarConversion} />}
       </div>
 
       <div className="flex flex-col gap-3">

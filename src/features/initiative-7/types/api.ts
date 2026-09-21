@@ -293,3 +293,236 @@ export interface ApiErrorBody {
     details: Record<string, unknown>
   }
 }
+
+// --- Quarterly Deep-Dive Report (Step 9) ---------------------------------
+//
+// Mirrors app/schemas/i7/reports.py verbatim. `AvailabilityStatus` is the
+// one recurring discipline across every section below: a metric that can be
+// genuinely unavailable always carries an explicit status string alongside
+// its value -- never a bare 0/false/null with no accompanying explanation.
+// The frontend must render each status distinctly (see AvailabilityValue).
+
+export type ApiGenerationStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
+
+export type ApiAvailabilityStatus =
+  | "AVAILABLE"
+  | "NOT_AVAILABLE"
+  | "NOT_CONFIGURED"
+  | "UNKNOWN"
+  | "NOT_EVALUABLE"
+
+export interface ApiQuarterlyReportListItem {
+  report_id: number
+  quarter: string
+  status: ApiGenerationStatus
+  report_version: string
+  generated_at: string
+  period_start: string
+  period_end: string
+}
+
+export interface ApiQuarterlyReportListResponse {
+  items: ApiQuarterlyReportListItem[]
+  total: number
+}
+
+export interface ApiGenerationStatusResponse {
+  quarter: string
+  status: ApiGenerationStatus
+  report_id: number | null
+  generated_at: string | null
+  error: string | null
+}
+
+export interface ApiReportMetadata {
+  quarter: string
+  period_start: string
+  period_end: string
+  generated_at: string
+  report_version: string
+  feature_run_id: number | null
+  forecast_run_id: number | null
+  inventory_run_id: number | null
+  oar_run_id: number | null
+}
+
+export interface ApiExecutiveSummary {
+  total_material_plants: number
+  classified_percentage: ApiDecimal
+  total_recommendations: number
+  ready_for_review_count: number
+  pending_approval_count: number
+  not_evaluable_count: number
+  oar_count: number
+  approval_ledger_entries: number
+}
+
+export interface ApiHistoryStatusCount {
+  history_status: string
+  count: number
+}
+
+export interface ApiScopeAndDataQuality {
+  total_records: number
+  classified_count: number
+  classified_percentage: ApiDecimal
+  unclassified_count: number
+  unclassified_percentage: ApiDecimal
+  history_status_breakdown: ApiHistoryStatusCount[]
+  criticality_populated_count: number
+  criticality_populated_percentage: ApiDecimal
+  lead_time_populated_count: number
+  lead_time_populated_percentage: ApiDecimal
+}
+
+export interface ApiDemandClassCount {
+  demand_class: string
+  count: number
+  percentage: ApiDecimal
+}
+
+export interface ApiDemandClassification {
+  total: number
+  by_class: ApiDemandClassCount[]
+}
+
+export interface ApiForecastAccuracyMetric {
+  status: ApiAvailabilityStatus
+  value: ApiDecimal
+  populated_count: number
+  total_count: number
+}
+
+export interface ApiChampionChallengerCounts {
+  champion_count: number
+  challenger_count: number
+  baseline_count: number
+}
+
+export interface ApiForecastingSection {
+  total_forecasts: number
+  mean_absolute_error: ApiForecastAccuracyMetric
+  pinball_loss: ApiForecastAccuracyMetric
+  bias_percentage: ApiForecastAccuracyMetric
+  fill_rate: ApiForecastAccuracyMetric
+  holding_cost: ApiForecastAccuracyMetric
+  champion_challenger: ApiChampionChallengerCounts
+  mape_status: ApiAvailabilityStatus
+}
+
+export interface ApiPopulationCount {
+  populated_count: number
+  missing_count: number
+  total_count: number
+  percentage_populated: ApiDecimal
+}
+
+export interface ApiSafetyStockSection {
+  current: ApiPopulationCount
+  recommended: ApiPopulationCount
+  both_available_count: number
+  mean_delta: ApiDecimal
+  service_level_status: ApiAvailabilityStatus
+}
+
+export interface ApiReorderPointSection {
+  current: ApiPopulationCount
+  recommended: ApiPopulationCount
+  both_available_count: number
+  mean_delta: ApiDecimal
+}
+
+export interface ApiMaxStockSection {
+  current: ApiPopulationCount
+  recommended: ApiPopulationCount
+  both_available_count: number
+  mean_delta: ApiDecimal
+  strategy_labeled_count: number
+  strategy_production_resolved_count: number
+  strategy_unresolved_fixture_count: number
+  strategy_policy_status: ApiAvailabilityStatus
+}
+
+export interface ApiConversionEligibilityCount {
+  conversion_eligibility: string | null
+  count: number
+}
+
+export interface ApiOarSection {
+  is_oar_true_count: number
+  is_oar_false_count: number
+  is_oar_null_count: number
+  conversion_eligibility_breakdown: ApiConversionEligibilityCount[]
+}
+
+export interface ApiRecommendationStatusCount {
+  status: string
+  count: number
+}
+
+export interface ApiRecommendationsSection {
+  total: number
+  by_status: ApiRecommendationStatusCount[]
+}
+
+export interface ApiApprovalSection {
+  ledger_entry_count: number
+  distinct_recommendations_in_approval: number
+  pending_count: number
+  approved_count: number
+  rejected_count: number
+}
+
+/** One row of Section 12 -- "Current/I11 Baseline vs I07 Recommendation".
+ * Per the 2026-09-21 product correction, the baseline is I07's own
+ * already-persisted current-state columns (current_safety_stock/current_rop/
+ * current_max_stock) and MARC-PLIFZ lead time, standing in for I11 because no
+ * separate I11 dataset or working I11LeadTimeProvider exists yet. Always
+ * exactly 4 rows (Safety Stock, ROP, Max Stock, Lead Time), even when a row's
+ * availability_status is NOT_AVAILABLE -- never dropped. */
+export interface ApiBaselineComparisonRow {
+  metric: string
+  baseline_value: ApiDecimal
+  recommendation_value: ApiDecimal
+  delta: ApiDecimal
+  delta_percentage: ApiDecimal
+  both_available_count: number
+  baseline_missing_count: number
+  recommendation_missing_count: number
+  not_evaluable_count: number
+  availability_status: ApiAvailabilityStatus
+}
+
+export interface ApiBaselineComparisonSection {
+  baseline_lead_time_source: string
+  i07_lead_time_source: string | null
+  rows: ApiBaselineComparisonRow[]
+}
+
+export interface ApiSapAdoptionSection {
+  status: ApiAvailabilityStatus
+  reason: string
+}
+
+export interface ApiLimitationsSection {
+  items: string[]
+}
+
+/** GET /v1/i7/reports/quarterly/{quarter} -- the full 14-section report body,
+ * mirroring app/schemas/i7/reports.py::QuarterlyReport field-for-field. */
+export interface ApiQuarterlyReport {
+  metadata: ApiReportMetadata
+  executive_summary: ApiExecutiveSummary
+  scope_and_data_quality: ApiScopeAndDataQuality
+  demand_classification: ApiDemandClassification
+  forecasting: ApiForecastingSection
+  safety_stock: ApiSafetyStockSection
+  reorder_point: ApiReorderPointSection
+  max_stock: ApiMaxStockSection
+  oar: ApiOarSection
+  recommendations: ApiRecommendationsSection
+  approval: ApiApprovalSection
+  baseline_comparison: ApiBaselineComparisonSection
+  sap_adoption: ApiSapAdoptionSection
+  limitations: ApiLimitationsSection
+}

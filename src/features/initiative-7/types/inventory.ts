@@ -114,6 +114,27 @@ export interface OarColdStartGuidance {
   note: string
 }
 
+/** OAR-to-Min-Max conversion suggestion (FRS SOP 3.1.1), read verbatim from
+ * the backend's OarInfo/conversion.evaluate() result -- never recomputed or
+ * re-triggered in the frontend. Only meaningful when `isOar` is true; a
+ * non-OAR (Min-Max) recommendation has no conversion decision to show.
+ * `demandClass` is FR-2's pattern, carried here purely as supporting/
+ * confidence context -- it is not one of the three OR'd triggers. */
+export interface OarConversionInfo {
+  isOar: boolean | null
+  conversionEligibility: "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN" | null
+  conversionTrigger: "CONSUMPTION_FREQUENCY" | "PRODUCTION_IMPACT" | "I13_HOD_APPROVED_REQUEST" | "NONE" | "UNKNOWN" | null
+  conversionDetail: string | null
+  demandClass: string | null
+  consumptionCount12m: number | null
+  consumptionCountThreshold: number | null
+  /** Trigger 2 (criticality/tier) evidence -- null when unresolved. */
+  productionImpact: boolean | null
+  /** null when the I13 HOD ledger has no data for this material-plant yet
+   * (the stub's honest "unknown", never a fabricated false). */
+  i13HodApproved: boolean | null
+}
+
 /** AI-generated (or deterministic-fallback) explanation, read verbatim from
  * the backend — never generated or recomputed in the frontend. Present only
  * on recommendations sourced from the live API (see `services/i7-api.ts`);
@@ -153,6 +174,9 @@ export interface Recommendation {
   championChallenger: ChampionChallenger
   workflow: WorkflowStep[]
   oarColdStart?: OarColdStartGuidance
+  /** Only present on live-API recommendations (see mapDetailToRecommendation
+   * in services/i7-api.ts) -- absent for scenario/generated fixtures. */
+  oarConversion?: OarConversionInfo
   generatedAt: string
   /** When this recommendation's row last changed (submit/hold/approve/reject
    * all update the existing row in place) -- the correct "waiting since"

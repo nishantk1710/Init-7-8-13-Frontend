@@ -27,6 +27,11 @@ export const initiative7Manifest: InitiativeManifest = {
         icon: "clipboard-check",
         href: "/inventory-planning/adoption",
       },
+      {
+        label: "Quarterly Reports",
+        icon: "file-text",
+        href: "/inventory-planning/reports",
+      },
     ],
   },
 }
