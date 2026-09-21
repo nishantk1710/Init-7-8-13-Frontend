@@ -61,6 +61,23 @@ export type ApiSAPDocumentReference = {
 /** Where a repair line stands against its promised date. */
 export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
 
+/**
+ * Where a repair line stands against the material's planned delivery time.
+ *
+ * A SECOND, INDEPENDENT signal — not a fallback for `ApiOverdueStatus`. One
+ * asks whether the line passed the date somebody promised on the PO; this asks
+ * whether it has taken longer than this material normally takes. They can
+ * disagree on the same row, and neither overrides the other.
+ *
+ * `NO_LEAD_TIME` covers both "MARC has no row for this material and plant" and
+ * "PLIFZ is not maintained" — including every Gamsberg line, because the
+ * planning extract omits that plant entirely.
+ */
+export type ApiLeadTimeStatus =
+  | "WITHIN_LEAD_TIME"
+  | "BEYOND_LEAD_TIME"
+  | "NO_LEAD_TIME"
+
 /** One row of `GET /api/i8/register`. One material + one repair PO line. */
 export type ApiRepairChain = {
   /** `{EBELN}-{EBELP}`. The register key as one string. */
@@ -85,10 +102,30 @@ export type ApiRepairChain = {
   repairStatus: string
   receiptStatus: string
   overdueStatus: ApiOverdueStatus
+  leadTimeStatus: ApiLeadTimeStatus
   declarationStatus: "Required" | "Pending" | "Completed" | "Flagged"
 
   daysOpen: number | null
   agingBucket: string | null
+
+  /**
+   * MARC.PLIFZ for this material at this plant — planned delivery time in
+   * CALENDAR days, measured PO to received. The same field Initiative 07 uses.
+   * Null on every Gamsberg line: the planning extract omits plant 1500.
+   */
+  leadTimeDays: number | null
+  /**
+   * Raised to received, or raised to today while still out. What
+   * `leadTimeStatus` is measured on — unlike `daysOpen`, it stops when the unit
+   * comes back, so a repair that finished on time does not drift into breach.
+   */
+  daysElapsed: number | null
+  /**
+   * Positive once past the planned time, negative while inside it. Null when
+   * there is no lead time to measure against — NOT 0, so "nobody told us how
+   * long this takes" cannot average in as "finished exactly on time".
+   */
+  daysOverLeadTime: number | null
   /** Only computable for completed repairs in the current extract. */
   daysAtVendor: number | null
   daysInCurrentStage: number | null
@@ -130,6 +167,12 @@ export type ApiRegisterMeta = {
   overdueLines: number
   noDueDateLines: number
   linesWithoutDueDate: number
+  /** The population the two counts below were measured over. Short of
+   *  `totalLines` while the planning extract omits Gamsberg. */
+  linesWithLeadTime: number
+  linesBeyondLeadTime: number
+  /** The actionable half: still out, and already past the planned time. */
+  openLinesBeyondLeadTime: number
   partiallyReceivedLines: number
   linesWithReversals: number
   linesOnEightySeries: number
@@ -316,6 +359,13 @@ export type ApiExceptionItem = {
   /** The repair line's own date, not when the check ran. */
   raisedAt: string | null
   isOpenRepair: boolean
+  /**
+   * The line predates the attestation control, so the gap is explained by when
+   * it was raised rather than by anyone failing to act. Render it as a reason,
+   * not a violation. Always false while no cutover date is configured, which is
+   * the current state.
+   */
+  preAutomation: boolean
 }
 
 export type ApiExceptionMeta = {
@@ -325,6 +375,15 @@ export type ApiExceptionMeta = {
   linesChecked: number
   linesCovered: number
   attestationWindowDays: number
+  /** Exceptions explained by predating the control rather than by a miss. */
+  preAutomation: number
+  /**
+   * `total` less `preAutomation` — the work, where `total` is the business
+   * case. Show both: quoting either alone misleads in a different direction.
+   */
+  actionable: number
+  /** The cutover these counts were measured against. Null means none is set. */
+  attestationCutoverDate: string | null
   /**
    * Which exception types the backend actually raises. MISSING_SESSION_ID and
    * UNJUSTIFIED_ACQUISITION are declared but never raised, so an empty count is

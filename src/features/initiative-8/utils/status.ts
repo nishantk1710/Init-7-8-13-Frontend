@@ -101,6 +101,33 @@ export function hasNoDueDate(chain: RepairChain): boolean {
 }
 
 /**
+ * True when this line has run past its material's planned delivery time.
+ *
+ * Deliberately NOT folded into `isRepairOverdue()`. They answer different
+ * questions — the promised date versus the normal turnaround — and a row can
+ * be on time by one and beyond by the other. Merging them would collapse that
+ * disagreement into a single verdict and lose the finding.
+ *
+ * No fallback arithmetic here, unlike `isRepairOverdue()`. The benchmark is
+ * `MARC.PLIFZ` and only the backend has it: the scenario fixtures carry no
+ * lead time, so a line with no `leadTimeStatus` is unknown, not compliant.
+ */
+export function isBeyondLeadTime(chain: RepairChain): boolean {
+  return chain.leadTimeStatus === "BEYOND_LEAD_TIME"
+}
+
+/**
+ * True when there is no planned delivery time to judge this line against.
+ *
+ * Its own state, the same way `hasNoDueDate` is — and a populous one: MARC
+ * covers plants 1300 and 1200 only, so all 357 Gamsberg lines land here. Render
+ * it as "not known" and never as "within".
+ */
+export function hasNoLeadTime(chain: RepairChain): boolean {
+  return chain.leadTimeStatus === undefined || chain.leadTimeStatus === "NO_LEAD_TIME"
+}
+
+/**
  * "7 days remaining", "12 days overdue", or an explanation of why neither.
  *
  * An explicit day count wins over everything else. Checking `hasNoDueDate`

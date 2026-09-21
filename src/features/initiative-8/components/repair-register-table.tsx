@@ -35,6 +35,7 @@ import {
   DEFAULT_AGING_BUCKETS,
   RECEIPT_STATUS_TONE,
   UNKNOWN,
+  isBeyondLeadTime,
   orUnknown,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -277,7 +278,26 @@ export function RepairRegisterTable({
                   <TableCell className="text-muted-foreground">
                     {c.expectedReturn ?? UNKNOWN}
                   </TableCell>
-                  <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
+                  {/* The lead-time highlight. Days open stays the number on
+                      show -- the ruling was to keep the aging and mark it when
+                      it runs past the material's planned delivery time, not to
+                      replace it with a verdict. The cell says by how much and
+                      against what, because "90" in red is an accusation
+                      without evidence. */}
+                  <TableCell
+                    className={
+                      isBeyondLeadTime(c)
+                        ? "text-right font-medium text-warning"
+                        : "text-right text-foreground"
+                    }
+                    title={
+                      isBeyondLeadTime(c)
+                        ? `${c.daysOverLeadTime} days past the ${c.leadTimeDays}-day planned delivery time for this material`
+                        : undefined
+                    }
+                  >
+                    {c.daysOpen}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge tone={RECEIPT_STATUS_TONE[c.receiptStatus]}>
                       {c.receiptStatus}

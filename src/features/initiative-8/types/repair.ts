@@ -62,6 +62,30 @@ export type AgingBucket = string
 export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
 
 /**
+ * Where a repair line stands against the material's planned delivery time.
+ *
+ * Served by `GET /api/i8/register` as `leadTimeStatus`. A **second,
+ * independent** signal, not a fallback for `OverdueStatus`: one asks whether
+ * the line passed the date somebody promised on the PO, this asks whether it
+ * has taken longer than this material normally takes. A row can be `ON_TIME`
+ * and `BEYOND_LEAD_TIME` at once — that disagreement is the finding, not an
+ * error to resolve away, and it is why the check runs on every line rather
+ * than only the 63 with no agreed date.
+ *
+ * The benchmark is `MARC.PLIFZ` (planned delivery time, calendar days, PO to
+ * received) — the same field Initiative 07 uses, so the two initiatives cannot
+ * report different turnarounds for the same part.
+ *
+ * `NO_LEAD_TIME` means there is nothing to compare against, and covers every
+ * Gamsberg line: the planning extract omits plant 1500 entirely. Render it as
+ * "not known", never as "fine".
+ */
+export type LeadTimeStatus =
+  | "WITHIN_LEAD_TIME"
+  | "BEYOND_LEAD_TIME"
+  | "NO_LEAD_TIME"
+
+/**
  * A single repairable material's active (or recently closed) repair chain —
  * the core entity behind the Repair Register / Repair Detail / Duplicate
  * Guard pages.
@@ -120,9 +144,29 @@ export interface RepairChain {
    */
   overdueStatus?: OverdueStatus
 
+  /**
+   * Whether this line has run past its material's planned delivery time.
+   * Independent of `overdueStatus` — see the type's own note. Optional because
+   * the mock-data path does not produce it.
+   */
+  leadTimeStatus?: LeadTimeStatus
+
   /** Days since the repair PR was raised. */
   daysOpen: number
   agingBucket: AgingBucket
+
+  /**
+   * The planned delivery time this line is measured against, in calendar days.
+   * Undefined where none is maintained — including every Gamsberg line.
+   */
+  leadTimeDays?: number
+
+  /**
+   * Days past the planned delivery time; negative while still inside it.
+   * Undefined when there is no lead time to measure against — NOT 0, so an
+   * unmeasurable line cannot average in as "finished exactly on time".
+   */
+  daysOverLeadTime?: number
   raisedAt: string
   poIssuedAt?: string
   sentToVendorAt?: string

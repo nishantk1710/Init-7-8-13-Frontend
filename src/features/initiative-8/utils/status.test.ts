@@ -5,6 +5,8 @@ import {
   UNKNOWN,
   formatDaysRemaining,
   hasNoDueDate,
+  hasNoLeadTime,
+  isBeyondLeadTime,
   isRepairOverdue,
   orUnknown,
   vendorLabel,
@@ -126,5 +128,46 @@ describe("orUnknown", () => {
     // no stock record are different answers, and only one of them is zero.
     expect(orUnknown(0)).toBe("0")
     expect(orUnknown(undefined)).toBe(UNKNOWN)
+  })
+})
+
+describe("lead time, as a signal of its own", () => {
+  const base = (over: Partial<RepairChain> = {}): RepairChain =>
+    ({
+      id: "4500000001-00010",
+      repairStatus: "At Vendor",
+      receiptStatus: "Awaiting Receipt",
+      declarationStatus: "Required",
+      daysOpen: 90,
+      agingBucket: "60+",
+      raisedAt: "1 Jun 2026",
+      ...over,
+    }) as RepairChain
+
+  it("is not merged into the overdue verdict", () => {
+    // The whole reason the check runs on every line: a generous date on the PO
+    // makes this ON_TIME while it has already taken longer than this material
+    // normally takes. Both readings are true and neither overrides the other.
+    const chain = base({
+      overdueStatus: "ON_TIME",
+      leadTimeStatus: "BEYOND_LEAD_TIME",
+    })
+    expect(isRepairOverdue(chain)).toBe(false)
+    expect(isBeyondLeadTime(chain)).toBe(true)
+  })
+
+  it("treats a missing lead time as unknown, not as compliant", () => {
+    // 357 of 1,225 lines — every Gamsberg one, since MARC covers plants 1300
+    // and 1200 only. Reading silence as "within" would report the plant with
+    // no data as the best-performing one.
+    expect(hasNoLeadTime(base())).toBe(true)
+    expect(hasNoLeadTime(base({ leadTimeStatus: "NO_LEAD_TIME" }))).toBe(true)
+    expect(isBeyondLeadTime(base({ leadTimeStatus: "NO_LEAD_TIME" }))).toBe(false)
+  })
+
+  it("reads a line inside its planned time as neither", () => {
+    const chain = base({ leadTimeStatus: "WITHIN_LEAD_TIME" })
+    expect(isBeyondLeadTime(chain)).toBe(false)
+    expect(hasNoLeadTime(chain)).toBe(false)
   })
 })

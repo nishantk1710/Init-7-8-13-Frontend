@@ -146,6 +146,10 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     receiptStatus: oneOf(row.receiptStatus, RECEIPT_STATUSES, "Not Yet Shipped"),
     declarationStatus: oneOf(row.declarationStatus, DECLARATIONS, "Required"),
     overdueStatus: row.overdueStatus,
+    // A second signal beside overdueStatus, never a replacement for it: this
+    // one measures against MARC.PLIFZ, the material's planned delivery time,
+    // and a row can be ON_TIME and BEYOND_LEAD_TIME at the same time.
+    leadTimeStatus: row.leadTimeStatus,
 
     daysOpen: row.daysOpen ?? 0,
     // Not a closed-set oneOf(): the bands are backend configuration
@@ -172,6 +176,12 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // Undefined on 357 of 1,225 — every Gamsberg line, since MARC covers
     // plants 1300 and 1200 only.
     newUnitLeadTimeDays: orUndefined(row.newUnitLeadTimeDays),
+
+    // Same MARC gap, same 357 lines: no planned delivery time means no
+    // lead-time verdict, which the status reports as NO_LEAD_TIME rather than
+    // as compliance.
+    leadTimeDays: orUndefined(row.leadTimeDays),
+    daysOverLeadTime: orUndefined(row.daysOverLeadTime),
   }
 }
 
