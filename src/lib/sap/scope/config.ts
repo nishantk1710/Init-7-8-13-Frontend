@@ -3,14 +3,17 @@
 // to name a scope's underlying SAP fields or values. Everything else reaches
 // scope decisions through `isInScope` / `isMaterialInScope` / `toODataFilter`.
 //
-// Status as of 2026-09-08 (see docs-eng/phase_summary.md, Phase 0): the OAR
-// rule below is UNCONFIRMED. A live full-scan of MaterialPlantSet.Dismm found
-// ND+PD = 46.4% of the catalogue (the plan's own rule of thumb wanted <40% to
-// call it "a clear minority"), 47% of rows have no Dismm at all, and six MRP
-// Type codes (V1, M0, RP, VI, VH, V2) appear that no prior ruling mentions.
-// That is a team-lead judgment call, not a technical one — flip `confirmed`
-// to `true` once it lands. Nothing here blocks on the answer: changing it is
-// a one-line edit to `OAR_MRP_TYPES`/`rollup`, by design.
+// Status as of 2026-09-18: the OAR field rule is confirmed as
+// `Dismm in {ND, PD}` alone -- the MSTAE/material-status exclusion carried
+// over from an earlier draft has been dropped (matches the backend's
+// app/initiatives/i7/policy/oar.py::current_oar_policy). Still open: a live
+// full-scan of MaterialPlantSet.Dismm found ND+PD = 46.4% of the catalogue
+// (the plan's own rule of thumb wanted <40% to call it "a clear minority"),
+// 47% of rows have no Dismm at all, and six MRP Type codes (V1, M0, RP, VI,
+// VH, V2) appear that no prior ruling mentions -- none of that changes the
+// field rule itself. Roll-up (material vs. per-plant) remains a team-lead
+// call, not decided yet. Nothing here blocks on that answer: changing it is
+// a one-line edit to `rollup`, by design.
 
 import type { ScopeDefinition, ScopeEntitySet } from "./types"
 
@@ -19,12 +22,6 @@ export const OAR_MRP_TYPES = ["ND", "PD"] as const
 
 /** MRP Type for normally reorder-point-planned stock — must never appear in OAR_MRP_TYPES. */
 export const PLANNED_MRP_TYPE = "VB"
-
-/** MRP Type SAP also uses for obsolete materials — the collision §1.6(d) resolves via MSTAE, not DISMM. */
-export const OBSOLETE_MRP_TYPE = "ND"
-
-/** MARA.MSTAE value meaning "obsolete" — the second, orthogonal OAR predicate. */
-export const OBSOLETE_MATERIAL_STATUS = "01"
 
 /** A blank Dismm means "MRP type not maintained", not "not OAR" — see Phase 0 finding above. */
 const DISMM_UNKNOWN_VALUES = [""]
@@ -36,7 +33,10 @@ if ((OAR_MRP_TYPES as readonly string[]).includes(PLANNED_MRP_TYPE)) {
   )
 }
 
-/** Which entity set each field used by a scope rule lives on — drives the two-set pushdown join. */
+/** Which entity set each field used by a scope rule lives on — drives the two-set pushdown join.
+ * Mstae is kept mapped even though no active scope rule references it any more
+ * (the OAR rule's MSTAE exclusion was dropped) -- it is still a real MaterialSet
+ * field other scope rules or filter tests may legitimately reference. */
 export const FIELD_ENTITY_SET: Record<string, ScopeEntitySet> = {
   Dismm: "MaterialPlantSet",
   Mstae: "MaterialSet",
@@ -50,17 +50,19 @@ export const SCOPES: Record<string, ScopeDefinition> = {
     rule: {
       and: [
         { field: "Dismm", op: "in", values: [...OAR_MRP_TYPES], unknownValues: DISMM_UNKNOWN_VALUES },
-        { field: "Mstae", op: "ne", value: OBSOLETE_MATERIAL_STATUS },
       ],
     },
     // §1.6(a): plant-vs-material roll-up is the team lead's call, not decided yet.
     // "per-plant-only" is the conservative default — it never invents a material-level
     // answer the team lead hasn't ruled on.
     rollup: "per-plant-only",
-    confirmed: false,
+    // MRP type alone (Dismm in {ND, PD}) is confirmed as the OAR rule -- the
+    // MSTAE/material-status exclusion carried over from an earlier draft has
+    // been dropped, matching the backend's app/initiatives/i7/policy/oar.py.
+    confirmed: true,
     notes:
-      "MRP-type value set and roll-up policy both pending team-lead confirmation " +
-      "— see docs-eng/phase_summary.md Phase 0.",
+      "MRP-type value set confirmed as the sole OAR predicate. Roll-up policy " +
+      "still pending team-lead confirmation — see docs-eng/phase_summary.md Phase 0.",
   },
   // I08 — 80-series repairable materials. A different rule entirely from OAR.
   repairable: {

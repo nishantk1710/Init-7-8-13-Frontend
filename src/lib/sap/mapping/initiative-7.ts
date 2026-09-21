@@ -98,6 +98,18 @@ export const RECOMMENDATION_SOURCES: FieldSourceMap<Recommendation> = {
     from: "gap",
     note: "Demo-only annotation on the hand-written fixtures. Should not survive into real data.",
   },
+  zFactor: {
+    from: "gap",
+    note: "Backend-computed Z-factor (Part 21, I07 frontend/backend integration) -- only populated by the live FastAPI backend's own service_level.z_factor (app/schemas/i7/recommendations.py), never by this SAP+platform mapping pipeline. Optional and absent here on purpose.",
+  },
+  rationale: {
+    from: "gap",
+    note: "AI-generated/deterministic-fallback rationale text and source (Part 21) -- populated only by the live backend's rationale.text/rationale.source, which this generated-dataset pipeline has no equivalent source for. Optional and absent here on purpose.",
+  },
+  updatedAt: {
+    from: "gap",
+    note: "When the recommendation row last changed status (submit/hold/approve/reject) -- populated only by the live backend's i7_recommendation.updated_at, used for pipeline waiting-time/stuck detection. This generated-dataset pipeline has no equivalent source for it. Optional and absent here on purpose.",
+  },
 }
 
 const CRITICALITY_MAP: Record<string, Criticality> = {

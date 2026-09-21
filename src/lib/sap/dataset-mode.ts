@@ -29,9 +29,22 @@
 // will land. Deleting the scenario fixtures is the last step of W2.6b and it
 // is blocked on identity mapping, not on code.
 
-export type DatasetMode = "scenario" | "generated"
+// "live" — Part 21 (I07 frontend/backend integration) — renders data fetched
+// from the real FastAPI backend (NEXT_PUBLIC_API_BASE_URL) at request time,
+// using real SAP material/plant identities (sap_material_number,
+// sap_plant_code) rather than either fixture vocabulary. It does not resolve
+// the app<->SAP identity gap above -- Material 360 and other app-identity
+// cross-initiative lookups remain unresolvable for live recommendations,
+// exactly as they are for "generated", for the same reason.
+
+export type DatasetMode = "scenario" | "generated" | "live"
 
 export const DATASET_MODE: DatasetMode =
-  process.env.NEXT_PUBLIC_DATASET === "generated" ? "generated" : "scenario"
+  process.env.NEXT_PUBLIC_DATASET === "generated"
+    ? "generated"
+    : process.env.NEXT_PUBLIC_DATASET === "live"
+      ? "live"
+      : "scenario"
 
 export const USING_GENERATED_DATA = DATASET_MODE === "generated"
+export const USING_LIVE_DATA = DATASET_MODE === "live"

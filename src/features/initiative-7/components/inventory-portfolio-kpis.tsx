@@ -62,9 +62,9 @@ function PortfolioKpiCard({
   captionMuted?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-medium text-foreground">{title}</span>
+        <span className="truncate text-sm font-medium text-foreground">{title}</span>
         <span
           className={cn(
             "flex size-6 shrink-0 items-center justify-center rounded-full",
@@ -74,16 +74,16 @@ function PortfolioKpiCard({
           {icon}
         </span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className={cn("text-2xl font-bold tabular-nums", VALUE_TONE[tone])}>
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <span className={cn("truncate text-2xl font-bold tabular-nums", VALUE_TONE[tone])}>
           {value}
         </span>
-        {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+        {suffix && <span className="shrink-0 text-xs text-muted-foreground">{suffix}</span>}
       </div>
       {caption && (
         <span
           className={cn(
-            "text-[11px] font-medium",
+            "truncate text-[11px] font-medium",
             captionMuted ? "font-normal text-muted-foreground" : VALUE_TONE[tone]
           )}
         >
@@ -105,17 +105,28 @@ function PortfolioKpiCard({
  */
 export function InventoryPortfolioKpis({
   recommendations = RECOMMENDATIONS,
+  pendingApprovalOverride,
 }: {
   recommendations?: Recommendation[]
+  /** Part 35 -- portfolio-wide { count, total } for "Pending Approval",
+   * from GET /recommendations/summary. In live mode, `recommendations` is at
+   * most one fetched page, so counting/percenting from it directly would
+   * read "100% of recommendations" from a page that happens to be mostly
+   * blocked materials, not a real portfolio share (see
+   * use-live-recommendation-summary.ts). Only this one KPI has a real
+   * backend aggregate to fall back to; the other three still derive from
+   * `recommendations` as before -- unchanged, not addressed here. */
+  pendingApprovalOverride?: { count: number; total: number }
 }) {
   const total = recommendations.length
   const stockoutRisk = countAtStockoutRisk(recommendations)
   const excess = countExcessCandidates(recommendations)
-  const awaiting = countAwaitingApproval(recommendations)
+  const awaiting = pendingApprovalOverride?.count ?? countAwaitingApproval(recommendations)
+  const awaitingTotal = pendingApprovalOverride?.total ?? total
   const netImpact = netWorkingCapitalImpact(recommendations)
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
       <PortfolioKpiCard
         title="Critical Stockout Risk"
         icon={<AlertTriangle className="size-3.5" />}
@@ -145,7 +156,7 @@ export function InventoryPortfolioKpis({
         tone="warning"
         value={formatCount(awaiting)}
         suffix="Recommendations"
-        caption={`${pct(awaiting, total)}% of recommendations`}
+        caption={`${pct(awaiting, awaitingTotal)}% of recommendations`}
       />
     </div>
   )

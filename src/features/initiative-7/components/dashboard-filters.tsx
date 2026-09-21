@@ -33,7 +33,19 @@ export interface DashboardFilterState {
   status: string
   risk: string
   material: string
+  /** Live mode only. "calculated" = only rows that actually reached a
+   * computed ROP/safety stock (backend status READY_FOR_REVIEW); ALL_FILTER =
+   * every row including the far larger blocked population. Not a client-side
+   * predicate: it maps to the backend's own `status` query param, because at
+   * ~113k rows the handful that are calculated would almost never appear in
+   * one fetched page. Kept separate from `status` because the frontend's
+   * display statuses collapse READY_FOR_REVIEW and NOT_EVALUABLE into the
+   * same "Pending Review" label (see i7-api.ts STATUS_MAP), so that filter
+   * cannot express "has a real calculated value". */
+  recommendation: string
 }
+
+export const RECOMMENDATION_FILTER_CALCULATED = "calculated"
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   plant: ALL_FILTER,
@@ -43,12 +55,20 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   status: ALL_FILTER,
   risk: ALL_FILTER,
   material: "",
+  // Calculated-only by default: of ~113k recommendation rows only a handful
+  // carry a real computed value, so defaulting to "All" shows page after page
+  // of "not yet computed" rows and buries the ones a planner can act on.
+  recommendation: RECOMMENDATION_FILTER_CALCULATED,
 }
 
 export function isDashboardFiltersActive(filters: DashboardFilterState): boolean {
-  return Object.entries(filters).some(([key, value]) =>
-    key === "material" ? value.trim().length > 0 : value !== ALL_FILTER
-  )
+  return Object.entries(filters).some(([key, value]) => {
+    if (key === "material") return value.trim().length > 0
+    // The default is calculated-only, so that value is not an "active" filter
+    // -- only switching it to All (or anything else) counts as one.
+    if (key === "recommendation") return value !== RECOMMENDATION_FILTER_CALCULATED
+    return value !== ALL_FILTER
+  })
 }
 
 function FilterField({
@@ -80,16 +100,33 @@ export function DashboardFilters({
   value,
   onChange,
   layout = "rail",
+  plantOptions,
+  showRecommendationFilter = false,
 }: {
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
   layout?: "rail" | "bar"
+  /** Live mode only: the real SAP plant codes present in the data, from the
+   * backend's own by_plant aggregate. The default PLANTS list is app-side
+   * scenario master data keyed on invented ids (PLANT-GBG etc.) that never
+   * match a live row's SAP WERKS code, so selecting one filtered everything
+   * out -- see utils/sap-plants.ts. When provided, these replace that list. */
+  plantOptions?: { value: string; label: string }[]
+  /** Live mode only -- the scenario dataset has no "blocked vs calculated"
+   * distinction to filter on (every fixture row carries values). */
+  showRecommendationFilter?: boolean
 }) {
   function set<K extends keyof DashboardFilterState>(key: K, next: string) {
     onChange({ ...value, [key]: next })
   }
 
   const isBar = layout === "bar"
+  const plants =
+    plantOptions ?? PLANTS.map((p) => ({ value: p.plantId, label: p.name }))
+  const plantLabel = (v: string) =>
+    plantOptions
+      ? (plantOptions.find((p) => p.value === v)?.label ?? v)
+      : (getPlantById(v)?.name ?? v)
 
   return (
     <div
@@ -102,18 +139,37 @@ export function DashboardFilters({
     >
       {!isBar && <div className="text-sm font-medium text-foreground">Filters</div>}
 
+      {showRecommendationFilter && (
+        <FilterField label="Recommendation">
+          <Select
+            value={value.recommendation}
+            onValueChange={(v) => set("recommendation", v ?? RECOMMENDATION_FILTER_CALCULATED)}
+          >
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="Calculated only">
+                {(v: string) => (v === ALL_FILTER ? "All materials" : "Calculated only")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={RECOMMENDATION_FILTER_CALCULATED}>Calculated only</SelectItem>
+              <SelectItem value={ALL_FILTER}>All materials</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
+
       <FilterField label="Plant">
         <Select value={value.plant} onValueChange={(v) => set("plant", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
             <SelectValue placeholder="All">
-              {(v: string) => (v === ALL_FILTER ? "All" : (getPlantById(v)?.name ?? v))}
+              {(v: string) => (v === ALL_FILTER ? "All" : plantLabel(v))}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>All</SelectItem>
-            {PLANTS.map((p) => (
-              <SelectItem key={p.plantId} value={p.plantId}>
-                {p.name}
+            {plants.map((p) => (
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
               </SelectItem>
             ))}
           </SelectContent>

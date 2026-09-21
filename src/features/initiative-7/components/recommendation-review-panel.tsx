@@ -11,6 +11,7 @@ import { ParameterComparison } from "@/features/initiative-7/components/paramete
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import type { Criticality, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 /** ABC class from the criticality tier, most severe first. */
 export const CRITICALITY_CODE: Record<Criticality, string> = {
@@ -20,11 +21,26 @@ export const CRITICALITY_CODE: Record<Criticality, string> = {
   Low: "D",
 }
 
+/** Splits a rationale's free text into individual bullet lines. The v2 prompt
+ * (app/prompts/i07_recommendation_rationale/v2.md) asks the model for one
+ * fact per line, optionally prefixed with "-"/"•"/"*"; this strips whichever
+ * marker is present and drops blank lines. A response that ignored the
+ * bullet instruction and came back as one paragraph still renders as a
+ * single "bullet" rather than being force-split on sentence boundaries,
+ * since guessing sentence breaks can silently invent a fact that was not
+ * actually a separate point. */
+function rationaleBullets(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/^[\s]*[-•*]\s*/, "").trim())
+    .filter((line) => line.length > 0)
+}
+
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">{label}</dt>
-      <dd className="mt-0.5 text-[13px] text-foreground">{children}</dd>
+      <dd className="mt-0.5 text-[13px] break-words text-foreground">{children}</dd>
     </div>
   )
 }
@@ -104,7 +120,9 @@ export function RecommendationReviewPanel({
             Consumption history &amp; forecast
           </h4>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Six months of actuals, then a one-step-ahead smoothing forecast on the same series.
+            {USING_LIVE_DATA
+              ? "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve."
+              : "Six months of actuals, then a one-step-ahead smoothing forecast on the same series."}
           </p>
           <ForecastVsActualChart recommendations={[rec]} />
         </div>
@@ -116,11 +134,24 @@ export function RecommendationReviewPanel({
             <MessageSquare className="size-3.5" />
             Why this recommendation?
           </h4>
-          <ul className="mt-1.5 list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
-            {rec.factors.map((factor) => (
-              <li key={factor.label}>{factor.detail}</li>
-            ))}
-          </ul>
+          {rec.rationale?.text ? (
+            <div className="mt-1.5 flex flex-col gap-1.5">
+              <ul className="list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
+                {rationaleBullets(rec.rationale.text).map((bullet, index) => (
+                  <li key={index}>{bullet}</li>
+                ))}
+              </ul>
+              <span className="self-start text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+                {rec.rationale.source === "AI_GENERATED" ? "AI-generated" : "Deterministic (rule-based)"}
+              </span>
+            </div>
+          ) : (
+            <ul className="mt-1.5 list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
+              {rec.factors.map((factor) => (
+                <li key={factor.label}>{factor.detail}</li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border pt-3 sm:grid-cols-3">
@@ -133,8 +164,14 @@ export function RecommendationReviewPanel({
           </Fact>
           <Fact label="Service level">{Math.round(rec.serviceLevelTarget * 100)}% target</Fact>
           <Fact label="Z-factor">
-            {serviceLevelZFactor(rec.serviceLevelTarget).toFixed(2)}{" "}
-            <span className="text-muted-foreground">(illustrative)</span>
+            {rec.zFactor != null ? (
+              rec.zFactor.toFixed(2)
+            ) : (
+              <>
+                {serviceLevelZFactor(rec.serviceLevelTarget).toFixed(2)}{" "}
+                <span className="text-muted-foreground">(illustrative)</span>
+              </>
+            )}
           </Fact>
           <Fact label="Unit price">{formatZAR(rec.unitPrice)}</Fact>
           <Fact label="Annual consumption">{formatCount(rec.annualConsumption)} units</Fact>

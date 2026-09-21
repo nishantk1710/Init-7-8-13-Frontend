@@ -114,6 +114,15 @@ export interface OarColdStartGuidance {
   note: string
 }
 
+/** AI-generated (or deterministic-fallback) explanation, read verbatim from
+ * the backend — never generated or recomputed in the frontend. Present only
+ * on recommendations sourced from the live API (see `services/i7-api.ts`);
+ * scenario/generated fixtures have no equivalent field. */
+export interface RationaleInfo {
+  text: string | null
+  source: "AI_GENERATED" | "DETERMINISTIC_FALLBACK" | null
+}
+
 export interface Recommendation {
   id: string
   material: MaterialReference
@@ -130,6 +139,11 @@ export interface Recommendation {
   leadTimeDays: number
   leadTimeVarianceDays: number
   serviceLevelTarget: number
+  /** Backend-computed Z-factor for serviceLevelTarget (Phase 5's own
+   * inventory.service_level.resolve() result), read verbatim. Only present
+   * on live-API recommendations; when absent, callers fall back to the
+   * client-side illustrative approximation (see utils/inventory-calc.ts). */
+  zFactor?: number | null
   unitPrice: number
   annualConsumption: number
   /** ZAR — positive releases working capital (stock reduced), negative is additional investment */
@@ -140,5 +154,13 @@ export interface Recommendation {
   workflow: WorkflowStep[]
   oarColdStart?: OarColdStartGuidance
   generatedAt: string
+  /** When this recommendation's row last changed (submit/hold/approve/reject
+   * all update the existing row in place) -- the correct "waiting since"
+   * anchor for pipeline/stuck-detection views. Only present on live-API
+   * recommendations; scenario mode derives its own waiting time from
+   * workflow-context state instead (see pipeline-workspace.tsx). */
+  updatedAt?: string
   scenarioNote?: string
+  /** Only present on live-API recommendations. */
+  rationale?: RationaleInfo
 }

@@ -9,7 +9,7 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import { cn } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation, RecommendationStatus } from "@/features/initiative-7/types/inventory"
 import { statusDistribution } from "@/features/initiative-7/utils/inventory-calc"
@@ -22,6 +22,20 @@ const STATUS_COLOR: Record<RecommendationStatus, string> = {
   Returned: "var(--warning)",
   Rejected: "var(--destructive)",
 }
+
+/** Every status the legend always shows, in this fixed order, even at a
+ * count of zero -- a dashboard reads as a real business view only when every
+ * category is visible, not just whichever ones happen to have data right
+ * now (a queue with 1 real submission and 0 approvals should still show
+ * "Approved: 0", not omit the row entirely). */
+const STATUS_ORDER: RecommendationStatus[] = [
+  "Pending Review",
+  "In Approval",
+  "Approved",
+  "Implemented",
+  "Returned",
+  "Rejected",
+]
 
 function StatusTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null
@@ -39,12 +53,27 @@ export function RecommendationStatusChart({
   recommendations = RECOMMENDATIONS,
   activeStatus,
   onStatusClick,
+  statusOverride,
 }: {
   recommendations?: Recommendation[]
   activeStatus?: RecommendationStatus | null
   onStatusClick?: (status: RecommendationStatus) => void
+  /** Part 36 -- portfolio-wide { status, count }[], already reduced to the
+   * frontend's own 6 display statuses (see mapStatus's STATUS_MAP -- several
+   * backend statuses collapse into one display value, so this must already
+   * be merged by the caller, not raw backend statuses). In live mode
+   * `recommendations` is at most one fetched page, so this chart would
+   * otherwise read as a portfolio distribution when it is really one page's
+   * (see use-live-recommendation-summary.ts). */
+  statusOverride?: { status: RecommendationStatus; count: number }[]
 }) {
-  const data = statusDistribution(recommendations)
+  const counted = statusOverride ?? statusDistribution(recommendations)
+  const byStatus = new Map(counted.map((d) => [d.status, d.count]))
+  // The legend always lists all 6 statuses (zero included); the pie itself
+  // only plots the non-zero slices, since a 0-value wedge has no angle to
+  // render and Recharts would otherwise still count it in some layouts.
+  const legendData = STATUS_ORDER.map((status) => ({ status, count: byStatus.get(status) ?? 0 }))
+  const pieData = legendData.filter((d) => d.count > 0)
 
   return (
     <div className="flex items-center gap-4">
@@ -52,7 +81,7 @@ export function RecommendationStatusChart({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={pieData}
               dataKey="count"
               nameKey="status"
               innerRadius="58%"
@@ -66,7 +95,7 @@ export function RecommendationStatusChart({
               }}
               cursor={onStatusClick ? "pointer" : undefined}
             >
-              {data.map((d) => (
+              {pieData.map((d) => (
                 <Cell
                   key={d.status}
                   fill={STATUS_COLOR[d.status]}
@@ -79,7 +108,7 @@ export function RecommendationStatusChart({
         </ResponsiveContainer>
       </div>
       <div className="flex flex-1 flex-col gap-2">
-        {data.map((d) => (
+        {legendData.map((d) => (
           <button
             key={d.status}
             type="button"
@@ -91,14 +120,14 @@ export function RecommendationStatusChart({
               activeStatus && activeStatus !== d.status && "opacity-40"
             )}
           >
-            <span className="flex items-center gap-2 text-foreground">
+            <span className="flex min-w-0 items-center gap-2 text-foreground">
               <span
                 className="size-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: STATUS_COLOR[d.status] }}
               />
-              {d.status}
+              <span className="truncate">{d.status}</span>
             </span>
-            <span className="tabular-nums text-muted-foreground">{d.count}</span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{formatCount(d.count)}</span>
           </button>
         ))}
       </div>

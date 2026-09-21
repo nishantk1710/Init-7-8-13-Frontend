@@ -1,20 +1,27 @@
+"use client"
+
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { formatZAR } from "@/lib/utils"
 import { DecisionActions, DecisionHistory } from "@/features/initiative-7/components/decision-panel"
+import { LiveDecisionActions, LiveDecisionHistory } from "@/features/initiative-7/components/live-decision-panel"
 import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
 import { OarColdStartPanel } from "@/features/initiative-7/components/oar-cold-start-panel"
 import { RepairContextSignal } from "@/features/initiative-7/components/repair-context-signal"
 import { getRecommendationById } from "@/features/initiative-7/data/recommendations"
+import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "warning" | "danger"> = {
   "Pending Review": "default",
@@ -33,31 +40,41 @@ const CRITICALITY_CODE: Record<Criticality, string> = {
   Low: "D",
 }
 
-export function RecommendationDetailPage({ recommendationId }: { recommendationId: string }) {
-  const recommendation = getRecommendationById(recommendationId)
-
-  if (!recommendation) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4">
-          <PageHeader title="Recommendation not found" />
-          <EmptyState
-            title={`No recommendation "${recommendationId}"`}
-            description="It may have been superseded — return to the Recommendation Workspace to find the current one."
-            actions={
-              <Link
-                href="/inventory-planning/recommendations"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Back to Recommendations
-              </Link>
-            }
-          />
-        </div>
+function NotFoundView({ recommendationId }: { recommendationId: string }) {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4">
+        <PageHeader title="Recommendation not found" />
+        <EmptyState
+          title={`No recommendation "${recommendationId}"`}
+          description="It may have been superseded — return to the Recommendation Workspace to find the current one."
+          actions={
+            <Link
+              href="/inventory-planning/recommendations"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Back to Recommendations
+            </Link>
+          }
+        />
       </div>
-    )
-  }
+    </div>
+  )
+}
 
+/** Presentational body shared by the mock (scenario/generated) and live
+ * modes — `live` swaps DecisionActions/DecisionHistory (the scenario-chain
+ * simulation) for LiveDecisionActions/LiveDecisionHistory (the real backend
+ * ledger), and passes nothing else differently. */
+function RecommendationDetailView({
+  recommendation,
+  live = false,
+  onLiveChanged,
+}: {
+  recommendation: Recommendation
+  live?: boolean
+  onLiveChanged?: () => void
+}) {
   const plant = getPlantById(recommendation.plantId)
 
   return (
@@ -93,7 +110,10 @@ export function RecommendationDetailPage({ recommendationId }: { recommendationI
             Service-level target: {Math.round(recommendation.serviceLevelTarget * 100)}%
           </span>
           <span className="rounded-full bg-muted px-2.5 py-1">
-            Z-factor: {serviceLevelZFactor(recommendation.serviceLevelTarget).toFixed(2)} (illustrative)
+            Z-factor:{" "}
+            {recommendation.zFactor != null
+              ? recommendation.zFactor.toFixed(2)
+              : `${serviceLevelZFactor(recommendation.serviceLevelTarget).toFixed(2)} (illustrative)`}
           </span>
         </div>
 
@@ -107,15 +127,84 @@ export function RecommendationDetailPage({ recommendationId }: { recommendationI
           <ChartCard title="Recommended inventory changes" span={12}>
             <RecommendationReviewPanel
               rec={recommendation}
-              action={<DecisionActions recommendation={recommendation} />}
+              action={
+                live ? (
+                  <LiveDecisionActions
+                    recommendationId={recommendation.id}
+                    status={recommendation.status}
+                    onChanged={() => onLiveChanged?.()}
+                  />
+                ) : (
+                  <DecisionActions recommendation={recommendation} />
+                )
+              }
             />
           </ChartCard>
 
           <ChartCard title="Decision history" span={12}>
-            <DecisionHistory recommendation={recommendation} />
+            {live ? (
+              <LiveDecisionHistory recommendationId={recommendation.id} reloadKey={recommendation.generatedAt} />
+            ) : (
+              <DecisionHistory recommendation={recommendation} />
+            )}
           </ChartCard>
         </div>
       </div>
     </div>
   )
+}
+
+function LiveRecommendationDetailPage({ recommendationId }: { recommendationId: string }) {
+  const { data, loading, error, refetch } = useLiveRecommendation(recommendationId)
+
+  if (loading) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4">
+          <PageHeader title="Could not load this recommendation" />
+          <EmptyState
+            icon={<AlertTriangle className="size-4" />}
+            title="Backend request failed"
+            description={error.message}
+            actions={
+              <Button size="sm" variant="outline" onClick={refetch}>
+                <RefreshCw className="size-3.5" />
+                Retry
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return <NotFoundView recommendationId={recommendationId} />
+  }
+
+  return <RecommendationDetailView recommendation={data} live onLiveChanged={refetch} />
+}
+
+export function RecommendationDetailPage({ recommendationId }: { recommendationId: string }) {
+  if (USING_LIVE_DATA) {
+    return <LiveRecommendationDetailPage recommendationId={recommendationId} />
+  }
+
+  const recommendation = getRecommendationById(recommendationId)
+  if (!recommendation) {
+    return <NotFoundView recommendationId={recommendationId} />
+  }
+  return <RecommendationDetailView recommendation={recommendation} />
 }
