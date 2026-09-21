@@ -47,7 +47,7 @@ beyond what the scaffolding pass already wired up.
 
 ## Mock datasets (`data/`)
 
-- `recommendations.ts` — `RECOMMENDATIONS: Recommendation[]`, 10 rows built against real shared-catalog materials (all 8 `REFERENCE_MATERIAL_IDS` plus 2 more from `MATERIALS`), spread across all 3 plants, with `getRecommendationById` / `getRecommendationsForMaterial` lookups. Includes both seed scenarios from the spec:
+- `recommendations.ts` — `RECOMMENDATIONS: Recommendation[]`, 10 rows built against real shared-catalog materials (all 8 `REFERENCE_MATERIAL_IDS` plus 2 more from `MATERIALS`), spread across both plants, with `getRecommendationById` / `getRecommendationsForMaterial` lookups. Includes both seed scenarios from the spec:
   - **Scenario A** (`REC-1001`, material `500-14892`): critical material, long/variable lead time, low current ROP → recommendation materially raises safety stock. This is also the material used for the Repair Context signal (see below).
   - **Scenario B** (`REC-1002`, material `500-55210`): slow-moving, expensive material with excessive Max Stock → recommendation reduces inventory and releases ~R690,900 in working capital.
   - `REC-1006` (material `500-31005`) is the row Initiative 13's `?reviewMaterial=500-31005` link lands on.

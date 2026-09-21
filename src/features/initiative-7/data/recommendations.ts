@@ -193,7 +193,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1003",
     material: materialRef("500-15134"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-GBG",
     circuit: "Milling",
     criticality: "High",
     demandPattern: "Lumpy",
@@ -428,7 +428,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1007",
     material: materialRef("500-40011"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-BMM",
     circuit: "Milling",
     criticality: "Critical",
     demandPattern: "Lumpy",
@@ -544,7 +544,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1009",
     material: materialRef("500-31048"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-GBG",
     circuit: "Filtration",
     criticality: "Medium",
     demandPattern: "Intermittent",

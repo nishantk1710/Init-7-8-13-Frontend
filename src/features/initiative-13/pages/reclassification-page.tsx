@@ -43,7 +43,7 @@ export function ReclassificationPage() {
 
         <FilterBar>
           <Input
-            placeholder="Plant (e.g. 1101)"
+            placeholder="Plant (1300 or 1500)"
             value={plant}
             onChange={(e) => setPlant(e.target.value)}
             className="h-9 sm:w-40"

@@ -15,7 +15,7 @@ import { selectConfirmedExceptions } from "../api/client"
 function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
   return {
     material: "MAT-1",
-    plant: "1101",
+    plant: "1300",
     materialScope: "OAR",
     stockOnHand: 10,
     openPoQuantity: 0,
@@ -53,7 +53,7 @@ function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
 function candidate(overrides: Partial<ReclassificationCandidate>): ReclassificationCandidate {
   return {
     material: "MAT-1",
-    plant: "1101",
+    plant: "1300",
     consumptionCount12m: 0,
     consumedMoreThanThreshold: false,
     criticalImpactIndicator: null,
@@ -88,19 +88,19 @@ describe("filterNonMovers", () => {
 
 describe("attachCriticalImpactIndicator", () => {
   it("joins on material+plant and passes the backend boolean through unchanged", () => {
-    const rows = [watchRow({ material: "A", plant: "1101" })]
-    const candidates = [candidate({ material: "A", plant: "1101", criticalImpactIndicator: true })]
+    const rows = [watchRow({ material: "A", plant: "1300" })]
+    const candidates = [candidate({ material: "A", plant: "1300", criticalImpactIndicator: true })]
     expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBe(true)
   })
 
   it("is null (unknown), never false, when no candidate matches the key", () => {
-    const rows = [watchRow({ material: "A", plant: "1101" })]
+    const rows = [watchRow({ material: "A", plant: "1300" })]
     expect(attachCriticalImpactIndicator(rows, [])[0].criticalImpactIndicator).toBeNull()
   })
 
   it("does not cross-match a different plant for the same material", () => {
-    const rows = [watchRow({ material: "A", plant: "1101" })]
-    const candidates = [candidate({ material: "A", plant: "1300", criticalImpactIndicator: true })]
+    const rows = [watchRow({ material: "A", plant: "1300" })]
+    const candidates = [candidate({ material: "A", plant: "1500", criticalImpactIndicator: true })]
     expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBeNull()
   })
 })
@@ -155,7 +155,7 @@ describe("selectConfirmedExceptions (justification log)", () => {
       exceptionType: "PLAN_BREACH",
       status: "CONFIRMED",
       material: "MAT-1",
-      plant: "1101",
+      plant: "1300",
       reservationNumber: null,
       reservationItem: null,
       sessionId: null,
@@ -210,7 +210,7 @@ describe("justificationRowsToCsv", () => {
         exceptionId: "EXC-1",
         exceptionType: "PLAN_BREACH",
         material: "MAT-1",
-        plant: "1101",
+        plant: "1300",
         ownerRequesterId: "U1",
         reasonCategory: "PLANNED_MAINTENANCE",
         freeText: "Scheduled shutdown consumption.",
@@ -219,7 +219,7 @@ describe("justificationRowsToCsv", () => {
       },
     ])
     expect(rows).toEqual([
-      ["EXC-1", "PLAN_BREACH", "MAT-1", "1101", "U1", "PLANNED_MAINTENANCE", "Scheduled shutdown consumption.", "U1", "2026-09-02T00:00:00Z"],
+      ["EXC-1", "PLAN_BREACH", "MAT-1", "1300", "U1", "PLANNED_MAINTENANCE", "Scheduled shutdown consumption.", "U1", "2026-09-02T00:00:00Z"],
     ])
   })
 })

@@ -41,7 +41,7 @@ by the global shell) calls into for OAR routing precedence.
 - `EscalationTimelineEvent` — one step in the Requester → HOD → Inventory
   Control escalation chain.
 - `RedeploymentCandidate` / `RedeploymentMatch` — a requested material at one
-  plant matched against unused stock at the other plants.
+  plant matched against unused stock at the other plant.
 - `ReclassificationCandidate` — consumption-frequency stats + recommendation
   for a stocked-material review.
 
@@ -60,11 +60,13 @@ that shared file.
   reservations consolidated into one PR/PO, `OAR-LDG-0004..0006`,
   `allocationMethod: "Shared / FIFO Mock Allocation"`), I (frequent-use
   reclassification candidate `500-31005`, `OAR-LDG-0007`), plus four filler
-  lines (one previously re-planned, one early-stage) spanning all three
-  plants and six departments.
+  lines (one previously re-planned, one early-stage) spanning both plants and
+  six departments.
 - `escalations.ts` — `ESCALATION_TIMELINES`, keyed by ledger line id, named
   people sourced from `@/lib/shared-data/users`.
-- `redeployment.ts` — `REDEPLOYMENT_CANDIDATES`, using all three `PLANTS`.
+- `redeployment.ts` — `REDEPLOYMENT_CANDIDATES`, using both `PLANTS`. Scope is
+  two plants, so a candidate has at most one match: the site that is not the
+  requesting one.
 - `reclassification.ts` — `RECLASSIFICATION_CANDIDATES`, includes `500-31005`.
 - `overview-metrics.ts` — KPIs computed from `LEDGER_LINES` plus a few
   standalone illustrative chart datasets (aging buckets, plan-vs-actual,
