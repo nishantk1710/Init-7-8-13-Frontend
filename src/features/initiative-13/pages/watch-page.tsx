@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { AgingExceptionsBoard } from "@/features/initiative-13/components/aging-exceptions-board"
+import { WatchTable } from "@/features/initiative-13/components/watch-table"
 import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
-import { getI13Exceptions } from "@/features/initiative-13/api/client"
+import { getI13Watch } from "@/features/initiative-13/api/client"
 import { useI13Query } from "@/features/initiative-13/hooks/use-i13-query"
 
 const FILTER_DEBOUNCE_MS = 400
 
-export function ExceptionsPage() {
+export function WatchPage() {
   const [plant, setPlant] = useState("")
   const [material, setMaterial] = useState("")
-  const [exceptionType, setExceptionType] = useState("")
-  const [status, setStatus] = useState("")
+  const [agingBand, setAgingBand] = useState("")
   const [plantQuery, setPlantQuery] = useState("")
   const [materialQuery, setMaterialQuery] = useState("")
 
@@ -28,40 +27,37 @@ export function ExceptionsPage() {
     return () => clearTimeout(id)
   }, [material])
 
-  const exceptions = useI13Query(
+  const watch = useI13Query(
     () =>
-      getI13Exceptions({
+      getI13Watch({
         plant: plantQuery || undefined,
         material: materialQuery || undefined,
-        exceptionType: exceptionType || undefined,
-        status: status || undefined,
+        agingBand: agingBand || undefined,
       }),
-    [plantQuery, materialQuery, exceptionType, status]
+    [plantQuery, materialQuery, agingBand]
   )
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
-          title="Exceptions"
-          description="Plan breaches, no-plan reservations, and 30-day GR-not-issued positions flagged by the backend. Acknowledge/Resolve actions here are UI-only simulations — no live SAP write occurs."
+          title="WATCH"
+          description="Backend-computed utilisation health per material and plant — months of cover, aging band, GR-not-issued, and acquired-vs-plan status."
         />
 
-        {exceptions.loading && <LoadingState label="Loading exceptions…" />}
-        {exceptions.error && (
-          <ErrorState message={exceptions.error} onRetry={exceptions.refetch} title="Unable to load exceptions." />
+        {watch.loading && <LoadingState label="Loading WATCH metrics…" />}
+        {watch.error && (
+          <ErrorState message={watch.error} onRetry={watch.refetch} title="Unable to load WATCH data." />
         )}
-        {exceptions.data && (
-          <AgingExceptionsBoard
-            exceptions={exceptions.data}
+        {watch.data && (
+          <WatchTable
+            metrics={watch.data}
             plant={plant}
             material={material}
-            exceptionType={exceptionType}
-            status={status}
+            agingBand={agingBand}
             onFilterPlant={setPlant}
             onFilterMaterial={setMaterial}
-            onFilterType={setExceptionType}
-            onFilterStatus={setStatus}
+            onFilterAgingBand={setAgingBand}
           />
         )}
       </div>

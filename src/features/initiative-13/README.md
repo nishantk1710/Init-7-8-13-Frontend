@@ -25,6 +25,7 @@ by the global shell) calls into for OAR routing precedence.
 | Route | Component | Purpose |
 |---|---|---|
 | `/oar-utilization` | `pages/overview-page.tsx` | KPIs + charts: unutilized value/qty, plan compliance, aging, redeployment/purchase-avoidance |
+| `/oar-utilization/utilisation-dashboard` | `pages/utilisation-dashboard-page.tsx` | **W6.7 (FR-10).** One consolidated view: KPIs, aging distribution, non-mover drilldown (plant + critical-impact), acquired-vs-plan, exception status (W6.6), reclassification candidates (W6.5), justification log (W6.6), validation — see that file's docstring |
 | `/oar-utilization/ledger` | `pages/ledger-page.tsx` | Central screen — every reservation line with its full document chain, expandable rows |
 | `/oar-utilization/aging-exceptions` | `pages/aging-exceptions-page.tsx` | Overdue consumption lines — Confirm Consumed / Re-plan / No Longer Required, plus escalation timeline |
 | `/oar-utilization/redeployment` | `pages/redeployment-page.tsx` | Cross-plant unused-stock matches for a requested material, advisory only |
