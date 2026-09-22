@@ -540,6 +540,15 @@ Owner in bold. Nothing here blocks Phase 0 or Phase 1.
   second half of I08 FR-8 and I13 FR-4.
 - **O-6 (VZI).** Is the OAR rule right, given it selects 97.8% of the seeded
   catalogue? Open question 14, and it decides how often the plan form appears.
+- **O-8 (backend).** **A conversation cannot be resumed.** There is no endpoint that returns
+  the current step of an existing session: `GET /api/assistant/sessions/{id}` serves the trace
+  (turns, plans, suggestions, justifications) but no `step`, and the step is derived inside
+  `next_step` from the answers so far. So a planner who reloads mid-conversation loses the UI
+  and cannot continue — the session and every turn are safely recorded, but the only ways
+  forward are to read the trace or to open a *second* session, which writes another row into
+  an append-only table for one decision. Either `GET /sessions/{id}` gains a `currentStep`, or
+  a `GET /sessions/{id}/step` is added. Cheap on the backend, and it removes the only way a
+  planner can accidentally create a duplicate session.
 - **O-7 (backend).** `assistant_routes.router` is imported in `app/api/i13/routes.py:15` and
   never mounted, so both `/api/i13/consumption-plans` verbs 404 (§3.3). One line fixes it.
   Until it lands there is no way to read or write a consumption plan outside a conversation,
