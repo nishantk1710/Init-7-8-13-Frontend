@@ -187,4 +187,19 @@ export interface Recommendation {
   scenarioNote?: string
   /** Only present on live-API recommendations. */
   rationale?: RationaleInfo
+  /** The approval role whose decision this recommendation is next waiting
+   * on, or null once it has left the approval chain (approved/rejected/not
+   * yet submitted). Derived server-side from status + chain_index + route
+   * (see RecommendationSummary.route's docstring on the backend) -- only
+   * present on live-API recommendations. */
+  pendingRole?: string | null
+  /** Index into `routeLength` of the role above -- "step chainIndex of
+   * routeLength" for a pipeline progress indicator. Only present on
+   * live-API recommendations. */
+  chainIndex?: number
+  /** Length of this recommendation's resolved approval route -- varies by
+   * criticality tier/OAR routing, so never assume a fixed constant (see
+   * RecommendationSummary.route's docstring). Only present on live-API
+   * recommendations. */
+  routeLength?: number
 }

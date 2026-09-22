@@ -116,6 +116,18 @@ export const RECOMMENDATION_SOURCES: FieldSourceMap<Recommendation> = {
     from: "gap",
     note: "When the recommendation row last changed status (submit/hold/approve/reject) -- populated only by the live backend's i7_recommendation.updated_at, used for pipeline waiting-time/stuck detection. This generated-dataset pipeline has no equivalent source for it. Optional and absent here on purpose.",
   },
+  pendingRole: {
+    from: "gap",
+    note: "The approval role currently blocking this recommendation -- derived server-side from the live backend's status/chain_index/route (RecommendationSummary), which this generated-dataset pipeline has no equivalent source for. Optional and absent here on purpose.",
+  },
+  chainIndex: {
+    from: "gap",
+    note: "Position in the resolved approval route -- populated only by the live backend's RecommendationSummary.chain_index. Optional and absent here on purpose.",
+  },
+  routeLength: {
+    from: "gap",
+    note: "Length of the resolved approval route -- populated only by the live backend's RecommendationSummary.route. Optional and absent here on purpose.",
+  },
 }
 
 const CRITICALITY_MAP: Record<string, Criticality> = {

@@ -105,6 +105,8 @@ export interface ApiRecommendationSummary {
   confidence: string | null
   generated_at: string
   updated_at: string
+  chain_index: number
+  route: string[]
   current: ApiStockParameters
   recommended: ApiStockParameters
   impact: ApiImpactInfo
@@ -352,9 +354,29 @@ export interface ApiExecutiveSummary {
   total_recommendations: number
   ready_for_review_count: number
   pending_approval_count: number
+  pending_approval_percentage: ApiDecimal
   not_evaluable_count: number
   oar_count: number
   approval_ledger_entries: number
+}
+
+/** One mockup-facing KPI (stockout-risk severity, excess-inventory
+ * candidates, working-capital impact, a stockout-risk trend) that has no
+ * defined business rule or computation anywhere in I07 today -- confirmed by
+ * a full backend source-tree audit, not merely unimplemented on this page.
+ * `status` is always `NOT_CONFIGURED`; `reason` explains the gap factually
+ * so a reader sees why, never a fabricated number standing in for it. */
+export interface ApiUndefinedManagementMetric {
+  status: ApiAvailabilityStatus
+  reason: string
+}
+
+export interface ApiManagementSummary {
+  critical_stockout_risk: ApiUndefinedManagementMetric
+  excess_inventory_candidates: ApiUndefinedManagementMetric
+  working_capital_impact: ApiUndefinedManagementMetric
+  stockout_risk_distribution: ApiUndefinedManagementMetric
+  stockout_risk_trend: ApiUndefinedManagementMetric
 }
 
 export interface ApiHistoryStatusCount {
@@ -430,6 +452,12 @@ export interface ApiReorderPointSection {
   recommended: ApiPopulationCount
   both_available_count: number
   mean_delta: ApiDecimal
+  /** Disclosure, not a computed metric: for SMOOTH/ERRATIC materials I07
+   * reuses the current MARC value as-is rather than calculating a new one
+   * (a 2026-09-22 product decision), so "Recommended" equals "Current" by
+   * construction for that subset -- Mean Delta above is not independent
+   * validation for those rows. */
+  current_sap_value_reused_note: string
 }
 
 export interface ApiMaxStockSection {
@@ -441,6 +469,8 @@ export interface ApiMaxStockSection {
   strategy_production_resolved_count: number
   strategy_unresolved_fixture_count: number
   strategy_policy_status: ApiAvailabilityStatus
+  /** Same disclosure as ApiReorderPointSection.current_sap_value_reused_note. */
+  current_sap_value_reused_note: string
 }
 
 export interface ApiConversionEligibilityCount {
@@ -453,6 +483,26 @@ export interface ApiOarSection {
   is_oar_false_count: number
   is_oar_null_count: number
   conversion_eligibility_breakdown: ApiConversionEligibilityCount[]
+}
+
+/** One ZMM065 tier's count -- the exact tier string verbatim (CRITICAL/
+ * IMPACT/INSURANCE/NORMAL/OBSOLETE), never collapsed into an invented A/B/C
+ * bucket (no such grouping exists in policy or code). `null` groups rows
+ * where `criticality` itself is NULL -- the large majority on this extract. */
+export interface ApiCriticalityTierCount {
+  criticality: string | null
+  count: number
+}
+
+/** Real distribution of `i7_recommendation.criticality` for rows generated
+ * in this quarter -- the same quarter-scoped row set every other section in
+ * this report reads, not the portfolio-wide (all-time) `/recommendations/
+ * summary` distribution. */
+export interface ApiMaterialCriticalitySection {
+  total: number
+  by_tier: ApiCriticalityTierCount[]
+  populated_count: number
+  populated_percentage: ApiDecimal
 }
 
 export interface ApiRecommendationStatusCount {
@@ -491,6 +541,12 @@ export interface ApiBaselineComparisonRow {
   recommendation_missing_count: number
   not_evaluable_count: number
   availability_status: ApiAvailabilityStatus
+  /** `true` only for the Lead Time row: baseline and I07-recommendation are
+   * the SAME persisted column (MARC-PLIFZ), because I07 has no separately-
+   * calculated lead time to compare against. A `true` row's delta/delta_
+   * percentage are non-informative by construction -- agreement with itself,
+   * not independent validation -- and must be disclosed as such. */
+  self_referential: boolean
 }
 
 export interface ApiBaselineComparisonSection {
@@ -513,12 +569,14 @@ export interface ApiLimitationsSection {
 export interface ApiQuarterlyReport {
   metadata: ApiReportMetadata
   executive_summary: ApiExecutiveSummary
+  management_summary: ApiManagementSummary
   scope_and_data_quality: ApiScopeAndDataQuality
   demand_classification: ApiDemandClassification
   forecasting: ApiForecastingSection
   safety_stock: ApiSafetyStockSection
   reorder_point: ApiReorderPointSection
   max_stock: ApiMaxStockSection
+  material_criticality: ApiMaterialCriticalitySection
   oar: ApiOarSection
   recommendations: ApiRecommendationsSection
   approval: ApiApprovalSection

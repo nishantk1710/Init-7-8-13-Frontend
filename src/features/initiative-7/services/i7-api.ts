@@ -190,6 +190,20 @@ function deriveRisk(rawCriticality: string | null, status: RecommendationStatus)
   return "low"
 }
 
+/** Mirrors WorkflowState.pending_role exactly (app/initiatives/i7/
+ * recommendations/workflow.py) -- chain_index is only meaningful while the
+ * raw backend status is PENDING_APPROVAL/SENT_BACK/HELD, so this reads the
+ * RAW status (not the display-reduced RecommendationStatus, which collapses
+ * all three into "In Approval"/"Returned" and would lose the distinction the
+ * rule actually needs). Never recomputes the route itself -- `route` is
+ * read verbatim from the list endpoint, which already resolved it through
+ * the live ApprovalRoutingPolicy. */
+function derivePendingRole(rawStatus: string, chainIndex: number, route: string[]): string | null {
+  if (!["PENDING_APPROVAL", "SENT_BACK", "HELD"].includes(rawStatus)) return null
+  if (chainIndex >= route.length) return null
+  return route[chainIndex] ?? null
+}
+
 function materialRefFor(materialNumber: string): MaterialReference {
   // Live recommendations use the real SAP material number as both id and
   // code -- there is no app-side catalog entry to join against (see
@@ -258,6 +272,9 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     workflow: [],
     generatedAt: row.generated_at,
     updatedAt: row.updated_at,
+    pendingRole: derivePendingRole(row.status, row.chain_index, row.route),
+    chainIndex: row.chain_index,
+    routeLength: row.route.length,
   }
 }
 
@@ -367,6 +384,12 @@ export interface RecommendationListParams {
   isOar?: boolean
   confidence?: string
   criticality?: string
+  /** Inclusive lower bound on generated_at, ISO 8601 -- e.g. a report
+   * period's start, so a material table can be scoped to the same quarter
+   * the report itself was generated for. */
+  generatedFrom?: string
+  /** Exclusive upper bound on generated_at, ISO 8601. */
+  generatedTo?: string
 }
 
 export interface RecommendationListResult {
@@ -389,6 +412,8 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.isOar !== undefined) search.set("is_oar", String(params.isOar))
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.criticality) search.set("criticality", params.criticality)
+  if (params.generatedFrom) search.set("generated_from", params.generatedFrom)
+  if (params.generatedTo) search.set("generated_to", params.generatedTo)
   const query = search.toString()
   return query ? `?${query}` : ""
 }

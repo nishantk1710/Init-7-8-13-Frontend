@@ -1,14 +1,13 @@
 // Part 22 — I07 complete frontend live data integration.
 //
-// Live counterpart to pipeline-workspace.tsx. The scenario version buckets
-// by per-role approval stage (Not submitted -> End User -> ... -> Approved),
-// which needs bulk per-recommendation workflow state (route/pending-role for
-// every row) that no endpoint currently returns cheaply for a whole list --
-// see live-approvals-workspace.tsx's same limitation. This live version
-// instead buckets by the real backend lifecycle status directly, which the
-// list endpoint already returns per row -- an honest reduction, not an
-// attempt to recreate the exact same stage granularity without the data to
-// back it.
+// Live counterpart to pipeline-workspace.tsx. The stage strip below still
+// buckets by the real backend lifecycle status (not by approval role) since
+// that is what the portfolio-wide summary endpoint aggregates. The table's
+// "Waiting on"/"Progress" columns, however, now use chain_index/route --
+// which the list endpoint (RecommendationSummary) added specifically so a
+// pipeline table could show pending-role and step-N-of-M for every row in
+// one list fetch, without the per-recommendation GET .../workflow-state call
+// live-approvals-workspace.tsx uses for a single detail view.
 
 "use client"
 
@@ -118,9 +117,15 @@ const HEALTH_TONE: Record<"On track" | "Slow" | "Stuck", "success" | "warning" |
  * "In flight: 1" while the table below showed nothing. Twelve small,
  * cheap, parallel-by-the-browser requests, each scoped to one status, is a
  * defensible cost for a table the size this data actually has (a few dozen
- * rows total outside Pending Review on the current extract). */
+ * rows total outside Pending Review on the current extract).
+ *
+ * NOT_EVALUABLE is deliberately excluded: it means the backend has not yet
+ * computed any current/recommended stock parameters for that material-plant
+ * (see app/schemas/i7/recommendations.py), so it carries no real
+ * recommendation to show on a pipeline of decisions in flight -- not a status
+ * this table hides a count for, a status it never queries or displays at
+ * all, on the table, the stage strip or the tab counts below. */
 const ALL_RAW_STATUSES = [
-  "NOT_EVALUABLE",
   "READY_FOR_REVIEW",
   "PENDING_APPROVAL",
   "HELD",
@@ -151,7 +156,6 @@ export function LivePipelineWorkspace() {
   // One hook call per fixed status -- see ALL_RAW_STATUSES's own comment on
   // why this is a fixed, not dynamic, hook count.
   const byStatus = {
-    NOT_EVALUABLE: useLiveRecommendations({ status: "NOT_EVALUABLE", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
     READY_FOR_REVIEW: useLiveRecommendations({ status: "READY_FOR_REVIEW", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
     PENDING_APPROVAL: useLiveRecommendations({ status: "PENDING_APPROVAL", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
     HELD: useLiveRecommendations({ status: "HELD", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
@@ -184,6 +188,7 @@ export function LivePipelineWorkspace() {
     const counts = new Map<string, number>(STAGES.map((s) => [s, 0]))
     if (summary) {
       for (const row of summary.byStatus) {
+        if (row.status === "NOT_EVALUABLE") continue
         const status = mapStatus(row.status)
         if (counts.has(status)) counts.set(status, (counts.get(status) ?? 0) + row.count)
       }
@@ -195,6 +200,7 @@ export function LivePipelineWorkspace() {
     const counts = { "in-flight": 0, completed: 0, "not-submitted": 0 }
     if (summary) {
       for (const row of summary.byStatus) {
+        if (row.status === "NOT_EVALUABLE") continue
         counts[tabForStatus(mapStatus(row.status))] += row.count
       }
     }
@@ -330,10 +336,11 @@ export function LivePipelineWorkspace() {
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Risk</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Waiting on</TableHead>
+                <TableHead>Progress</TableHead>
                 <TableHead>Waiting</TableHead>
                 <TableHead>Health</TableHead>
-                <TableHead>Generated</TableHead>
+                <TableHead>Submitted</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -341,6 +348,8 @@ export function LivePipelineWorkspace() {
                 const isInFlight = tabForStatus(rec.status) === "in-flight"
                 const days = isInFlight ? liveWaitingDays(rec.updatedAt) : null
                 const health = liveHealth(days)
+                const routeLength = rec.routeLength ?? 0
+                const done = rec.chainIndex !== undefined ? Math.min(rec.chainIndex, routeLength) : 0
                 return (
                   <TableRow key={rec.id}>
                     <TableCell>
@@ -351,8 +360,34 @@ export function LivePipelineWorkspace() {
                     <TableCell>
                       <RiskBadge level={rec.risk} />
                     </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {rec.pendingRole ?? (isInFlight ? "—" : <StatusBadge tone={STATUS_TONE[rec.status]}>{rec.status}</StatusBadge>)}
+                    </TableCell>
                     <TableCell>
-                      <StatusBadge tone={STATUS_TONE[rec.status]}>{rec.status}</StatusBadge>
+                      {routeLength > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: routeLength }).map((_, index) => (
+                              <span
+                                key={index}
+                                className={cn(
+                                  "h-1.5 w-5 rounded-full",
+                                  index < done
+                                    ? "bg-success"
+                                    : index === done && rec.pendingRole
+                                      ? "bg-warning"
+                                      : "bg-muted"
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[11px] tabular-nums text-muted-foreground">
+                            {done}/{routeLength}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-[13px] tabular-nums text-muted-foreground">
                       {days !== null ? `${days} day${days === 1 ? "" : "s"}` : "—"}
@@ -365,7 +400,7 @@ export function LivePipelineWorkspace() {
                       )}
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
-                      {new Date(rec.generatedAt).toLocaleDateString()}
+                      {new Date(rec.updatedAt ?? rec.generatedAt).toLocaleDateString()}
                     </TableCell>
                   </TableRow>
                 )
@@ -380,7 +415,8 @@ export function LivePipelineWorkspace() {
         last status change (a submit/hold/approve/reject action updates the row in place) against the current time
         — &quot;Slow&quot; past 7 days, &quot;Stuck&quot; past 14, illustrative thresholds, not an agreed SLA. Only
         shown for recommendations actually in flight; a row not yet submitted or already completed cannot be
-        stuck.
+        stuck. &quot;Waiting on&quot; and &quot;Progress&quot; reflect the real approval role and chain position the
+        backend resolved for this recommendation, not a fixed 4-step assumption.
       </p>
     </div>
   )

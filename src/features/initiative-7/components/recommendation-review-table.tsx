@@ -14,17 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { cn, formatCount, formatZAR } from "@/lib/utils"
 import {
   CRITICALITY_CODE,
+  DEMAND_CODE,
   RecommendationReviewPanel,
   SubmitForApprovalBox,
 } from "@/features/initiative-7/components/recommendation-review-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
-import type { DemandPattern, Recommendation } from "@/features/initiative-7/types/inventory"
+import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const COLUMN_COUNT = 9
@@ -40,15 +40,6 @@ const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "war
 
 const STATUS_LABEL: Partial<Record<Recommendation["status"], string>> = {
   "Pending Review": "Needs review",
-}
-
-/** XYZ class from the demand pattern: X = smooth, Y = predictable-but-sparse, Z = erratic. */
-const DEMAND_CODE: Record<DemandPattern, string> = {
-  Smooth: "X",
-  "Slow-Moving": "Y",
-  Intermittent: "Y",
-  Erratic: "Z",
-  Lumpy: "Z",
 }
 
 function segmentCode(rec: Recommendation): string {
@@ -184,7 +175,6 @@ function ExpandedRecommendationPanel({
  * change-review layout: scan the impact in the row, open it for the full
  * rationale and the submit action. */
 export function RecommendationReviewTable({ recommendations }: { recommendations: Recommendation[] }) {
-  const { openMaterial360, } = useMaterial360()
   const { stateFor } = useInventoryWorkflow()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Populated only for a row that has been expanded at least once (see
@@ -241,7 +231,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <MaterialIdentity material={rec.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={rec.material} />
                         {atRisk && (
                           <TriangleAlert
                             className="size-3.5 shrink-0 text-warning"

@@ -9,7 +9,7 @@ import { formatCount, formatZAR } from "@/lib/utils"
 import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
-import type { Criticality, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
+import type { Criticality, DemandPattern, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
 import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
@@ -19,6 +19,15 @@ export const CRITICALITY_CODE: Record<Criticality, string> = {
   High: "B",
   Medium: "C",
   Low: "D",
+}
+
+/** XYZ class from the demand pattern: X = smooth, Y = predictable-but-sparse, Z = erratic. */
+export const DEMAND_CODE: Record<DemandPattern, string> = {
+  Smooth: "X",
+  "Slow-Moving": "Y",
+  Intermittent: "Y",
+  Erratic: "Z",
+  Lumpy: "Z",
 }
 
 /** Splits a rationale's free text into individual bullet lines. The v2 prompt

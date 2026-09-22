@@ -107,22 +107,30 @@ function LiveRecommendationsWorkspace({
   // (PLANT-GBG etc.) can never match a live row's WERKS code, so a filter
   // built from it silently matched nothing -- see utils/sap-plants.ts.
   //
-  // Scoped to the same status the table is showing, so the dropdown only ever
-  // offers plants that actually have rows in the current view. Under the
-  // default calculated-only filter that is plant 1300 alone; offering the
-  // other seven would let a planner pick a plant and land on an empty table,
-  // since every row outside 1300 is blocked upstream (no MARC coverage).
+  // Scoped to the same status the table is showing, so counts reflect what
+  // the dropdown selection would actually show. Both VZI plants (Black
+  // Mountain/1300, Gamsberg/1500) are always offered even with a 0 count --
+  // Gamsberg has no MARC coverage today (see CLAUDE.md's plant-coverage-gap
+  // note) so it would otherwise silently disappear from the dropdown
+  // whenever the calculated-only filter is active, which reads as "Gamsberg
+  // doesn't exist" rather than "Gamsberg has no calculated recommendations
+  // yet". Any other plant code the data does carry rows for (3000, 2000,
+  // etc.) is still appended so a real row is never hidden.
   const { summary } = useLiveRecommendationSummary(
     onlyCalculated ? { status: "READY_FOR_REVIEW" } : {},
   )
-  const plantOptions = useMemo(
-    () =>
-      (summary?.byPlant ?? []).map((p) => ({
-        value: p.plant,
-        label: `${sapPlantLabel(p.plant)} — ${formatCount(p.count)}`,
-      })),
-    [summary],
-  )
+  const ALWAYS_OFFERED_PLANTS = ["1300", "1500"]
+  const plantOptions = useMemo(() => {
+    const counts = new Map((summary?.byPlant ?? []).map((p) => [p.plant, p.count]))
+    const codes = [
+      ...ALWAYS_OFFERED_PLANTS,
+      ...[...counts.keys()].filter((code) => !ALWAYS_OFFERED_PLANTS.includes(code)),
+    ]
+    return codes.map((code) => ({
+      value: code,
+      label: sapPlantLabel(code),
+    }))
+  }, [summary])
 
   // Switching to calculated-only narrows the plant list, which can strip out
   // the plant already selected -- leaving a filter active that the dropdown

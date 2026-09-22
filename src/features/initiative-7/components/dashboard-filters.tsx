@@ -14,14 +14,32 @@ import {
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { cn } from "@/lib/utils"
 import { getPlantById, PLANTS } from "@/lib/shared-data/plants"
+import { DEMAND_CODE } from "@/features/initiative-7/components/recommendation-review-panel"
 import {
   CIRCUITS,
   CRITICALITIES,
   DEMAND_PATTERNS,
   RECOMMENDATION_STATUSES,
+  type Criticality,
+  type DemandPattern,
 } from "@/features/initiative-7/types/inventory"
 
 export const ALL_FILTER = "all"
+
+/** The raw ZMM065 tier name shown for each mapped `Criticality` value, so the
+ * filter reads the way the underlying data actually looks (CRITICAL, IMPACT,
+ * INSURANCE, NORMAL, OBSOLETE -- see CRITICALITY_MAP in services/i7-api.ts)
+ * rather than the derived Low/Medium/High/Critical ordinal or an ABC code.
+ * NORMAL and OBSOLETE both map to "Low" today (see CRITICALITY_MAP) and are
+ * not distinguished on Recommendation -- NORMAL is shown here as the far
+ * more common of the two (12,693 vs 3,128 rows in the ZMM065 extract), not a
+ * claim that OBSOLETE rows are absent from this filter value. */
+const CRITICALITY_TIER_LABEL: Record<Criticality, string> = {
+  Critical: "CRITICAL",
+  High: "IMPACT",
+  Medium: "INSURANCE",
+  Low: "NORMAL",
+}
 
 const RISK_LEVELS: RiskLevel[] = ["critical", "high", "medium", "low"]
 
@@ -111,7 +129,7 @@ export function DashboardFilters({
    * scenario master data keyed on invented ids (PLANT-GBG etc.) that never
    * match a live row's SAP WERKS code, so selecting one filtered everything
    * out -- see utils/sap-plants.ts. When provided, these replace that list. */
-  plantOptions?: { value: string; label: string }[]
+  plantOptions?: { value: string; label: string; count?: number }[]
   /** Live mode only -- the scenario dataset has no "blocked vs calculated"
    * distinction to filter on (every fixture row carries values). */
   showRecommendationFilter?: boolean
@@ -121,7 +139,7 @@ export function DashboardFilters({
   }
 
   const isBar = layout === "bar"
-  const plants =
+  const plants: { value: string; label: string; count?: number }[] =
     plantOptions ?? PLANTS.map((p) => ({ value: p.plantId, label: p.name }))
   const plantLabel = (v: string) =>
     plantOptions
@@ -158,14 +176,14 @@ export function DashboardFilters({
         </FilterField>
       )}
 
-      <FilterField label="Plant">
+      <FilterField label="Plant" className={isBar ? "min-w-[180px]!" : undefined}>
         <Select value={value.plant} onValueChange={(v) => set("plant", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
             <SelectValue placeholder="All">
               {(v: string) => (v === ALL_FILTER ? "All" : plantLabel(v))}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="min-w-[220px]">
             <SelectItem value={ALL_FILTER}>All</SelectItem>
             {plants.map((p) => (
               <SelectItem key={p.value} value={p.value}>
@@ -195,13 +213,15 @@ export function DashboardFilters({
       <FilterField label="Criticality">
         <Select value={value.criticality} onValueChange={(v) => set("criticality", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
+            <SelectValue placeholder="All">
+              {(v: string) => (v === ALL_FILTER ? "All" : CRITICALITY_TIER_LABEL[v as Criticality])}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>All</SelectItem>
             {CRITICALITIES.map((c) => (
               <SelectItem key={c} value={c}>
-                {c}
+                {CRITICALITY_TIER_LABEL[c]}
               </SelectItem>
             ))}
           </SelectContent>
@@ -211,13 +231,15 @@ export function DashboardFilters({
       <FilterField label="Demand Pattern">
         <Select value={value.demandPattern} onValueChange={(v) => set("demandPattern", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
+            <SelectValue placeholder="All">
+              {(v: string) => (v === ALL_FILTER ? "All" : `${DEMAND_CODE[v as DemandPattern]} — ${v}`)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>All</SelectItem>
             {DEMAND_PATTERNS.map((d) => (
               <SelectItem key={d} value={d}>
-                {d}
+                {DEMAND_CODE[d]} — {d}
               </SelectItem>
             ))}
           </SelectContent>
