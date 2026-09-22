@@ -414,9 +414,17 @@ anything that gets written down.
 2. Empty, loading and error states across all new screens, matching
    `components/shared/empty-state.tsx`.
 3. Export on the session log, matching the CSV pattern the I13 dashboard uses.
-4. Accessibility pass: the transcript is a live region; choices carry radio-group
-   semantics rather than being buttons that look like options; the reference banner
-   is announced when it appears. Dark mode via the existing tokens.
+4. Accessibility pass: the transcript is a live region; the reference banner is announced
+   when it appears. Dark mode via the existing tokens.
+
+   **Revised during Phase 2 — choices stay buttons.** This plan originally called for
+   radio-group semantics. That is wrong for this interaction. A radio group moves selection
+   with the arrow keys, and because a choice here *is* the answer — there is no confirm step,
+   deliberately — arrowing through the options would submit whichever one the user landed on
+   first. The two options are actions ("use the existing unit" / "buy a new one and say
+   why"), not a set to pick among and confirm later, and `<button>` is the correct role for
+   an action. Buttons are already reachable by Tab and activated by Enter or Space, and they
+   are grouped and labelled. No `RadioGroup` primitive is added.
 5. A visible "demo data" marker wherever fabricated consumption plans are still in
    view (§7).
 

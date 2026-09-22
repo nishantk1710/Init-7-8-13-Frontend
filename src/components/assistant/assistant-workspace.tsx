@@ -55,8 +55,16 @@ export function AssistantWorkspace({
     startTranscript(start.step)
   )
   const [submitting, setSubmitting] = useState(false)
+  /** A failure with nowhere better to go: shown below the conversation. */
   const [error, setError] = useState<string | null>(null)
+  /** Per-field messages from a 422, rendered against the inputs they name. */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  /**
+   * A rejection that names no field — a business rule rather than a bad box.
+   * Rendered inside the form, where the planner is looking, rather than below
+   * a transcript they may have scrolled past.
+   */
+  const [formError, setFormError] = useState<string | null>(null)
 
   /**
    * Guards against a second submission while the first is in flight.
@@ -76,6 +84,7 @@ export function AssistantWorkspace({
       setSubmitting(true)
       setError(null)
       setFieldErrors({})
+      setFormError(null)
 
       try {
         const response = await postTurn(start.sessionId, payload)
@@ -84,16 +93,18 @@ export function AssistantWorkspace({
         if (caught instanceof ApiError) {
           const perField = caught.fieldErrors()
           setFieldErrors(perField)
-          // A 422 whose detail is a string is a business rule, not a field
-          // problem, and belongs above the form rather than under a box. When
-          // the detail did name fields, those messages are already rendered
-          // there and repeating them here says everything twice.
-          setError(
-            Object.keys(perField).length > 0
-              ? "Some answers need changing before this can be recorded."
-              : caught.detailText()
-          )
+          if (Object.keys(perField).length > 0) {
+            // The per-field messages are already rendered against their
+            // inputs. Repeating them here says everything twice.
+            setFormError("Some answers need changing before this can be recorded.")
+          } else {
+            // A 422 whose detail is a string is a business rule, not a bad
+            // box. It goes inside the form, where the planner is looking.
+            setFormError(caught.detailText())
+          }
         } else {
+          // Not an ApiError at all: the network, or the backend being down.
+          // Nothing to attach to a field, so it goes below the conversation.
           setError(
             caught instanceof Error
               ? caught.message
@@ -147,8 +158,11 @@ export function AssistantWorkspace({
               step={entry.step}
               active={entry.active && !submitting}
               submitting={submitting}
+              // Errors belong to the step that was being answered, which is
+              // the active one. A settled step further up the transcript must
+              // not suddenly show a message about somebody else's submission.
               fieldErrors={entry.active ? fieldErrors : {}}
-              formError={null}
+              formError={entry.active ? formError : null}
               onChoice={onChoice}
               onSubmitForm={(values) => onSubmitForm(entry.step, values)}
             />

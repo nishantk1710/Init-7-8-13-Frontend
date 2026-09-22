@@ -60,12 +60,28 @@ export function StepRenderer({
       {step.footnote && <Footnote text={step.footnote} />}
 
       {step.kind === "choice" && (
-        <Choices
-          step={step}
-          active={active}
-          submitting={submitting}
-          onChoice={onChoice}
-        />
+        <>
+          <Choices
+            step={step}
+            active={active}
+            submitting={submitting}
+            onChoice={onChoice}
+          />
+          {/* A choice has no form to put a rejection in, and a 422 on a choice
+              is real — the backend validates the value against the step it
+              answers. Without this the click would appear to do nothing. */}
+          {formError && (
+            <p className="text-xs text-destructive" role="alert">
+              {formError}
+            </p>
+          )}
+        </>
+      )}
+
+      {step.kind === "message" && formError && (
+        <p className="text-xs text-destructive" role="alert">
+          {formError}
+        </p>
       )}
 
       {step.kind === "form" && (
