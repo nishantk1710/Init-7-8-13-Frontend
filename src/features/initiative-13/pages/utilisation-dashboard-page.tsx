@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import {
   getI13ActExceptions,
   getI13ActUtilisation,
-  getI13Justifications,
+  getI13AllJustifications,
   getI13Reclassification,
   getI13Summary,
   getI13Validation,
@@ -99,7 +99,7 @@ export function UtilisationDashboardPage() {
   )
 
   const justifications = useI13OptionalQuery(
-    () => getI13Justifications({ plant: debounced.plant || undefined, material: debounced.material || undefined }),
+    () => getI13AllJustifications({ plant: debounced.plant || undefined, material: debounced.material || undefined }),
     [debounced.plant, debounced.material]
   )
 

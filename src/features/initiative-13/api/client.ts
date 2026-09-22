@@ -4,6 +4,11 @@
 // aggregation and reconciliation math stays in the FastAPI backend.
 
 import { apiFetch } from "@/lib/api/client"
+import { listJustifications } from "@/lib/api/assistant"
+import {
+  mergeJustifications,
+  type UnifiedJustification,
+} from "@/lib/assistant/justifications"
 import type {
   ActException,
   ActExceptionDetail,
@@ -372,6 +377,41 @@ export async function getI13Justifications(params?: { plant?: string; material?:
   const candidates = lists.flat().slice(0, MAX_JUSTIFICATION_DETAIL_FETCH)
   const details = await Promise.all(candidates.map((c) => getI13ActExceptionDetail(c.exceptionId)))
   return selectConfirmedExceptions(details)
+}
+
+/**
+ * Every justification for this plant and material, from BOTH tables.
+ *
+ * The ACT half above is only one of the two places a reason is recorded. The
+ * other is the shared `justification` table, written by the assistant at
+ * reservation time -- `NEW_ACQUISITION` and `QUANTITY_OVERRIDE`, which are the
+ * records I08 FR-7 and I13 FR-3 ask for by name. The dashboard read only the
+ * ACT half, so the reasons captured at the moment of the decision were absent
+ * from the screen built to show them.
+ *
+ * The two are disjoint: only `app/api/assistant/router.py` and
+ * `app/assistant/turns.py` write the shared table, and the ACT confirmation
+ * route writes nowhere near it. So they concatenate without dedupe.
+ *
+ * Note the asymmetry in cost. The shared table is ONE request. The ACT half is
+ * two list calls plus up to thirty detail fetches, because a confirmation is
+ * only visible on an exception's detail. That is pre-existing and is why the
+ * fetch is capped; the cap is disclosed on screen rather than silently
+ * truncating.
+ */
+export async function getI13AllJustifications(params?: {
+  plant?: string
+  material?: string
+}): Promise<UnifiedJustification[]> {
+  const [platform, act] = await Promise.all([
+    listJustifications({
+      plant: params?.plant || undefined,
+      material: params?.material || undefined,
+      limit: 200,
+    }),
+    getI13Justifications(params),
+  ])
+  return mergeJustifications(platform.items, act)
 }
 
 /** Pure, unit-testable half of `getI13Justifications` -- no network. */

@@ -32,6 +32,13 @@ export const initiative8Manifest: InitiativeManifest = {
         icon: "search",
         href: "/repairable-spares/coding-candidates",
       },
+      // FR-7's half of the record: why somebody bought new while a repairable
+      // unit already existed. Initiative 08 had no screen for this at all.
+      {
+        label: "Justifications",
+        icon: "clipboard-check",
+        href: "/repairable-spares/justifications",
+      },
     ],
   },
 }
