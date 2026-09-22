@@ -60,10 +60,11 @@ export function JustificationLog({
       entries.map((entry) => [
         sourceLabel(entry.source),
         entry.kind,
-        entry.plant,
         entry.material,
+        entry.plant,
         entry.reasonCategory,
         entry.freeText,
+        entry.author,
         entry.recordedAt,
         entry.sessionId ?? "",
         entry.exceptionId ?? "",
