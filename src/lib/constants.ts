@@ -134,18 +134,7 @@ export const QUICK_ACTIONS: {
  * `chat-workspace.tsx`'s intent handling in `handleSend`), the same way a
  * user would never be asked to choose which module to talk to.
  */
-export const SUGGESTED_QUESTIONS: string[] = [
-  "Which critical spares are at risk?",
-  "What needs my approval?",
-  "Is this material OAR or non-OAR?",
-  "Why is the recommended ROP for this material higher?",
-  "Do we already have this material under repair?",
-  "Which repairs are overdue?",
-  "Which OAR materials are overdue?",
-  "Do we have this material available at another plant?",
-]
 
 export const DEFAULT_SESSION_ID = "SPR-2847"
 
 /** Hardcoded blank chat opened by the sidebar "New session" button (mock). */
-export const NEW_SESSION_ID = "SPR-2900"

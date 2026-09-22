@@ -17,7 +17,15 @@ export const metadata: Metadata = {
  * working that out is the thing the assistant does. A per-initiative entry
  * point would make the caller answer the one question it came to ask.
  */
-export default function AssistantPage() {
+export default async function AssistantPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const params = await searchParams
+  const material = typeof params.material === "string" ? params.material : ""
+  const plant = typeof params.plant === "string" ? params.plant : ""
+
   return (
     <div className="flex flex-col gap-5 p-6">
       <PageHeader
@@ -25,7 +33,7 @@ export default function AssistantPage() {
         description="Checks a spare before you reserve it — what is already in repair, what is already on the shelf, and how much you actually need."
       />
 
-      <AssistantOpener />
+      <AssistantOpener defaultMaterial={material} defaultPlant={plant} />
 
       {/* Separate from the conversation on purpose. `/api/assistant/ask` is a
           stateless intent matcher that writes nothing, so putting it in the

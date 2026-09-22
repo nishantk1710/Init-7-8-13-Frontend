@@ -17,10 +17,24 @@ import { Input } from "@/components/ui/input"
  * there is exactly one place that mints one and the deep link and this form
  * behave identically.
  */
-export function AssistantOpener() {
+export function AssistantOpener({
+  defaultMaterial = "",
+  defaultPlant = "",
+}: {
+  /**
+   * Prefill, for an entry point that already knows the part.
+   *
+   * The Material 360 drawer knows a material and genuinely does not know a
+   * plant -- `Material` carries no plant field, and stock, repairs and cover
+   * are all held per plant. Guessing one would answer for the wrong site,
+   * which is worse than asking.
+   */
+  defaultMaterial?: string
+  defaultPlant?: string
+} = {}) {
   const router = useRouter()
-  const [material, setMaterial] = useState("")
-  const [plant, setPlant] = useState("")
+  const [material, setMaterial] = useState(defaultMaterial)
+  const [plant, setPlant] = useState(defaultPlant)
   const [quantity, setQuantity] = useState("")
 
   const ready = material.trim().length > 0 && plant.trim().length > 0

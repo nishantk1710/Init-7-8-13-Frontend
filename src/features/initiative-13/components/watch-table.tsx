@@ -1,5 +1,6 @@
 "use client"
 
+import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { useMemo, useState } from "react"
 
 import { EmptyState } from "@/components/shared/empty-state"
@@ -153,7 +154,15 @@ export function WatchTable({
             <TableBody>
               {filtered.map((m) => (
                 <TableRow key={`${m.material}-${m.plant}`}>
-                  <TableCell className="font-medium text-foreground">{m.material}</TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    <div className="flex flex-col gap-0.5">
+                      {m.material}
+                      {/* Both identifiers are real here and come from the
+                          backend, so this opens a session directly rather
+                          than asking for a plant the row already knows. */}
+                      <AskAssistantLink materialId={m.material} plant={m.plant} />
+                    </div>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{m.plant}</TableCell>
                   <TableCell>
                     <StatusBadge tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusBadge>

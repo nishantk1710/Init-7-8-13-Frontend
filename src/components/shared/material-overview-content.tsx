@@ -8,7 +8,7 @@ import { getInitiative13Material360Signal } from "@/features/initiative-13/selec
 import { isOARMaterial } from "@/features/initiative-13/selectors/oar-lookup"
 import type { Material360Signal, InitiativeHealth } from "@/lib/domain/contracts"
 import { getMaterialById } from "@/lib/shared-data/material-catalog"
-import { CHAT_SESSIONS } from "@/lib/mock-data"
+import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { cn, formatZAR } from "@/lib/utils"
 
 const STATUS_DOT: Record<InitiativeHealth | "neutral", string> = {
@@ -61,8 +61,6 @@ export function MaterialOverviewContent({ materialId }: { materialId: string }) 
   const initiative13Signal = getInitiative13Material360Signal(materialId)
   const isOAR = isOARMaterial(materialId)
 
-  const relatedSessions = CHAT_SESSIONS.filter((s) => s.materialId === materialId)
-
   if (!material) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -103,19 +101,19 @@ export function MaterialOverviewContent({ materialId }: { materialId: string }) 
             <dd className="text-foreground">{material.leadTimeDays} days</dd>
           </div>
         </dl>
-        {relatedSessions.length > 0 && (
-          <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-border pt-2">
-            {relatedSessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/chat/${s.id}`}
-                className="text-[11px] text-primary hover:underline"
-              >
-                Open session #{s.id}
-              </Link>
-            ))}
-          </div>
-        )}
+        {/* The reservation assistant, from the drawer.
+            
+            No plant here: `Material` has no plant field, and stock, open
+            repairs and months of cover are all held per plant. So this lands
+            on the opener with the material filled in and the planner picks
+            the site, rather than answering confidently for the wrong one.
+            
+            This replaces a list of links to mock chat sessions, which pointed
+            at `/chat/{id}` — a route that no longer exists, and a conversation
+            that never wrote anything anywhere. */}
+        <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-border pt-2">
+          <AskAssistantLink materialId={materialId} />
+        </div>
       </div>
 
       {initiative7Signal && <SignalSection signal={initiative7Signal} />}

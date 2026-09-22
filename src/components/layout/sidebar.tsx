@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Plus } from "lucide-react"
@@ -10,10 +9,8 @@ import {
   CATEGORIES,
   ICONS,
   INITIATIVE_NAV_SECTIONS,
-  NEW_SESSION_ID,
   QUICK_ACTIONS,
 } from "@/lib/constants"
-import { getActiveSessions } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 function NavSection({
@@ -35,20 +32,10 @@ function NavSection({
 
 export function Sidebar() {
   const pathname = usePathname()
-  const allSessions = getActiveSessions()
-  const sessions = allSessions.filter(
-    (session) => session.id !== NEW_SESSION_ID
-  )
-  const draftSession = allSessions.find(
-    (session) => session.id === NEW_SESSION_ID
-  )
   const CpuIcon = ICONS["cpu"]
   const MessageIcon = ICONS["message-circle"]
-  const draftHref = `/chat/${NEW_SESSION_ID}`
-  const isOnDraft = pathname === draftHref
+  const HistoryIcon = ICONS["history"]
 
-  // In-memory only — a full page refresh clears the draft tab.
-  const [draftOpen, setDraftOpen] = useState(false)
 
   return (
     <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
@@ -64,11 +51,10 @@ export function Sidebar() {
 
       <div className="px-2 pt-3 pb-1">
         <Link
-          href={draftHref}
-          onClick={() => setDraftOpen(true)}
+          href="/assistant"
           className={cn(
             "flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] transition-colors",
-            isOnDraft
+            pathname === "/assistant"
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
@@ -78,71 +64,38 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <NavSection title="Active sessions">
-        {draftOpen && draftSession && (
-          <Link
-            href={draftHref}
-            className={cn(
-              "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-              isOnDraft
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            <MessageIcon className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span
-                className={cn(
-                  "block truncate font-medium",
-                  isOnDraft ? "text-accent-foreground" : "text-foreground"
-                )}
-              >
-                {draftSession.navLabel}
-              </span>
-              <span className="block truncate text-[11px] text-muted-foreground">
-                {draftSession.navSubtitle}
-              </span>
-            </span>
-          </Link>
-        )}
-        {sessions.map((session) => {
-          const href = `/chat/${session.id}`
-          const isActive = pathname === href
+      {/* The reservation assistant, shared by Initiative 08 and 13.
+          
+          This replaces a list of "active sessions" read from `mock-data.ts` —
+          hand-written conversations that wrote nothing anywhere and linked to
+          a `/chat` route that no longer exists.
+          
+          Real sessions are not listed here on purpose. The sidebar renders on
+          every page, so fetching the log would add a request to every
+          navigation for a list nobody navigates by; and a session is
+          identified by a ten-character reference a planner carries to SAP,
+          not by a name they would recognise in a menu. The log lives at
+          /assistant/sessions, one click away. */}
+      <NavSection title="Reservation assistant">
+        {[
+          { label: "Open the assistant", icon: MessageIcon, href: "/assistant" },
+          { label: "Sessions", icon: HistoryIcon, href: "/assistant/sessions" },
+        ].map((item) => {
+          const isActive = pathname === item.href
+          const Icon = item.icon
           return (
             <Link
-              key={session.id}
-              href={href}
+              key={item.href}
+              href={item.href}
               className={cn(
                 "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
                 isActive
                   ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <MessageIcon className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span
-                  className={cn(
-                    "block truncate font-medium",
-                    isActive ? "text-accent-foreground" : "text-foreground"
-                  )}
-                >
-                  {session.navLabel}
-                </span>
-                <span className="block truncate text-[11px] text-muted-foreground">
-                  {session.navSubtitle}
-                </span>
-              </span>
-              {session.navBadge?.type === "count" && (
-                <span className="shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
-                  {session.navBadge.value}
-                </span>
-              )}
-              {session.navBadge?.type === "alert" && (
-                <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-destructive text-[11px] font-medium text-white">
-                  !
-                </span>
-              )}
+              <Icon className="size-4 shrink-0" />
+              <span className="font-medium">{item.label}</span>
             </Link>
           )
         })}
