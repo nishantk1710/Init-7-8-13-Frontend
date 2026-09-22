@@ -60,14 +60,28 @@ export function StepForm({
   )
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({})
   const [localFormError, setLocalFormError] = useState<string | null>(null)
+  /**
+   * Set the moment anything is typed, cleared on submit.
+   *
+   * A server rejection describes one particular submission. Once the planner
+   * starts changing the answers, that message is about something they are no
+   * longer proposing — and a red alert contradicting the fields under it
+   * teaches people the form is broken rather than that they made a mistake.
+   * So the server's messages are hidden while editing and come back, updated,
+   * on the next attempt.
+   */
+  const [editedSinceSubmit, setEditedSinceSubmit] = useState(false)
 
-  // Server errors win: they describe the submission that was actually rejected,
-  // whereas a local error describes the state before it was sent.
-  const errors = { ...localErrors, ...fieldErrors }
+  // Server errors win where both exist: they describe the submission that was
+  // actually rejected, whereas a local error describes the state before it
+  // was sent.
+  const serverErrors = editedSinceSubmit ? {} : fieldErrors
+  const errors = { ...localErrors, ...serverErrors }
   const disabled = !active || submitting
 
   function set(name: string, value: string) {
     setValues((previous) => ({ ...previous, [name]: value }))
+    setEditedSinceSubmit(true)
     // Clear a field's own error as soon as it is touched. A stale "Field
     // required" under a box somebody has just filled in reads as a rejection
     // of what they typed.
@@ -112,10 +126,12 @@ export function StepForm({
 
     setLocalErrors({})
     setLocalFormError(null)
+    setEditedSinceSubmit(false)
     onSubmit(values)
   }
 
-  const shownFormError = localFormError ?? formError
+  const shownFormError =
+    localFormError ?? (editedSinceSubmit ? null : formError)
 
   return (
     <form

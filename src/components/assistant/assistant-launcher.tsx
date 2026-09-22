@@ -53,23 +53,75 @@ export function AssistantLauncher({
     | { status: "failed"; message: string }
   >({ status: "opening" })
 
-  const opened = useRef(false)
+  /**
+   * The in-flight (or settled) request, held across mounts.
+   *
+   * ## Why this is a cached promise and not a boolean
+   *
+   * The obvious guard — a `hasOpened` ref checked at the top of the effect —
+   * is broken under React Strict Mode, which deliberately mounts, unmounts and
+   * remounts every effect in development. The sequence is:
+   *
+   *   1. mount    → ref is false, set it true, fire the POST, `cancelled=false`
+   *   2. cleanup  → `cancelled=true`, disarming the only request's handlers
+   *   3. remount  → ref is true, so the effect returns early and never
+   *                 re-attaches
+   *
+   * The POST succeeds, the session row is written, and nothing ever reads the
+   * response: the page sits on "Checking…" forever while an orphaned session
+   * exists in an append-only table. Production does not double-mount, so this
+   * would have been a development-only trap — which is worse, because
+   * development is where it gets demonstrated.
+   *
+   * Caching the promise fixes both halves at once. The request is created once
+   * per distinct set of parameters, and each mount attaches its own handlers
+   * to the same promise, so the second mount receives the result the first one
+   * dropped.
+   */
+  const request = useRef<{
+    key: string
+    promise: Promise<StartSessionResponse>
+  } | null>(null)
 
   useEffect(() => {
-    // Strict Mode mounts effects twice in development on purpose. Without this
-    // guard that is two sessions for one conversation, in a table that cannot
-    // be corrected.
-    if (opened.current) return
-    opened.current = true
+    // A genuinely different material or plant is a different question and
+    // deserves its own session; only an identical repeat is deduplicated.
+    const key = JSON.stringify([materialId, plant, quantity, origin])
+    if (request.current?.key !== key) {
+      request.current = {
+        key,
+        promise: startSession({ materialId, plant, quantity, origin }),
+      }
+    }
 
-    let cancelled = false
+    let active = true
 
-    startSession({ materialId, plant, quantity, origin })
+    request.current.promise
       .then((response) => {
-        if (!cancelled) setState({ status: "open", response })
+        if (!active) return
+        setState({ status: "open", response })
+        // Swap the minting URL for the session's own permalink.
+        //
+        // `/assistant/new?material=…` MEANS "open a session", so reloading it
+        // mints a second one — a duplicate row in an append-only table, and a
+        // new reference replacing the one the planner may already have
+        // written down. Since there is no endpoint that resumes a
+        // conversation (ask O-8), the best available outcome for a reload is
+        // the trace: the conversation is lost either way, but this way the
+        // record is shown instead of a duplicate being created.
+        //
+        // replaceState rather than router.replace: this must not re-render
+        // the tree or unmount the live conversation, only relabel it.
+        if (response.sessionId) {
+          window.history.replaceState(
+            null,
+            "",
+            `/assistant/sessions/${response.sessionId}`
+          )
+        }
       })
       .catch((caught: unknown) => {
-        if (cancelled) return
+        if (!active) return
         if (caught instanceof ApiError && caught.status === 422) {
           setState({ status: "unavailable", message: caught.detailText() })
           return
@@ -86,7 +138,7 @@ export function AssistantLauncher({
       })
 
     return () => {
-      cancelled = true
+      active = false
     }
   }, [materialId, plant, quantity, origin])
 
