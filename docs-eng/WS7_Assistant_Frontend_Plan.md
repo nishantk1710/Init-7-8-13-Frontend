@@ -86,8 +86,8 @@ know which initiative owns it — that is the thing the router decides.
 | POST | `/api/assistant/ask` | Free-text box, fixed intent set, no AI. |
 | GET | `/api/assistant/ask/suggestions` | The chips. Served, not hard-coded. |
 | POST/GET | `/api/justifications` | Shared by both initiatives. |
-| POST/GET | `/api/i13/consumption-plans` | Direct plan capture, outside a conversation. |
-| GET | `/api/i13/quantity-suggestion`, `/api/i8/repairable-unit` | FR-3 and FR-6 standalone. |
+| ~~POST/GET~~ | ~~`/api/i13/consumption-plans`~~ | **Unreachable — 404. See §3.3.** |
+| GET | `/api/i13/quantity-suggestion`, `/api/i8/repairable-unit` | FR-3 and FR-6 standalone. Both mounted and reachable. |
 
 ### 3.1 Five contract facts that will cost a day each if missed
 
@@ -129,6 +129,19 @@ all** today. Unless the frontend sends one from day one, append-only audit rows
 will carry two or three different names for the same unauthenticated person, and
 they cannot be corrected afterwards. See §9, O-1.
 
+**6. `detail` on a 4xx is sometimes a string and sometimes an array.** Verified against a
+`TestClient` run of the real app. A pydantic validation failure returns
+`detail: [{type, loc, msg, input, ctx}, …]`; an application-raised `HTTPException`
+returns `detail: "quantity must be a number, got 'abc'"`. Both are 422. A renderer
+that assumes a string prints `[object Object]` on the commonest failure there is —
+a required field left empty. The error type must model both arms.
+
+**7. Field `name`s are snake_case inside a camelCase envelope.** The step model is
+camelCase (`helpText`, `sessionId`), but the `name` of each field — the key the
+answer must be posted under — is `planned_quantity`, `window_start`,
+`reason_category`, `free_text`. They are data keys, not model fields, so the alias
+generator never touches them. Verified in the generated fixtures.
+
 ### 3.2 The step machine, as it actually is
 
 Four step kinds — `message`, `choice`, `form`, `terminal` — and five field types —
@@ -153,6 +166,26 @@ instruction, and it is served so it can be changed in one place.
 
 Shortest path is two turns; longest is four. Depth is bounded, so no pagination or
 virtualisation is needed in the transcript.
+
+### 3.3 A backend defect found while pinning this contract
+
+`POST /api/i13/consumption-plans` and `GET /api/i13/consumption-plans` **return 404.**
+`app/api/i13/routes.py:15` imports the module as `assistant_routes` and then never calls
+`router.include_router(assistant_routes.router)` — a grep for `assistant_routes` across the
+whole backend returns that single import and nothing else. Confirmed empirically against a
+`TestClient`: 404 on both verbs, while `/api/i13/quantity-suggestion`, `/api/i8/repairable-unit`
+and `/api/justifications` all return 500 on the same run, which is the no-database error and
+therefore proof that those three routes exist.
+
+**What still works.** Plan capture through the conversation is unaffected — the turn service
+writes the `consumption_plan` row when the form step is answered, and the row is readable
+through `GET /api/assistant/sessions/{id}` in `plans[]`. Only the standalone REST surface is
+missing.
+
+**What changes in this plan.** Phase 2's exit criterion and §10's key assertion both read the
+captured plan back through the session trace instead. Phase 4's "direct plan capture outside a
+conversation" is dropped — there is nothing to call. The fix is one line in the backend repo
+and is raised as ask O-7; this plan does not make it, because it is not this repo.
 
 ---
 
@@ -294,8 +327,8 @@ backend, and `GET /api/assistant/sessions/{id}` shows the turns they took.
    end-before-start caught client-side.
 
 **Exit:** consumption plan and both justification forms capture correctly; a
-captured plan is visible via `GET /api/i13/consumption-plans` with
-`source = CAPTURED`.
+captured plan is visible in `plans[]` on `GET /api/assistant/sessions/{id}`
+(**not** via `/api/i13/consumption-plans`, which 404s — see §3.3).
 
 ---
 
@@ -507,14 +540,24 @@ Owner in bold. Nothing here blocks Phase 0 or Phase 1.
   second half of I08 FR-8 and I13 FR-4.
 - **O-6 (VZI).** Is the OAR rule right, given it selects 97.8% of the seeded
   catalogue? Open question 14, and it decides how often the plan form appears.
+- **O-7 (backend).** `assistant_routes.router` is imported in `app/api/i13/routes.py:15` and
+  never mounted, so both `/api/i13/consumption-plans` verbs 404 (§3.3). One line fixes it.
+  Until it lands there is no way to read or write a consumption plan outside a conversation,
+  and no way for a future no-plan remediation screen to capture one against an existing
+  reservation. Not urgent for W7.5; blocking for anything that captures a plan after the fact.
 
 ---
 
 ## 10. Test plan
 
-- **Unit (vitest, already configured).** Type guards on `facts`; the step renderer
-  for all four kinds; field rendering for all five types; quantity-as-string
-  round-trips; the routing / 422 / 404 branches.
+- **Unit (vitest, already configured).** `vitest.config.mts` is `environment: "node"` with
+  `include: ["src/**/*.test.ts"]` — no jsdom, no testing-library, and all nine existing test
+  files test pure functions. Component tests are therefore not possible without adding three
+  devDeps and changing shared config. Instead the logic comes **out** of the JSX into pure
+  modules and those are tested: the `facts` type guards, the answer-payload builder, the
+  required-field validator, the transcript reducer, the two-armed error parser, and
+  quantity-as-string round-trips. This matches how the repo already tests and adds no
+  dependency.
 - **Fixture tests.** The three captured payloads from Phase 0, asserted against the
   types. These are the regression net for a backend schema change.
 - **Integration, manual, against a local backend.** Both flows end to end; both
@@ -522,8 +565,8 @@ Owner in bold. Nothing here blocks Phase 0 or Phase 1.
   check character should reject it immediately); a material with no WATCH row (the
   422).
 - **The one assertion worth writing explicitly:** a plan captured through the UI
-  comes back from `GET /api/i13/consumption-plans` with `source = CAPTURED`,
-  `status = OPEN` and a null `reservationNumber`. The backend has a test asserting
+  comes back in `plans[]` on `GET /api/assistant/sessions/{id}` with `status = OPEN`
+  and a null `reservationNumber`. The backend has a test asserting
   the reservation number is still empty; when B2 lands, that test fails, and that
   is the moment to extend this one too.
 
