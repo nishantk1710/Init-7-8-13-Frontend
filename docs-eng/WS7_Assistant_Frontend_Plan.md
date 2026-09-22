@@ -557,6 +557,14 @@ Owner in bold. Nothing here blocks Phase 0 or Phase 1.
   an append-only table for one decision. Either `GET /sessions/{id}` gains a `currentStep`, or
   a `GET /sessions/{id}/step` is added. Cheap on the backend, and it removes the only way a
   planner can accidentally create a duplicate session.
+- **O-9 (backend).** **`PlanSource` is never served.** `app/initiatives/i13/plans.py` marks
+  every consumption plan `CAPTURED` or `REFERENCE_CSV`, which is exactly the distinction a
+  demo needs — 742 of the plans behind the acquired-vs-plan figures came from a generator
+  with invented `SESS-000001` references. But no response model exposes it: `PlanModel` in
+  `app/api/assistant/schemas.py` has no `source` field, and neither does any I13 route. So
+  the frontend cannot mark a fabricated plan as fabricated, and the dashboard carries a
+  standing note instead of a per-row marker. Adding `source` to `PlanModel` and to the WATCH
+  metrics would let the screen say which rows are real.
 - **O-7 (backend).** `assistant_routes.router` is imported in `app/api/i13/routes.py:15` and
   never mounted, so both `/api/i13/consumption-plans` verbs 404 (§3.3). One line fixes it.
   Until it lands there is no way to read or write a consumption plan outside a conversation,

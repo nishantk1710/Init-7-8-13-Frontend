@@ -148,7 +148,21 @@ export function AssistantWorkspace({
         expiresAt={start.expiresAt}
       />
 
-      <div className="flex flex-col gap-5" aria-live="polite">
+      {/* The conversation is a log that grows, so `feed` rather than a bare
+          live region: a screen reader announces each new step as it arrives
+          without re-reading the whole transcript. `polite` because a step
+          appears in response to something the user just did — interrupting
+          them mid-sentence to announce their own click is worse than waiting.
+
+          `aria-busy` while a turn is in flight stops the reader announcing a
+          half-rendered state between the echo and the next step. */}
+      <div
+        className="flex flex-col gap-5"
+        role="feed"
+        aria-live="polite"
+        aria-busy={submitting}
+        aria-label="Conversation with the reservation assistant"
+      >
         {transcript.entries.map((entry) =>
           entry.kind === "answer" ? (
             <AnswerBubble key={entry.key} text={entry.text} />

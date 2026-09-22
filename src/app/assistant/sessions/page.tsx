@@ -3,7 +3,11 @@ import { connection } from "next/server"
 
 import { SessionLogTable } from "@/components/assistant/session-log-table"
 import { PageHeader } from "@/components/shared/page-header"
-import { listSessions } from "@/lib/api/assistant"
+import {
+  CompliancePanel,
+  type ComplianceCheck,
+} from "@/components/assistant/compliance-panel"
+import { listJustifications, listSessions } from "@/lib/api/assistant"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -27,12 +31,53 @@ export default async function AssistantSessionsPage() {
   await connection()
 
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
+  let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
   try {
-    sessions = await listSessions({ limit: 200 })
+    // One round trip each, in parallel. The compliance panel is derived from
+    // both, and a sequential pair would double the wait for a screen whose
+    // whole job is to be glanced at.
+    ;[sessions, justifications] = await Promise.all([
+      listSessions({ limit: 200 }),
+      listJustifications({ limit: 200 }),
+    ])
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+
+  const checks: ComplianceCheck[] = [
+    {
+      id: "advice-not-taken",
+      label: "Went ahead anyway",
+      description:
+        "Someone was told a repairable unit exists, or offered a smaller quantity, and proceeded regardless. Each one carries a recorded reason.",
+      state: "counted",
+      count:
+        justifications?.items.filter(
+          (j) => j.kind === "NEW_ACQUISITION" || j.kind === "QUANTITY_OVERRIDE"
+        ).length ?? 0,
+      detail: "Recorded at the moment of the decision.",
+    },
+    {
+      id: "abandoned",
+      label: "Advice given, not acted on",
+      description:
+        "Sessions opened and left without an answer. Both FRSs count these, which is why the log lists them rather than hiding unfinished conversations.",
+      state: "counted",
+      count: sessions?.items.filter((s) => s.outcome === "ABANDONED").length ?? 0,
+    },
+    {
+      // The one that cannot be a number. See the note in CompliancePanel.
+      id: "missing-session",
+      label: "Reservations with no session",
+      description:
+        "An 80-series or OAR reservation saved without a valid session reference — I08 FR-8 and I13 FR-4.",
+      state: "blocked",
+      reason:
+        "The platform cannot read a session reference back off a reservation, so it cannot tell which reservations are missing one. A zero here would mean the check never ran, not that everyone complied.",
+      dependency: "Bednr on ReservationItemSet (B2)",
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-5 p-6">
@@ -54,11 +99,14 @@ export default async function AssistantSessionsPage() {
           </p>
         </div>
       ) : (
-        <SessionLogTable
-          sessions={sessions.items}
-          note={sessions.note}
-          total={sessions.total}
-        />
+        <>
+          <CompliancePanel checks={checks} />
+          <SessionLogTable
+            sessions={sessions.items}
+            note={sessions.note}
+            total={sessions.total}
+          />
+        </>
       )}
     </div>
   )

@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { Download } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/table"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
-import { cn } from "@/lib/utils"
+import { cn, downloadCsv } from "@/lib/utils"
 
 /**
  * The session log.
@@ -24,10 +26,12 @@ import { cn } from "@/lib/utils"
  * a log that only showed finished conversations would hide exactly the cases
  * the initiatives exist to measure.
  *
- * Filtering is client-side over an already-fetched page. The backend accepts
- * `flow` and `outcome` parameters, but refetching on every filter click would
- * make a three-way toggle into three round trips for a list that is small
- * enough to hold. If the log outgrows one page this moves server-side.
+ * Filtering is client-side over an already-fetched page, and for `outcome` it
+ * has to be: outcome is derived per row from that session's turns rather than
+ * stored, so the backend cannot filter on it in SQL and the route does not
+ * offer the parameter. `flow` it does offer, but refetching on every toggle
+ * would spend a round trip on a list already in hand. If the log outgrows one
+ * page, `flow` moves server-side and `outcome` stays here.
  */
 export function SessionLogTable({
   sessions,
@@ -50,6 +54,39 @@ export function SessionLogTable({
       ),
     [sessions, flow, outcome]
   )
+
+  function exportCsv() {
+    // Exports what is on screen, not the whole log. A file that silently
+    // contains more rows than the view it came from is a different document
+    // from the one somebody thinks they are sending on.
+    downloadCsv(
+      "assistant-sessions.csv",
+      [
+        "Reference",
+        "Flow",
+        "Material",
+        "Plant",
+        "Requester",
+        "Opened from",
+        "Turns",
+        "Outcome",
+        "Issued",
+        "Expires",
+      ],
+      filtered.map((session) => [
+        session.sessionId,
+        session.flow,
+        session.materialId,
+        session.plant,
+        session.requester,
+        session.origin,
+        session.turns,
+        session.outcome,
+        session.issuedAt,
+        session.expiresAt,
+      ])
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -75,6 +112,17 @@ export function SessionLogTable({
             { value: "ABANDONED", label: "Abandoned" },
           ]}
         />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={exportCsv}
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-3.5" />
+          Export CSV
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -92,6 +140,10 @@ export function SessionLogTable({
         />
       ) : (
         <Table>
+          <caption className="sr-only">
+            Assistant sessions{flow === "all" ? "" : `, ${flow} flow only`}
+            {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
+          </caption>
           <TableHeader>
             <TableRow>
               <TableHead>Reference</TableHead>

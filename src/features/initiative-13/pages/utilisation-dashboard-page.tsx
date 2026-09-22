@@ -187,8 +187,22 @@ export function UtilisationDashboardPage() {
             {utilisation.data && <AgingBucketsChart data={agingDistribution} />}
           </ChartCard>
 
-          {/* Acquired vs Plan (§9) */}
-          <ChartCard title="Acquired vs. plan" subtitle="Backend-computed acquired-vs-plan status and variance" span={6}>
+          {/* Acquired vs Plan (§9)
+
+              Say this out loud before demoing: the ENGINE is real, most of its
+              INPUT is not. 742 consumption plans came from a generator, with
+              invented `SESS-000001` references, and until somebody captures
+              one through the assistant every plan behind these numbers is
+              fabricated. The backend distinguishes them internally
+              (`PlanSource.CAPTURED` vs `REFERENCE_CSV`) but does not serve the
+              field on any endpoint, so this cannot be marked per row — see
+              ask O-9. A standing note is the honest alternative to a silent
+              one. */}
+          <ChartCard
+            title="Acquired vs. plan"
+            subtitle="Backend-computed acquired-vs-plan status and variance. Most plans behind these figures are still generated reference data, not captured through the assistant."
+            span={6}
+          >
             {utilisation.loading && <LoadingState label="Loading WATCH metrics…" />}
             {utilisation.error && <ErrorState message={utilisation.error} onRetry={utilisation.refetch} />}
             {utilisation.data && <AcquiredVsPlanPanel rows={utilisation.data} />}

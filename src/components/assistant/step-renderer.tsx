@@ -49,7 +49,7 @@ export function StepRenderer({
   onSubmitForm: (values: FormValues) => void
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <article className="flex flex-col gap-3" aria-current={active || undefined}>
       {/* The assessment sits above the question, because it is what the
           question is about. Not every step carries one — a justification form
           repeats the facts so the planner can see what they are overriding. */}
@@ -99,7 +99,7 @@ export function StepRenderer({
           instruction to type the reference into SAP, in the backend's own
           wording — that sentence is the compliance instruction and is served
           so it can be changed in one place. Do not paraphrase it here. */}
-    </div>
+    </article>
   )
 }
 
@@ -155,6 +155,10 @@ function Choices({
           key={choice.value}
           type="button"
           disabled={!active || submitting}
+          // Out of the tab order once settled. Otherwise a keyboard user tabs
+          // through every question they have already answered before reaching
+          // the one waiting for them.
+          tabIndex={active && !submitting ? undefined : -1}
           onClick={() => onChoice(choice.value, choice.label)}
           className={cn(
             "flex flex-col items-start gap-0.5 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors",
