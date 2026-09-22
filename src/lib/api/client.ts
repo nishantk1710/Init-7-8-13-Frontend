@@ -1,57 +1,207 @@
 /**
  * Minimal client for the FastAPI backend.
  *
- * The existing UI runs entirely on mock data and does not use this yet -- it
- * exists so that when backend calls are introduced they go through one place
- * with one base URL, instead of `localhost` being hardcoded across components.
+ * One base URL, one place that adds the identity header, one place that parses
+ * an error body. Configure the base URL with NEXT_PUBLIC_API_BASE_URL (see
+ * .env.example).
  *
- * Configure the base URL with NEXT_PUBLIC_API_BASE_URL (see .env.example).
+ * ## The error shape, which is not what you would guess
+ *
+ * FastAPI returns **two different things** under `detail`, both with status 422,
+ * and the difference is not cosmetic:
+ *
+ *   - a pydantic validation failure sends an ARRAY of issues:
+ *       {"detail": [{"type": "missing", "loc": ["body", "plant"],
+ *                    "msg": "Field required", "input": {...}}]}
+ *   - an application `HTTPException` sends a STRING:
+ *       {"detail": "quantity must be a number, got 'abc'"}
+ *
+ * Both were observed against the real app. Code that assumes a string renders
+ * `[object Object]` on the commonest failure there is — a required field left
+ * empty — so `ApiError` models both arms and exposes them separately:
+ * `detailText()` for a sentence to show, `fieldErrors()` for per-field messages
+ * on a form.
  */
 
+import { ACTOR_ID_HEADER, currentActorId } from "@/lib/api/actor"
+
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"
+
+/** One issue from a pydantic validation failure. */
+export type ValidationIssue = {
+  type: string
+  /** Path to the offending value, e.g. `["body", "plant"]` or `["query", "limit"]`. */
+  loc: (string | number)[]
+  msg: string
+  input?: unknown
+  ctx?: Record<string, unknown>
+}
+
+/** The two arms `detail` can take. `null` when the body was not JSON at all. */
+export type ApiErrorDetail = string | ValidationIssue[] | null
+
+function isValidationIssueArray(value: unknown): value is ValidationIssue[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "msg" in item &&
+        "loc" in item &&
+        Array.isArray((item as ValidationIssue).loc)
+    )
+  )
+}
 
 export class ApiError extends Error {
+  /**
+   * `detail` is optional so the two existing call sites that construct an
+   * ApiError with (message, status) keep working unchanged.
+   */
   constructor(
     message: string,
     readonly status: number,
+    readonly detail: ApiErrorDetail = null
   ) {
-    super(message);
-    this.name = "ApiError";
+    super(message)
+    this.name = "ApiError"
+  }
+
+  /**
+   * A sentence fit to show a user, whichever arm `detail` took.
+   *
+   * The array arm is flattened to `field: message` lines rather than to the raw
+   * `msg` alone, because "Field required" on its own does not say which field.
+   * Falls back to the HTTP-level message when there is no detail — never to a
+   * bare status code, which tells a planner nothing.
+   */
+  detailText(): string {
+    if (typeof this.detail === "string" && this.detail.length > 0) {
+      return this.detail
+    }
+    if (isValidationIssueArray(this.detail) && this.detail.length > 0) {
+      return this.detail
+        .map((issue) => {
+          const field = fieldNameOf(issue)
+          return field ? `${field}: ${issue.msg}` : issue.msg
+        })
+        .join("\n")
+    }
+    return this.message
+  }
+
+  /**
+   * Per-field messages, for rendering against the input that caused them.
+   *
+   * Keyed by the LAST element of `loc` — pydantic sends `["body", "plant"]` and
+   * a form knows its field as `plant`. Only the array arm produces entries; a
+   * string detail is not attributable to a field and belongs in `detailText()`.
+   */
+  fieldErrors(): Record<string, string> {
+    if (!isValidationIssueArray(this.detail)) return {}
+    const errors: Record<string, string> = {}
+    for (const issue of this.detail) {
+      const field = fieldNameOf(issue)
+      // First issue per field wins. Pydantic can report several on one value
+      // and stacking them in a form field turns a hint into a paragraph.
+      if (field && !(field in errors)) errors[field] = issue.msg
+    }
+    return errors
   }
 }
 
-/** Fetch a JSON resource from the backend. Throws ApiError on a non-2xx response. */
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+/** The field a validation issue is about: the last path element that is a name. */
+function fieldNameOf(issue: ValidationIssue): string | null {
+  for (let i = issue.loc.length - 1; i >= 0; i -= 1) {
+    const part = issue.loc[i]
+    // Skip array indices ("body", "items", 0) and the section marker itself.
+    if (typeof part === "string" && part !== "body" && part !== "query") {
+      return part
+    }
+  }
+  return null
+}
+
+/**
+ * Read the error body without letting the read itself throw.
+ *
+ * A 500 from the exception handler is JSON, but a proxy timeout or a CORS
+ * rejection is not, and failing to parse the body of a failure must not replace
+ * the real failure with a JSON syntax error.
+ */
+async function readErrorDetail(response: Response): Promise<ApiErrorDetail> {
+  try {
+    const body: unknown = await response.json()
+    if (typeof body === "object" && body !== null && "detail" in body) {
+      const detail = (body as { detail: unknown }).detail
+      if (typeof detail === "string") return detail
+      if (isValidationIssueArray(detail)) return detail
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetch a JSON resource from the backend. Throws ApiError on a non-2xx response.
+ *
+ * Sends the identity header on every request, including GETs — the backend reads
+ * it on read routes too (the ACT routes log who looked), and a header that is
+ * only sometimes present is harder to reason about than one that always is.
+ */
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
 
   const response = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      [ACTOR_ID_HEADER]: currentActorId(),
       ...init?.headers,
     },
-  });
+  })
 
   if (!response.ok) {
     throw new ApiError(
       `${init?.method ?? "GET"} ${url} failed with ${response.status}`,
       response.status,
-    );
+      await readErrorDetail(response)
+    )
   }
 
-  return (await response.json()) as T;
+  // 204 has no body. Nothing in this API returns one today, but a JSON parse of
+  // an empty body throws a SyntaxError that reads as a server fault rather than
+  // as the success it is.
+  if (response.status === 204) return undefined as T
+
+  return (await response.json()) as T
+}
+
+/**
+ * POST a JSON body and read a JSON response.
+ *
+ * **No retry, deliberately.** Every POST in this application writes to an
+ * append-only table. A retry after a timeout that actually succeeded writes a
+ * second row that nobody can delete — two sessions for one conversation, or a
+ * justification recorded twice against one decision. Callers that want a retry
+ * must decide that for themselves, per endpoint, knowing what a duplicate costs.
+ */
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
 }
 
 export type HealthResponse = {
-  status: string;
-  service: string;
-};
+  status: string
+  service: string
+}
 
 /** Calls GET /api/health. Used to verify frontend -> backend connectivity. */
 export function getHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>("/health");
+  return apiFetch<HealthResponse>("/health")
 }

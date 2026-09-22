@@ -1,0 +1,162 @@
+{
+  "sessionId": "SQ4X9B2T7M",
+  "flow": "i13",
+  "outcome": "COMPLETED",
+  "materialId": "1000000123",
+  "plant": "1300",
+  "requestedQuantity": "5",
+  "requester": "MILLERJ",
+  "origin": "BADI",
+  "issuedAt": "2026-07-31T09:14:22Z",
+  "expiresAt": "2026-08-01T09:14:22Z",
+  "expired": false,
+  "routingReason": "1000000123 is OAR (planned on demand) at plant 1300 -- MRP type ND.",
+  "assessment": {
+    "flow": "i13",
+    "material": "1000000123",
+    "plant": "1300",
+    "requestedQuantity": "5",
+    "headline": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.",
+    "caveats": [
+      "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.",
+      "Stock received 58 days ago for this part has still not been issued, which is already an open exception."
+    ],
+    "stockOnHand": "11",
+    "openPoQuantity": "0",
+    "averageMonthlyConsumption": "1",
+    "monthsOfCover": "11",
+    "monthsOfCoverReason": null,
+    "projectedMonthsOfCover": null,
+    "daysSinceLastMovement": 443,
+    "daysSinceLastIssue": 443,
+    "lastMovementDate": "2025-05-14",
+    "consumptionCount12m": 12,
+    "consumedQty12m": "12",
+    "agingBand": "SLOW",
+    "inventoryTurns": null,
+    "grNotIssuedFlag": true,
+    "grNotIssuedDaysSinceGr": 58,
+    "acquiredVsPlanStatus": "NO_PLAN",
+    "materialScope": "OAR",
+    "crossPlantStock": [
+      {
+        "plant": "1500",
+        "stockOnHand": "2"
+      }
+    ],
+    "referenceDate": "2026-07-31"
+  },
+  "narrative": null,
+  "turns": [
+    {
+      "sequence": 0,
+      "stepId": "i13_assessment",
+      "stepKind": "choice",
+      "question": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.\n\nThis part is planned on demand, so a consumption plan is expected. Do you want to go ahead with this reservation?",
+      "answer": {
+        "choice": "proceed"
+      },
+      "actor": "MILLERJ",
+      "answeredAt": "2026-07-31T09:15:03Z"
+    },
+    {
+      "sequence": 1,
+      "stepId": "i13_capture_plan",
+      "stepKind": "form",
+      "question": "What is this material for?",
+      "answer": {
+        "purpose": "Replacing the seal on mill 3 gearbox during the August shutdown.",
+        "planned_quantity": "5",
+        "window_start": "2026-08-10",
+        "window_end": "2026-08-21",
+        "cost_centre": "1300-MNT",
+        "order_number": "4001234567"
+      },
+      "actor": "MILLERJ",
+      "answeredAt": "2026-07-31T09:16:03Z"
+    },
+    {
+      "sequence": 2,
+      "stepId": "i13_quantity",
+      "stepKind": "choice",
+      "question": "1 suggested, based on 1 a month over the last 12 months, 11 already held or on order, and a 12-month cover ceiling.\n\nYou planned 5. Do you want to take the suggested 1 instead?",
+      "answer": {
+        "choice": "keep_requested"
+      },
+      "actor": "MILLERJ",
+      "answeredAt": "2026-07-31T09:17:03Z"
+    },
+    {
+      "sequence": 3,
+      "stepId": "i13_quantity_justification",
+      "stepKind": "form",
+      "question": "Please record why 5 is needed rather than 1.",
+      "answer": {
+        "reason_category": "URGENT_BREAKDOWN",
+        "free_text": "Four spares go to the shutdown kit, one to the line."
+      },
+      "actor": "MILLERJ",
+      "answeredAt": "2026-07-31T09:18:03Z"
+    },
+    {
+      "sequence": 4,
+      "stepId": "i13_done",
+      "stepKind": "terminal",
+      "question": "Plan recorded at 5, with your reason.\n\nYour session reference is SQ4X9B2T7M. Type it into the reservation in SAP so this advice can be linked to what you actually reserve.",
+      "answer": null,
+      "actor": "MILLERJ",
+      "answeredAt": "2026-07-31T09:19:03Z"
+    }
+  ],
+  "plans": [
+    {
+      "id": "cp7f3a12c94e5b4d0a9c31",
+      "material": "1000000123",
+      "plant": "1300",
+      "purpose": "Replacing the seal on mill 3 gearbox during the August shutdown.",
+      "plannedQuantity": "5",
+      "windowStart": "2026-08-10",
+      "windowEnd": "2026-08-21",
+      "costCentre": "1300-MNT",
+      "orderNumber": "4001234567",
+      "status": "OPEN",
+      "reservationNumber": null,
+      "reservationItem": null,
+      "capturedBy": "MILLERJ",
+      "capturedAt": "2026-07-31T09:16:03Z"
+    }
+  ],
+  "quantitySuggestions": [
+    {
+      "id": "qs2b90d4417ca84f6e8d55",
+      "material": "1000000123",
+      "plant": "1300",
+      "requestedQuantity": "5",
+      "suggestedQuantity": "1",
+      "acceptedQuantity": "5",
+      "suggestionReason": "1 suggested, based on 1 a month over the last 12 months, 11 already held or on order, and a 12-month cover ceiling.",
+      "monthsOfCover": "11",
+      "coverCeilingMonths": "12",
+      "lookbackMonths": 12,
+      "minHistoryConsumptions": 3,
+      "consumptionCount": 12,
+      "isOverride": true,
+      "suggestedAt": "2026-07-31T09:17:03Z"
+    }
+  ],
+  "justifications": [
+    {
+      "id": "ju5c81ef307ab24d919f62",
+      "sessionId": "SQ4X9B2T7M",
+      "exceptionId": null,
+      "kind": "QUANTITY_OVERRIDE",
+      "reasonCategory": "URGENT_BREAKDOWN",
+      "freeText": "Four spares go to the shutdown kit, one to the line.",
+      "materialId": "1000000123",
+      "plant": "1300",
+      "author": "MILLERJ",
+      "recordedAt": "2026-07-31T09:18:03Z"
+    }
+  ],
+  "linkageNote": "No reservation is linked to this session yet. The assistant runs while the reservation is being created, so it has no document number to record -- the requester types the session reference into SAP and the link is made afterwards. Reading it back needs Bednr exposed on ReservationItemSet, which is blocker B2 with the SAP team."
+}

@@ -1,0 +1,87 @@
+{
+  "routing": {
+    "flow": "i08",
+    "materialId": "8000005632",
+    "plant": "1300",
+    "eightySeries": true,
+    "materialScope": "OAR",
+    "mrpType": "ND",
+    "alsoMatched": "i13",
+    "reason": "8000005632 is an 80-series repairable material. It is also OAR by MRP type, and the repairable flow takes precedence."
+  },
+  "sessionId": "S7K2M4P8Q1",
+  "expiresAt": "2026-08-01T09:14:22Z",
+  "step": {
+    "id": "i08_assessment",
+    "kind": "choice",
+    "prompt": "There are 2 open repairs for 2 units, the earliest due back 2026-05-31 (1 of them already past the promised date). That repair was due 61 days ago and still has not arrived, so its date is no longer a forecast -- chase it before relying on it. Buying a new one takes about 30 days.\n\nDo you still want to reserve a new one?",
+    "choices": [
+      {
+        "value": "use_existing",
+        "label": "No -- I will use the existing unit",
+        "description": "The repaired or in-stock unit covers this need."
+      },
+      {
+        "value": "proceed_new",
+        "label": "Yes -- I still need a new one",
+        "description": "You will be asked why, and the reason is recorded."
+      }
+    ],
+    "fields": [],
+    "facts": {
+      "flow": "i08",
+      "materialId": "8000005632",
+      "plant": "1300",
+      "description": "Pump, centrifugal",
+      "criticality": "CRITICAL",
+      "headline": "There are 2 open repairs for 2 units, the earliest due back 2026-05-31 (1 of them already past the promised date). That repair was due 61 days ago and still has not arrived, so its date is no longer a forecast -- chase it before relying on it. Buying a new one takes about 30 days.",
+      "caveats": [
+        "A repair being open means the purchase order exists, not that the unit has physically reached the vendor -- no dispatch movement is recorded against it.",
+        "1 of these repairs is already past the promised return date, so the due date is a plan rather than a commitment.",
+        "1 repair vendor shown by code only -- the supplier master does not cover them."
+      ],
+      "repairableUnitExists": true,
+      "sources": [
+        "ON_REPAIR_ORDER"
+      ],
+      "stockOnHand": "0",
+      "stockIsUnknown": false,
+      "openRepairLines": 2,
+      "quantityUnderRepair": "2",
+      "soonestDueDate": "2026-05-31",
+      "overdueLines": 1,
+      "repairDueDateIsReliable": true,
+      "newUnitLeadTimeDays": 30,
+      "waitingBeatsBuying": null,
+      "referenceDate": "2026-07-31",
+      "openRepairs": [
+        {
+          "purchasingDocument": "4500001234",
+          "item": "00010",
+          "quantity": "1",
+          "raisedAt": "2026-05-01",
+          "dueDate": "2026-05-31",
+          "daysOverdue": 61,
+          "vendor": "0000100234",
+          "vendorName": "Acme Rotating",
+          "status": "PO Issued",
+          "dispatched": false
+        },
+        {
+          "purchasingDocument": "4500009876",
+          "item": "00020",
+          "quantity": "1",
+          "raisedAt": "2026-05-01",
+          "dueDate": "2026-09-15",
+          "daysOverdue": null,
+          "vendor": "0000100999",
+          "vendorName": null,
+          "status": "PO Issued",
+          "dispatched": false
+        }
+      ]
+    },
+    "footnote": "A repair being open means the purchase order exists, not that the unit has physically reached the vendor -- no dispatch movement is recorded against it.\n1 of these repairs is already past the promised return date, so the due date is a plan rather than a commitment.\n1 repair vendor shown by code only -- the supplier master does not cover them.",
+    "sessionId": null
+  }
+}

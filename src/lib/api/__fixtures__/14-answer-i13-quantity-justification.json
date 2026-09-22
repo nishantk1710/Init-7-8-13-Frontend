@@ -1,0 +1,13 @@
+{
+  "sessionId": "SQ4X9B2T7M",
+  "step": {
+    "id": "i13_done",
+    "kind": "terminal",
+    "prompt": "Plan recorded at 5, with your reason.\n\nYour session reference is SQ4X9B2T7M. Type it into the reservation in SAP so this advice can be linked to what you actually reserve.",
+    "choices": [],
+    "fields": [],
+    "facts": null,
+    "footnote": null,
+    "sessionId": "SQ4X9B2T7M"
+  }
+}

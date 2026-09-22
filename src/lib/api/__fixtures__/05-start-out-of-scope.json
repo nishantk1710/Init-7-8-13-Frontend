@@ -1,0 +1,15 @@
+{
+  "routing": {
+    "flow": "none",
+    "materialId": "2000000456",
+    "plant": "1300",
+    "eightySeries": false,
+    "materialScope": "MIN_MAX",
+    "mrpType": "VB",
+    "alsoMatched": null,
+    "reason": "2000000456 is not 80-series, and MRP type VB is not in the OAR list. The assistant has nothing to say about it."
+  },
+  "sessionId": null,
+  "expiresAt": null,
+  "step": null
+}
