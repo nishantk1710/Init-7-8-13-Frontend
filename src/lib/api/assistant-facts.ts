@@ -102,8 +102,20 @@ export type I08Facts = FactsCommon & {
   quantityUnderRepair: string | null
   soonestDueDate: string | null
   overdueLines: number
-  /** False once any line is overdue: the due date is no longer a forecast. */
-  repairDueDateIsReliable: boolean
+  /**
+   * Three-state, exactly like `waitingBeatsBuying` — and for the same reason.
+   *
+   * `null` means there is no due date to be reliable *about*: either the unit
+   * exists only as stock with no repair on order, or every open line is one of
+   * the 61 of 788 that carries no promised date at all.
+   * `false` means every open line is already past its date, so the date is a
+   * plan that has been missed rather than a forecast.
+   *
+   * **Test for `=== false`.** A falsy check renders "no longer a forecast"
+   * against a part that has no date and no repair, which tells a planner a
+   * deadline was missed when none was ever set.
+   */
+  repairDueDateIsReliable: boolean | null
   newUnitLeadTimeDays: number | null
   /** Three-state. `null` is "cannot say" — see the module note. */
   waitingBeatsBuying: boolean | null

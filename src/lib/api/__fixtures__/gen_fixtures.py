@@ -32,7 +32,7 @@ from pathlib import Path
 BACKEND = Path("C:/Users/varad/OneDrive/Desktop/newspares/Init-7-8-13-Backend")
 sys.path.insert(0, str(BACKEND))
 
-OUT = Path(__file__).resolve().parent / "fixtures"
+OUT = Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 
 from app.api.assistant.router import (  # noqa: E402
@@ -114,6 +114,14 @@ I08_TWO_LINES = i08_assessment(
             days_remaining=46,
         ),
     ]
+)
+
+# On the shelf, nothing on order: the unit EXISTS, so the assistant asks the
+# question and renders a card -- but there is no due date to be reliable
+# about, so repair_due_date_is_reliable is None rather than False. This is the
+# third state, and the fixture exists so the contract test can pin it.
+I08_STOCK_ONLY = i08_assessment(
+    rows=[universe_row(stock_on_hand=Decimal("2"))], lines=[]
 )
 
 # Nothing in stock, no repair open: the flow terminates on its FIRST step.
@@ -279,6 +287,16 @@ write(
         session_id=I08_SESSION,
         expires_at=EXPIRES_AT,
         step=_step_model(i08_step({}, I08_NOTHING)),
+    ),
+)
+
+write(
+    "18-start-i08-stock-only-no-due-date.json",
+    StartSessionResponse(
+        routing=_routing_model(I08_ROUTED),
+        session_id=I08_SESSION,
+        expires_at=EXPIRES_AT,
+        step=_step_model(i08_step({}, I08_STOCK_ONLY)),
     ),
 )
 

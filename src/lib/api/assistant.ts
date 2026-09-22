@@ -367,10 +367,23 @@ export function getSession(sessionId: string): Promise<SessionTraceResponse> {
   )
 }
 
-/** The session log. `limit` is bounded at 1 or more server-side. */
+/**
+ * The session log.
+ *
+ * These four are exactly what the route accepts — `flow`, `material`, `plant`
+ * and `limit` (bounded `1 <= limit <= 500`, default 50).
+ *
+ * **There is no `outcome` filter, deliberately not offered here.** Outcome is
+ * derived per row from that session's turns rather than stored, so the backend
+ * cannot filter on it in SQL. FastAPI ignores an unknown query parameter
+ * silently, so advertising one would return an unfiltered list that looks
+ * filtered — which on a compliance screen reads as "no abandoned sessions
+ * exist". Filter by outcome on the client, over what comes back.
+ */
 export function listSessions(params?: {
   flow?: string
-  outcome?: string
+  material?: string
+  plant?: string
   limit?: number
 }): Promise<SessionListResponse> {
   return apiFetch<SessionListResponse>(`/assistant/sessions${query(params)}`)

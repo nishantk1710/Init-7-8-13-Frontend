@@ -27,14 +27,14 @@ import { cn } from "@/lib/utils"
  * the day VZI supplies one is a redeploy of two things instead of an `.env`
  * change.
  *
- * ## Validation is required-only, plus one rule the backend does not have
+ * ## Validation is required-only, and duplicates the server rather than extending it
  *
  * `app/assistant/turns.validate` is the only code that knows what was asked,
  * and a second validator in TypeScript is exactly the drift the server-driven
  * design was chosen to avoid. What happens here is the cheap part — telling
- * somebody a box is empty without a round trip — and the inverted-window check,
- * which the backend genuinely does not do and which would otherwise produce a
- * plan that breaches on the day it is captured.
+ * somebody a box is empty, or that a date window runs backwards, without
+ * spending a round trip on a POST that would be rejected anyway. The backend
+ * checks both of those itself and stays authoritative.
  *
  * Everything else is the server's 422, mapped onto the field it names.
  */

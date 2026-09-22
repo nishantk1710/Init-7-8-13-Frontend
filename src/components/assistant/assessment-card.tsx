@@ -77,11 +77,22 @@ function I08Card({
         <Stat
           label="Earliest due back"
           value={facts.soonestDueDate}
-          // Once any line is overdue the date is a plan, not a forecast, and
-          // showing it plainly invites a planner to rely on it.
-          tone={facts.repairDueDateIsReliable ? "default" : "warning"}
+          // Once every open line is past its date, the date is a plan that has
+          // been missed rather than a forecast, and showing it plainly invites
+          // a planner to rely on it.
+          //
+          // `=== false`, not a falsy check: null is a third state meaning
+          // there is no date to be reliable about, and it must not borrow the
+          // warning. A part sitting on the shelf with no repair on order has
+          // missed no deadline.
+          tone={facts.repairDueDateIsReliable === false ? "warning" : "default"}
           suffix={
-            facts.repairDueDateIsReliable ? undefined : "no longer a forecast"
+            facts.repairDueDateIsReliable === false
+              ? "no longer a forecast"
+              : undefined
+          }
+          nullNote={
+            facts.openRepairLines > 0 ? "no date promised" : "no repair on order"
           }
         />
       </dl>

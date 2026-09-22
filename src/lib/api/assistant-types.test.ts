@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { ApiError } from "@/lib/api/client"
+import { conformsToWire } from "@/lib/api/wire-shape"
 import {
   factsCaveats,
   factsHeadline,
@@ -19,6 +20,7 @@ import startI08 from "./__fixtures__/01-start-i08-choice.json"
 import startI08TwoRepairs from "./__fixtures__/02-start-i08-two-open-repairs.json"
 import startI08Nothing from "./__fixtures__/03-start-i08-nothing-to-challenge.json"
 import startI13 from "./__fixtures__/04-start-i13-choice.json"
+import startI08StockOnly from "./__fixtures__/18-start-i08-stock-only-no-due-date.json"
 import startOutOfScope from "./__fixtures__/05-start-out-of-scope.json"
 import answerI08ProceedNew from "./__fixtures__/07-answer-i08-proceed-new.json"
 import answerI13Proceed from "./__fixtures__/10-answer-i13-proceed.json"
@@ -35,16 +37,18 @@ import traceI08 from "./__fixtures__/17-session-trace-i08.json"
  * `lib/api/assistant.ts` were written wrong. It cannot mean the fixture is
  * unrealistic.
  *
- * The assignments to typed constants are the point of half these tests. They
- * are compile-time assertions — `npx tsc --noEmit` fails if the wire shape and
+ * `conformsToWire` is the point of half these tests. It is a genuine
+ * compile-time assertion: `npx tsc --noEmit` fails if a fixture's shape and
  * the declared type have diverged, whether or not the runtime expectations
- * below still pass.
+ * below still pass. See `lib/api/wire-shape.ts` for why a plain
+ * `as unknown as` cast — which is what this file used at first — checks
+ * nothing, and for the shipped bug that slipped through because of it.
  */
 
 describe("StartSessionResponse", () => {
   it("types an I08 start against the real payload", () => {
     const response: StartSessionResponse =
-      startI08 as unknown as StartSessionResponse
+      conformsToWire<StartSessionResponse>(startI08)
 
     expect(response.routing.flow).toBe("i08")
     expect(response.sessionId).toBeTruthy()
@@ -57,7 +61,7 @@ describe("StartSessionResponse", () => {
     // reviewable rather than looking arbitrary, and the UI is expected to show
     // it. A test pins it because "nearly always present" is exactly the kind of
     // field that gets dropped as noise.
-    const response = startI08 as unknown as StartSessionResponse
+    const response = conformsToWire<StartSessionResponse>(startI08)
     expect(response.routing.alsoMatched).toBe("i13")
     expect(response.routing.reason).toContain("precedence")
   })
@@ -66,7 +70,7 @@ describe("StartSessionResponse", () => {
     // The single most likely thing for a frontend to get wrong here. Rendering
     // this as a failure tells a planner something broke when in fact the
     // assistant simply has no opinion about a consumable.
-    const response = startOutOfScope as unknown as StartSessionResponse
+    const response = conformsToWire<StartSessionResponse>(startOutOfScope)
 
     expect(response.routing.flow).toBe("none")
     expect(response.sessionId).toBeNull()
@@ -80,14 +84,14 @@ describe("StartSessionResponse", () => {
     // No repairable unit exists, so asking "are you sure?" would be theatre,
     // and a question with one sensible answer trains people to click through
     // the next one.
-    const response = startI08Nothing as unknown as StartSessionResponse
+    const response = conformsToWire<StartSessionResponse>(startI08Nothing)
     expect(response.step?.kind).toBe("terminal")
     expect(response.step?.sessionId).toBeTruthy()
   })
 
   it("only a terminal step carries sessionId; the others leave it null", () => {
-    const openStep = (startI08 as unknown as StartSessionResponse).step
-    const terminalStep = (startI08Nothing as unknown as StartSessionResponse).step
+    const openStep = (conformsToWire<StartSessionResponse>(startI08)).step
+    const terminalStep = (conformsToWire<StartSessionResponse>(startI08Nothing)).step
 
     expect(openStep?.kind).not.toBe("terminal")
     expect(openStep?.sessionId).toBeNull()
@@ -96,7 +100,7 @@ describe("StartSessionResponse", () => {
 })
 
 describe("I08 facts", () => {
-  const facts = (startI08 as unknown as StartSessionResponse).step!.facts
+  const facts = (conformsToWire<StartSessionResponse>(startI08)).step!.facts
 
   it("narrows on the flow discriminator", () => {
     expect(isI08Facts(facts)).toBe(true)
@@ -132,6 +136,27 @@ describe("I08 facts", () => {
     expect(typed.waitingBeatsBuying).toBeNull()
   })
 
+  it("leaves repairDueDateIsReliable null when there is no date at all", () => {
+    // The third state, and the one that shipped wrong. A part sitting on the
+    // shelf with no repair on order has no due date to be reliable ABOUT, so
+    // the backend sends null rather than false. The field was typed `boolean`,
+    // so the card's falsy check rendered a red "no longer a forecast" against
+    // a part that had missed no deadline because none was ever set.
+    //
+    // `conformsToWire` on this fixture is what now catches the type; this
+    // expectation is what catches a consumer going back to a falsy check.
+    const stockOnly = conformsToWire<StartSessionResponse>(startI08StockOnly)
+    const typed = stockOnly.step!.facts as I08Facts
+
+    expect(typed.repairableUnitExists).toBe(true)
+    expect(typed.sources).toContain("STOCK")
+    expect(typed.openRepairLines).toBe(0)
+    expect(typed.soonestDueDate).toBeNull()
+    expect(typed.repairDueDateIsReliable).toBeNull()
+    // ...and it is a real rendered card, not a terminal step nobody sees.
+    expect(stockOnly.step!.kind).toBe("choice")
+  })
+
   it("never claims the vendor physically has the unit", () => {
     // Zero of the open repair lines carry a dispatch movement, so no line can
     // be confirmed as with the vendor. The assistant says "on order and due
@@ -142,7 +167,7 @@ describe("I08 facts", () => {
 
   it("leaves an uncovered vendor unnamed rather than inventing one", () => {
     // 106 vendors against 454 service suppliers. Show the code; do not guess.
-    const twoRepairs = (startI08TwoRepairs as unknown as StartSessionResponse)
+    const twoRepairs = (conformsToWire<StartSessionResponse>(startI08TwoRepairs))
       .step!.facts as I08Facts
     const unnamed = twoRepairs.openRepairs.filter((r) => r.vendorName === null)
     expect(unnamed.length).toBeGreaterThan(0)
@@ -151,7 +176,7 @@ describe("I08 facts", () => {
 })
 
 describe("I13 facts", () => {
-  const facts = (startI13 as unknown as StartSessionResponse).step!.facts
+  const facts = (conformsToWire<StartSessionResponse>(startI13)).step!.facts
 
   it("narrows on the flow discriminator", () => {
     expect(isI13Facts(facts)).toBe(true)
@@ -210,7 +235,7 @@ describe("form steps", () => {
     // is posted under and it is snake_case, because it is a data key rather
     // than a model field and the alias generator never touches it. Posting
     // `plannedQuantity` silently captures nothing.
-    const step = (answerI13Proceed as unknown as AnswerResponse).step
+    const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
     expect(step.kind).toBe("form")
 
     const names = step.fields.map((f) => f.name)
@@ -224,7 +249,7 @@ describe("form steps", () => {
   })
 
   it("defaults a quantity as a string", () => {
-    const step = (answerI13Proceed as unknown as AnswerResponse).step
+    const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
     const quantity = step.fields.find((f) => f.name === "planned_quantity")!
     expect(quantity.type).toBe("number")
     expect(typeof quantity.default).toBe("string")
@@ -233,7 +258,7 @@ describe("form steps", () => {
   it("marks the optional plan fields optional", () => {
     // "Where known" — never inferred, never required. A required cost centre
     // would be filled with a guess.
-    const step = (answerI13Proceed as unknown as AnswerResponse).step
+    const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
     const optional = ["window_start", "window_end", "cost_centre", "order_number"]
     for (const name of optional) {
       expect(step.fields.find((f) => f.name === name)!.required).toBe(false)
@@ -244,7 +269,7 @@ describe("form steps", () => {
   it("builds the reason picker from configuration, with options attached", () => {
     // Neither FRS lists the categories, so they are configuration rather than
     // an enum. The UI must render `options` and never hold its own list.
-    const step = (answerI08ProceedNew as unknown as AnswerResponse).step
+    const step = (conformsToWire<AnswerResponse>(answerI08ProceedNew)).step
     expect(step.kind).toBe("form")
 
     const reason = step.fields.find((f) => f.name === "reason_category")!
@@ -259,7 +284,7 @@ describe("form steps", () => {
 
 describe("choice steps", () => {
   it("offers a described option per branch", () => {
-    const step = (startI08 as unknown as StartSessionResponse).step!
+    const step = (conformsToWire<StartSessionResponse>(startI08)).step!
     expect(step.choices.map((c) => c.value)).toEqual([
       "use_existing",
       "proceed_new",
@@ -270,13 +295,13 @@ describe("choice steps", () => {
   })
 
   it("puts the caveats in footnote, not folded into the prompt", () => {
-    const step = (startI08 as unknown as StartSessionResponse).step!
+    const step = (conformsToWire<StartSessionResponse>(startI08)).step!
     const facts = step.facts as I08Facts
     expect(step.footnote).toBe(facts.caveats.join("\n"))
   })
 
   it("offers the override branch on a quantity suggestion", () => {
-    const step = (answerI13Keep as unknown as AnswerResponse).step
+    const step = (conformsToWire<AnswerResponse>(answerI13Keep)).step
     expect(step.kind).toBe("form")
     expect(step.fields.map((f) => f.name)).toContain("reason_category")
   })
@@ -285,7 +310,7 @@ describe("choice steps", () => {
 describe("SessionTraceResponse", () => {
   it("types an I08 trace, justification included", () => {
     const trace: SessionTraceResponse =
-      traceI08 as unknown as SessionTraceResponse
+      conformsToWire<SessionTraceResponse>(traceI08)
 
     expect(trace.outcome).toBe("COMPLETED")
     expect(trace.turns.length).toBeGreaterThan(0)
@@ -294,7 +319,7 @@ describe("SessionTraceResponse", () => {
   })
 
   it("replays the assessment as served, narrowable like a step's facts", () => {
-    const trace = traceI08 as unknown as SessionTraceResponse
+    const trace = conformsToWire<SessionTraceResponse>(traceI08)
     expect(isI08Facts(trace.assessment)).toBe(true)
     expect(factsHeadline(trace.assessment)).toBeTruthy()
   })
@@ -303,7 +328,7 @@ describe("SessionTraceResponse", () => {
     // Keying by id rather than position means a script that gains a step in the
     // middle does not misread conversations recorded before it existed — which
     // matters, because those turns cannot be rewritten.
-    const trace = traceI08 as unknown as SessionTraceResponse
+    const trace = conformsToWire<SessionTraceResponse>(traceI08)
     const sequences = trace.turns.map((t) => t.sequence)
     expect(sequences).toEqual([...sequences].sort((a, b) => a - b))
     expect(trace.turns.every((t) => t.stepId.length > 0)).toBe(true)
@@ -313,7 +338,7 @@ describe("SessionTraceResponse", () => {
     // The normal state, not a gap: the assistant runs while the reservation is
     // being created. When `Bednr` lands on ReservationItemSet (B2) this
     // expectation flips, and that is the moment to wire the link.
-    const trace = traceI13 as unknown as SessionTraceResponse
+    const trace = conformsToWire<SessionTraceResponse>(traceI13)
     expect(trace.plans.length).toBeGreaterThan(0)
     expect(trace.plans[0].reservationNumber).toBeNull()
     expect(trace.plans[0].status).toBe("OPEN")
@@ -324,7 +349,7 @@ describe("SessionTraceResponse", () => {
     // Cover ceiling, look-back and minimum history are all ours and all
     // unconfirmed by VZI, so they travel with every suggestion — the number can
     // be argued with rather than just disbelieved.
-    const trace = traceI13 as unknown as SessionTraceResponse
+    const trace = conformsToWire<SessionTraceResponse>(traceI13)
     const suggestion = trace.quantitySuggestions[0]
     expect(typeof suggestion.coverCeilingMonths).toBe("string")
     expect(typeof suggestion.lookbackMonths).toBe("number")

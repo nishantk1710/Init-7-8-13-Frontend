@@ -108,11 +108,19 @@ export function missingRequired(
  * The window is backwards: the planner expects to use the material before they
  * expect to receive it.
  *
- * Checked client-side because the backend does not check it, and a plan whose
- * window ends before it starts breaches on the day it is captured — FR-7 fires
- * on "window end plus grace", so an inverted window is an exception nobody
- * caused. Returns null when either end is blank, because both are optional and
- * an absent date is not an error.
+ * **The backend checks this too**, in `app/assistant/turns.validate`, which
+ * rejects the turn with "the planned window ends (X) before it starts (Y)".
+ * This is not a rule the UI owns — it is the one place a local check is worth
+ * duplicating, because the round trip costs a POST that would be rejected and
+ * the fix is two fields away on screen. The server remains authoritative; if
+ * these two ever disagree, the server is right.
+ *
+ * Why it matters at all: FR-7 raises a plan breach on "window end plus grace",
+ * so a plan that ends before it starts is in breach the moment it is captured
+ * — an exception nobody caused.
+ *
+ * Returns false when either end is blank, because both are optional and an
+ * absent date is not an error.
  */
 export function windowIsInverted(values: FormValues): boolean {
   const start = (values.window_start ?? "").trim()
