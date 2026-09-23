@@ -22,19 +22,11 @@ import {
   Download,
   FileBarChart,
   Loader2,
-  Play,
   RefreshCw,
   TrendingUp,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ChartCard } from "@/components/shared/chart-card"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
@@ -51,6 +43,10 @@ import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
 import { DonutWithLegend, type DonutSlice } from "@/features/initiative-7/components/donut-with-legend"
+import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
+import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
+import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
+import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
@@ -102,22 +98,6 @@ const DEMAND_CLASS_LABEL: Record<string, string> = {
   UNCLASSIFIED: "Unclassified",
 }
 
-const RECOMMENDATION_STATUS_COLOR: Record<string, string> = {
-  NOT_EVALUABLE: "var(--muted-foreground)",
-  READY_FOR_REVIEW: "var(--chart-4)",
-  PENDING_APPROVAL: "var(--chart-1)",
-  HELD: "var(--chart-1)",
-  SENT_BACK: "var(--warning)",
-  ADJUSTED: "var(--chart-1)",
-  APPROVED: "var(--chart-3)",
-  REJECTED: "var(--destructive)",
-  SAP_EXECUTION_PENDING: "var(--chart-3)",
-  SAP_EXECUTED: "var(--chart-5)",
-  ADOPTED: "var(--chart-5)",
-  PARTIALLY_ADOPTED: "var(--chart-5)",
-  NOT_ADOPTED: "var(--chart-5)",
-}
-
 /** The 5 real ZMM065 tiers, most-severe first -- never collapsed into an
  * invented A/B/C 3-bucket grouping (no such grouping exists in policy or
  * code; see MaterialCriticalitySection's own docstring on the backend).
@@ -133,19 +113,6 @@ const CRITICALITY_TIER_STYLE: Record<(typeof CRITICALITY_TIER_ORDER)[number], { 
   NORMAL: { card: "bg-muted border-border", text: "text-foreground", sub: "text-muted-foreground" },
   OBSOLETE: { card: "bg-muted/40 border-border/60", text: "text-muted-foreground", sub: "text-muted-foreground/80" },
 }
-/** The mockup's 4-tier severity color language (Critical/High/Medium/Low),
- * reused here purely as color -- never as a real classification. No such
- * severity tier exists in I07's data (see ManagementSummary.stockout_risk_
- * distribution's own reason string), so this only supplies the mockup's
- * visual identity for the bar/legend, at reduced opacity, with every value
- * still rendered as "—" and the section's true status as NOT_CONFIGURED. */
-const STOCKOUT_TIER_COLOR: { tier: string; className: string; dotClassName: string }[] = [
-  { tier: "Critical", className: "bg-destructive", dotClassName: "bg-destructive" },
-  { tier: "High", className: "bg-destructive/70", dotClassName: "bg-destructive/70" },
-  { tier: "Medium", className: "bg-warning", dotClassName: "bg-warning" },
-  { tier: "Low", className: "bg-success", dotClassName: "bg-success" },
-]
-
 const CRITICALITY_TIER_CAPTION: Record<(typeof CRITICALITY_TIER_ORDER)[number], string> = {
   CRITICAL: "Line-stopping if unavailable",
   IMPACT: "Some operational impact",
@@ -176,10 +143,6 @@ const RECOMMENDATION_STATUS_TEXT_COLOR: Record<string, string> = {
   Rejected: "text-destructive",
   Returned: "text-destructive",
   Implemented: "text-success",
-}
-
-function statusColor(status: string): string {
-  return RECOMMENDATION_STATUS_COLOR[status] ?? "var(--chart-2)"
 }
 
 function titleCaseStatus(status: string): string {
@@ -356,18 +319,14 @@ type GenerationTab = "landing" | "report"
 
 export function QuarterlyReportsWorkspace() {
   const quarters = candidateQuarters()
-  const { data: existingReports, refetch: refetchList } = useQuarterlyReports(50)
+  const { data: existingReports } = useQuarterlyReports(50)
   const [selectedQuarter, setSelectedQuarter] = useState<string>(quarters[0] ?? "")
   const [tab, setTab] = useState<GenerationTab>("landing")
-  const { data: report, loading, error, generating, generationError, status, generate, refetch } =
+  const { data: report, loading, error, status, refetch } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
   const [downloadError, setDownloadError] = useState<string | null>(null)
-
-  const allQuarters = Array.from(
-    new Set([...quarters, ...(existingReports?.map((r) => r.quarter) ?? [])]),
-  )
 
   async function handleDownload() {
     if (!selectedQuarter) return
@@ -390,24 +349,10 @@ export function QuarterlyReportsWorkspace() {
     }
   }
 
-  async function handleGenerate(quarter: string) {
-    setSelectedQuarter(quarter)
-    setTab("report")
-    await generate()
-    refetchList()
-  }
-
   function openReport(quarter: string) {
     setSelectedQuarter(quarter)
     setTab("report")
   }
-
-  const recommendationSlices: DonutSlice[] =
-    report?.recommendations.by_status.map((row) => ({
-      label: titleCaseStatus(row.status),
-      count: row.count,
-      color: statusColor(row.status),
-    })) ?? []
 
   const demandOrder = ["SMOOTH", "ERRATIC", "INTERMITTENT", "LUMPY", "UNCLASSIFIED"]
   const demandByClass = new Map(report?.demand_classification.by_class.map((d) => [d.demand_class, d]) ?? [])
@@ -428,29 +373,37 @@ export function QuarterlyReportsWorkspace() {
   const baselineRowByMetric = new Map(report?.baseline_comparison.rows.map((row) => [row.metric, row]) ?? [])
   const stockPolicyRow = (metric: string) => baselineRowByMetric.get(metric)
 
-  // Material table: the existing recommendations list endpoint, scoped to
-  // the report's own quarter (generated_from/generated_to), sorted so the
-  // largest ROP changes surface first -- reused, not a new endpoint. Only
-  // fetched once a report is loaded, since the period comes from it.
+  // Material table: the same unscoped live-recommendations fetch Overview
+  // uses (not filtered to the report's own generated_from/generated_to --
+  // most recommendation rows predate the reporting feature and were never
+  // regenerated inside a specific quarter window, so a quarter-scoped fetch
+  // reads as empty even when real, live recommendations exist), sorted so
+  // the largest ROP changes surface first. Only fetched once a report is
+  // loaded, matching this section's original fetch-on-report-load timing.
   const { data: materials, total: materialsTotal } = useLiveRecommendations(
     report
       ? {
-          generatedFrom: `${report.metadata.period_start}T00:00:00Z`,
-          generatedTo: `${report.metadata.period_end}T23:59:59Z`,
-          sort: "generated_at",
+          sort: "rop_delta_magnitude",
           sortDesc: true,
           pageSize: 5,
         }
       : {},
   )
 
+  // Same unscoped fetch, but uncapped (matches Overview's
+  // LIVE_OVERVIEW_PAGE_SIZE) -- feeds the two Overview-style charts below,
+  // which need the full set to group by circuit/compute a forecast series,
+  // not just the 5-row "top changes" preview above.
+  const { data: chartRecommendations } = useLiveRecommendations(
+    report ? { pageSize: 200 } : {},
+  )
+
   return (
     <div className="flex flex-col gap-4">
       {tab === "landing" && (
         <QuarterlyLandingGrid
-          quarters={allQuarters}
+          quarters={(existingReports ?? []).map((r) => r.quarter)}
           existingReports={existingReports ?? []}
-          onGenerate={handleGenerate}
           onView={openReport}
         />
       )}
@@ -462,19 +415,7 @@ export function QuarterlyReportsWorkspace() {
             <Button size="sm" variant="ghost" onClick={() => setTab("landing")}>
               ← All quarters
             </Button>
-            <span className="text-xs font-medium text-muted-foreground">Quarter</span>
-            <Select value={selectedQuarter} onValueChange={(value) => setSelectedQuarter(value ?? "")}>
-              <SelectTrigger size="sm" className="min-w-32">
-                <SelectValue placeholder="Select quarter" />
-              </SelectTrigger>
-              <SelectContent>
-                {allQuarters.map((q) => (
-                  <SelectItem key={q} value={q}>
-                    {q}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-sm font-medium text-foreground">{selectedQuarter}</span>
 
             {status && (
               <StatusBadge
@@ -493,7 +434,7 @@ export function QuarterlyReportsWorkspace() {
             )}
 
             <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => refetch()} disabled={loading || generating}>
+              <Button size="sm" variant="outline" onClick={() => refetch()} disabled={loading}>
                 <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
                 Refresh
               </Button>
@@ -519,40 +460,26 @@ export function QuarterlyReportsWorkspace() {
                       ? "Export failed — retry"
                       : "Download detail Excel"}
               </Button>
-              <Button size="sm" onClick={() => generate()} disabled={generating || !selectedQuarter}>
-                {generating && <Loader2 className="size-3.5 animate-spin" />}
-                {generating ? "Generating…" : "Regenerate"}
-              </Button>
             </div>
           </div>
 
-          {generating && (
-            <GeneratingState quarter={selectedQuarter} />
-          )}
-          {generationError && !generating && (
-            <FailedState
-              quarter={selectedQuarter}
-              message={generationError.message}
-              onRetry={() => generate()}
-            />
-          )}
           {downloadError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {downloadError}
             </div>
           )}
 
-          {loading && !report && !generating && (
+          {loading && !report && (
             <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
               Loading report…
             </div>
           )}
 
-          {error && !report && !generating && !generationError && (
-            <EmptyReportState quarter={selectedQuarter} onGenerate={() => generate()} />
+          {error && !report && (
+            <EmptyReportState quarter={selectedQuarter} />
           )}
 
-          {report && !generating && (
+          {report && (
             <>
               {/* --- KPI row: real metrics + honestly-undefined ones --------- */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -583,52 +510,6 @@ export function QuarterlyReportsWorkspace() {
                   }
                   footnoteTone="warning"
                 />
-              </div>
-
-              {/* --- Stockout risk distribution + Recommendation status ------ */}
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <ChartCard title="Stockout risk distribution" span={6}>
-                  <div className="flex gap-3.5">
-                    {/* Mockup's segmented severity bar, shown with the same 4
-                       tier colors -- but as equal, undetermined segments, never
-                       proportioned by a real distribution that does not exist
-                       (see STOCKOUT_TIER_COLOR below: colors only, no data). */}
-                    <div className="flex min-h-[120px] w-2.5 flex-col overflow-hidden rounded-full" aria-hidden>
-                      {STOCKOUT_TIER_COLOR.map(({ tier, className }) => (
-                        <div key={tier} className={cn("flex-1 opacity-40", className)} />
-                      ))}
-                    </div>
-                    <div className="flex flex-1 flex-col justify-center gap-2.5 text-sm">
-                      {STOCKOUT_TIER_COLOR.map(({ tier, dotClassName }) => (
-                        <div key={tier} className="flex items-center justify-between text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <span className={cn("size-2 rounded-full opacity-40", dotClassName)} aria-hidden />
-                            {tier}
-                          </span>
-                          <span className="text-muted-foreground/70">—</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-3.5 border-t border-border/60 pt-3">
-                    <AvailabilityValue status={report.management_summary.stockout_risk_distribution.status} size="sm" />
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {report.management_summary.stockout_risk_distribution.reason}
-                    </p>
-                  </div>
-                </ChartCard>
-
-                <ChartCard
-                  title="Recommendation status"
-                  subtitle="Where each change sits in the approval flow."
-                  span={6}
-                >
-                  {recommendationSlices.length > 0 ? (
-                    <DonutWithLegend slices={recommendationSlices} />
-                  ) : (
-                    <div className="text-sm text-muted-foreground">No recommendations in scope.</div>
-                  )}
-                </ChartCard>
               </div>
 
               {/* --- Material criticality ------------------------------------ */}
@@ -663,9 +544,33 @@ export function QuarterlyReportsWorkspace() {
                 </div>
               </ChartCard>
 
+              {/* --- Stockout risk distribution + Recommendation status ------ */}
+              {/* Both driven by chartRecommendations (the same unscoped live
+                  fetch as the Materials table above and Overview itself) via
+                  the exact InventoryHealthCard/RecommendationStatusChart
+                  components Overview uses -- not report.management_summary,
+                  whose stockout_risk_distribution field is a hardcoded
+                  NOT_CONFIGURED placeholder (no severity classification is
+                  computed anywhere server-side) and whose recommendations
+                  section is quarter-window-scoped the same way the Materials
+                  table was before that fix. */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                <ChartCard title="Stockout risk distribution" span={6}>
+                  <InventoryHealthCard recommendations={chartRecommendations ?? []} />
+                </ChartCard>
+
+                <ChartCard
+                  title="Recommendation status"
+                  subtitle="Where each change sits in the approval flow."
+                  span={6}
+                >
+                  <RecommendationStatusChart recommendations={chartRecommendations ?? []} />
+                </ChartCard>
+              </div>
+
               {/* --- Stock policy table --------------------------------------- */}
               <ChartCard
-                title="How the stock policy is changing"
+                title="Current / I11 Baseline vs I07 Recommendation"
                 subtitle="Current SAP values against I07 recommendations, over rows generated this quarter."
               >
                 <div className="overflow-x-auto rounded-lg border border-border">
@@ -761,8 +666,23 @@ export function QuarterlyReportsWorkspace() {
                     </Table>
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">No recommendations generated in this quarter.</div>
+                  <div className="text-sm text-muted-foreground">No recommendations found.</div>
                 )}
+              </ChartCard>
+
+              {/* --- Circuit exposure + Forecast vs Actual (Overview parity) --- */}
+              <ChartCard
+                title="Critical circuit exposure"
+                subtitle="Recommendations per circuit, split by stockout-risk exposure."
+              >
+                <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
+              </ChartCard>
+
+              <ChartCard
+                title="Forecast vs Actual Demand"
+                footnote={`Actual = consumption for the ${chartRecommendations?.length ?? 0} material(s) in view. Forecast = one-step-ahead exponential smoothing on that same series, so each point uses only prior months.`}
+              >
+                <ForecastVsActualChart recommendations={chartRecommendations ?? []} />
               </ChartCard>
 
               {/* --- Stockout risk trend + SAP adoption ------------------------ */}
@@ -1097,18 +1017,21 @@ export function QuarterlyReportsWorkspace() {
   )
 }
 
-/** The mockup's landing grid: one card per quarter, Completed/Not-generated
- * badge, View report / Generate. Data comes entirely from the existing list
- * endpoint (status per quarter) -- no new backend capability. */
+/** The landing grid: one card per quarter that has an actual generated
+ * report -- callers pass only `existingReports`' own quarters, never the
+ * candidate/current-quarter list, so a quarter with nothing generated yet
+ * shows no card at all rather than a placeholder. There is no manual
+ * Generate action anywhere in this UI -- every report is produced only by
+ * the scheduled task (Windows Task Scheduler "I07 Quarterly Report", see
+ * app/reporting/generate_quarterly.py --auto); a card simply appears once
+ * that task has run. */
 function QuarterlyLandingGrid({
   quarters,
   existingReports,
-  onGenerate,
   onView,
 }: {
   quarters: string[]
   existingReports: QuarterlyReportListRow[]
-  onGenerate: (quarter: string) => void
   onView: (quarter: string) => void
 }) {
   const byQuarter = new Map(existingReports.map((r) => [r.quarter, r]))
@@ -1119,7 +1042,7 @@ function QuarterlyLandingGrid({
         <FileBarChart className="mx-auto size-10 text-muted-foreground" />
         <div className="mt-3 text-base font-medium text-foreground">No quarterly reports yet</div>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Generate a report for a completed quarter to see a management summary of inventory recommendations.
+          Reports are generated automatically after each quarter closes.
         </p>
       </div>
     )
@@ -1127,47 +1050,26 @@ function QuarterlyLandingGrid({
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-base font-medium text-foreground">Quarterly Report</h2>
-        <p className="text-sm text-muted-foreground">
-          Pick a quarter to view its report, or generate one that hasn&apos;t been run yet.
-        </p>
-      </div>
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {quarters.map((quarter) => {
           const existing = byQuarter.get(quarter)
           const completed = existing?.status === "COMPLETED"
           const failed = existing?.status === "FAILED"
-          const notGenerated = !existing
           return (
-            <div
-              key={quarter}
-              className={cn(
-                "rounded-xl border bg-card p-4",
-                notGenerated ? "border-2 border-accent-foreground/40" : "border-border",
-              )}
-            >
+            <div key={quarter} className="rounded-xl border border-border bg-card p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[15px] font-medium text-foreground">{quarter}</span>
                 {completed && <StatusBadge tone="success">Completed</StatusBadge>}
                 {failed && <StatusBadge tone="danger">Failed</StatusBadge>}
-                {notGenerated && <StatusBadge tone="default">Not generated</StatusBadge>}
               </div>
-              <p className="mb-3.5 text-xs text-muted-foreground">
-                {existing
-                  ? `Generated ${new Date(existing.generatedAt).toLocaleDateString()}`
-                  : "No report yet"}
-              </p>
-              {existing ? (
-                <Button size="sm" variant="outline" className="w-full" onClick={() => onView(quarter)}>
-                  View report
-                </Button>
-              ) : (
-                <Button size="sm" className="w-full" onClick={() => onGenerate(quarter)}>
-                  <Play className="size-3.5" />
-                  Generate
-                </Button>
+              {existing && (
+                <p className="mb-3.5 text-xs text-muted-foreground">
+                  Generated {new Date(existing.generatedAt).toLocaleDateString()}
+                </p>
               )}
+              <Button size="sm" variant="outline" className="w-full" onClick={() => onView(quarter)}>
+                View report
+              </Button>
             </div>
           )
         })}
@@ -1176,61 +1078,14 @@ function QuarterlyLandingGrid({
   )
 }
 
-function GeneratingState({ quarter }: { quarter: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-8 text-center">
-      <Loader2 className="mx-auto size-9 animate-spin text-accent-foreground" />
-      <div className="mt-4 text-base font-medium text-foreground">Generating {quarter} report…</div>
-      <p className="mt-1.5 text-sm text-muted-foreground">
-        Aggregating I07 results across all plants. This usually takes 40-50 seconds.
-      </p>
-      <div className="mt-5 flex items-center justify-center gap-2 text-xs">
-        <span className="flex items-center gap-1.5 text-success">
-          <CircleCheck className="size-3.5" />
-          Pending
-        </span>
-        <span className="h-px w-6 bg-border" />
-        <span className="flex items-center gap-1.5 font-medium text-accent-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
-          Running
-        </span>
-        <span className="h-px w-6 bg-border" />
-        <span className="flex items-center gap-1.5 text-muted-foreground">Completed</span>
-      </div>
-    </div>
-  )
-}
-
-function FailedState({ quarter, message, onRetry }: { quarter: string; message: string; onRetry: () => void }) {
-  return (
-    <div className="rounded-xl border border-destructive/30 bg-card p-8 text-center">
-      <AlertTriangle className="mx-auto size-8 text-destructive" />
-      <div className="mt-2.5 text-base font-medium text-foreground">Report generation failed</div>
-      <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
-        {quarter} couldn&apos;t be generated. {message}
-      </p>
-      <div className="mt-5 flex justify-center gap-2">
-        <Button size="sm" onClick={onRetry}>
-          <RefreshCw className="size-3.5" />
-          Try again
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function EmptyReportState({ quarter, onGenerate }: { quarter: string; onGenerate: () => void }) {
+function EmptyReportState({ quarter }: { quarter: string }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
       <FileBarChart className="mx-auto size-10 text-muted-foreground" />
       <div className="mt-3 text-base font-medium text-foreground">No report generated for {quarter}</div>
       <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-        Click &ldquo;Generate&rdquo; to build a management summary of inventory recommendations for this quarter.
+        Reports are generated automatically after each quarter closes.
       </p>
-      <Button size="sm" className="mt-4" onClick={onGenerate}>
-        <Play className="size-3.5" />
-        Generate first report
-      </Button>
     </div>
   )
 }

@@ -64,10 +64,14 @@ function UnavailableTrendCard({ label }: { label: string }) {
 function AdoptionStatusTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null
   const point = payload[0]
-  if (!point || typeof point.value !== "number") return null
+  // The real count, never `displayCount` -- the bar's rendered width is
+  // padded for zero-count visibility (see statusData), but the tooltip must
+  // report what actually happened, not the padded sliver.
+  const count = point?.payload?.count
+  if (typeof count !== "number") return null
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <div className="text-sm font-semibold text-foreground">{point.value}</div>
+      <div className="text-sm font-semibold text-foreground">{count}</div>
       <div className="mt-0.5 text-muted-foreground">{point.payload?.status}</div>
     </div>
   )
@@ -94,12 +98,21 @@ function AdoptionRateCard({ summary }: { summary: AdoptionSummaryResult | null }
 
   const rateKnown = summary.adoptionRatePercentage !== null
 
-  const statusData = [
+  const statusCounts = [
     { status: "Adopted", count: summary.adoptedCount, color: "var(--chart-3)" },
     { status: "Partially adopted", count: summary.partiallyAdoptedCount, color: "var(--chart-4)" },
     { status: "Not adopted", count: summary.notAdoptedCount, color: "var(--destructive)" },
     { status: "Unknown", count: summary.unknownCount, color: "var(--muted-foreground)" },
   ]
+  // A real but zero count renders as a zero-width bar -- invisible, and
+  // indistinguishable from the color simply being wrong. displayCount gives
+  // every status a sliver just wide enough to show its color and be
+  // findable/hoverable; the tooltip and axis still read the real `count`.
+  const maxCount = Math.max(1, ...statusCounts.map((d) => d.count))
+  const statusData = statusCounts.map((d) => ({
+    ...d,
+    displayCount: d.count === 0 ? maxCount * 0.015 : d.count,
+  }))
 
   return (
     <div className="flex w-full flex-col items-stretch gap-2">
@@ -132,13 +145,22 @@ function AdoptionRateCard({ summary }: { summary: AdoptionSummaryResult | null }
               width={110}
             />
             <RechartsTooltip content={AdoptionStatusTooltip} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
-            <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false} barSize={20}>
+            <Bar dataKey="displayCount" radius={[0, 4, 4, 0]} isAnimationActive={false} barSize={20}>
               {statusData.map((d) => (
                 <Cell key={d.status} fill={d.color} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+        {statusData.map((d) => (
+          <div key={d.status} className="flex items-center gap-1.5 text-xs">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+            <span className="text-foreground">{d.status}</span>
+            <span className="tabular-nums text-muted-foreground">{d.count}</span>
+          </div>
+        ))}
       </div>
       <p className="text-center text-[11px] text-muted-foreground">
         {summary.totalEvaluated} recommendation(s) reconciled so far.
