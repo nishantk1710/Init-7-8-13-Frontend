@@ -60,27 +60,29 @@ export default async function AssistantSessionPage({
   }
 
   return (
-    <div className="flex flex-col gap-5 p-6">
-      <BackToSessions />
-      <PageHeader
-        title="Assistant session"
-        description="What the assistant said, what the requester decided, and what was recorded."
-      />
+    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="flex flex-col gap-5">
+        <BackToSessions />
+        <PageHeader
+          title="Assistant session"
+          description="What the assistant said, what the requester decided, and what was recorded."
+        />
 
-      {notFound !== null && (
-        <SessionNotFoundNotice sessionId={sessionId} message={notFound} />
-      )}
+        {notFound !== null && (
+          <SessionNotFoundNotice sessionId={sessionId} message={notFound} />
+        )}
 
-      {loadError !== null && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-          <p className="text-sm text-foreground">
-            This session could not be loaded.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-        </div>
-      )}
+        {loadError !== null && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+            <p className="text-sm text-foreground">
+              This session could not be loaded.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+          </div>
+        )}
 
-      {trace !== null && <SessionTrace trace={trace} />}
+        {trace !== null && <SessionTrace trace={trace} />}
+      </div>
     </div>
   )
 }

@@ -46,47 +46,58 @@ export default async function NewAssistantSessionPage({
 
   if (!materialId || !plant) {
     return (
-      <div className="flex flex-col gap-5 p-6">
-        <PageHeader
-          title="Reservation assistant"
-          description="Checks a material before you reserve it."
-        />
-        <div className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-5">
-          <p className="text-sm text-foreground">
-            This link needs both a material and a plant.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Expected{" "}
-            <code className="font-mono">
-              /assistant/new?material=…&amp;plant=…
-            </code>
-            . A material without a plant cannot be assessed: stock, repairs and
-            cover are all held per plant, and answering for the wrong one is
-            worse than not answering.
-          </p>
-          <Link
-            href="/assistant"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            Choose a material
-          </Link>
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="flex flex-col gap-5">
+          <PageHeader
+            title="Reservation assistant"
+            description="Checks a material before you reserve it."
+          />
+          <div className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-5">
+            <p className="text-sm text-foreground">
+              This link needs both a material and a plant.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Expected{" "}
+              <code className="font-mono">
+                /assistant/new?material=…&amp;plant=…
+              </code>
+              . A material without a plant cannot be assessed: stock, repairs and
+              cover are all held per plant, and answering for the wrong one is
+              worse than not answering.
+            </p>
+            <Link
+              href="/assistant"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              Choose a material
+            </Link>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-5 p-6">
-      <PageHeader
-        title="Reservation assistant"
-        description={`Checking ${materialId} at plant ${plant} before you reserve it.`}
-      />
-      <AssistantLauncher
-        materialId={materialId}
-        plant={plant}
-        quantity={quantity}
-        origin={origin}
-      />
+    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      {/* This is the page that hosts the live conversation
+          (AssistantLauncher -> AssistantWorkspace). The transcript has no
+          height cap of its own -- it grows with the number of turns -- so the
+          scroll container here is what keeps a long conversation (the plan
+          form has six fields, and the longest path is four turns deep)
+          reachable rather than clipped by the fixed-height shell in
+          app/layout.tsx (`body` is `overflow-hidden`). */}
+      <div className="mx-auto flex max-w-2xl flex-col gap-5">
+        <PageHeader
+          title="Reservation assistant"
+          description={`Checking ${materialId} at plant ${plant} before you reserve it.`}
+        />
+        <AssistantLauncher
+          materialId={materialId}
+          plant={plant}
+          quantity={quantity}
+          origin={origin}
+        />
+      </div>
     </div>
   )
 }

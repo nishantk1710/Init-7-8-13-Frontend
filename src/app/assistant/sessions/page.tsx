@@ -80,34 +80,36 @@ export default async function AssistantSessionsPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-5 p-6">
-      <PageHeader
-        title="Assistant sessions"
-        description="Every time the assistant was opened, whether or not the advice was taken."
-      />
+    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          title="Assistant sessions"
+          description="Every time the assistant was opened, whether or not the advice was taken."
+        />
 
-      {sessions === null ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-          <p className="text-sm text-foreground">
-            The session log could not be loaded.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            This screen has no demo fallback on purpose. A log of invented
-            sessions would be worse than no log — the point of it is that it
-            shows what was actually recorded.
-          </p>
-        </div>
-      ) : (
-        <>
-          <CompliancePanel checks={checks} />
-          <SessionLogTable
-            sessions={sessions.items}
-            note={sessions.note}
-            total={sessions.total}
-          />
-        </>
-      )}
+        {sessions === null ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+            <p className="text-sm text-foreground">
+              The session log could not be loaded.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              This screen has no demo fallback on purpose. A log of invented
+              sessions would be worse than no log — the point of it is that it
+              shows what was actually recorded.
+            </p>
+          </div>
+        ) : (
+          <>
+            <CompliancePanel checks={checks} />
+            <SessionLogTable
+              sessions={sessions.items}
+              note={sessions.note}
+              total={sessions.total}
+            />
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -48,28 +48,30 @@ export default async function I08JustificationsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 p-6">
-      <PageHeader
-        title="New-acquisition justifications"
-        description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
-      />
+    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          title="New-acquisition justifications"
+          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
+        />
 
-      {entries === null ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-          <p className="text-sm text-foreground">
-            The justification log could not be loaded.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-        </div>
-      ) : (
-        <>
-          <JustificationLog entries={entries.items.map(fromAssistant)} />
-          {/* The backend's own note, served rather than written here. */}
-          {entries.note && (
-            <p className="text-[11px] text-muted-foreground">{entries.note}</p>
-          )}
-        </>
-      )}
+        {entries === null ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+            <p className="text-sm text-foreground">
+              The justification log could not be loaded.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+          </div>
+        ) : (
+          <>
+            <JustificationLog entries={entries.items.map(fromAssistant)} />
+            {/* The backend's own note, served rather than written here. */}
+            {entries.note && (
+              <p className="text-[11px] text-muted-foreground">{entries.note}</p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
