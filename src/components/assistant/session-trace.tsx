@@ -5,7 +5,6 @@ import {
   AssessmentCaveats,
 } from "@/components/assistant/assessment-card"
 import { SessionReference } from "@/components/assistant/session-reference"
-import { isPlaceholderActor } from "@/lib/api/actor"
 import type {
   ApiJustification,
   ApiPlan,
@@ -122,46 +121,36 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
         <Field label="Material" value={trace.materialId} mono />
         <Field label="Plant" value={trace.plant} mono />
+        {/* Who the part was for, as typed by whoever ran the assistant. Not
+            shown here: who ran it. `trace.requester` is served, because the
+            trace is the FR-8 evidence view and an audit record without its
+            author is not one -- but one coordinator opens every session, so a
+            column holding the same value on every row tells a reader nothing
+            and crowds out the one that does. */}
         <Field
-          label="Quantity asked for"
-          value={trace.requestedQuantity}
-          // Null means the pop-up fired before a quantity was entered. A zero
-          // here would be a different statement, so it is never substituted.
+          label="Requester"
+          value={trace.requestedFor}
+          // A session opened from SAP carries no name. Saying so beats a blank,
+          // which reads as a rendering fault rather than as an absent answer.
           nullNote="not stated"
         />
-        <Requester requester={trace.requester} />
+        <Field
+          label="Department"
+          value={trace.department}
+          nullNote="not stated"
+        />
+        {/* Only where there is one. Every session minted since the entry point
+            stopped asking has none, and an empty row on all of them would
+            invite somebody to go looking for the missing number. Older
+            sessions carry a real value and still show it. */}
+        {trace.requestedQuantity !== null && (
+          <Field label="Quantity asked for" value={trace.requestedQuantity} />
+        )}
       </dl>
 
       <p className="text-[11px] text-muted-foreground">
         Issued {formatInstant(trace.issuedAt)}
       </p>
-    </div>
-  )
-}
-
-function Requester({ requester }: { requester: string }) {
-  const placeholder = isPlaceholderActor(requester)
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] tracking-[0.3px] text-muted-foreground uppercase">
-        Requester
-      </dt>
-      <dd
-        className={cn(
-          "text-sm font-medium",
-          placeholder ? "text-muted-foreground" : "text-foreground"
-        )}
-      >
-        {requester}
-      </dd>
-      {/* Marked rather than hidden. Entra is not wired in, so every session so
-          far is issued to a placeholder, and rendering it in the same typeface
-          as a real name trains people to read it as one. */}
-      {placeholder && (
-        <span className="text-[11px] text-muted-foreground">
-          no sign-in — provisional
-        </span>
-      )}
     </div>
   )
 }

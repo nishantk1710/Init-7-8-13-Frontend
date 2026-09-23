@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { isPlaceholderActor } from "@/lib/api/actor"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, downloadCsv } from "@/lib/utils"
 
@@ -67,6 +66,7 @@ export function SessionLogTable({
         "Material",
         "Plant",
         "Requester",
+        "Department",
         "Opened from",
         "Turns",
         "Outcome",
@@ -78,7 +78,11 @@ export function SessionLogTable({
         session.flow,
         session.materialId,
         session.plant,
-        session.requester,
+        // The person the part was for, not whoever operated the assistant.
+        // Blank rather than a placeholder: a CSV cell is read without the
+        // column's caveats beside it.
+        session.requestedFor ?? "",
+        session.department ?? "",
         session.origin,
         session.turns,
         session.outcome,
@@ -151,6 +155,7 @@ export function SessionLogTable({
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead>Requester</TableHead>
+              <TableHead>Department</TableHead>
               <TableHead>Opened from</TableHead>
               <TableHead>Turns</TableHead>
               <TableHead>Outcome</TableHead>
@@ -177,14 +182,28 @@ export function SessionLogTable({
                 <TableCell className="font-mono text-xs">
                   {session.plant}
                 </TableCell>
+                {/* Who the part was for. This column used to show
+                    `session.requester` -- who operated the assistant -- which
+                    with one coordinator running the site is the same value on
+                    every row, and a column that never varies is a column that
+                    tells a reader nothing. The operator is still recorded and
+                    still served on the trace; it is simply not worth a column
+                    here. */}
                 <TableCell
                   className={cn(
                     "text-xs",
-                    isPlaceholderActor(session.requester) &&
-                      "text-muted-foreground"
+                    !session.requestedFor && "text-muted-foreground"
                   )}
                 >
-                  {session.requester}
+                  {session.requestedFor ?? "not stated"}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-xs",
+                    !session.department && "text-muted-foreground"
+                  )}
+                >
+                  {session.department ?? "not stated"}
                 </TableCell>
                 <TableCell className="text-xs">
                   {session.origin === "BADI" ? "SAP" : "platform"}
