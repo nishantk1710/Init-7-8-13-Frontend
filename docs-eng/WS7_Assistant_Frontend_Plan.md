@@ -132,7 +132,7 @@ they cannot be corrected afterwards. See §9, O-1.
 **6. `detail` on a 4xx is sometimes a string and sometimes an array.** Verified against a
 `TestClient` run of the real app. A pydantic validation failure returns
 `detail: [{type, loc, msg, input, ctx}, …]`; an application-raised `HTTPException`
-returns `detail: "quantity must be a number, got 'abc'"`. Both are 422. A renderer
+returns `detail: "..."` as a plain sentence. Both are 422. A renderer
 that assumes a string prints `[object Object]` on the commonest failure there is —
 a required field left empty. The error type must model both arms.
 
@@ -233,11 +233,21 @@ is the only code that knows what was asked. A second validator in TypeScript is 
 drift the server-driven design was chosen to avoid.
 
 **D-7 — Deep-link URL shape, which the SAP BAdI will eventually call.**
-*Recommend fixing it now and writing it into the W2.8 contract note:*
-`/assistant/new?material={MATNR}&plant={WERKS}&quantity={MENGE}&origin=BADI`.
-`quantity` optional — the pop-up may fire before one is entered, and a defaulted
-zero is indistinguishable from a real one (the backend already makes this
-distinction; the URL must not undo it).
+*Settled, and written into `WS7_Deep_Link_Contract.md`.*
+
+**Superseded 23-Sep.** The shape was
+`?material={MATNR}&plant={WERKS}&quantity={MENGE}&origin=BADI`. It is now
+`?material={MATNR}&plant={WERKS}&department={KOSTL}&requestedFor={NAME}&origin=BADI`.
+
+`quantity` is gone: the quantity of record is captured inside the conversation
+against a purpose and a window, and asking for one at the door was the same
+question twice. `department` and `requestedFor` are optional for the reason
+`quantity` was — the pop-up may not be able to reach either, and the platform
+records the blank rather than inventing a value.
+
+`requestedFor` is a name and **not** an identity. The author of a session still
+comes from the caller and no query parameter can change that, which is what makes
+a name safe to put in a URL.
 
 ---
 

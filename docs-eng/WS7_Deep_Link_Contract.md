@@ -2,7 +2,7 @@
 
 **For:** the SAP team and NTT, building the reservation-entry BAdI (W2.8, W7.7)
 **From:** Zensar AI team
-**Date:** 22 September 2026
+**Date:** 23 September 2026 (supersedes 22 September — `quantity` is gone, two parameters are new)
 **Status:** proposed — the platform side is built and live at this URL; the SAP side is not
 
 ---
@@ -23,7 +23,8 @@ independently of the SAP transport.
 https://<platform-host>/assistant/new
     ?material={MATNR}
     &plant={WERKS}
-    &quantity={BDMNG}
+    &department={KOSTL or equivalent}
+    &requestedFor={name}
     &origin=BADI
 ```
 
@@ -31,8 +32,14 @@ https://<platform-host>/assistant/new
 | --- | --- | --- | --- |
 | `material` | `RESB-MATNR` | **yes** | As held in SAP. Leading zeros are fine — the platform normalises them. |
 | `plant` | `RESB-WERKS` | **yes** | `1300` or `1500`. See "Plant is not optional" below. |
-| `quantity` | `RESB-BDMNG` | no | Requirement quantity, if one has been entered. See "Quantity" below. |
+| `department` | whatever the pop-up can reach | no | Which department the part is for. Max 64 characters. See "The two new parameters" below. |
+| `requestedFor` | whatever the pop-up can reach | no | The name of the person the part is for. Max 128 characters. |
 | `origin` | fixed literal | no | Send `BADI`. Defaults to `PLATFORM`. |
+
+**`quantity` has been removed.** It was in the 22 September version of this
+document. A link that still sends it is accepted and the parameter is ignored,
+so nothing breaks — but please drop it. The reason is in "Why quantity went
+away" below.
 
 A minimal, valid call:
 
@@ -55,19 +62,51 @@ asking.
 
 ---
 
-## Quantity: please send nothing rather than zero
+## The two new parameters
 
-If the pop-up fires before the requester has entered a quantity, **omit the
-parameter entirely**. Do not send `quantity=0`.
+On site, one coordinator runs the assistant for everybody. They are not the
+person who wants the part, so the platform records two different things:
 
-The platform distinguishes "no quantity was stated" from "a quantity of zero was
-requested", and they drive different behaviour: the quantity suggestion (I13 FR-3)
-compares what was asked for against the trailing-twelve-month consumption rate, and
-a zero is a real request for none rather than an absence of information. A defaulted
-zero would be recorded as a stated intent nobody had.
+- **who operated the assistant** — taken from the signed-in session, never from
+  the URL, and not something the BAdI can set; and
+- **who the part is for** — `requestedFor`, a plain name.
 
-A non-numeric quantity is rejected before any session is opened, and the page says
-the link is malformed rather than blaming the platform's data.
+`requestedFor` is deliberately **not** treated as an identity. Nobody verifies
+it, and no permission or approval depends on it. It is a property of the
+reservation, like the material number, which is why it is safe to put in a URL.
+Send whatever the pop-up can reach — a user id, a full name, whatever the site
+actually uses.
+
+`department` is the requester's department, not the coordinator's. Free text on
+our side: nothing the platform loads maps a person to a cost-bearing department,
+so we do not validate it against a list.
+
+**Both are optional, and we do not expect the pop-up to have them.** If the BAdI
+can only reach a material and a plant, send those two and nothing else — the
+platform records the blanks honestly rather than inventing values, and the person
+at the screen is not asked for them again. If either *can* be reached, sending it
+saves a step.
+
+Please **omit** a parameter you have no value for rather than sending an empty
+string.
+
+---
+
+## Why quantity went away
+
+The assistant used to take a quantity on the link. It no longer does, and this
+is not a simplification — it is a correction.
+
+The quantity that matters is the one captured **inside** the conversation, against
+a stated purpose and a date window. That is the figure the quantity suggestion
+(I13 FR-3) works against and the figure compliance measures later (FR-7). Asking
+for a second quantity at the door meant the same question twice, and the one
+asked first — before the requester had thought about purpose or timing — was the
+one that got the least thought.
+
+Sessions created before this change keep the quantity they were given. The field
+is still shown on those, because the record of what somebody was asked is not
+rewritten when the question changes.
 
 ---
 
@@ -151,8 +190,10 @@ afterwards, because references land in an append-only table.
 
 1. Confirm `Bednr` can be added to the `ReservationItemSet` projection, and when.
 2. Confirm the ten-character field length, since it fixes the reference format.
-3. Confirm the pop-up can pass all four parameters, and that it can omit `quantity`
-   rather than defaulting it to zero.
+3. Confirm which parameters the pop-up can actually reach. `material` and `plant`
+   are the only two we need. Tell us if `department` or a requester name is
+   available — we will take them if they are and we will not hold anything up if
+   they are not.
 4. Confirm one BAdI serves both initiatives by sending every line to this URL,
    rather than routing on material category in ABAP.
 
