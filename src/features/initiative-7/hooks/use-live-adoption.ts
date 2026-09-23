@@ -8,7 +8,9 @@ import { useCallback, useEffect, useState } from "react"
 import { ApiError } from "@/lib/api/client"
 import {
   fetchAdoptionList,
+  fetchAdoptionSummary,
   type AdoptionListRow,
+  type AdoptionSummaryResult,
   type RecommendationListParams,
 } from "@/features/initiative-7/services/i7-api"
 
@@ -63,4 +65,58 @@ export function useLiveAdoption(
   const refetch = useCallback(() => setTick((t) => t + 1), [])
 
   return { items, total, loading, error, refetch }
+}
+
+export interface LiveAdoptionSummaryState {
+  summary: AdoptionSummaryResult | null
+  loading: boolean
+  error: ApiError | Error | null
+  refetch: () => void
+}
+
+/** GET /recommendations/adoption/summary -- the persisted ledger's
+ * portfolio-wide counts, fetched once on mount. Powers the Inventory
+ * Planning overview's adoption-rate card ("always-on dashboard") and the
+ * quarterly report's SAP Adoption section, both reading the same summary. */
+export function useLiveAdoptionSummary(): LiveAdoptionSummaryState {
+  const [summary, setSummary] = useState<AdoptionSummaryResult | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<ApiError | Error | null>(null)
+  const [tick, setTick] = useState(0)
+
+  // Reset to "loading" as soon as `tick` changes, during render rather than
+  // in the effect below -- the React-endorsed way to derive state from a
+  // changed key without the "setState synchronously in an effect" cascading-
+  // render smell (see use-live-recommendations.ts's identical pattern).
+  const [requestKey, setRequestKey] = useState(tick)
+  if (requestKey !== tick) {
+    setRequestKey(tick)
+    setLoading(true)
+    setError(null)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetchAdoptionSummary()
+      .then((result) => {
+        if (cancelled) return
+        setSummary(result)
+        setLoading(false)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setSummary(null)
+        setLoading(false)
+        setError(err instanceof Error ? err : new Error("Failed to load adoption summary."))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [tick])
+
+  const refetch = useCallback(() => setTick((t) => t + 1), [])
+
+  return { summary, loading, error, refetch }
 }

@@ -161,6 +161,9 @@ export interface ApiRecommendationSummaryStats {
   ready_for_review_count: number
   not_evaluable_count: number
   net_safety_stock_value_impact: ApiDecimal
+  critical_stockout_risk_count: number
+  excess_inventory_candidates_count: number
+  excess_inventory_opportunity: ApiDecimal
 }
 
 /** GET /recommendations/{id} -- see RecommendationDetail. */
@@ -198,6 +201,23 @@ export interface ApiRecommendationTrace {
   blocking_reason: string | null
   factors: string[]
   entries: { label: string; value: string }[]
+}
+
+/** GET /recommendations/{id}/forecast-history -- the champion model's real
+ * rolling-origin predicted/actual pairs (i7_forecast_backtest_path, added
+ * 2026-09-22). points is empty when no forecast run since the table shipped
+ * has produced paths for this material-plant -- never fabricated. */
+export interface ApiForecastHistoryPoint {
+  forecast_period: string
+  predicted: ApiDecimal
+  actual: ApiDecimal
+}
+
+export interface ApiForecastHistoryResponse {
+  sap_material_number: string
+  sap_plant_code: string
+  model_name: string | null
+  points: ApiForecastHistoryPoint[]
 }
 
 // --- Approvals --------------------------------------------------------
@@ -275,6 +295,26 @@ export interface ApiAdoptionListResponse {
   total: number
   page: number
   page_size: number
+}
+
+export interface ApiAdoptionStatusCount {
+  status: string
+  count: number
+}
+
+/** GET /v1/i7/recommendations/adoption/summary -- real COUNT/GROUP BY over
+ * i7_sap_adoption, the persisted recommendation ledger, not a live
+ * re-evaluation. Only reflects recommendations someone has actually viewed
+ * through the adoption endpoints so far -- grows as more of the portfolio
+ * is evaluated, never a claim about the whole portfolio on day one. */
+export interface ApiAdoptionSummary {
+  total_evaluated: number
+  by_status: ApiAdoptionStatusCount[]
+  adopted_count: number
+  partially_adopted_count: number
+  not_adopted_count: number
+  unknown_count: number
+  adoption_rate_percentage: number | null
 }
 
 export interface ApiAdoptionResponse {

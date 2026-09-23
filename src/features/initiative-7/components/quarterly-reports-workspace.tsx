@@ -16,12 +16,15 @@ import { useState } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
+  Boxes,
   CircleCheck,
+  Clock,
   Download,
   FileBarChart,
   Loader2,
   Play,
   RefreshCw,
+  TrendingUp,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -35,7 +38,6 @@ import {
 import { ChartCard } from "@/components/shared/chart-card"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
-import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
   Table,
@@ -47,13 +49,15 @@ import {
 } from "@/components/ui/table"
 import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
+import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
 import { DonutWithLegend, type DonutSlice } from "@/features/initiative-7/components/donut-with-legend"
-import { CRITICALITY_CODE } from "@/features/initiative-7/components/recommendation-review-panel"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
+import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
 import { fetchQuarterlyReportExportBlob } from "@/features/initiative-7/services/i7-api"
 import type {
+  ApiBaselineComparisonRow,
   ApiForecastAccuracyMetric,
   ApiPopulationCount,
   ApiUndefinedManagementMetric,
@@ -116,14 +120,62 @@ const RECOMMENDATION_STATUS_COLOR: Record<string, string> = {
 
 /** The 5 real ZMM065 tiers, most-severe first -- never collapsed into an
  * invented A/B/C 3-bucket grouping (no such grouping exists in policy or
- * code; see MaterialCriticalitySection's own docstring on the backend). */
+ * code; see MaterialCriticalitySection's own docstring on the backend).
+ * Card tint per tier uses only existing theme tokens (no new hex), following
+ * the mockup's tinted-mini-card language: CRITICAL->destructive,
+ * IMPACT->warning, INSURANCE->accent, NORMAL->muted (neutral), OBSOLETE->a
+ * lighter muted -- five visually distinct tiers from four base tokens. */
 const CRITICALITY_TIER_ORDER = ["CRITICAL", "IMPACT", "INSURANCE", "NORMAL", "OBSOLETE"] as const
-const CRITICALITY_TIER_TONE: Record<string, "danger" | "warning" | "default"> = {
-  CRITICAL: "danger",
-  IMPACT: "warning",
-  INSURANCE: "warning",
-  NORMAL: "default",
-  OBSOLETE: "default",
+const CRITICALITY_TIER_STYLE: Record<(typeof CRITICALITY_TIER_ORDER)[number], { card: string; text: string; sub: string }> = {
+  CRITICAL: { card: "bg-destructive/10 border-destructive/20", text: "text-destructive", sub: "text-destructive/70" },
+  IMPACT: { card: "bg-warning/15 border-warning/25", text: "text-warning", sub: "text-warning/70" },
+  INSURANCE: { card: "bg-accent border-accent-foreground/15", text: "text-accent-foreground", sub: "text-accent-foreground/70" },
+  NORMAL: { card: "bg-muted border-border", text: "text-foreground", sub: "text-muted-foreground" },
+  OBSOLETE: { card: "bg-muted/40 border-border/60", text: "text-muted-foreground", sub: "text-muted-foreground/80" },
+}
+/** The mockup's 4-tier severity color language (Critical/High/Medium/Low),
+ * reused here purely as color -- never as a real classification. No such
+ * severity tier exists in I07's data (see ManagementSummary.stockout_risk_
+ * distribution's own reason string), so this only supplies the mockup's
+ * visual identity for the bar/legend, at reduced opacity, with every value
+ * still rendered as "—" and the section's true status as NOT_CONFIGURED. */
+const STOCKOUT_TIER_COLOR: { tier: string; className: string; dotClassName: string }[] = [
+  { tier: "Critical", className: "bg-destructive", dotClassName: "bg-destructive" },
+  { tier: "High", className: "bg-destructive/70", dotClassName: "bg-destructive/70" },
+  { tier: "Medium", className: "bg-warning", dotClassName: "bg-warning" },
+  { tier: "Low", className: "bg-success", dotClassName: "bg-success" },
+]
+
+const CRITICALITY_TIER_CAPTION: Record<(typeof CRITICALITY_TIER_ORDER)[number], string> = {
+  CRITICAL: "Line-stopping if unavailable",
+  IMPACT: "Some operational impact",
+  INSURANCE: "Held for insurance/cover",
+  NORMAL: "Standard replenishment",
+  OBSOLETE: "Marked for retirement",
+}
+
+/** Text-color-only treatment for the material table's Crit. column, keyed on
+ * the app's mapped Criticality (not the raw ZMM065 tier) -- the same tone
+ * mapping used for CRITICALITY_TIER_STYLE above, applied as plain colored
+ * text rather than a tinted badge to match the reference table's style. */
+const CRITICALITY_TIER_TEXT_COLOR: Record<Criticality, string> = {
+  Critical: "text-destructive",
+  High: "text-warning",
+  Medium: "text-accent-foreground",
+  Low: "text-muted-foreground",
+}
+
+/** Text-color-only treatment for the material table's Status column, keyed
+ * on the app's mapped RecommendationStatus (rec.status) -- distinct from
+ * RECOMMENDATION_STATUS_COLOR above, which keys on the raw backend
+ * LifecycleStatus used by the donut chart, a different vocabulary. */
+const RECOMMENDATION_STATUS_TEXT_COLOR: Record<string, string> = {
+  "Pending Review": "text-warning",
+  "In Approval": "text-warning",
+  Approved: "text-success",
+  Rejected: "text-destructive",
+  Returned: "text-destructive",
+  Implemented: "text-success",
 }
 
 function statusColor(status: string): string {
@@ -171,7 +223,10 @@ function AccuracyMetricRow({ label, metric, unit }: { label: string; metric: Api
 
 /** One mockup KPI card for a metric with no defined business rule today --
  * always NOT_CONFIGURED, always shows the real backend-supplied reason, never
- * a fabricated number in its place. */
+ * a fabricated number in its place. Dashed border + muted icon distinguish it
+ * at a glance from the real-number KPI cards next to it (see KpiCard below),
+ * so "not yet defined" reads as visually different from "measured", not just
+ * differently worded. */
 function UndefinedKpiCard({
   label,
   icon,
@@ -182,10 +237,10 @@ function UndefinedKpiCard({
   metric: ApiUndefinedManagementMetric
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        {icon}
+    <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[13px] text-muted-foreground">{label}</span>
+        <span className="text-muted-foreground/60">{icon}</span>
       </div>
       <AvailabilityValue status={metric.status} />
       <p className="text-[11px] leading-relaxed text-muted-foreground">{metric.reason}</p>
@@ -193,25 +248,70 @@ function UndefinedKpiCard({
   )
 }
 
+/** A real-number KPI card in the mockup's shape -- label + corner icon on
+ * top, a large number, a sublabel, and an optional colored footnote line
+ * (e.g. "48.0% of recommendations"). Solid border distinguishes it from
+ * UndefinedKpiCard's dashed "not configured" shell. */
+function KpiCard({
+  label,
+  icon,
+  value,
+  sublabel,
+  footnote,
+  footnoteTone = "muted",
+}: {
+  label: string
+  icon: React.ReactNode
+  value: string
+  sublabel: string
+  footnote?: string
+  footnoteTone?: "muted" | "warning" | "success" | "destructive"
+}) {
+  const footnoteClass = {
+    muted: "text-muted-foreground",
+    warning: "text-warning",
+    success: "text-success",
+    destructive: "text-destructive",
+  }[footnoteTone]
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[13px] text-muted-foreground">{label}</span>
+        {icon}
+      </div>
+      <div>
+        <div className="text-2xl font-semibold text-foreground">{value}</div>
+        <div className="text-xs text-muted-foreground">{sublabel}</div>
+      </div>
+      {footnote && <p className={cn("text-xs", footnoteClass)}>{footnote}</p>}
+    </div>
+  )
+}
+
 /** The mockup's "How the stock policy is changing" table -- Current (SAP) /
- * Recommended / Change, one row per metric. A missing SAP baseline renders as
- * an explicit dash + "not set in SAP" via AvailabilityValue, never a bare 0
- * -- see PopulationCount.current's own docstring for why 0 populated is a
- * real, different claim from "unknown". */
+ * Recommended / Change, one row per metric, with REAL mean values (not
+ * populated-counts) -- sourced from Section 12's baseline_comparison.rows,
+ * the one place the report already computes the mean current value, mean
+ * recommended value, and their delta/delta% over rows where both are
+ * populated (see BaselineComparisonRow's own docstring on the backend: never
+ * derived from two separately-scoped aggregates). A missing SAP baseline
+ * (baseline_value === null, e.g. Safety Stock's confirmed 0-populated
+ * current_safety_stock) renders as an explicit dash + "not set in SAP" via
+ * AvailabilityValue, never a bare 0 or an invented number. */
 function StockPolicyRow({
   label,
   sublabel,
-  current,
-  recommended,
+  row,
 }: {
   label: string
   sublabel: string
-  current: ApiPopulationCount
-  recommended: ApiPopulationCount
+  row: ApiBaselineComparisonRow
 }) {
-  const currentAvailable = current.populated_count > 0
-  const recommendedAvailable = recommended.populated_count > 0
-  const changeKnown = currentAvailable && recommendedAvailable
+  const currentAvailable = row.baseline_value !== null
+  const recommendedAvailable = row.recommendation_value !== null
+  const changeKnown = row.delta !== null
+
+  const deltaTone = row.delta === null ? "text-muted-foreground" : Number(row.delta) >= 0 ? "text-success" : "text-destructive"
 
   return (
     <TableRow>
@@ -220,20 +320,33 @@ function StockPolicyRow({
       </TableCell>
       <TableCell className="text-right">
         {currentAvailable ? (
-          <span className="tabular-nums">{formatCount(current.populated_count)} of {formatCount(current.total_count)} populated</span>
+          <span className="tabular-nums">{formatDecimal(row.baseline_value, 0)}</span>
         ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" />
+          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
         )}
       </TableCell>
       <TableCell className="text-right">
         {recommendedAvailable ? (
-          <span className="tabular-nums">{formatCount(recommended.populated_count)} of {formatCount(recommended.total_count)} populated</span>
+          <span className="tabular-nums">{formatDecimal(row.recommendation_value, 0)}</span>
         ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" />
+          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
         )}
       </TableCell>
-      <TableCell className="text-right text-muted-foreground">
-        {changeKnown ? "See Mean Delta below" : "—"}
+      <TableCell className={cn("text-right tabular-nums", deltaTone)}>
+        {changeKnown ? (
+          <>
+            {Number(row.delta) >= 0 ? "+" : ""}
+            {formatDecimal(row.delta, 0)}
+            {row.delta_percentage !== null && (
+              <span className="ml-1">
+                ({Number(row.delta_percentage) >= 0 ? "+" : ""}
+                {formatDecimal(row.delta_percentage, 0)}%)
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </TableCell>
     </TableRow>
   )
@@ -248,6 +361,7 @@ export function QuarterlyReportsWorkspace() {
   const [tab, setTab] = useState<GenerationTab>("landing")
   const { data: report, loading, error, generating, generationError, status, generate, refetch } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
+  const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -305,6 +419,14 @@ export function QuarterlyReportsWorkspace() {
     })
 
   const criticalityByTier = new Map(report?.material_criticality.by_tier.map((row) => [row.criticality, row.count]) ?? [])
+
+  // Real mean current/recommended/delta per metric, straight from Section
+  // 12's baseline comparison -- the one place the report computes these
+  // means (see StockPolicyRow's own docstring for why this section is
+  // reused rather than the safety_stock/reorder_point/max_stock sections,
+  // which carry only populated-counts, not the mean values themselves).
+  const baselineRowByMetric = new Map(report?.baseline_comparison.rows.map((row) => [row.metric, row]) ?? [])
+  const stockPolicyRow = (metric: string) => baselineRowByMetric.get(metric)
 
   // Material table: the existing recommendations list endpoint, scoped to
   // the report's own quarter (generated_from/generated_to), sorted so the
@@ -436,37 +558,64 @@ export function QuarterlyReportsWorkspace() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <UndefinedKpiCard
                   label="Critical stockout risk"
-                  icon={<AlertTriangle className="size-4 text-destructive" />}
+                  icon={<AlertTriangle className="size-4" />}
                   metric={report.management_summary.critical_stockout_risk}
                 />
                 <UndefinedKpiCard
                   label="Excess inventory candidates"
-                  icon={<FileBarChart className="size-4 text-accent-foreground" />}
+                  icon={<Boxes className="size-4" />}
                   metric={report.management_summary.excess_inventory_candidates}
                 />
                 <UndefinedKpiCard
                   label="Working capital impact"
-                  icon={<FileBarChart className="size-4 text-success" />}
+                  icon={<TrendingUp className="size-4" />}
                   metric={report.management_summary.working_capital_impact}
                 />
-                <KPIStatCard
+                <KpiCard
                   label="Pending approval"
+                  icon={<Clock className="size-4 text-warning" />}
                   value={formatCount(report.executive_summary.pending_approval_count)}
-                  hint={
+                  sublabel="Recommendations"
+                  footnote={
                     report.executive_summary.pending_approval_percentage !== null
                       ? `${formatDecimal(report.executive_summary.pending_approval_percentage, 1)}% of recommendations`
                       : `of ${formatCount(report.executive_summary.total_recommendations)} recommendations`
                   }
+                  footnoteTone="warning"
                 />
               </div>
 
               {/* --- Stockout risk distribution + Recommendation status ------ */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <ChartCard title="Stockout risk distribution" span={6}>
-                  <AvailabilityValue status={report.management_summary.stockout_risk_distribution.status} />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {report.management_summary.stockout_risk_distribution.reason}
-                  </p>
+                  <div className="flex gap-3.5">
+                    {/* Mockup's segmented severity bar, shown with the same 4
+                       tier colors -- but as equal, undetermined segments, never
+                       proportioned by a real distribution that does not exist
+                       (see STOCKOUT_TIER_COLOR below: colors only, no data). */}
+                    <div className="flex min-h-[120px] w-2.5 flex-col overflow-hidden rounded-full" aria-hidden>
+                      {STOCKOUT_TIER_COLOR.map(({ tier, className }) => (
+                        <div key={tier} className={cn("flex-1 opacity-40", className)} />
+                      ))}
+                    </div>
+                    <div className="flex flex-1 flex-col justify-center gap-2.5 text-sm">
+                      {STOCKOUT_TIER_COLOR.map(({ tier, dotClassName }) => (
+                        <div key={tier} className="flex items-center justify-between text-muted-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <span className={cn("size-2 rounded-full opacity-40", dotClassName)} aria-hidden />
+                            {tier}
+                          </span>
+                          <span className="text-muted-foreground/70">—</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3.5 border-t border-border/60 pt-3">
+                    <AvailabilityValue status={report.management_summary.stockout_risk_distribution.status} size="sm" />
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {report.management_summary.stockout_risk_distribution.reason}
+                    </p>
+                  </div>
                 </ChartCard>
 
                 <ChartCard
@@ -491,23 +640,25 @@ export function QuarterlyReportsWorkspace() {
                     : "In-scope materials by ZMM065 tier."
                 }
               >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {CRITICALITY_TIER_ORDER.map((tier) => (
-                    <div key={tier} className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{tier}</span>
-                        <StatusBadge tone={CRITICALITY_TIER_TONE[tier]}>{tier[0]}</StatusBadge>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {CRITICALITY_TIER_ORDER.map((tier) => {
+                    const style = CRITICALITY_TIER_STYLE[tier]
+                    return (
+                      <div key={tier} className={cn("rounded-lg border p-3", style.card)}>
+                        <div className={cn("text-[13px]", style.text)}>{tier}</div>
+                        <div className={cn("mt-1 text-xl font-semibold", style.text)}>
+                          {formatCount(criticalityByTier.get(tier) ?? 0)}
+                        </div>
+                        <div className={cn("mt-0.5 text-[11px]", style.sub)}>{CRITICALITY_TIER_CAPTION[tier]}</div>
                       </div>
-                      <div className="mt-1 text-xl font-semibold text-foreground">
-                        {formatCount(criticalityByTier.get(tier) ?? 0)}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                   <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 p-3">
-                    <span className="text-xs text-muted-foreground">Not populated</span>
+                    <div className="text-[13px] text-muted-foreground">Not populated</div>
                     <div className="mt-1 text-xl font-semibold text-muted-foreground">
-                      {formatCount(criticalityByTier.get(undefined as unknown as string) ?? report.material_criticality.total - report.material_criticality.populated_count)}
+                      {formatCount(report.material_criticality.total - report.material_criticality.populated_count)}
                     </div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground/80">No ZMM065 tier on record</div>
                   </div>
                 </div>
               </ChartCard>
@@ -520,7 +671,7 @@ export function QuarterlyReportsWorkspace() {
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableHead>Stock level</TableHead>
                         <TableHead className="text-right">Current (SAP)</TableHead>
                         <TableHead className="text-right">Recommended</TableHead>
@@ -528,31 +679,33 @@ export function QuarterlyReportsWorkspace() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <StockPolicyRow
-                        label="Safety stock"
-                        sublabel="demand buffer"
-                        current={report.safety_stock.current}
-                        recommended={report.safety_stock.recommended}
-                      />
-                      <StockPolicyRow
-                        label="Reorder point"
-                        sublabel="when to raise a PO"
-                        current={report.reorder_point.current}
-                        recommended={report.reorder_point.recommended}
-                      />
-                      <StockPolicyRow
-                        label="Maximum stock"
-                        sublabel="ceiling to hold"
-                        current={report.max_stock.current}
-                        recommended={report.max_stock.recommended}
-                      />
+                      {stockPolicyRow("Safety Stock") && (
+                        <StockPolicyRow
+                          label="Safety stock"
+                          sublabel="demand buffer"
+                          row={stockPolicyRow("Safety Stock")!}
+                        />
+                      )}
+                      {stockPolicyRow("ROP") && (
+                        <StockPolicyRow
+                          label="Reorder point"
+                          sublabel="when to raise a PO"
+                          row={stockPolicyRow("ROP")!}
+                        />
+                      )}
+                      {stockPolicyRow("Max Stock") && (
+                        <StockPolicyRow
+                          label="Maximum stock"
+                          sublabel="ceiling to hold"
+                          row={stockPolicyRow("Max Stock")!}
+                        />
+                      )}
                     </TableBody>
                   </Table>
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Populated counts, not aggregated levels — Current Safety Stock is confirmed NOT_AVAILABLE on this
-                  extract (EISBE is absent from MARC); see Mean Delta in Full report detail below for the actual
-                  quantity change where both sides exist.
+                  A dash means no value is set in SAP — not a stock level of zero. Current Safety Stock is confirmed
+                  NOT_AVAILABLE on this extract (EISBE is absent from MARC).
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {report.reorder_point.current_sap_value_reused_note}
@@ -568,13 +721,13 @@ export function QuarterlyReportsWorkspace() {
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                        <TableRow className="bg-muted/40 hover:bg-muted/40">
                           <TableHead>Material</TableHead>
                           <TableHead>Plant</TableHead>
                           <TableHead>Circuit</TableHead>
                           <TableHead>Crit.</TableHead>
                           <TableHead>Demand pattern</TableHead>
-                          <TableHead className="text-right">ROP now → rec.</TableHead>
+                          <TableHead className="text-right">Recommended ROP</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -589,14 +742,18 @@ export function QuarterlyReportsWorkspace() {
                             <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
                             <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
                             <TableCell>
-                              <StatusBadge tone="default">{CRITICALITY_CODE[rec.criticality as Criticality]}</StatusBadge>
+                              <span className={cn("text-xs font-medium", CRITICALITY_TIER_TEXT_COLOR[rec.criticality as Criticality])}>
+                                {CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}
+                              </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{rec.demandPattern}</TableCell>
-                            <TableCell className="text-right tabular-nums">
+                            <TableCell className="text-right font-mono text-[13px] tabular-nums">
                               {formatCount(rec.current.rop)} → {formatCount(rec.recommended.rop)}
                             </TableCell>
                             <TableCell>
-                              <RiskBadge level={rec.risk} />
+                              <span className={cn("text-xs font-medium", RECOMMENDATION_STATUS_TEXT_COLOR[rec.status] ?? "text-muted-foreground")}>
+                                {rec.status}
+                              </span>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -611,15 +768,29 @@ export function QuarterlyReportsWorkspace() {
               {/* --- Stockout risk trend + SAP adoption ------------------------ */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month.">
-                  <AvailabilityValue status={report.management_summary.stockout_risk_trend.status} />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {report.management_summary.stockout_risk_trend.reason}
-                  </p>
+                  <div className="flex flex-col items-center gap-2 py-6 text-center">
+                    <AvailabilityValue status={report.management_summary.stockout_risk_trend.status} />
+                    <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
+                      {report.management_summary.stockout_risk_trend.reason}
+                    </p>
+                  </div>
                 </ChartCard>
 
                 <ChartCard title="SAP adoption" subtitle="Whether approved recommendations were applied in SAP.">
-                  <AvailabilityValue status={report.sap_adoption.status} />
-                  <p className="mt-2 text-xs text-muted-foreground">{report.sap_adoption.reason}</p>
+                  <div className="flex flex-col items-center gap-2 py-6 text-center">
+                    <AvailabilityValue status={report.sap_adoption.status} />
+                    <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{report.sap_adoption.reason}</p>
+                  </div>
+                  {adoptionSummary && adoptionSummary.totalEvaluated > 0 && (
+                    <div className="mt-3 border-t border-border/60 pt-3 text-center">
+                      <p className="text-[11px] text-muted-foreground">
+                        FR-9 ledger (all quarters): {adoptionSummary.adoptedCount} adopted ·{" "}
+                        {adoptionSummary.partiallyAdoptedCount} partial · {adoptionSummary.notAdoptedCount} not
+                        adopted · {adoptionSummary.unknownCount} unknown, of {adoptionSummary.totalEvaluated}{" "}
+                        reconciled.
+                      </p>
+                    </div>
+                  )}
                 </ChartCard>
               </div>
 
@@ -967,13 +1138,20 @@ function QuarterlyLandingGrid({
           const existing = byQuarter.get(quarter)
           const completed = existing?.status === "COMPLETED"
           const failed = existing?.status === "FAILED"
+          const notGenerated = !existing
           return (
-            <div key={quarter} className="rounded-xl border border-border bg-card p-4">
+            <div
+              key={quarter}
+              className={cn(
+                "rounded-xl border bg-card p-4",
+                notGenerated ? "border-2 border-accent-foreground/40" : "border-border",
+              )}
+            >
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[15px] font-medium text-foreground">{quarter}</span>
                 {completed && <StatusBadge tone="success">Completed</StatusBadge>}
                 {failed && <StatusBadge tone="danger">Failed</StatusBadge>}
-                {!existing && <StatusBadge tone="default">Not generated</StatusBadge>}
+                {notGenerated && <StatusBadge tone="default">Not generated</StatusBadge>}
               </div>
               <p className="mb-3.5 text-xs text-muted-foreground">
                 {existing

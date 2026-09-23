@@ -17,10 +17,13 @@ import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type {
   ApiAdoptionListResponse,
+  ApiAdoptionResponse,
+  ApiAdoptionSummary,
   ApiApprovalAction,
   ApiApprovalHistoryResponse,
   ApiApprovalRole,
   ApiDecimal,
+  ApiForecastHistoryResponse,
   ApiGenerationStatusResponse,
   ApiQuarterlyReport,
   ApiQuarterlyReportListResponse,
@@ -450,6 +453,9 @@ export interface RecommendationSummaryStats {
   readyForReviewCount: number
   notEvaluableCount: number
   netSafetyStockValueImpact: number | null
+  criticalStockoutRiskCount: number
+  excessInventoryCandidatesCount: number
+  excessInventoryOpportunity: number | null
 }
 
 /** GET /api/v1/i7/recommendations/summary -- portfolio-wide counts/sums for
@@ -478,6 +484,9 @@ export async function fetchRecommendationSummary(
     readyForReviewCount: response.ready_for_review_count,
     notEvaluableCount: response.not_evaluable_count,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
+    criticalStockoutRiskCount: response.critical_stockout_risk_count,
+    excessInventoryCandidatesCount: response.excess_inventory_candidates_count,
+    excessInventoryOpportunity: toNumber(response.excess_inventory_opportunity),
   }
 }
 
@@ -500,6 +509,34 @@ export async function fetchRecommendationDetail(id: string): Promise<Recommendat
 
 export async function fetchRecommendationTrace(id: string): Promise<ApiRecommendationTrace> {
   return apiFetch<ApiRecommendationTrace>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/trace`)
+}
+
+export interface ForecastHistoryPoint {
+  period: string
+  predicted: number | null
+  actual: number | null
+}
+
+export interface ForecastHistory {
+  modelName: string | null
+  points: ForecastHistoryPoint[]
+}
+
+/** GET /recommendations/{id}/forecast-history -- real champion-model
+ * predicted/actual pairs, never a client-side recompute. `points` is `[]`
+ * (never fabricated) when nothing is persisted yet for this material-plant. */
+export async function fetchForecastHistory(id: string): Promise<ForecastHistory> {
+  const response = await apiFetch<ApiForecastHistoryResponse>(
+    `${I7_BASE}/recommendations/${encodeURIComponent(id)}/forecast-history`,
+  )
+  return {
+    modelName: response.model_name,
+    points: response.points.map((p) => ({
+      period: p.forecast_period,
+      predicted: toNumber(p.predicted),
+      actual: toNumber(p.actual),
+    })),
+  }
 }
 
 // --- Approvals --------------------------------------------------------
@@ -662,6 +699,42 @@ export interface AdoptionListResult {
   pageSize: number
 }
 
+export interface AdoptionDetailResult {
+  recommendationId: string
+  status: AdoptionDisplayStatus
+  rawStatus: string
+  /** Field name -> expected value (what the approved recommendation calls
+   * for), e.g. {"reorder_point": "20"} or {"mrp_type": "VB"}. */
+  expected: Record<string, string>
+  /** Field name -> observed SAP value, from change-document evidence --
+   * empty when status is Unknown (no evidence exists to populate this). */
+  observed: Record<string, string>
+  matchedFields: string[]
+  mismatchedFields: string[]
+  isConversionAdoption: boolean
+  detail: string
+}
+
+/** GET /api/v1/i7/recommendations/{id}/adoption -- one recommendation's full
+ * reconciliation, including the field-level expected/observed values the
+ * list endpoint does not carry. */
+export async function fetchAdoptionDetail(recommendationId: string): Promise<AdoptionDetailResult> {
+  const response = await apiFetch<ApiAdoptionResponse>(
+    `${I7_BASE}/recommendations/${recommendationId}/adoption`,
+  )
+  return {
+    recommendationId: response.recommendation_id,
+    status: mapAdoptionStatus(response.status),
+    rawStatus: response.status,
+    expected: response.expected,
+    observed: response.observed,
+    matchedFields: response.matched_fields,
+    mismatchedFields: response.mismatched_fields,
+    isConversionAdoption: response.is_conversion_adoption,
+    detail: response.detail,
+  }
+}
+
 /** GET /api/v1/i7/recommendations/adoption -- portfolio-wide, paginated.
  * Accepts the same filter subset as the recommendations list (page/pageSize
  * plus status/plant/material/demandClass/isOar/confidence/criticality);
@@ -685,5 +758,33 @@ export async function fetchAdoptionList(
     total: response.total,
     page: response.page,
     pageSize: response.page_size,
+  }
+}
+
+export interface AdoptionSummaryResult {
+  totalEvaluated: number
+  adoptedCount: number
+  partiallyAdoptedCount: number
+  notAdoptedCount: number
+  unknownCount: number
+  /** Rate among recommendations with real SAP evidence (excludes UNKNOWN
+   * from the denominator) -- null when every evaluated row is still
+   * UNKNOWN, never a fabricated 0%. See ApiAdoptionSummary's own docstring. */
+  adoptionRatePercentage: number | null
+}
+
+/** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide
+ * counts from the persisted ledger (i7_sap_adoption), not a live
+ * re-evaluation. Feeds the Inventory Planning overview's adoption-rate card
+ * and the quarterly report's SAP Adoption section. */
+export async function fetchAdoptionSummary(): Promise<AdoptionSummaryResult> {
+  const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary`)
+  return {
+    totalEvaluated: response.total_evaluated,
+    adoptedCount: response.adopted_count,
+    partiallyAdoptedCount: response.partially_adopted_count,
+    notAdoptedCount: response.not_adopted_count,
+    unknownCount: response.unknown_count,
+    adoptionRatePercentage: response.adoption_rate_percentage,
   }
 }

@@ -55,13 +55,6 @@ const SORT_OPTIONS = [
 
 const RISK_ORDER: Record<Recommendation["risk"], number> = { critical: 0, high: 1, medium: 2, low: 3 }
 
-const CRITICALITY_CODE: Record<Recommendation["criticality"], string> = {
-  Critical: "A",
-  High: "B",
-  Medium: "C",
-  Low: "D",
-}
-
 function ChangeSummary({ rec }: { rec: Recommendation }) {
   return (
     <div className="flex flex-col gap-0.5 text-[11px] tabular-nums text-muted-foreground">
@@ -379,7 +372,7 @@ function ScenarioApprovalsWorkspace() {
                             className="max-w-[210px]"
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <StatusBadge tone="default">{CRITICALITY_CODE[rec.criticality]}</StatusBadge>
+                            <StatusBadge tone="default">{rec.criticality}</StatusBadge>
                             <span>{rec.circuit}</span>
                           </div>
                         </TableCell>

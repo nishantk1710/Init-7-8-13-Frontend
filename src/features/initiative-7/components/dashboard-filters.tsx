@@ -14,7 +14,6 @@ import {
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { cn } from "@/lib/utils"
 import { getPlantById, PLANTS } from "@/lib/shared-data/plants"
-import { DEMAND_CODE } from "@/features/initiative-7/components/recommendation-review-panel"
 import {
   CIRCUITS,
   CRITICALITIES,
@@ -34,7 +33,7 @@ export const ALL_FILTER = "all"
  * not distinguished on Recommendation -- NORMAL is shown here as the far
  * more common of the two (12,693 vs 3,128 rows in the ZMM065 extract), not a
  * claim that OBSOLETE rows are absent from this filter value. */
-const CRITICALITY_TIER_LABEL: Record<Criticality, string> = {
+export const CRITICALITY_TIER_LABEL: Record<Criticality, string> = {
   Critical: "CRITICAL",
   High: "IMPACT",
   Medium: "INSURANCE",
@@ -231,15 +230,13 @@ export function DashboardFilters({
       <FilterField label="Demand Pattern">
         <Select value={value.demandPattern} onValueChange={(v) => set("demandPattern", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">
-              {(v: string) => (v === ALL_FILTER ? "All" : `${DEMAND_CODE[v as DemandPattern]} — ${v}`)}
-            </SelectValue>
+            <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_FILTER}>All</SelectItem>
             {DEMAND_PATTERNS.map((d) => (
               <SelectItem key={d} value={d}>
-                {DEMAND_CODE[d]} — {d}
+                {d}
               </SelectItem>
             ))}
           </SelectContent>

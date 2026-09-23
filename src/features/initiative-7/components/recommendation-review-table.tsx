@@ -17,11 +17,10 @@ import {
 import { getPlantById } from "@/lib/shared-data/plants"
 import { cn, formatCount, formatZAR } from "@/lib/utils"
 import {
-  CRITICALITY_CODE,
-  DEMAND_CODE,
   RecommendationReviewPanel,
   SubmitForApprovalBox,
 } from "@/features/initiative-7/components/recommendation-review-panel"
+import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -42,8 +41,11 @@ const STATUS_LABEL: Partial<Record<Recommendation["status"], string>> = {
   "Pending Review": "Needs review",
 }
 
-function segmentCode(rec: Recommendation): string {
-  return `${CRITICALITY_CODE[rec.criticality]}-${DEMAND_CODE[rec.demandPattern]}`
+/** Criticality and demand pattern, in plain words -- not the ABC-XYZ shorthand
+ * (A/B/C/D-X/Y/Z) this used to show, which needed a legend to read. Same two
+ * facts, just spelled out so the table needs no separate key. */
+function segmentLabel(rec: Recommendation): string {
+  return `${rec.criticality} - ${rec.demandPattern}`
 }
 
 /** True only for a live-backend recommendation the backend has not actually
@@ -131,7 +133,7 @@ function LiveExpandedRecommendationPanel({
   rec: Recommendation
   onDetail: (detail: Recommendation) => void
 }) {
-  const { data: detail, loading, error } = useLiveRecommendation(rec.id)
+  const { data: detail, loading, error, refetch } = useLiveRecommendation(rec.id)
 
   useEffect(() => {
     if (detail) onDetail(detail)
@@ -147,7 +149,12 @@ function LiveExpandedRecommendationPanel({
       </p>
     )
   }
-  return <RecommendationReviewPanel rec={detail} action={<SubmitForApprovalBox rec={detail} />} />
+  return (
+    <RecommendationReviewPanel
+      rec={detail}
+      action={<LiveDecisionActions recommendationId={detail.id} status={detail.status} onChanged={refetch} />}
+    />
+  )
 }
 
 /** In live mode, the row's own `rec` comes from the list/summary endpoint,
@@ -202,7 +209,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
               <TableHead className="w-8" />
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
-              <TableHead>Segment</TableHead>
+              <TableHead>Criticality - Demand pattern</TableHead>
               <TableHead>Circuit</TableHead>
               <TableHead>Stockout risk</TableHead>
               <TableHead className="text-right">Value change</TableHead>
@@ -244,7 +251,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                       {getPlantById(rec.plantId)?.name ?? rec.plantId}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tone="default">{segmentCode(rec)}</StatusBadge>
+                      <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
                     <TableCell>

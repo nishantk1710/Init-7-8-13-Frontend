@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   CartesianGrid,
   Line,
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
+import { fetchForecastHistory, type ForecastHistory } from "@/features/initiative-7/services/i7-api"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { aggregateConsumption, oneStepAheadForecast } from "@/features/initiative-7/utils/inventory-calc"
 import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
@@ -77,9 +78,53 @@ export function ForecastVsActualChart({
 }) {
   const [windowSize, setWindowSize] = useState<WindowValue>("6")
 
+  // Real per-period champion-model history only exists per material-plant
+  // (GET .../forecast-history), not portfolio-wide -- so it's only fetched
+  // (and only replaces the flat-line fallback below) when exactly one
+  // recommendation is in view. Multiple materials in view keep the existing
+  // flat-line-of-forecast_rate behaviour unchanged.
+  const soleRecommendationId = USING_LIVE_DATA && recommendations.length === 1 ? recommendations[0].id : null
+  const [liveHistory, setLiveHistory] = useState<ForecastHistory | null>(null)
+
+  useEffect(() => {
+    if (!soleRecommendationId) {
+      setLiveHistory(null)
+      return
+    }
+    let cancelled = false
+    fetchForecastHistory(soleRecommendationId)
+      .then((history) => {
+        if (!cancelled) setLiveHistory(history)
+      })
+      .catch(() => {
+        if (!cancelled) setLiveHistory(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [soleRecommendationId])
+
+  const usingRealHistory = Boolean(soleRecommendationId && liveHistory && liveHistory.points.length > 0)
+
   const data = useMemo(() => {
     const series = aggregateConsumption(recommendations).slice(-Number(windowSize))
+
+    if (soleRecommendationId && liveHistory && liveHistory.points.length > 0) {
+      // Real model output: plot exactly what i7_forecast_backtest_path holds,
+      // windowed the same way as the other branches, never recomputed.
+      return liveHistory.points.slice(-Number(windowSize)).map((p) => ({
+        period: p.period,
+        actual: p.actual,
+        forecast: p.predicted,
+      }))
+    }
+
     if (USING_LIVE_DATA) {
+      // No persisted backtest history yet for this view (multi-material, or
+      // a material-plant with no forecast run since the table shipped) --
+      // fall back to the honest flat reference line: the real forecast_rate
+      // that drove the recommendation, never a fabricated month-by-month
+      // curve.
       const forecastRate = recommendations.reduce((sum, r) => sum + r.avgDailyConsumption, 0)
       return series.map((p) => ({
         period: p.period,
@@ -93,7 +138,7 @@ export function ForecastVsActualChart({
       actual: p.qty,
       forecast: Math.round(forecast[i] * 10) / 10,
     }))
-  }, [recommendations, windowSize])
+  }, [recommendations, windowSize, soleRecommendationId, liveHistory])
 
   if (data.length === 0) {
     return (
@@ -109,6 +154,13 @@ export function ForecastVsActualChart({
 
   return (
     <div className="flex flex-col gap-3">
+      {USING_LIVE_DATA && (
+        <p className="text-[11px] text-muted-foreground">
+          {usingRealHistory
+            ? `Real model output (${liveHistory?.modelName ?? "champion model"}): each point is that model's own rolling-origin prediction against what actually happened, never recomputed.`
+            : "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve. (No persisted backtest history yet for this view.)"}
+        </p>
+      )}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Show:</span>
         <Select value={windowSize} onValueChange={(v) => setWindowSize((v ?? "6") as WindowValue)}>
