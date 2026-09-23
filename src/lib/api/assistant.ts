@@ -19,7 +19,7 @@
  *
  * These routes serve camelCase (`alias_generator=to_camel`), exactly like
  * `lib/api/i8.ts`. Most of `/api/i13/*` does NOT — which is why
- * `features/initiative-13/api/client.ts` hand-maps every field. **Do not copy
+ * `lib/api/i13.ts` hand-maps every field. **Do not copy
  * that mapper into this file.** There is nothing to map.
  *
  * The one exception is inside a step: a field's `name` is the key the answer is

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { ActExceptionDetail, ReclassificationCandidate, WatchMetric } from "../api/types"
+import type { ActExceptionDetail, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
 import {
   attachCriticalImpactIndicator,
   buildLastRefreshedAt,
@@ -10,7 +10,7 @@ import {
   matchesCriticalFilter,
   nonMoverRowsToCsv,
 } from "./dashboard-transforms"
-import { selectConfirmedExceptions } from "../api/client"
+import { selectConfirmedExceptions } from "@/lib/api/i13"
 
 function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
   return {

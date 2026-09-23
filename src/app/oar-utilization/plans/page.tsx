@@ -1,13 +1,13 @@
 import type { Metadata } from "next"
 
-import { ExceptionsPage } from "@/features/initiative-13/pages/aging-exceptions-page"
+import { ConsumptionPlansPage } from "@/features/initiative-13/pages/plans-page"
 import {
   parseSearchParams,
   type RawSearchParams,
 } from "@/features/initiative-13/utils/search-params"
 
 export const metadata: Metadata = {
-  title: "Exceptions — OAR Utilization — Spares AI",
+  title: "Consumption plans — OAR Utilization — Spares AI",
 }
 
 export default async function Page({
@@ -15,5 +15,5 @@ export default async function Page({
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
-  return <ExceptionsPage searchParams={parseSearchParams(await searchParams)} />
+  return <ConsumptionPlansPage searchParams={parseSearchParams(await searchParams)} />
 }

@@ -27,6 +27,15 @@ export const initiative13Manifest: InitiativeManifest = {
         icon: "clock",
         href: "/oar-utilization/aging-exceptions",
       },
+      // FR-4's record, and the one screen this module never had. The plans
+      // captured through the assistant are what separate a real
+      // acquired-versus-plan figure from one resting on generated reference
+      // data, so they get a place in the nav rather than only a dashboard panel.
+      {
+        label: "Consumption Plans",
+        icon: "clipboard-check",
+        href: "/oar-utilization/plans",
+      },
       {
         label: "WATCH",
         icon: "eye",

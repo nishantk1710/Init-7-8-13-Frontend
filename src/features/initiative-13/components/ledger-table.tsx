@@ -1,14 +1,14 @@
 "use client"
 
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 
+import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -24,14 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getI13LedgerEntry } from "@/features/initiative-13/api/client"
 import type {
   LinkageStatus,
   ProcurementStatus,
   UtilisationLedgerEntry,
   LedgerUtilisationStatus,
-} from "@/features/initiative-13/api/types"
-import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
+} from "@/lib/api/i13"
 import { cn, formatCount } from "@/lib/utils"
 
 const ALL_FILTER = "all"
@@ -61,6 +59,20 @@ function label(value: string): string {
     .split("_")
     .map((w) => w[0]?.toUpperCase() + w.slice(1))
     .join(" ")
+}
+
+function Quantity({ value }: { value: number | null }) {
+  return (
+    <TableCell className="text-right text-foreground">
+      {value === null ? (
+        <span className="text-muted-foreground" title="Not recorded">
+          —
+        </span>
+      ) : (
+        formatCount(value)
+      )}
+    </TableCell>
+  )
 }
 
 /** Parses the backend's own `dataSource` string (e.g.
@@ -161,55 +173,19 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   )
 }
 
-function ExpandedRow({ ledgerId }: { ledgerId: string }) {
-  const [entry, setEntry] = useState<UtilisationLedgerEntry | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.resolve().then(() => {
-      if (!cancelled) {
-        setLoading(true)
-        setError(null)
-      }
-    })
-    getI13LedgerEntry(ledgerId)
-      .then((data) => {
-        if (!cancelled) {
-          setEntry(data)
-          setLoading(false)
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unable to load ledger entry.")
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [ledgerId])
-
-  if (loading) return <LoadingState label="Loading document chain…" />
-  if (error) return <ErrorState message={error} title="Unable to load this ledger entry." />
-  if (!entry) return null
-  return <DocumentChainDetail entry={entry} />
-}
-
+/**
+ * The utilisation ledger table.
+ *
+ * Plant and material are **not** filtered here any more — they are server-side
+ * query parameters now, owned by the URL and rendered by `I13UrlFilters` on the
+ * page. What remains local are the three status filters, which narrow rows the
+ * server already sent: that is genuine client work over data in hand, and it is
+ * the split Initiative 8's register uses.
+ */
 export function UtilizationLedgerTable({
   entries,
-  onFilterPlant,
-  onFilterMaterial,
-  plant,
-  material,
 }: {
   entries: UtilisationLedgerEntry[]
-  onFilterPlant: (value: string) => void
-  onFilterMaterial: (value: string) => void
-  plant: string
-  material: string
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [procurementFilter, setProcurementFilter] = useState<string>(ALL_FILTER)
@@ -239,18 +215,6 @@ export function UtilizationLedgerTable({
   return (
     <div className="flex flex-col gap-3">
       <FilterBar>
-        <Input
-          placeholder="Plant (1300 or 1500)"
-          value={plant}
-          onChange={(e) => onFilterPlant(e.target.value)}
-          className="h-9 sm:w-40"
-        />
-        <Input
-          placeholder="Material"
-          value={material}
-          onChange={(e) => onFilterMaterial(e.target.value)}
-          className="h-9 sm:w-40"
-        />
         <Select value={procurementFilter} onValueChange={(v) => setProcurementFilter(v ?? ALL_FILTER)}>
           <SelectTrigger className="h-9 w-full sm:w-48">
             <SelectValue placeholder="Procurement status">
@@ -342,7 +306,22 @@ export function UtilizationLedgerTable({
                         />
                       </TableCell>
                       <TableCell className="font-medium text-foreground">{entry.ledgerId}</TableCell>
-                      <TableCell className="text-foreground">{entry.material}</TableCell>
+                      <TableCell className="text-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{entry.material}</span>
+                          {/* Stops the click reaching the row's expand handler:
+                              following the link and opening the drawer are
+                              different intents on the same pixel. */}
+                          <span onClick={(event) => event.stopPropagation()}>
+                            <AskAssistantLink
+                              materialId={entry.material}
+                              plant={entry.plant}
+                              variant="chip"
+                              label="Ask"
+                            />
+                          </span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{entry.plant}</TableCell>
                       <TableCell>
                         {entry.reservationNumber ? (
@@ -367,9 +346,13 @@ export function UtilizationLedgerTable({
                           <span className="text-muted-foreground">Not linked</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-foreground">{formatCount(entry.receivedQuantity)}</TableCell>
-                      <TableCell className="text-right text-foreground">{formatCount(entry.issuedQuantity)}</TableCell>
-                      <TableCell className="text-right text-foreground">{formatCount(entry.openQuantity)}</TableCell>
+                      {/* An em-dash where the backend recorded nothing, not a
+                          zero. "No goods receipt was recorded" and "zero units
+                          arrived" are different findings on this table, and the
+                          adapter keeps them apart precisely so this cell can. */}
+                      <Quantity value={entry.receivedQuantity} />
+                      <Quantity value={entry.issuedQuantity} />
+                      <Quantity value={entry.openQuantity} />
                       <TableCell>
                         <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
                           {label(entry.procurementStatus)}
@@ -395,7 +378,14 @@ export function UtilizationLedgerTable({
                         >
                           <div className="min-h-0 overflow-hidden">
                             <div className="bg-muted/30 px-4 py-3">
-                              {isExpanded && <ExpandedRow ledgerId={entry.ledgerId} />}
+                              {/* Rendered from the row we already have.
+                                  This used to call GET /i13/ledger/{id} on
+                                  every expansion -- which returns the SAME
+                                  model this list response already contained,
+                                  and rebuilds the entire unfiltered ledger
+                                  server-side to linear-scan for one row. A
+                                  request per click, for data in hand. */}
+                              {isExpanded && <DocumentChainDetail entry={entry} />}
                             </div>
                           </div>
                         </div>

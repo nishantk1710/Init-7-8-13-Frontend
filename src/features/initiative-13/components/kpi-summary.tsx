@@ -10,7 +10,7 @@ import {
 } from "lucide-react"
 
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
-import type { I13Summary } from "@/features/initiative-13/api/types"
+import type { I13Summary } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
 
 /**

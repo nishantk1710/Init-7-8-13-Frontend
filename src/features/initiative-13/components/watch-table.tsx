@@ -1,19 +1,9 @@
 "use client"
 
 import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
-import { useMemo, useState } from "react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { FilterBar } from "@/components/shared/filter-bar"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -22,10 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/features/initiative-13/api/types"
+import { SessionChips } from "@/features/initiative-13/components/session-chips"
+import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
+import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { formatCount } from "@/lib/utils"
-
-const ALL_FILTER = "all"
 
 const AGING_LABEL: Record<AgingBand, string> = {
   FAST: "Fast-moving",
@@ -53,83 +43,27 @@ const PLAN_TONE: Record<AcquiredVsPlanStatus, "default" | "success" | "warning" 
   ABOVE_PLAN: "danger",
 }
 
+/**
+ * The WATCH table.
+ *
+ * Every filter this component used to own now lives in the URL and is applied
+ * by the backend (`I13UrlFilters` on the page writes them). What is left is
+ * rendering — which is the whole job of a table handed its rows.
+ *
+ * `sessionsByKey` is the assistant join, resolved once on the server for the
+ * whole screen. A per-row lookup would be one request per visible material.
+ */
 export function WatchTable({
   metrics,
-  plant,
-  material,
-  agingBand,
-  onFilterPlant,
-  onFilterMaterial,
-  onFilterAgingBand,
+  sessionsByKey,
 }: {
   metrics: WatchMetric[]
-  plant: string
-  material: string
-  agingBand: string
-  onFilterPlant: (value: string) => void
-  onFilterMaterial: (value: string) => void
-  onFilterAgingBand: (value: string) => void
+  sessionsByKey?: Map<string, ApiSessionSummary[]>
 }) {
-  const [planFilter, setPlanFilter] = useState<string>(ALL_FILTER)
-
-  const filtered = useMemo(
-    () => metrics.filter((m) => planFilter === ALL_FILTER || m.acquiredVsPlanStatus === planFilter),
-    [metrics, planFilter]
-  )
+  const filtered = metrics
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar>
-        <Input
-          placeholder="Plant (1300 or 1500)"
-          value={plant}
-          onChange={(e) => onFilterPlant(e.target.value)}
-          className="h-9 sm:w-40"
-        />
-        <Input
-          placeholder="Material"
-          value={material}
-          onChange={(e) => onFilterMaterial(e.target.value)}
-          className="h-9 sm:w-40"
-        />
-        <Select
-          value={agingBand || ALL_FILTER}
-          onValueChange={(v) => {
-            const value = v ?? ALL_FILTER
-            onFilterAgingBand(value === ALL_FILTER ? "" : value)
-          }}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-40">
-            <SelectValue placeholder="Aging band">
-              {(v: string) => (v === ALL_FILTER ? "All aging bands" : AGING_LABEL[v as AgingBand] ?? v)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All aging bands</SelectItem>
-            {Object.entries(AGING_LABEL).map(([value, text]) => (
-              <SelectItem key={value} value={value}>
-                {text}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={planFilter} onValueChange={(v) => setPlanFilter(v ?? ALL_FILTER)}>
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Acquired vs. plan">
-              {(v: string) => (v === ALL_FILTER ? "All plan statuses" : PLAN_LABEL[v as AcquiredVsPlanStatus] ?? v)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All plan statuses</SelectItem>
-            {Object.entries(PLAN_LABEL).map(([value, text]) => (
-              <SelectItem key={value} value={value}>
-                {text}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterBar>
-
       {filtered.length === 0 ? (
         <EmptyState
           title="No WATCH records found."
@@ -161,6 +95,9 @@ export function WatchTable({
                           backend, so this opens a session directly rather
                           than asking for a plant the row already knows. */}
                       <AskAssistantLink materialId={m.material} plant={m.plant} />
+                      <SessionChips
+                        sessions={sessionsByKey?.get(`${m.material}::${m.plant}`)}
+                      />
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{m.plant}</TableCell>
@@ -180,7 +117,7 @@ export function WatchTable({
                     {m.daysSinceLastMovement !== null ? `${m.daysSinceLastMovement}d` : "—"}
                   </TableCell>
                   <TableCell className="text-right text-foreground">
-                    {formatCount(m.consumptionCount12m)} ({formatCount(m.consumedQty12m)} qty)
+                    {formatCount(m.consumptionCount12m)} ({formatCount(m.consumedQty12m ?? 0)} qty)
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     {m.inventoryTurns !== null ? (
@@ -206,8 +143,9 @@ export function WatchTable({
                     </StatusBadge>
                     {m.acquiredVsPlanStatus !== "NO_PLAN" && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        planned {formatCount(m.plannedQuantity ?? 0)} · received {formatCount(m.receivedQuantity)} ·
-                        issued {formatCount(m.issuedQuantity)}
+                        planned {formatCount(m.plannedQuantity ?? 0)} · received{" "}
+                        {formatCount(m.receivedQuantity ?? 0)} · issued{" "}
+                        {formatCount(m.issuedQuantity ?? 0)}
                       </div>
                     )}
                   </TableCell>

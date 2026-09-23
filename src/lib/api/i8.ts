@@ -748,34 +748,17 @@ export function getCodingCandidates(
 // --- Helpers --------------------------------------------------------------
 
 /**
- * An ISO date from the API as the display string the UI uses elsewhere.
+ * `formatApiDate` and `toNumber` now live in `lib/api/format.ts` and are
+ * re-exported here unchanged.
  *
- * The scenario fixtures hold `"28 Jul 2026"` and the API sends `"2026-07-28"`,
- * so anything showing both needs this. Returns the placeholder for null, never
- * "Invalid Date" and never today's date.
- */
-export function formatApiDate(iso: string | null | undefined, fallback = "—"): string {
-  if (!iso) return fallback
-  const parsed = new Date(`${iso}T00:00:00Z`)
-  if (Number.isNaN(parsed.getTime())) return fallback
-  return parsed.toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  })
-}
-
-/**
- * A decimal the API sent as a string, as a number — or undefined.
+ * Neither was ever about repairs — an ISO date and a decimal-as-string cross
+ * the wire identically on `/api/i13` and `/api/assistant`. They were written
+ * here because this is where those problems were first met. Initiative 13's
+ * client needs the same two functions, and having it import them from
+ * `lib/api/i8` would make one initiative's module a dependency of another's
+ * for no reason at all.
  *
- * Decimals cross the wire as strings so that quantities and prices do not lose
- * precision in JSON. `undefined` is preserved rather than coerced to 0: for
- * stock on hand and reorder point the difference between "unknown" and "zero"
- * is the whole point.
+ * Every existing `import { formatApiDate, toNumber } from "@/lib/api/i8"`
+ * keeps working: same names, same behaviour, one implementation.
  */
-export function toNumber(value: string | null | undefined): number | undefined {
-  if (value === null || value === undefined || value === "") return undefined
-  const parsed = Number(value)
-  return Number.isNaN(parsed) ? undefined : parsed
-}
+export { formatApiDate, toNumber } from "@/lib/api/format"

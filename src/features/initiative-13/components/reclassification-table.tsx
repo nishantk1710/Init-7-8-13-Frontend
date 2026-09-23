@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { initiative7Manifest } from "@/features/initiative-7/manifest"
-import type { ReclassificationCandidate } from "@/features/initiative-13/api/types"
+import type { ReclassificationCandidate } from "@/lib/api/i13"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { getMaterialById } from "@/lib/shared-data/material-catalog"
 

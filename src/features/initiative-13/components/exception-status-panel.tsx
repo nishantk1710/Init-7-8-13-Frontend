@@ -17,7 +17,7 @@ import {
 import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
 import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
-import type { ActException, ActExceptionStatus } from "@/features/initiative-13/api/types"
+import type { ActException, ActExceptionStatus } from "@/lib/api/i13"
 import { countByField, exceptionRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import { downloadCsv, formatCount } from "@/lib/utils"
 

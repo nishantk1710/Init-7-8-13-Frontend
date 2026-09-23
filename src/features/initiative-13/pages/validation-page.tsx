@@ -1,31 +1,42 @@
-"use client"
-
-import { useState } from "react"
+import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { FilterBar } from "@/components/shared/filter-bar"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { getI13Validation } from "@/features/initiative-13/api/client"
-import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
+import { LoadFailure } from "@/features/initiative-13/components/load-states"
+import { ReferenceCountForm } from "@/features/initiative-13/components/reference-count-form"
 import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
-import { useI13Query } from "@/features/initiative-13/hooks/use-i13-query"
+import { loadLiveValidation } from "@/features/initiative-13/data/live-loaders"
+import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
 
-export function ValidationPage() {
-  const [zmm065Input, setZmm065Input] = useState("")
-  const [gr30DayInput, setGr30DayInput] = useState("")
-  const [zmm065ReferenceCount, setZmm065ReferenceCount] = useState<number | undefined>(undefined)
-  const [gr30DayReferenceCount, setGr30DayReferenceCount] = useState<number | undefined>(undefined)
+/**
+ * Validation — FR-6's monthly reconciliation, and FRS acceptance criterion 4.
+ *
+ * Every tolerance comparison runs in the backend. The reference counts typed
+ * into the form are passed straight through as query parameters and never
+ * compared here: two implementations of one reconciliation rule would disagree
+ * eventually, and this is the screen whose entire purpose is to say whether two
+ * numbers agree.
+ *
+ * Expect `REFERENCE_UNAVAILABLE` until somebody supplies the counts. Neither
+ * report exists as an export in this repository, and the reconciliation
+ * tolerance itself is still an open item with VZI — so an empty result here is
+ * a missing input, not a failure.
+ */
+export async function ValidationPage({
+  searchParams,
+}: {
+  searchParams: I13SearchParams
+}) {
+  await connection()
 
-  const validation = useI13Query(
-    () => getI13Validation({ zmm065ReferenceCount, gr30DayReferenceCount }),
-    [zmm065ReferenceCount, gr30DayReferenceCount]
-  )
-
-  function applyReferenceCounts(e: React.FormEvent) {
-    e.preventDefault()
-    setZmm065ReferenceCount(zmm065Input.trim() === "" ? undefined : Number(zmm065Input))
-    setGr30DayReferenceCount(gr30DayInput.trim() === "" ? undefined : Number(gr30DayInput))
+  let result: Awaited<ReturnType<typeof loadLiveValidation>> | null = null
+  let loadError: string | null = null
+  try {
+    result = await loadLiveValidation({
+      zmm065ReferenceCount: searchParams.zmm065,
+      gr30DayReferenceCount: searchParams.gr30Day,
+    })
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error)
   }
 
   return (
@@ -36,33 +47,13 @@ export function ValidationPage() {
           description="Reconciliation of backend-computed counts against ZMM065 and the 30-Day GR Report. All reconciliation math runs in the backend — reference counts entered here are passed straight through as query parameters."
         />
 
-        <form onSubmit={applyReferenceCounts}>
-          <FilterBar>
-            <Input
-              type="number"
-              placeholder="ZMM065 reference count"
-              value={zmm065Input}
-              onChange={(e) => setZmm065Input(e.target.value)}
-              className="h-9 sm:w-56"
-            />
-            <Input
-              type="number"
-              placeholder="30-Day GR reference count"
-              value={gr30DayInput}
-              onChange={(e) => setGr30DayInput(e.target.value)}
-              className="h-9 sm:w-56"
-            />
-            <Button type="submit" size="sm">
-              Apply reference counts
-            </Button>
-          </FilterBar>
-        </form>
+        <ReferenceCountForm />
 
-        {validation.loading && <LoadingState label="Loading validation results…" />}
-        {validation.error && (
-          <ErrorState message={validation.error} onRetry={validation.refetch} title="Unable to load validation data." />
+        {result === null ? (
+          <LoadFailure what="validation data" message={loadError} />
+        ) : (
+          <ValidationPanel result={result} />
         )}
-        {validation.data && <ValidationPanel result={validation.data} />}
       </div>
     </div>
   )

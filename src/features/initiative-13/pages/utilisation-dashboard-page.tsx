@@ -1,43 +1,35 @@
-"use client"
-
-import { useEffect, useMemo, useState } from "react"
-import { Download } from "lucide-react"
+import { connection } from "next/server"
 
 import { ChartCard } from "@/components/shared/chart-card"
-import { FilterBar } from "@/components/shared/filter-bar"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  getI13ActExceptions,
-  getI13ActUtilisation,
-  getI13AllJustifications,
-  getI13Reclassification,
-  getI13Summary,
-  getI13Validation,
-} from "@/features/initiative-13/api/client"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
-import { DashboardFilters, type DashboardFilterValues } from "@/features/initiative-13/components/dashboard-filters"
+import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { ExceptionStatusPanel } from "@/features/initiative-13/components/exception-status-panel"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
+import {
+  CalculatedAtNote,
+  LoadFailure,
+  PlanProvenanceNote,
+  RowCapNote,
+  SectionUnavailable,
+} from "@/features/initiative-13/components/load-states"
+import { NonMoverExport } from "@/features/initiative-13/components/non-mover-export"
 import { NonMoverTable } from "@/features/initiative-13/components/non-mover-table"
-import { ErrorState, LoadingState, UnavailableState } from "@/features/initiative-13/components/query-states"
+import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { ReclassificationTable } from "@/features/initiative-13/components/reclassification-table"
+import { ReferenceCountForm } from "@/features/initiative-13/components/reference-count-form"
+import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
-import { useI13OptionalQuery } from "@/features/initiative-13/hooks/use-i13-optional-query"
-import { useI13Query } from "@/features/initiative-13/hooks/use-i13-query"
+import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
 import {
   attachCriticalImpactIndicator,
-  buildLastRefreshedAt,
   countByField,
   filterNonMovers,
-  matchesCriticalFilter,
 } from "@/features/initiative-13/utils/dashboard-transforms"
-import { downloadCsv, formatCount } from "@/lib/utils"
-
-const FILTER_DEBOUNCE_MS = 400
+import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { formatCount } from "@/lib/utils"
 
 const AGING_BAND_LABELS: Record<string, string> = {
   FAST: "Fast-moving",
@@ -46,291 +38,264 @@ const AGING_BAND_LABELS: Record<string, string> = {
 }
 
 /**
- * W6.7 — Initiative 13 Utilisation Dashboard (FR-10). A pure presentation
- * layer over the read-only Initiative 13 API — see this file's siblings
- * under `components/` for the per-section rendering, and
- * `utils/dashboard-transforms.ts` for the only transforms this page
- * performs (grouping/joining/filtering already-computed backend fields,
- * never a business rule). Officially depends on W6.3 (WATCH); the
- * reclassification (W6.5), exception (W6.6) and justification (W6.6)
- * sections degrade independently via `useI13OptionalQuery` so a backend
- * without those wired up still shows a usable dashboard (§17).
+ * W6.7 — the Utilisation Dashboard (FR-10).
+ *
+ * One consolidated view: KPIs, aging distribution, non-mover drilldown,
+ * acquired-versus-plan, exception status, reclassification candidates, captured
+ * consumption plans, the justification log and validation.
+ *
+ * ## What changed, and why it is not just tidying
+ *
+ * This was a `"use client"` page running **six** `useI13Query` hooks. They fired
+ * after hydration, and re-fired on every debounced keystroke — including
+ * `getI13AllJustifications`, which is two list calls plus up to thirty detail
+ * fetches, from the browser. Now it is one server-side `Promise.allSettled`
+ * before the HTML is sent.
+ *
+ * The consequence that matters is not the round trips. It is that
+ * `router.refresh()` and `revalidatePath` now do something here: recording a
+ * confirmation updates the exception panel, the justification log and the KPIs
+ * together, because the server re-renders them. Against the old page a write
+ * could not update anything, because every section's data lived in `useState`.
+ *
+ * ## Which sections are allowed to be missing
+ *
+ * The dashboard's one official dependency is W6.3 (WATCH). Reclassification
+ * (W6.5), the ACT exception queue and justification log (W6.6), captured plans
+ * (WS7) and validation all degrade independently — a 404 is reported as
+ * "not available" rather than as an error, because a backend without those
+ * wired up is a deployment fact with nothing to retry. See `live-dashboard.ts`.
+ *
+ * ## The transforms this page performs
+ *
+ * Grouping, joining and filtering fields the backend already computed —
+ * `utils/dashboard-transforms.ts` — and never a business rule. No aging band is
+ * reclassified here, no months of cover recalculated, no candidacy re-decided.
+ * If it were, this screen and the WATCH screen would disagree about the same
+ * material in front of a user.
  */
-export function UtilisationDashboardPage() {
-  const [filters, setFilters] = useState<DashboardFilterValues>({
-    plant: "",
-    material: "",
-    agingBand: "",
-    acquiredVsPlanStatus: "",
-    criticalFilter: "all",
+export async function UtilisationDashboardPage({
+  searchParams,
+}: {
+  searchParams: I13SearchParams
+}) {
+  await connection()
+
+  const dashboard = await loadLiveDashboard({
+    plant: searchParams.plant,
+    material: searchParams.material,
+    agingBand: searchParams.agingBand,
+    acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
+    zmm065ReferenceCount: searchParams.zmm065,
+    gr30DayReferenceCount: searchParams.gr30Day,
   })
-  const [debounced, setDebounced] = useState(filters)
-  const [zmm065Input, setZmm065Input] = useState("")
-  const [gr30DayInput, setGr30DayInput] = useState("")
-  const [zmm065ReferenceCount, setZmm065ReferenceCount] = useState<number | undefined>(undefined)
-  const [gr30DayReferenceCount, setGr30DayReferenceCount] = useState<number | undefined>(undefined)
 
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(filters), FILTER_DEBOUNCE_MS)
-    return () => clearTimeout(id)
-  }, [filters])
+  const { watch } = dashboard
 
-  const summary = useI13Query(() => getI13Summary(), [])
+  const agingDistribution = watch
+    ? countByField(watch.rows, (row) => row.agingBand).map((entry) => ({
+        ...entry,
+        bucket: AGING_BAND_LABELS[entry.bucket] ?? entry.bucket,
+      }))
+    : []
 
-  const utilisation = useI13Query(
-    () =>
-      getI13ActUtilisation({
-        plant: debounced.plant || undefined,
-        material: debounced.material || undefined,
-        agingBand: debounced.agingBand || undefined,
-        acquiredVsPlanStatus: debounced.acquiredVsPlanStatus || undefined,
-      }),
-    [debounced.plant, debounced.material, debounced.agingBand, debounced.acquiredVsPlanStatus]
-  )
+  const nonMoverRows = watch
+    ? attachCriticalImpactIndicator(
+        filterNonMovers(watch.rows),
+        dashboard.reclassification.status === "ready"
+          ? dashboard.reclassification.data.rows
+          : []
+      )
+    : []
 
-  const reclassification = useI13OptionalQuery(
-    () => getI13Reclassification({ plant: debounced.plant || undefined, material: debounced.material || undefined }),
-    [debounced.plant, debounced.material]
-  )
-
-  const exceptions = useI13OptionalQuery(
-    () => getI13ActExceptions({ plant: debounced.plant || undefined, material: debounced.material || undefined }),
-    [debounced.plant, debounced.material]
-  )
-
-  const justifications = useI13OptionalQuery(
-    () => getI13AllJustifications({ plant: debounced.plant || undefined, material: debounced.material || undefined }),
-    [debounced.plant, debounced.material]
-  )
-
-  const validation = useI13Query(
-    () => getI13Validation({ zmm065ReferenceCount, gr30DayReferenceCount }),
-    [zmm065ReferenceCount, gr30DayReferenceCount]
-  )
-
-  function applyReferenceCounts(e: React.FormEvent) {
-    e.preventDefault()
-    setZmm065ReferenceCount(zmm065Input.trim() === "" ? undefined : Number(zmm065Input))
-    setGr30DayReferenceCount(gr30DayInput.trim() === "" ? undefined : Number(gr30DayInput))
-  }
-
-  const agingDistribution = useMemo(() => {
-    if (!utilisation.data) return []
-    return countByField(utilisation.data, (r) => r.agingBand).map((d) => ({
-      ...d,
-      bucket: AGING_BAND_LABELS[d.bucket] ?? d.bucket,
-    }))
-  }, [utilisation.data])
-
-  const nonMoverRows = useMemo(() => {
-    if (!utilisation.data) return []
-    const nonMovers = filterNonMovers(utilisation.data)
-    const withCriticality = attachCriticalImpactIndicator(
-      nonMovers,
-      reclassification.status === "ready" ? reclassification.data : []
-    )
-    return withCriticality.filter((row) => matchesCriticalFilter(row, filters.criticalFilter))
-  }, [utilisation.data, reclassification, filters.criticalFilter])
-
-  const lastRefreshedAt = useMemo(() => buildLastRefreshedAt(utilisation.data ?? []), [utilisation.data])
-
-  function exportAgingCsv() {
-    if (!utilisation.data) return
-    downloadCsv(
-      "i13-utilisation.csv",
-      ["Material", "Plant", "Aging band", "Months of cover", "Days since movement", "Consumption (12m)", "Acquired vs plan"],
-      utilisation.data.map((r) => [
-        r.material,
-        r.plant,
-        r.agingBand,
-        r.monthsOfCover ?? "",
-        r.daysSinceLastMovement ?? "",
-        r.consumptionCount12m,
-        r.acquiredVsPlanStatus,
-      ])
-    )
-  }
+  const capturedPlanCount =
+    dashboard.plans.status === "ready" ? dashboard.plans.data.count : null
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Utilisation Dashboard"
-          description="KPIs, aging, non-mover drilldown, acquired-vs-plan, exceptions, reclassification candidates, justifications and validation — one consolidated view over the read-only Initiative 13 API (FR-10)."
-          actions={
-            <span className="text-[11px] text-muted-foreground">
-              {lastRefreshedAt
-                ? `Last refreshed ${new Date(lastRefreshedAt).toLocaleString()}`
-                : "Last refreshed: not yet available"}
-            </span>
-          }
+          description="KPIs, aging, non-mover drilldown, acquired-vs-plan, exceptions, reclassification candidates, captured plans, justifications and validation — one consolidated view over the read-only Initiative 13 API (FR-10)."
+          actions={<CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />}
         />
 
-        <DashboardFilters values={filters} onChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))} />
+        <I13UrlFilters
+          fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
+          plants={watch?.plantOptions}
+          agingBands={watch?.agingBandOptions}
+        />
 
-        {/* KPI Summary */}
-        {summary.loading && <LoadingState label="Loading summary…" />}
-        {summary.error && (
-          <ErrorState message={summary.error} onRetry={summary.refetch} title="Unable to load utilisation summary." />
+        {/* KPIs */}
+        {dashboard.summary.status === "ready" ? (
+          <KpiSummary summary={dashboard.summary.data} />
+        ) : (
+          <SectionFallback section={dashboard.summary} what="utilisation summary" />
         )}
-        {summary.data && <KpiSummary summary={summary.data} />}
+
+        <PlanProvenanceNote capturedCount={capturedPlanCount} />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          {/* Aging Distribution (§7) */}
           <ChartCard
             title="Aging distribution"
             subtitle="Backend-computed aging band (FAST/SLOW/NON_MOVING) — never reclassified in the browser"
             span={6}
           >
-            {utilisation.loading && <LoadingState label="Loading WATCH metrics…" />}
-            {utilisation.error && <ErrorState message={utilisation.error} onRetry={utilisation.refetch} />}
-            {utilisation.data && <AgingBucketsChart data={agingDistribution} />}
+            {watch ? (
+              <AgingBucketsChart data={agingDistribution} />
+            ) : (
+              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+            )}
           </ChartCard>
 
-          {/* Acquired vs Plan (§9)
-
-              Say this out loud before demoing: the ENGINE is real, most of its
-              INPUT is not. 742 consumption plans came from a generator, with
-              invented `SESS-000001` references, and until somebody captures
-              one through the assistant every plan behind these numbers is
-              fabricated. The backend distinguishes them internally
-              (`PlanSource.CAPTURED` vs `REFERENCE_CSV`) but does not serve the
-              field on any endpoint, so this cannot be marked per row — see
-              ask O-9. A standing note is the honest alternative to a silent
-              one. */}
           <ChartCard
             title="Acquired vs. plan"
-            subtitle="Backend-computed acquired-vs-plan status and variance. Most plans behind these figures are still generated reference data, not captured through the assistant."
+            subtitle="Backend-computed acquired-vs-plan status and variance"
             span={6}
           >
-            {utilisation.loading && <LoadingState label="Loading WATCH metrics…" />}
-            {utilisation.error && <ErrorState message={utilisation.error} onRetry={utilisation.refetch} />}
-            {utilisation.data && <AcquiredVsPlanPanel rows={utilisation.data} />}
+            {watch ? (
+              <AcquiredVsPlanPanel rows={watch.rows} />
+            ) : (
+              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+            )}
           </ChartCard>
 
-          {/* Non-Mover Drilldown (§8) */}
           <ChartCard
             title="Non-mover drilldown"
             subtitle="NON_MOVING positions by plant and critical-impact indicator (joined from W6.5, when available)"
             span={12}
             footnote={
-              <span>
-                {reclassification.status === "unavailable" &&
-                  "Critical-impact indicator unavailable — reclassification candidates (W6.5) could not be loaded, so this column shows Unknown for every row."}
-              </span>
+              dashboard.reclassification.status === "unavailable"
+                ? "Critical-impact indicator unavailable — reclassification candidates (W6.5) could not be loaded, so this column shows Unknown for every row."
+                : undefined
             }
           >
-            {utilisation.loading && <LoadingState label="Loading non-mover positions…" />}
-            {utilisation.error && <ErrorState message={utilisation.error} onRetry={utilisation.refetch} />}
-            {utilisation.data && (
+            {watch ? (
               <div className="flex flex-col gap-2">
                 <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={exportAgingCsv}>
-                    <Download className="size-3.5" />
-                    Export full utilisation set
-                  </Button>
+                  <NonMoverExport rows={watch.rows} />
                 </div>
                 <NonMoverTable rows={nonMoverRows} />
               </div>
+            ) : (
+              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
             )}
           </ChartCard>
 
-          {/* Exception Status (§12) */}
           <ChartCard
             title="Exception status"
-            subtitle="W6.6 ACT exception queue — read-only, no detection/escalation logic runs here"
+            subtitle="W6.6 ACT exception queue — read-only here; confirmations are recorded on the Exceptions screen"
             span={12}
+            footnote={
+              dashboard.exceptions.status === "ready" &&
+              dashboard.exceptions.data.count > dashboard.exceptions.data.ownedCount
+                ? `${formatCount(
+                    dashboard.exceptions.data.count - dashboard.exceptions.data.ownedCount
+                  )} of these have no resolved requester, so they have never been routed and cannot escalate.`
+                : undefined
+            }
           >
-            {exceptions.status === "loading" && <LoadingState label="Loading ACT exceptions…" />}
-            {exceptions.status === "unavailable" && (
-              <UnavailableState message="ACT exceptions (W6.6) are not available from the current backend." />
+            {dashboard.exceptions.status === "ready" ? (
+              <ExceptionStatusPanel rows={dashboard.exceptions.data.rows} />
+            ) : (
+              <SectionFallback section={dashboard.exceptions} what="exceptions" />
             )}
-            {exceptions.status === "error" && (
-              <ErrorState message={exceptions.message} onRetry={exceptions.refetch} title="Unable to load exceptions." />
-            )}
-            {exceptions.status === "ready" && <ExceptionStatusPanel rows={exceptions.data} />}
           </ChartCard>
 
-          {/* Reclassification Candidates (§11) */}
+          <ChartCard
+            title="Captured consumption plans"
+            subtitle="FR-4 — plans stated by a person in the assistant, kept apart from the 742 generated reference rows"
+            span={12}
+          >
+            {dashboard.plans.status === "ready" ? (
+              <div className="flex flex-col gap-2">
+                <PlansTable plans={dashboard.plans.data.rows.slice(0, 10)} />
+                {dashboard.plans.data.count > 10 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Showing 10 of {formatCount(dashboard.plans.data.count)} — the
+                    full list is on the Consumption plans screen.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <SectionFallback section={dashboard.plans} what="captured plans" />
+            )}
+          </ChartCard>
+
           <ChartCard
             title="Reclassification candidates"
             subtitle="W6.5 advisory evidence — recommended for review, never an automatic conversion"
             span={12}
           >
-            {reclassification.status === "loading" && <LoadingState label="Loading reclassification candidates…" />}
-            {reclassification.status === "unavailable" && (
-              <UnavailableState message="Reclassification candidates (W6.5) are not available from the current backend." />
-            )}
-            {reclassification.status === "error" && (
-              <ErrorState
-                message={reclassification.message}
-                onRetry={reclassification.refetch}
-                title="Unable to load reclassification candidates."
+            {dashboard.reclassification.status === "ready" ? (
+              <>
+                <ReclassificationTable candidates={dashboard.reclassification.data.rows} />
+                <RowCapNote
+                  atLimit={dashboard.reclassification.data.atLimit}
+                  count={dashboard.reclassification.data.count}
+                  noun="candidate"
+                />
+              </>
+            ) : (
+              <SectionFallback
+                section={dashboard.reclassification}
+                what="reclassification candidates"
               />
             )}
-            {reclassification.status === "ready" && <ReclassificationTable candidates={reclassification.data} />}
           </ChartCard>
 
-          {/* Justification Log (§10) */}
           <ChartCard
             title="Justification log"
-            subtitle="Structured requester confirmations from W6.6 — audit/accountability view only"
+            subtitle="Structured reasons from ACT confirmations and from the assistant at reservation time — audit view only"
             span={12}
-            footnote="Bounded to the most recent confirmed/resolved ACT exceptions — there is no bulk confirmation-listing endpoint yet."
+            footnote="The ACT half is bounded to the most recent confirmed/resolved exceptions — there is no bulk confirmation-listing endpoint yet."
           >
-            {justifications.status === "loading" && <LoadingState label="Loading justifications…" />}
-            {justifications.status === "unavailable" && (
-              <UnavailableState message="The justification log (W6.6) is not available from the current backend." />
+            {dashboard.justifications.status === "ready" ? (
+              <JustificationLog entries={dashboard.justifications.data} />
+            ) : (
+              <SectionFallback section={dashboard.justifications} what="justification log" />
             )}
-            {justifications.status === "error" && (
-              <ErrorState
-                message={justifications.message}
-                onRetry={justifications.refetch}
-                title="Unable to load justifications."
-              />
-            )}
-            {justifications.status === "ready" && <JustificationLog entries={justifications.data} />}
           </ChartCard>
 
-          {/* Validation Views (§13) */}
           <ChartCard
             title="Validation"
             subtitle="Reconciliation against ZMM065 and the 30-Day GR Report — all tolerance math runs in the backend"
             span={12}
           >
-            <form onSubmit={applyReferenceCounts} className="mb-3">
-              <FilterBar>
-                <Input
-                  type="number"
-                  placeholder="ZMM065 reference count"
-                  value={zmm065Input}
-                  onChange={(e) => setZmm065Input(e.target.value)}
-                  className="h-9 sm:w-56"
-                />
-                <Input
-                  type="number"
-                  placeholder="30-Day GR reference count"
-                  value={gr30DayInput}
-                  onChange={(e) => setGr30DayInput(e.target.value)}
-                  className="h-9 sm:w-56"
-                />
-                <Button type="submit" size="sm">
-                  Apply reference counts
-                </Button>
-              </FilterBar>
-            </form>
-            {validation.loading && <LoadingState label="Loading validation results…" />}
-            {validation.error && (
-              <ErrorState message={validation.error} onRetry={validation.refetch} title="Unable to load validation data." />
+            <div className="mb-3">
+              <ReferenceCountForm />
+            </div>
+            {dashboard.validation.status === "ready" ? (
+              <ValidationPanel result={dashboard.validation.data} />
+            ) : (
+              <SectionFallback section={dashboard.validation} what="validation data" />
             )}
-            {validation.data && <ValidationPanel result={validation.data} />}
           </ChartCard>
         </div>
 
-        {utilisation.data && (
-          <p className="text-[11px] text-muted-foreground">{formatCount(utilisation.data.length)} WATCH position(s) matched the current filters.</p>
+        {watch && (
+          <RowCapNote atLimit={watch.atLimit} count={watch.count} noun="WATCH position" />
         )}
+
+        <DataSourcePanel />
       </div>
     </div>
   )
+}
+
+/** `unavailable` and `error` render differently — see `live-dashboard.ts`. */
+function SectionFallback<T>({
+  section,
+  what,
+}: {
+  section: Section<T>
+  what: string
+}) {
+  if (section.status === "unavailable") {
+    return <SectionUnavailable message={section.message} />
+  }
+  if (section.status === "error") {
+    return <LoadFailure what={what} message={section.message} />
+  }
+  return null
 }

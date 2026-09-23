@@ -17,7 +17,7 @@ import {
 import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
 import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
-import type { AcquiredVsPlanStatus, WatchMetric } from "@/features/initiative-13/api/types"
+import type { AcquiredVsPlanStatus, WatchMetric } from "@/lib/api/i13"
 import { acquiredVsPlanRowsToCsv, countByField } from "@/features/initiative-13/utils/dashboard-transforms"
 import { downloadCsv, formatCount } from "@/lib/utils"
 
@@ -88,8 +88,15 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
                 <TableCell className="text-right text-foreground">
                   {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : "—"}
                 </TableCell>
-                <TableCell className="text-right text-foreground">{formatCount(r.receivedQuantity)}</TableCell>
-                <TableCell className="text-right text-foreground">{formatCount(r.issuedQuantity)}</TableCell>
+                {/* Em-dash, not zero. A null received quantity means nothing
+                    was recorded; zero means nothing arrived. On a variance
+                    table the two point at different problems. */}
+                <TableCell className="text-right text-foreground">
+                  {r.receivedQuantity !== null ? formatCount(r.receivedQuantity) : "—"}
+                </TableCell>
+                <TableCell className="text-right text-foreground">
+                  {r.issuedQuantity !== null ? formatCount(r.issuedQuantity) : "—"}
+                </TableCell>
                 <TableCell className="text-right text-foreground">
                   {r.acquiredVsPlanVarianceQuantity !== null ? (
                     <>

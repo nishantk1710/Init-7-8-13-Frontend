@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 
 import { StatusBadge } from "@/components/shared/status-badge"
-import { getI13DataSources } from "@/features/initiative-13/api/client"
+import { getI13DataSources } from "@/lib/api/i13"
 import { useI13Query } from "@/features/initiative-13/hooks/use-i13-query"
 import { ErrorState, LoadingState } from "@/features/initiative-13/components/query-states"
 import { cn, formatCount } from "@/lib/utils"

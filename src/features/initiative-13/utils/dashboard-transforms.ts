@@ -6,7 +6,7 @@
 // `pages/utilisation-dashboard-page.tsx` for how these compose with the API
 // client.
 
-import type { ActException, JustificationEntry, ReclassificationCandidate, WatchMetric } from "../api/types"
+import type { ActException, JustificationEntry, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
 
 /** Generic "count rows by a key" grouping, used for every distribution chart
  * on the dashboard (aging, acquired-vs-plan, exception status/type). */
@@ -86,8 +86,11 @@ export function acquiredVsPlanRowsToCsv(rows: WatchMetric[]): (string | number)[
     r.material,
     r.plant,
     r.plannedQuantity ?? "",
-    r.receivedQuantity,
-    r.issuedQuantity,
+    // Empty, not 0. An exported cell reading 0 asserts that nothing arrived;
+    // an empty one says nobody recorded what did. This file is the boundary
+    // where that distinction would quietly be lost.
+    r.receivedQuantity ?? "",
+    r.issuedQuantity ?? "",
     r.acquiredVsPlanVarianceQuantity ?? "",
     r.acquiredVsPlanVariancePercentage ?? "",
     r.acquiredVsPlanStatus,

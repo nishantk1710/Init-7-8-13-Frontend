@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { ValidationResult } from "@/features/initiative-13/api/types"
+import type { ValidationResult } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
 
 const STATUS_TONE: Record<string, "default" | "success" | "warning" | "danger"> = {
