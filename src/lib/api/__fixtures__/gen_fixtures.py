@@ -45,6 +45,7 @@ from app.api.assistant.router import (  # noqa: E402
 )
 from app.api.assistant.schemas import (  # noqa: E402
     AnswerResponse,
+    NarrativeModel,
     SessionTraceResponse,
     StartSessionResponse,
     TurnModel,
@@ -259,6 +260,24 @@ JUSTIFY_I08 = {
 }
 
 # --- StartSessionResponse --------------------------------------------------
+#
+# One fixture carries a narrative and the rest do not, on purpose. The layer is
+# off by default, so null is the common case and has to be the one most
+# fixtures exercise -- but a client that only ever saw null would typecheck
+# against a shape it had never rendered.
+
+#: What the model returns when it is on. Provenance included: an AI-written
+#: sentence that cannot be traced to a prompt version is not evidence of
+#: anything, and the UI is expected to show where it came from.
+NARRATIVE = NarrativeModel(
+    text=(
+        "There is one of these on the shelf at plant 1300 and another due back "
+        "from repair on 14 October. Nothing here stops you reserving a new one."
+    ),
+    prompt_id="reservation_assistant",
+    prompt_version=1,
+    model="gpt-4o",
+)
 
 write(
     "01-start-i08-choice.json",
@@ -267,6 +286,8 @@ write(
         session_id=I08_SESSION,
         expires_at=EXPIRES_AT,
         step=_step_model(i08_step({})),
+        # The one fixture with a narrative -- see the note above.
+        narrative=NARRATIVE,
     ),
 )
 

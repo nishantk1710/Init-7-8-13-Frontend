@@ -135,6 +135,20 @@ export type StartSessionRequest = {
 }
 
 /**
+ * A model-written sentence, and the prompt behind it.
+ *
+ * The provenance travels with the text and is not decoration: this programme is
+ * human-gated and audited, and "the model said so" is not an acceptable account
+ * of where a sentence came from.
+ */
+export type ApiNarrative = {
+  text: string
+  promptId: string | null
+  promptVersion: number | null
+  model: string | null
+}
+
+/**
  * `sessionId`, `expiresAt` and `step` are null **together**, and only when the
  * material is out of scope.
  *
@@ -147,6 +161,15 @@ export type StartSessionResponse = {
   sessionId: string | null
   expiresAt: string | null
   step: ApiStep | null
+  /**
+   * The model's phrasing of the advice, where one was served.
+   *
+   * Null whenever the narrative layer is off, unconfigured or failed — all
+   * ordinary states, none of them an error. Render it **beside** `step.facts`,
+   * never instead of them: the deterministic assessment is the answer of
+   * record, and phrasing must not occupy the place where a number belongs.
+   */
+  narrative: ApiNarrative | null
 }
 
 /** The answer to the current step, keyed by `field.name` (or `choice`). */

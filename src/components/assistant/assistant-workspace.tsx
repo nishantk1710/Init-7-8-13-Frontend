@@ -8,6 +8,7 @@ import {
   StepRenderer,
   ThinkingIndicator,
 } from "@/components/assistant/step-renderer"
+import { NarrativeNote } from "@/components/assistant/narrative-note"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { postTurn, type ApiStep, type StartSessionResponse } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
@@ -147,6 +148,14 @@ export function AssistantWorkspace({
         sessionId={start.sessionId}
         expiresAt={start.expiresAt}
       />
+
+      {/* Above the conversation and outside the feed, deliberately.
+          Inside it, a screen reader would announce the phrasing as though it
+          were a step to answer; and the narrative is written once, when the
+          session opens, so it does not belong in a log of turns. It sits
+          beside the assessment card and never replaces it — if the two ever
+          disagreed, the card is right. */}
+      <NarrativeNote narrative={start.narrative} />
 
       {/* The conversation is a log that grows, so `feed` rather than a bare
           live region: a screen reader announces each new step as it arrives

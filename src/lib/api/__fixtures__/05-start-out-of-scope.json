@@ -11,5 +11,6 @@
   },
   "sessionId": null,
   "expiresAt": null,
-  "step": null
+  "step": null,
+  "narrative": null
 }

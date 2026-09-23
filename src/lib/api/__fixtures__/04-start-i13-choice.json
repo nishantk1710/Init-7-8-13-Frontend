@@ -65,5 +65,6 @@
     },
     "footnote": "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.\nStock received 58 days ago for this part has still not been issued, which is already an open exception.",
     "sessionId": null
-  }
+  },
+  "narrative": null
 }

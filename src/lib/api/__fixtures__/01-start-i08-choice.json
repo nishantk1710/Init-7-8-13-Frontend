@@ -70,5 +70,11 @@
     },
     "footnote": "A repair being open means the purchase order exists, not that the unit has physically reached the vendor -- no dispatch movement is recorded against it.\n1 of these repairs is already past the promised return date, so the due date is a plan rather than a commitment.",
     "sessionId": null
+  },
+  "narrative": {
+    "text": "There is one of these on the shelf at plant 1300 and another due back from repair on 14 October. Nothing here stops you reserving a new one.",
+    "promptId": "reservation_assistant",
+    "promptVersion": 1,
+    "model": "gpt-4o"
   }
 }

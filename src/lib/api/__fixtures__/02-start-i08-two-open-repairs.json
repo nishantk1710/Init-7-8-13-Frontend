@@ -83,5 +83,6 @@
     },
     "footnote": "A repair being open means the purchase order exists, not that the unit has physically reached the vendor -- no dispatch movement is recorded against it.\n1 of these repairs is already past the promised return date, so the due date is a plan rather than a commitment.\n1 repair vendor shown by code only -- the supplier master does not cover them.",
     "sessionId": null
-  }
+  },
+  "narrative": null
 }
