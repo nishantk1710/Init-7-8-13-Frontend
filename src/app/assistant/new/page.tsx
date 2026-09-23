@@ -15,14 +15,26 @@ export const metadata: Metadata = {
  *
  * ## The contract, which is a deliverable for the SAP team
  *
- *     /assistant/new?material={MATNR}&plant={WERKS}&quantity={MENGE}&origin=BADI
+ *     /assistant/new?material={MATNR}&plant={WERKS}&department={KOSTL}&requestedFor={NAME}&origin=BADI
  *
  * `material` and `plant` are required; without both there is nothing to
- * assess. `quantity` is **optional and must stay optional**: the pop-up can
- * fire before a quantity has been entered, and defaulting it to zero would be
- * indistinguishable from a requester who genuinely asked for none. The backend
- * makes that distinction — `quantity` is nullable on the request model for
- * exactly this reason — and the URL must not undo it.
+ * assess.
+ *
+ * `department` and `requestedFor` are **optional and must stay optional**. The
+ * pop-up carries a material and a plant and cannot supply either, so a session
+ * opened from SAP legitimately has neither and the backend records NULL — which
+ * is the honest account of what SAP could tell us, not a gap to be closed by
+ * defaulting it.
+ *
+ * `requestedFor` names the person who wants the part. It is **not** identity:
+ * the author of the session is taken from the `X-Actor-Id` header and no query
+ * parameter can change that, which is why a name can safely travel in a URL.
+ *
+ * `quantity` used to be here and has been removed. The quantity of record is
+ * captured inside the conversation, against a stated purpose and a window;
+ * asking for one at the door was the same question twice, and the answer given
+ * first was the one nobody had thought about. A link that still carries one is
+ * simply ignored.
  *
  * `origin` defaults to `PLATFORM` and is set to `BADI` by the pop-up. It is
  * recorded on the session so "arrived from SAP" can be told apart from
@@ -41,7 +53,8 @@ export default async function NewAssistantSessionPage({
 
   const materialId = single(params.material)
   const plant = single(params.plant)
-  const quantity = single(params.quantity)
+  const department = single(params.department)
+  const requestedFor = single(params.requestedFor)
   const origin = single(params.origin) === "BADI" ? "BADI" : "PLATFORM"
 
   if (!materialId || !plant) {
@@ -94,7 +107,8 @@ export default async function NewAssistantSessionPage({
         <AssistantLauncher
           materialId={materialId}
           plant={plant}
-          quantity={quantity}
+          department={department}
+          requestedFor={requestedFor}
           origin={origin}
         />
       </div>

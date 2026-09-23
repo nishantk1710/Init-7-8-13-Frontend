@@ -4,6 +4,8 @@
   "outcome": "COMPLETED",
   "materialId": "1000000123",
   "plant": "1300",
+  "department": "Concentrator",
+  "requestedFor": "T. Mokoena",
   "requestedQuantity": "5",
   "requester": "MILLERJ",
   "origin": "BADI",

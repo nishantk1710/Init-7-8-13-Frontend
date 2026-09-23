@@ -454,7 +454,17 @@ write(
 # plan / suggestion / justification are the real ORM rows app.assistant.turns
 # writes, built in memory and passed through the router's own mapping.
 
+#: Who OPERATED the assistant. One coordinator runs it for the whole site, so
+#: this is the same on every session and no screen draws it -- it is carried
+#: here because the trace is the FR-8 evidence view and an audit record without
+#: its author is not one.
 ACTOR = "MILLERJ"
+
+#: Who the part is FOR, as the coordinator typed it. A different person from
+#: ACTOR, deliberately: a fixture where the two matched would let a bug that
+#: crossed the columns over pass unnoticed.
+REQUESTED_FOR = "T. Mokoena"
+DEPARTMENT = "Concentrator"
 
 I13_TRACE_STEPS = [
     (i13_step({}), {"choice": script.PROCEED}),
@@ -557,6 +567,12 @@ write(
         outcome="COMPLETED",
         material_id="1000000123",
         plant="1300",
+        department=DEPARTMENT,
+        requested_for=REQUESTED_FOR,
+        # A session minted BEFORE the entry point stopped asking. Kept with a
+        # value on purpose: those rows exist, the column stays for them, and a
+        # fixture where every trace had null would stop proving the UI can
+        # still render one.
         requested_quantity="5",
         requester=ACTOR,
         origin="BADI",
@@ -596,7 +612,10 @@ write(
         outcome="COMPLETED",
         material_id="8000005632",
         plant="1300",
-        requested_quantity="1",
+        department=DEPARTMENT,
+        requested_for=REQUESTED_FOR,
+        # Null, as every session minted since the entry point stopped asking.
+        requested_quantity=None,
         requester=ACTOR,
         origin="PLATFORM",
         issued_at=ISSUED_AT,

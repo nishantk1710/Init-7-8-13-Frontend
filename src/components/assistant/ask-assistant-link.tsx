@@ -7,30 +7,31 @@ import { cn } from "@/lib/utils"
  * "Ask the assistant" — the on-demand entry point, from any screen that knows
  * a part.
  *
- * ## Two destinations, and the difference matters
+ * ## One destination: the opener form, prefilled
  *
- * With a **plant**, it goes to `/assistant/new`, which opens a session
- * immediately. Stock, open repairs and months of cover are all held per
- * plant, so with both identifiers there is a real question to answer.
+ * It goes to `/assistant` with whatever the screen knows — a material, and a
+ * plant where there is one. Several screens genuinely do not know a plant (the
+ * Material 360 drawer is built on a `Material` type that has no plant field),
+ * and defaulting to one would answer confidently for the wrong site.
  *
- * Without one, it goes to `/assistant` with the material prefilled and lets
- * the planner pick. Several screens genuinely do not know a plant — the
- * Material 360 drawer is built on a `Material` type that has no plant field —
- * and defaulting to one would answer confidently for the wrong site. Asking
- * is the honest option, and it costs one click.
+ * It used to jump straight to `/assistant/new` whenever a plant was known,
+ * which opened a session on arrival. That stopped being right when the entry
+ * point started asking **who** the part is for and **which department** wants
+ * it: a session minted from a link carries neither, and on an append-only
+ * table those blanks cannot be filled in afterwards. Prefilling the form costs
+ * one click and records the two fields the whole change exists to capture.
  *
  * ## Why this never opens a session by itself
  *
- * Both destinations are plain links. Opening a session is a write to an
- * append-only table, and a control that writes on hover, prefetch or a
- * mis-click is a control that fills that table with rows nobody meant. The
- * write happens on `/assistant/new`, in one place, where the page's whole
- * purpose is to make it.
+ * It is a plain link. Opening a session is a write to an append-only table,
+ * and a control that writes on hover, prefetch or a mis-click is a control
+ * that fills that table with rows nobody meant. The write happens on
+ * `/assistant/new`, in one place, where the page's whole purpose is to make
+ * it.
  */
 export function AskAssistantLink({
   materialId,
   plant,
-  quantity,
   variant = "link",
   label = "Ask the assistant",
   className,
@@ -38,22 +39,14 @@ export function AskAssistantLink({
   materialId: string
   /** Omit where the screen genuinely does not know one. */
   plant?: string | null
-  /** Decimal-as-string. Omit unless a real quantity is in hand. */
-  quantity?: string | null
   variant?: "link" | "chip"
   label?: string
   className?: string
 }) {
-  const href = plant
-    ? `/assistant/new?${new URLSearchParams({
-        material: materialId,
-        plant,
-        // Only when there is a real one. A defaulted zero is
-        // indistinguishable from a requester who asked for none, and the
-        // backend keeps those apart on purpose.
-        ...(quantity ? { quantity } : {}),
-      }).toString()}`
-    : `/assistant?${new URLSearchParams({ material: materialId }).toString()}`
+  const href = `/assistant?${new URLSearchParams({
+    material: materialId,
+    ...(plant ? { plant } : {}),
+  }).toString()}`
 
   return (
     <Link

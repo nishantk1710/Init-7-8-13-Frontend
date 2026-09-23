@@ -38,12 +38,16 @@ import { ApiError } from "@/lib/api/client"
 export function AssistantLauncher({
   materialId,
   plant,
-  quantity,
+  department,
+  requestedFor,
   origin,
 }: {
   materialId: string
   plant: string
-  quantity?: string
+  /** Optional: the BAdI pop-up cannot supply one. Omitted, not defaulted. */
+  department?: string
+  /** Who the part is for. Optional for the same reason, and never identity. */
+  requestedFor?: string
   origin: "BADI" | "PLATFORM"
 }) {
   const [state, setState] = useState<
@@ -83,38 +87,23 @@ export function AssistantLauncher({
     promise: Promise<StartSessionResponse>
   } | null>(null)
 
-  /**
-   * A quantity that is not a number never reaches the backend.
-   *
-   * It would return a 422 whose detail is a plain string — "quantity must be
-   * a number, got 'abc'" — which is the same shape as the genuine "no read
-   * model for this material" gap. Reporting a bad URL as missing platform
-   * data sends somebody to look in entirely the wrong place. Caught here, the
-   * message can name the real problem.
-   *
-   * An absent or empty quantity is fine: it means "not stated", which the
-   * backend deliberately keeps distinct from zero.
-   */
-  const badQuantity =
-    quantity !== undefined &&
-    quantity !== "" &&
-    !Number.isFinite(Number(quantity))
-
   useEffect(() => {
-    // Recomputed here rather than closing over the outer `badQuantity`, which
-    // would put a derived value in the dependency array to no purpose: it is
-    // a pure function of `quantity`, which is already a dependency.
-    if (quantity !== undefined && quantity !== "" && !Number.isFinite(Number(quantity))) {
-      return
-    }
-
-    // A genuinely different material or plant is a different question and
-    // deserves its own session; only an identical repeat is deduplicated.
-    const key = JSON.stringify([materialId, plant, quantity, origin])
+    // A genuinely different material, plant, department or requester is a
+    // different question and deserves its own session; only an identical
+    // repeat is deduplicated.
+    const key = JSON.stringify([materialId, plant, department, requestedFor, origin])
     if (request.current?.key !== key) {
       request.current = {
         key,
-        promise: startSession({ materialId, plant, quantity, origin }),
+        // Omitted rather than sent empty. The backend collapses whitespace to
+        // NULL anyway, but sending "" would claim an answer was given.
+        promise: startSession({
+          materialId,
+          plant,
+          ...(department ? { department } : {}),
+          ...(requestedFor ? { requestedFor } : {}),
+          origin,
+        }),
       }
     }
 
@@ -147,17 +136,13 @@ export function AssistantLauncher({
       .catch((caught: unknown) => {
         if (!active) return
         // A 422 is NOT always a coverage gap. The route raises one for a
-        // malformed request too — a non-numeric `quantity` on the deep link
-        // returns 422 "quantity must be a number, got 'abc'", and pydantic
-        // returns 422 with an array detail for a missing field. Reporting
-        // either as "the platform has no read model for this material" blames
-        // our own data for a bad URL, and sends somebody looking in the wrong
-        // place.
+        // malformed request too — pydantic returns 422 with an array detail
+        // for a missing field or an over-length department. Reporting that as
+        // "the platform has no read model for this material" blames our own
+        // data for a bad URL, and sends somebody looking in the wrong place.
         //
         // The array arm is unambiguously a malformed request. The string arm
-        // is the genuine data gap, and the quantity case is caught before the
-        // request is ever sent (see `badQuantity` below), so it cannot reach
-        // here.
+        // is the genuine data gap.
         if (
           caught instanceof ApiError &&
           caught.status === 422 &&
@@ -180,15 +165,7 @@ export function AssistantLauncher({
     return () => {
       active = false
     }
-  }, [materialId, plant, quantity, origin])
-
-  if (badQuantity) {
-    return (
-      <StepError
-        message={`This link carries a quantity of "${quantity}", which is not a number. No session has been opened. Open the assistant without a quantity, or correct the link — the assessment does not need one.`}
-      />
-    )
-  }
+  }, [materialId, plant, department, requestedFor, origin])
 
   if (state.status === "opening") {
     return (

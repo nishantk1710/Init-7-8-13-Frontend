@@ -16,6 +16,15 @@ import { Input } from "@/components/ui/input"
  * It navigates to `/assistant/new` rather than opening a session itself, so
  * there is exactly one place that mints one and the deep link and this form
  * behave identically.
+ *
+ * ## Who is filling this in
+ *
+ * One coordinator runs this for the whole site. They are **not** the person who
+ * wants the part — they type that name into `Requester`. The two are recorded
+ * separately: the coordinator is taken from the `X-Actor-Id` header as the
+ * author of the record, and the typed name is data about the reservation. This
+ * form never touches the header, so nothing typed here can become an audit
+ * author.
  */
 export function AssistantOpener({
   defaultMaterial = "",
@@ -35,9 +44,20 @@ export function AssistantOpener({
   const router = useRouter()
   const [material, setMaterial] = useState(defaultMaterial)
   const [plant, setPlant] = useState(defaultPlant)
-  const [quantity, setQuantity] = useState("")
+  const [department, setDepartment] = useState("")
+  const [requestedFor, setRequestedFor] = useState("")
 
-  const ready = material.trim().length > 0 && plant.trim().length > 0
+  /**
+   * All four are required here, but only material and plant are required by the
+   * API — the BAdI pop-up cannot supply a department or a name, and a session
+   * opened from SAP legitimately has neither. The rule is stricter on this form
+   * because a person is standing in front of it and can answer.
+   */
+  const ready =
+    material.trim().length > 0 &&
+    plant.trim().length > 0 &&
+    department.trim().length > 0 &&
+    requestedFor.trim().length > 0
 
   function open(event: React.FormEvent) {
     event.preventDefault()
@@ -46,11 +66,9 @@ export function AssistantOpener({
     const params = new URLSearchParams({
       material: material.trim(),
       plant: plant.trim(),
+      department: department.trim(),
+      requestedFor: requestedFor.trim(),
     })
-    // Sent only when given. A zero here would be indistinguishable from a
-    // requester who asked for none, and the backend deliberately keeps those
-    // apart.
-    if (quantity.trim().length > 0) params.set("quantity", quantity.trim())
 
     router.push(`/assistant/new?${params.toString()}`)
   }
@@ -60,7 +78,7 @@ export function AssistantOpener({
       onSubmit={open}
       className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4"
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Labelled id="material" label="Material">
           <Input
             id="material"
@@ -86,13 +104,29 @@ export function AssistantOpener({
           />
         </Labelled>
 
-        <Labelled id="quantity" label="Quantity" optional>
+        <Labelled id="requestedFor" label="Requester">
+          {/* The person who wants the part, not whoever is typing. Free text
+              and never verified, which is why the backend keeps it well away
+              from the column that records the author of the session. */}
           <Input
-            id="quantity"
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-            placeholder="how many you were about to reserve"
-            inputMode="decimal"
+            id="requestedFor"
+            value={requestedFor}
+            onChange={(event) => setRequestedFor(event.target.value)}
+            placeholder="who the part is for"
+            maxLength={128}
+          />
+        </Labelled>
+
+        <Labelled id="department" label="Department">
+          {/* Free text, for the same reason Plant is: nothing the platform
+              loads maps a person to a cost-bearing department, so a dropdown
+              here would invent a vocabulary VZI has not given us. */}
+          <Input
+            id="department"
+            value={department}
+            onChange={(event) => setDepartment(event.target.value)}
+            placeholder="which department it is for"
+            maxLength={64}
           />
         </Labelled>
       </div>
@@ -102,7 +136,7 @@ export function AssistantOpener({
           Check this material
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Opening the assistant records a session in your name.
+          Opening the assistant records a session against this requester.
         </span>
       </div>
     </form>

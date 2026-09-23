@@ -114,11 +114,23 @@ export type StartSessionRequest = {
   materialId: string
   plant: string
   /**
-   * What the requester was about to reserve, if known. Decimal-as-string.
-   * Omit when unknown — the pop-up may fire before a quantity is entered, and a
-   * defaulted zero is indistinguishable from a real one.
+   * Which department the part is for — the requester's, not the coordinator's.
+   *
+   * Optional, and it has to stay optional: the BAdI pop-up carries a material
+   * and a plant and cannot supply this, so a session opened from SAP
+   * legitimately has none. Omit rather than sending an empty string.
    */
-  quantity?: string
+  department?: string
+  /**
+   * Who the part is for, as typed by whoever is operating the assistant.
+   *
+   * **Free text, and not identity.** Nobody verified it — one person typed
+   * another person's name into a box. It is a property of the reservation, like
+   * the material number, and the backend stores it in its own column rather
+   * than as the author of the record. The author still comes from the
+   * `X-Actor-Id` header and nothing here can change that.
+   */
+  requestedFor?: string
   origin?: "BADI" | "PLATFORM"
 }
 
@@ -240,7 +252,19 @@ export type SessionTraceResponse = {
   outcome: ApiSessionOutcome
   materialId: string
   plant: string
+  department: string | null
+  /** Who the part was for. Null when nobody was named — a session opened from
+   *  SAP cannot carry one. Show "not stated", never a blank. */
+  requestedFor: string | null
+  /** Null on every session opened since the entry point stopped asking. Older
+   *  ones carry a real value, which is why this stays. Null is "not stated"
+   *  and never zero. */
   requestedQuantity: string | null
+  /** Who **operated** the assistant, not who wanted the part — that is
+   *  `requestedFor`. Served because the trace is the FR-8 evidence view and an
+   *  audit record without its author is not one, but **no screen draws it**:
+   *  one coordinator opens every session, so it says the same thing on every
+   *  row. */
   requester: string
   origin: string
   issuedAt: string
@@ -268,6 +292,9 @@ export type ApiSessionSummary = {
   outcome: string
   materialId: string
   plant: string
+  department: string | null
+  requestedFor: string | null
+  /** The operator. Served, never drawn — see `SessionTraceResponse`. */
   requester: string
   origin: string
   issuedAt: string
