@@ -317,11 +317,14 @@ function StockPolicyRow({
 
 type GenerationTab = "landing" | "report"
 
+const MATERIALS_PAGE_SIZE = 5
+
 export function QuarterlyReportsWorkspace() {
   const quarters = candidateQuarters()
   const { data: existingReports } = useQuarterlyReports(50)
   const [selectedQuarter, setSelectedQuarter] = useState<string>(quarters[0] ?? "")
   const [tab, setTab] = useState<GenerationTab>("landing")
+  const [materialsPage, setMaterialsPage] = useState(1)
   const { data: report, loading, error, status, refetch } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
@@ -352,6 +355,7 @@ export function QuarterlyReportsWorkspace() {
   function openReport(quarter: string) {
     setSelectedQuarter(quarter)
     setTab("report")
+    setMaterialsPage(1)
   }
 
   const demandOrder = ["SMOOTH", "ERRATIC", "INTERMITTENT", "LUMPY", "UNCLASSIFIED"]
@@ -378,14 +382,15 @@ export function QuarterlyReportsWorkspace() {
   // most recommendation rows predate the reporting feature and were never
   // regenerated inside a specific quarter window, so a quarter-scoped fetch
   // reads as empty even when real, live recommendations exist), sorted so
-  // the largest ROP changes surface first. Only fetched once a report is
-  // loaded, matching this section's original fetch-on-report-load timing.
+  // the largest ROP changes surface first. Paged against the real backend
+  // (113k+ rows total) rather than fetched-then-sliced client-side.
   const { data: materials, total: materialsTotal } = useLiveRecommendations(
     report
       ? {
           sort: "rop_delta_magnitude",
           sortDesc: true,
-          pageSize: 5,
+          page: materialsPage,
+          pageSize: MATERIALS_PAGE_SIZE,
         }
       : {},
   )
@@ -521,7 +526,7 @@ export function QuarterlyReportsWorkspace() {
                     : "In-scope materials by ZMM065 tier."
                 }
               >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {CRITICALITY_TIER_ORDER.map((tier) => {
                     const style = CRITICALITY_TIER_STYLE[tier]
                     return (
@@ -534,160 +539,165 @@ export function QuarterlyReportsWorkspace() {
                       </div>
                     )
                   })}
-                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 p-3">
-                    <div className="text-[13px] text-muted-foreground">Not populated</div>
-                    <div className="mt-1 text-xl font-semibold text-muted-foreground">
-                      {formatCount(report.material_criticality.total - report.material_criticality.populated_count)}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground/80">No ZMM065 tier on record</div>
-                  </div>
                 </div>
               </ChartCard>
 
-              {/* --- Stockout risk distribution + Recommendation status ------ */}
-              {/* Both driven by chartRecommendations (the same unscoped live
-                  fetch as the Materials table above and Overview itself) via
-                  the exact InventoryHealthCard/RecommendationStatusChart
-                  components Overview uses -- not report.management_summary,
-                  whose stockout_risk_distribution field is a hardcoded
-                  NOT_CONFIGURED placeholder (no severity classification is
-                  computed anywhere server-side) and whose recommendations
-                  section is quarter-window-scoped the same way the Materials
-                  table was before that fix. */}
+              {/* --- Everything below in one 12-col grid, matching main's
+                  QuarterlyReportsDemoWorkspace layout/spans exactly. --- */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <ChartCard title="Stockout risk distribution" span={6}>
+                <ChartCard title="Stockout risk distribution" span={4}>
                   <InventoryHealthCard recommendations={chartRecommendations ?? []} />
                 </ChartCard>
-
                 <ChartCard
                   title="Recommendation status"
                   subtitle="Where each change sits in the approval flow."
-                  span={6}
+                  span={8}
                 >
                   <RecommendationStatusChart recommendations={chartRecommendations ?? []} />
                 </ChartCard>
-              </div>
 
-              {/* --- Stock policy table --------------------------------------- */}
-              <ChartCard
-                title="Current / I11 Baseline vs I07 Recommendation"
-                subtitle="Current SAP values against I07 recommendations, over rows generated this quarter."
-              >
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableHead>Stock level</TableHead>
-                        <TableHead className="text-right">Current (SAP)</TableHead>
-                        <TableHead className="text-right">Recommended</TableHead>
-                        <TableHead className="text-right">Change</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {stockPolicyRow("Safety Stock") && (
-                        <StockPolicyRow
-                          label="Safety stock"
-                          sublabel="demand buffer"
-                          row={stockPolicyRow("Safety Stock")!}
-                        />
-                      )}
-                      {stockPolicyRow("ROP") && (
-                        <StockPolicyRow
-                          label="Reorder point"
-                          sublabel="when to raise a PO"
-                          row={stockPolicyRow("ROP")!}
-                        />
-                      )}
-                      {stockPolicyRow("Max Stock") && (
-                        <StockPolicyRow
-                          label="Maximum stock"
-                          sublabel="ceiling to hold"
-                          row={stockPolicyRow("Max Stock")!}
-                        />
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  A dash means no value is set in SAP — not a stock level of zero. Current Safety Stock is confirmed
-                  NOT_AVAILABLE on this extract (EISBE is absent from MARC).
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {report.reorder_point.current_sap_value_reused_note}
-                </p>
-              </ChartCard>
-
-              {/* --- Material table -------------------------------------------- */}
-              <ChartCard
-                title="Materials — top reorder changes"
-                subtitle={`Showing ${formatCount(materials?.length ?? 0)} of ${formatCount(materialsTotal)}. Full list in the Excel export.`}
-              >
-                {materials && materials.length > 0 ? (
+                <ChartCard
+                  title="Current / I11 Baseline vs I07 Recommendation"
+                  subtitle="Current SAP values against I07 recommendations, over rows generated this quarter."
+                  span={12}
+                >
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/40 hover:bg-muted/40">
-                          <TableHead>Material</TableHead>
-                          <TableHead>Plant</TableHead>
-                          <TableHead>Circuit</TableHead>
-                          <TableHead>Crit.</TableHead>
-                          <TableHead>Demand pattern</TableHead>
-                          <TableHead className="text-right">Recommended ROP</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>Stock level</TableHead>
+                          <TableHead className="text-right">Current (SAP)</TableHead>
+                          <TableHead className="text-right">Recommended</TableHead>
+                          <TableHead className="text-right">Change</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {materials.map((rec) => (
-                          <TableRow key={rec.id}>
-                            <TableCell>
-                              <Link href={`/inventory-planning/recommendations/${rec.id}`} className="hover:underline">
-                                <MaterialIdentity material={rec.material} />
-                              </Link>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
-                            <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
-                            <TableCell>
-                              <span className={cn("text-xs font-medium", CRITICALITY_TIER_TEXT_COLOR[rec.criticality as Criticality])}>
-                                {CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{rec.demandPattern}</TableCell>
-                            <TableCell className="text-right font-mono text-[13px] tabular-nums">
-                              {formatCount(rec.current.rop)} → {formatCount(rec.recommended.rop)}
-                            </TableCell>
-                            <TableCell>
-                              <span className={cn("text-xs font-medium", RECOMMENDATION_STATUS_TEXT_COLOR[rec.status] ?? "text-muted-foreground")}>
-                                {rec.status}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {stockPolicyRow("Safety Stock") && (
+                          <StockPolicyRow
+                            label="Safety stock"
+                            sublabel="demand buffer"
+                            row={stockPolicyRow("Safety Stock")!}
+                          />
+                        )}
+                        {stockPolicyRow("ROP") && (
+                          <StockPolicyRow
+                            label="Reorder point"
+                            sublabel="when to raise a PO"
+                            row={stockPolicyRow("ROP")!}
+                          />
+                        )}
+                        {stockPolicyRow("Max Stock") && (
+                          <StockPolicyRow
+                            label="Maximum stock"
+                            sublabel="ceiling to hold"
+                            row={stockPolicyRow("Max Stock")!}
+                          />
+                        )}
                       </TableBody>
                     </Table>
                   </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">No recommendations found.</div>
-                )}
-              </ChartCard>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    A dash means no value is set in SAP — not a stock level of zero. Current Safety Stock is
+                    confirmed NOT_AVAILABLE on this extract (EISBE is absent from MARC).
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {report.reorder_point.current_sap_value_reused_note}
+                  </p>
+                </ChartCard>
 
-              {/* --- Circuit exposure + Forecast vs Actual (Overview parity) --- */}
-              <ChartCard
-                title="Critical circuit exposure"
-                subtitle="Recommendations per circuit, split by stockout-risk exposure."
-              >
-                <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
-              </ChartCard>
+                <ChartCard
+                  title="Materials — top reorder changes"
+                  subtitle="Full list in the Excel export."
+                  span={12}
+                >
+                  {materials && materials.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/40 hover:bg-muted/40">
+                              <TableHead>Material</TableHead>
+                              <TableHead>Plant</TableHead>
+                              <TableHead>Circuit</TableHead>
+                              <TableHead>Crit.</TableHead>
+                              <TableHead>Demand pattern</TableHead>
+                              <TableHead className="text-right">Recommended ROP</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {materials.map((rec) => (
+                              <TableRow key={rec.id}>
+                                <TableCell>
+                                  <Link href={`/inventory-planning/recommendations/${rec.id}`} className="hover:underline">
+                                    <MaterialIdentity material={rec.material} />
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
+                                <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
+                                <TableCell>
+                                  <span className={cn("text-xs font-medium", CRITICALITY_TIER_TEXT_COLOR[rec.criticality as Criticality])}>
+                                    {CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{rec.demandPattern}</TableCell>
+                                <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                                  {formatCount(rec.current.rop)} → {formatCount(rec.recommended.rop)}
+                                </TableCell>
+                                <TableCell>
+                                  <span className={cn("text-xs font-medium", RECOMMENDATION_STATUS_TEXT_COLOR[rec.status] ?? "text-muted-foreground")}>
+                                    {rec.status}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
 
-              <ChartCard
-                title="Forecast vs Actual Demand"
-                footnote={`Actual = consumption for the ${chartRecommendations?.length ?? 0} material(s) in view. Forecast = one-step-ahead exponential smoothing on that same series, so each point uses only prior months.`}
-              >
-                <ForecastVsActualChart recommendations={chartRecommendations ?? []} />
-              </ChartCard>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-muted-foreground">
+                          Showing {materialsTotal === 0 ? 0 : (materialsPage - 1) * MATERIALS_PAGE_SIZE + 1}–
+                          {Math.min(materialsTotal, materialsPage * MATERIALS_PAGE_SIZE)} of{" "}
+                          {formatCount(materialsTotal)}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMaterialsPage((p) => Math.max(1, p - 1))}
+                            disabled={materialsPage <= 1}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Page {materialsPage} of {Math.max(1, Math.ceil(materialsTotal / MATERIALS_PAGE_SIZE))}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMaterialsPage((p) => p + 1)}
+                            disabled={materialsPage * MATERIALS_PAGE_SIZE >= materialsTotal}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No recommendations found.</div>
+                  )}
+                </ChartCard>
 
-              {/* --- Stockout risk trend + SAP adoption ------------------------ */}
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month.">
+                <ChartCard
+                  title="Critical circuit exposure"
+                  subtitle="Recommendations per circuit, split by stockout-risk exposure."
+                  span={7}
+                >
+                  <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
+                </ChartCard>
+
+                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={5}>
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <AvailabilityValue status={report.management_summary.stockout_risk_trend.status} />
                     <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
@@ -696,7 +706,15 @@ export function QuarterlyReportsWorkspace() {
                   </div>
                 </ChartCard>
 
-                <ChartCard title="SAP adoption" subtitle="Whether approved recommendations were applied in SAP.">
+                <ChartCard
+                  title="Forecast vs Actual Demand"
+                  span={7}
+                  footnote={`Actual = consumption for the ${chartRecommendations?.length ?? 0} material(s) in view. Forecast = one-step-ahead exponential smoothing on that same series, so each point uses only prior months.`}
+                >
+                  <ForecastVsActualChart recommendations={chartRecommendations ?? []} />
+                </ChartCard>
+
+                <ChartCard title="SAP adoption" subtitle="Whether approved recommendations were applied in SAP." span={5}>
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <AvailabilityValue status={report.sap_adoption.status} />
                     <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">{report.sap_adoption.reason}</p>

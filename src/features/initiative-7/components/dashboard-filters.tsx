@@ -60,9 +60,18 @@ export interface DashboardFilterState {
    * same "Pending Review" label (see i7-api.ts STATUS_MAP), so that filter
    * cannot express "has a real calculated value". */
   recommendation: string
+  /** Live mode only. Reconciliation result against SAP change-document
+   * evidence (see use-live-adoption.ts) -- "Adopted" / "Partially adopted" /
+   * "Not adopted" / "Unknown", the same 4 values Adoption Tracking's table
+   * shows. Not a property of the recommendation row itself; the caller joins
+   * it in by recommendation id (a separate reconciliation fetch), so this
+   * filter only has an effect where that join was actually performed. */
+  sapAdoption: string
 }
 
 export const RECOMMENDATION_FILTER_CALCULATED = "calculated"
+
+export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopted", "Unknown"] as const
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   plant: ALL_FILTER,
@@ -76,6 +85,7 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   // carry a real computed value, so defaulting to "All" shows page after page
   // of "not yet computed" rows and buries the ones a planner can act on.
   recommendation: RECOMMENDATION_FILTER_CALCULATED,
+  sapAdoption: ALL_FILTER,
 }
 
 export function isDashboardFiltersActive(filters: DashboardFilterState): boolean {
@@ -119,6 +129,7 @@ export function DashboardFilters({
   layout = "rail",
   plantOptions,
   showRecommendationFilter = false,
+  showSapAdoptionFilter = false,
 }: {
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
@@ -132,6 +143,11 @@ export function DashboardFilters({
   /** Live mode only -- the scenario dataset has no "blocked vs calculated"
    * distinction to filter on (every fixture row carries values). */
   showRecommendationFilter?: boolean
+  /** Live mode only -- requires the caller to have already joined an
+   * adoption-status onto each recommendation (a separate reconciliation
+   * fetch keyed by recommendation id, see use-live-adoption.ts); the
+   * scenario dataset carries no such field at all. */
+  showSapAdoptionFilter?: boolean
 }) {
   function set<K extends keyof DashboardFilterState>(key: K, next: string) {
     onChange({ ...value, [key]: next })
@@ -276,6 +292,24 @@ export function DashboardFilters({
           </SelectContent>
         </Select>
       </FilterField>
+
+      {showSapAdoptionFilter && (
+        <FilterField label="SAP Adoption">
+          <Select value={value.sapAdoption} onValueChange={(v) => set("sapAdoption", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {SAP_ADOPTION_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
 
       <FilterField label="Material">
         <div className="relative">

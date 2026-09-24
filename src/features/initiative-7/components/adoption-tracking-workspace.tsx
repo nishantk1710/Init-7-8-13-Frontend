@@ -42,7 +42,7 @@ import { useLiveAdoption } from "@/features/initiative-7/hooks/use-live-adoption
 import type { AdoptionDisplayStatus } from "@/features/initiative-7/services/i7-api"
 
 const ALL = "all"
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
 
 const STATUS_OPTIONS: AdoptionDisplayStatus[] = [
   "Adopted",
@@ -115,10 +115,8 @@ export function AdoptionTrackingWorkspace() {
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? ALL)}>
-          <SelectTrigger className="h-8 w-full sm:w-48">
-            <SelectValue placeholder="All statuses">
-              {(v: string) => (v === ALL ? "All statuses" : v)}
-            </SelectValue>
+          <SelectTrigger className="h-8 w-full sm:w-44">
+            <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
@@ -131,72 +129,69 @@ export function AdoptionTrackingWorkspace() {
         </Select>
       </div>
 
-      {visible.length === 0 ? (
-        <EmptyState title="Nothing matches this view" />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Check type</TableHead>
-                <TableHead>Adoption status</TableHead>
-                <TableHead>Detail</TableHead>
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead>Material</TableHead>
+              <TableHead>Plant</TableHead>
+              <TableHead>Check type</TableHead>
+              <TableHead>Adoption status</TableHead>
+              <TableHead>Detail</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.map((row) => (
+              <TableRow key={row.recommendationId}>
+                <TableCell className="font-medium text-foreground">{row.materialId}</TableCell>
+                <TableCell className="text-muted-foreground">{row.plantId}</TableCell>
+                <TableCell className="text-accent-foreground">
+                  {row.isConversionAdoption ? "OAR conversion (ND/PD → VB)" : "Planning-field parameters"}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge tone={STATUS_TONE[row.status]}>{row.status}</StatusBadge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{row.detail}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((row) => (
-                <TableRow key={row.recommendationId}>
-                  <TableCell className="font-medium text-foreground">{row.materialId}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.plantId}</TableCell>
-                  <TableCell className="text-[13px] text-muted-foreground">
-                    {row.isConversionAdoption ? "OAR conversion (ND/PD → VB)" : "Planning-field parameters"}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={STATUS_TONE[row.status]}>{row.status}</StatusBadge>
-                  </TableCell>
-                  <TableCell className="max-w-[360px] truncate text-[13px] text-muted-foreground" title={row.detail}>
-                    {row.detail}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+            ))}
+            {visible.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                  No adoption checks match this filter.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>
-          {formatCount(total)} recommendation{total === 1 ? "" : "s"} total — page {page} of{" "}
-          {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted-foreground">
+          Showing {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(total, page * PAGE_SIZE)} of{" "}
+          {formatCount(total)}
         </span>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
-            disabled={page <= 1}
+            size="sm"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
           >
             Previous
           </Button>
+          <span className="text-xs text-muted-foreground">
+            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </span>
           <Button
-            size="sm"
             variant="outline"
-            disabled={page * PAGE_SIZE >= total}
+            size="sm"
             onClick={() => setPage((p) => p + 1)}
+            disabled={page * PAGE_SIZE >= total}
           >
             Next
           </Button>
         </div>
       </div>
-
-      <p className="text-[11px] text-muted-foreground italic">
-        Read-only reconciliation against SAP change-document evidence (CDHDR/CDPOS), computed live — never a SAP
-        write. &quot;Unknown&quot; means no SAP evidence is available yet, and is never shown as &quot;Not
-        adopted&quot;: on the current SAP extract, no material change-document rows exist at all, so every result is
-        Unknown until a CDPOS extract that includes MARC changes is delivered.
-      </p>
     </div>
   )
 }

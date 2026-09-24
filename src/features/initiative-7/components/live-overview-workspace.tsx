@@ -25,6 +25,13 @@ import {
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
@@ -38,7 +45,7 @@ import { ForecastVsActualChart } from "@/features/initiative-7/components/foreca
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
-import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
+import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { mapStatus, type AdoptionSummaryResult } from "@/features/initiative-7/services/i7-api"
@@ -77,21 +84,73 @@ function AdoptionStatusTooltip({ active, payload }: TooltipContentProps) {
   )
 }
 
+// The only two plants MARC/OAR data actually covers (see CLAUDE.md's
+// "Plant coverage gap" -- raw_marc holds 1300/1200 only, and every
+// DISMM/OAR-adjacent figure elsewhere in I07 is scoped to Black Mountain and
+// Gamsberg specifically, never the other SAP plant codes that show up
+// elsewhere in the extract as unrelated noise for this initiative). Real SAP
+// plant codes, human names hardcoded here since no plant-code -> name
+// mapping exists anywhere in this codebase yet (PLANTS in
+// lib/shared-data/plants.ts is scenario-only master data keyed on invented
+// ids like PLANT-GBG, not real SAP WERKS codes).
+const ADOPTION_PLANTS: { code: string; name: string }[] = [
+  { code: "1300", name: "Black Mountain" },
+  { code: "1500", name: "Gamsberg" },
+]
+
 /** FR-9's adoption rate, from the persisted recommendation ledger
  * (i7_sap_adoption) -- real counts, never a fabricated rate. `null`
  * adoptionRatePercentage (every evaluated row still UNKNOWN, the current
  * state of this data extract) renders as an explicit "Not yet measured"
  * state, never a 0%. totalEvaluated only grows as recommendations are
  * viewed through the adoption endpoints -- this is not a portfolio-wide
- * figure on day one. */
-function AdoptionRateCard({ summary }: { summary: AdoptionSummaryResult | null }) {
+ * figure on day one.
+ *
+ * `plant`/`onPlantChange` are this card's own filter, separate from the
+ * page's sidebar Plant filter -- the ledger has no plant column of its own
+ * (see fetchAdoptionSummary's docstring), so this is a dedicated backend
+ * param, not something the sidebar selection could drive for free. */
+function AdoptionRateCard({
+  summary,
+  plant,
+  onPlantChange,
+}: {
+  summary: AdoptionSummaryResult | null
+  plant: string
+  onPlantChange: (plant: string) => void
+}) {
+  const plantPicker = (
+    <div className="mb-3 flex justify-end">
+      <Select value={plant} onValueChange={(v) => onPlantChange(v ?? ALL_FILTER)}>
+        <SelectTrigger className="h-8 w-48">
+          <SelectValue placeholder="All">
+            {(v: string) =>
+              v === ALL_FILTER ? "All" : `${ADOPTION_PLANTS.find((p) => p.code === v)?.name} (${v})`
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER}>All</SelectItem>
+          {ADOPTION_PLANTS.map((p) => (
+            <SelectItem key={p.code} value={p.code}>
+              {p.name} ({p.code})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
   if (!summary || summary.totalEvaluated === 0) {
     return (
-      <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-        <p>No recommendations have been reconciled against SAP yet.</p>
-        <p className="max-w-xs">
-          The ledger fills in as recommendations are viewed through the Adoption Tracking screen.
-        </p>
+      <div className="flex flex-col">
+        {plantPicker}
+        <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
+          <p>No recommendations have been reconciled against SAP yet.</p>
+          <p className="max-w-xs">
+            The ledger fills in as recommendations are viewed through the Adoption Tracking screen.
+          </p>
+        </div>
       </div>
     )
   }
@@ -116,6 +175,7 @@ function AdoptionRateCard({ summary }: { summary: AdoptionSummaryResult | null }
 
   return (
     <div className="flex w-full flex-col items-stretch gap-2">
+      {plantPicker}
       <div className="text-center">
         <div className="text-lg font-semibold text-foreground">
           {rateKnown ? `${summary.adoptionRatePercentage}% adoption rate` : "Not yet measured"}
@@ -173,7 +233,29 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
   const { data, loading, error, refetch } = useLiveRecommendations({ pageSize: LIVE_OVERVIEW_PAGE_SIZE })
   const { summary } = useLiveRecommendationSummary()
-  const { summary: adoptionSummary } = useLiveAdoptionSummary()
+  // Own plant filter, independent of the sidebar's Plant filter -- lets
+  // someone compare adoption by plant without changing what the rest of the
+  // page shows (see get_adoption_summary's own docstring for why this needs
+  // a dedicated backend param rather than reading it off the sidebar
+  // selection: the ledger has no plant column of its own).
+  const [adoptionPlant, setAdoptionPlant] = useState<string>(ALL_FILTER)
+  const { summary: adoptionSummary } = useLiveAdoptionSummary(
+    adoptionPlant === ALL_FILTER ? undefined : adoptionPlant,
+  )
+  // Adoption is a separate reconciliation, keyed by recommendation id, not a
+  // field on Recommendation itself (see use-live-adoption.ts) -- fetched at
+  // the same page size and joined in below so the "SAP Adoption" filter has
+  // something to read. Only covers material-plants with an actual
+  // calculated recommendation (the backend's own /recommendations/adoption
+  // scope), so a row absent from this map has no adoption status to filter
+  // on at all -- treated as "Unknown" below, the same value a genuinely
+  // evaluated-but-no-evidence row gets, since neither has anything to show.
+  const { items: adoptionItems } = useLiveAdoption({ pageSize: LIVE_OVERVIEW_PAGE_SIZE })
+  const adoptionByRecommendationId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of adoptionItems ?? []) map.set(row.recommendationId, row.status)
+    return map
+  }, [adoptionItems])
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -185,13 +267,17 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       if (filters.demandPattern !== ALL_FILTER && r.demandPattern !== filters.demandPattern) return false
       if (filters.status !== ALL_FILTER && r.status !== filters.status) return false
       if (filters.risk !== ALL_FILTER && r.risk !== filters.risk) return false
+      if (filters.sapAdoption !== ALL_FILTER) {
+        const adoptionStatus = adoptionByRecommendationId.get(r.id) ?? "Unknown"
+        if (adoptionStatus !== filters.sapAdoption) return false
+      }
       if (query) {
         const haystack = `${r.material.materialId} ${r.material.description}`.toLowerCase()
         if (!haystack.includes(query)) return false
       }
       return true
     })
-  }, [data, filters])
+  }, [data, filters, adoptionByRecommendationId])
 
   function toggle<K extends "circuit" | "status" | "risk">(key: K, value: string) {
     setFilters((prev) => ({ ...prev, [key]: prev[key] === value ? ALL_FILTER : value }))
@@ -264,7 +350,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-        <DashboardFilters value={filters} onChange={setFilters} />
+        <DashboardFilters value={filters} onChange={setFilters} showSapAdoptionFilter />
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -322,7 +408,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
               subtitle="Recommendations reconciled against SAP change history, by ledger status."
               span={12}
             >
-              <AdoptionRateCard summary={adoptionSummary} />
+              <AdoptionRateCard
+                summary={adoptionSummary}
+                plant={adoptionPlant}
+                onPlantChange={setAdoptionPlant}
+              />
             </ChartCard>
 
             <ChartCard

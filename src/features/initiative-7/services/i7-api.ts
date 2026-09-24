@@ -776,9 +776,13 @@ export interface AdoptionSummaryResult {
 /** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide
  * counts from the persisted ledger (i7_sap_adoption), not a live
  * re-evaluation. Feeds the Inventory Planning overview's adoption-rate card
- * and the quarterly report's SAP Adoption section. */
-export async function fetchAdoptionSummary(): Promise<AdoptionSummaryResult> {
-  const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary`)
+ * and the quarterly report's SAP Adoption section. Optional `plant` narrows
+ * to one SAP plant code (the backend joins to Recommendation to get one,
+ * since the ledger itself carries no plant column -- see
+ * app/api/i7/adoption.py::get_adoption_summary). */
+export async function fetchAdoptionSummary(plant?: string): Promise<AdoptionSummaryResult> {
+  const query = plant ? `?plant=${encodeURIComponent(plant)}` : ""
+  const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary${query}`)
   return {
     totalEvaluated: response.total_evaluated,
     adoptedCount: response.adopted_count,
