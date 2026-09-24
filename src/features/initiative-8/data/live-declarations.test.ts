@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { toDeclarationItem } from "@/features/initiative-8/data/live-declarations"
+import {
+  parseAttestationQuantity,
+  toDeclarationItem,
+  withQuantitiesUnderRepair,
+} from "@/features/initiative-8/data/live-declarations"
 import type { ApiDeclarationItem } from "@/lib/api/i8"
 
 /**
@@ -117,5 +121,40 @@ describe("toDeclarationItem", () => {
 
   it("keeps nextAction verbatim — it is the instruction a person acts on", () => {
     expect(toDeclarationItem(apiRow()).nextAction).toContain("no assessment is on record")
+  })
+})
+
+describe("withQuantitiesUnderRepair", () => {
+  const items = [
+    toDeclarationItem(apiRow()),
+    toDeclarationItem(apiRow({ id: "D-2", relatedRepairId: "4500001287-260" })),
+    toDeclarationItem(apiRow({ id: "D-3", relatedRepairId: "not-in-register" })),
+  ]
+
+  it("attaches the quantity still out on the related repair line", () => {
+    const [first] = withQuantitiesUnderRepair(items, [{ id: "4500001052-1310", qtyUnderRepair: 2 }])
+    expect(first.quantityUnderRepair).toBe(2)
+  })
+
+  it("attaches nothing for a line that is back, or not in the register", () => {
+    // The form then defaults to 1 -- a 0 would be a quantity the API rejects.
+    const [, second, third] = withQuantitiesUnderRepair(items, [
+      { id: "4500001287-260", qtyUnderRepair: 0 },
+    ])
+    expect(second.quantityUnderRepair).toBeUndefined()
+    expect(third.quantityUnderRepair).toBeUndefined()
+  })
+})
+
+describe("parseAttestationQuantity", () => {
+  it("accepts a positive number, whole or not", () => {
+    expect(parseAttestationQuantity("2")).toBe(2)
+    expect(parseAttestationQuantity(" 1.5 ")).toBe(1.5)
+  })
+
+  it("rejects zero, negatives, blanks and text", () => {
+    for (const input of ["0", "-1", "", "   ", "abc"]) {
+      expect(parseAttestationQuantity(input)).toBeUndefined()
+    }
   })
 })

@@ -36,15 +36,19 @@ import { cn } from "@/lib/utils"
  */
 export function JustificationLog({
   entries,
+  csvFilename = "i13-justifications.csv",
 }: {
   entries: UnifiedJustification[]
+  /** The export's filename. Initiative 08's justification page renders this
+   *  log too, and a file of I08 records should not be named for I13. */
+  csvFilename?: string
 }) {
   const { paged, page, pageCount, hasPrevious, hasNext, previous, next } =
     usePaginatedRows(entries)
 
   function exportCsv() {
     downloadCsv(
-      "i13-justifications.csv",
+      csvFilename,
       [
         "Captured",
         "Kind",

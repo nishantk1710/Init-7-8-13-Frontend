@@ -32,8 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
+import { parseAttestationQuantity } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationCondition, DeclarationItem, DeclarationStatus } from "@/features/initiative-8/types/repair"
 import { DECLARATION_STATUS_TONE } from "@/features/initiative-8/utils/status"
+import { ApiError } from "@/lib/api/client"
 import { createAttestation } from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
 
@@ -81,7 +84,12 @@ export function DeclarationQueueTable({
   // Collected only under `live`, because only there do they go anywhere.
   const [description, setDescription] = useState("")
   const [faultCategory, setFaultCategory] = useState(faultCategories[0] ?? "")
+  // Kept as the typed string so a half-typed "1." is not reformatted under the
+  // cursor; parsed once, for the button and the POST.
+  const [quantity, setQuantity] = useState("1")
+  const [serialNumber, setSerialNumber] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const parsedQuantity = parseAttestationQuantity(quantity)
 
   // The rows ARE the server's answer: the declaration status is computed from
   // the attestation table, and after a write router.refresh() re-runs the
@@ -96,11 +104,15 @@ export function DeclarationQueueTable({
 
   const activeRow = items.find((r) => r.id === dialogFor) ?? null
 
-  function openDialog(id: string) {
+  function openDialog(row: DeclarationItem) {
     setCondition("Repairable")
     setDescription("")
     setFaultCategory(faultCategories[0] ?? "")
-    setDialogFor(id)
+    // What the register says is still out on this line; 1 when it does not
+    // know, or the unit is already back.
+    setQuantity(String(row.quantityUnderRepair ?? 1))
+    setSerialNumber("")
+    setDialogFor(row.id)
   }
 
   /**
@@ -140,15 +152,20 @@ export function DeclarationQueueTable({
       return
     }
 
+    if (parsedQuantity === undefined) return
+
     setSubmitting(true)
     try {
       const created = await createAttestation({
         materialId: activeRow.material.materialId,
         plant,
-        quantity: 1,
+        quantity: parsedQuantity,
         conditionDescription: description.trim(),
         faultCategory,
         recommendation: RECOMMENDATION[condition],
+        // Optional, and omitted rather than sent blank: an empty string on an
+        // audit record reads as "the serial number is empty".
+        serialNumber: serialNumber.trim() || undefined,
       })
 
       // The API's own words about what the write covered.
@@ -161,8 +178,16 @@ export function DeclarationQueueTable({
       // guess. The status is the backend's to compute, not ours to assume.
       router.refresh()
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      toast.error("The attestation was not recorded", { description: message })
+      // The backend's own sentence -- "8000004665 is not in the repairable
+      // universe", "plant must be 1300 or 1500" -- rather than "POST … failed
+      // with 422", which tells the person nothing they can act on.
+      const message =
+        error instanceof ApiError
+          ? error.detailText()
+          : error instanceof Error
+            ? error.message
+            : String(error)
+      toast.error("The attestation was not recorded", { description: message, duration: 12000 })
     } finally {
       setSubmitting(false)
     }
@@ -261,7 +286,7 @@ export function DeclarationQueueTable({
                   </TableCell>
                   <TableCell>
                     {r.status !== "Completed" ? (
-                      <Button size="xs" variant="outline" onClick={() => openDialog(r.id)}>
+                      <Button size="xs" variant="outline" onClick={() => openDialog(r)}>
                         Declare condition
                       </Button>
                     ) : (
@@ -336,6 +361,42 @@ export function DeclarationQueueTable({
             </p>
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground" htmlFor="attestation-quantity">
+                Quantity
+              </label>
+              <Input
+                id="attestation-quantity"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                aria-invalid={parsedQuantity === undefined}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {parsedQuantity === undefined
+                  ? "Must be greater than 0."
+                  : activeRow?.quantityUnderRepair !== undefined
+                    ? `${activeRow.quantityUnderRepair} under repair on this line.`
+                    : "Units assessed."}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground" htmlFor="attestation-serial">
+                Serial number <span className="italic">(optional)</span>
+              </label>
+              <Input
+                id="attestation-serial"
+                value={serialNumber}
+                onChange={(e) => setSerialNumber(e.target.value)}
+                placeholder="As stamped on the unit"
+              />
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogFor(null)} disabled={submitting}>
               Cancel
@@ -345,7 +406,12 @@ export function DeclarationQueueTable({
               // The backend rejects a blank description or an unknown fault
               // category with a 422. Disabling here means the user is told
               // before the round trip rather than after it.
-              disabled={submitting || description.trim() === "" || faultCategory === ""}
+              disabled={
+                submitting ||
+                description.trim() === "" ||
+                faultCategory === "" ||
+                parsedQuantity === undefined
+              }
             >
               {submitting ? "Recording…" : "Confirm declaration"}
             </Button>

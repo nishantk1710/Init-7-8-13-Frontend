@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest"
 
-import { toRepairChain } from "@/features/initiative-8/data/live-register"
+import {
+  buildRegisterOptions,
+  registerDescription,
+  toRepairChain,
+} from "@/features/initiative-8/data/live-register"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
-import { isRepairOverdue, vendorLabel } from "@/features/initiative-8/utils/status"
-import type { ApiRepairChain } from "@/lib/api/i8"
+import {
+  NO_REGISTER_FILTERS,
+  REGISTER_CSV_HEADERS,
+  filterRegister,
+  registerRowsToCsv,
+} from "@/features/initiative-8/utils/register-view"
+import {
+  NO_CRITICALITY,
+  isOpenRepair,
+  isRepairOverdue,
+  overdueStatusOf,
+  vendorLabel,
+} from "@/features/initiative-8/utils/status"
+import type { ApiRegisterMeta, ApiRepairChain } from "@/lib/api/i8"
 
 /**
  * W5.4 — the adapter between the API and the domain type.
@@ -35,9 +51,13 @@ function apiRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
     repairStatus: "PO Issued",
     receiptStatus: "Not Yet Shipped",
     overdueStatus: "OVERDUE",
+    leadTimeStatus: "BEYOND_LEAD_TIME",
     declarationStatus: "Required",
     daysOpen: 526,
     agingBucket: "60+",
+    leadTimeDays: 31,
+    daysElapsed: 526,
+    daysOverLeadTime: 495,
     daysAtVendor: null,
     daysInCurrentStage: 526,
     daysRemainingInRepair: -500,
@@ -58,6 +78,8 @@ function apiRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
     deliveryCompleted: false,
     reversals: 0,
     scheduleLines: 1,
+    criticality: null,
+    poBlocked: false,
     ...overrides,
   }
 }
@@ -168,6 +190,161 @@ describe("toRepairChain", () => {
       expect(chain).toHaveProperty(key)
       expect(fixture).toHaveProperty(key)
     }
+  })
+})
+
+describe("criticality and blocked PO lines", () => {
+  it("carries a criticality rating through", () => {
+    expect(toRepairChain(apiRow({ criticality: "CRITICAL" })).criticality).toBe("CRITICAL")
+  })
+
+  it("keeps an unrated line unrated — never NORMAL", () => {
+    // ZMM065 rates well under half the universe. Defaulting the rest to NORMAL
+    // would quietly downgrade parts nobody has assessed.
+    expect(toRepairChain(apiRow({ criticality: null })).criticality).toBeUndefined()
+    expect(toRepairChain(apiRow({ criticality: undefined })).criticality).toBeUndefined()
+  })
+
+  it("flags a blocked PO line and keeps it", () => {
+    expect(toRepairChain(apiRow({ poBlocked: true })).poBlocked).toBe(true)
+  })
+
+  it("reads a backend that predates poBlocked as not blocked", () => {
+    expect(toRepairChain(apiRow({ poBlocked: undefined })).poBlocked).toBe(false)
+  })
+})
+
+describe("buildRegisterOptions", () => {
+  const chains = [
+    toRepairChain(apiRow({ id: "a", repairStatus: "Closed", overdueStatus: "RECEIVED", criticality: "NORMAL" })),
+    toRepairChain(apiRow({ id: "b", repairStatus: "PO Issued", criticality: "CRITICAL" })),
+    toRepairChain(apiRow({ id: "c", repairStatus: "Received", overdueStatus: "RECEIVED" })),
+    toRepairChain(apiRow({ id: "d", repairStatus: "PO Issued", vendor: null, vendorName: null })),
+  ]
+
+  it("offers only the repair statuses the data actually has, in lifecycle order", () => {
+    // Three occur in the July extract, not the six the type allows. A status
+    // no row has is a filter that can only ever return nothing.
+    expect(buildRegisterOptions(chains).repairStatusOptions).toEqual([
+      "PO Issued",
+      "Received",
+      "Closed",
+    ])
+  })
+
+  it("lists criticalities most severe first, with unrated lines findable last", () => {
+    expect(buildRegisterOptions(chains).criticalityOptions).toEqual([
+      "CRITICAL",
+      "NORMAL",
+      NO_CRITICALITY,
+    ])
+  })
+
+  it("offers no 'Not recorded' option when every line is rated", () => {
+    const rated = [toRepairChain(apiRow({ criticality: "IMPACT" }))]
+    expect(buildRegisterOptions(rated).criticalityOptions).toEqual(["IMPACT"])
+  })
+
+  it("keeps lines with no vendor findable", () => {
+    expect(buildRegisterOptions(chains).vendorOptions).toContain("Unknown vendor")
+  })
+})
+
+describe("filterRegister", () => {
+  const overdue = toRepairChain(apiRow({ id: "overdue", criticality: "CRITICAL" }))
+  const onTime = toRepairChain(apiRow({ id: "on-time", overdueStatus: "ON_TIME" }))
+  const noDate = toRepairChain(apiRow({ id: "no-date", overdueStatus: "NO_DUE_DATE" }))
+  const back = toRepairChain(
+    apiRow({ id: "back", overdueStatus: "RECEIVED", repairStatus: "Closed", criticality: "NORMAL" }),
+  )
+  const all = [overdue, onTime, noDate, back]
+  const ids = (chains: { id: string }[]) => chains.map((c) => c.id)
+
+  it("returns everything with no filter set", () => {
+    expect(filterRegister(all, NO_REGISTER_FILTERS)).toHaveLength(4)
+  })
+
+  it("filters on the overdue status, each state separately", () => {
+    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "OVERDUE" }))).toEqual(["overdue"])
+    // "No due date" is its own answer, not a kind of "on time".
+    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "NO_DUE_DATE" }))).toEqual(["no-date"])
+    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "ON_TIME" }))).toEqual(["on-time"])
+  })
+
+  it("filters on criticality, and 'Not recorded' finds the unrated lines", () => {
+    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, criticality: "CRITICAL" }))).toEqual([
+      "overdue",
+    ])
+    expect(
+      ids(filterRegister(all, { ...NO_REGISTER_FILTERS, criticality: NO_CRITICALITY })),
+    ).toEqual(["on-time", "no-date"])
+  })
+
+  it("combines filters with AND", () => {
+    const filters = { ...NO_REGISTER_FILTERS, repairStatus: "Closed", criticality: "CRITICAL" }
+    expect(filterRegister(all, filters)).toHaveLength(0)
+  })
+})
+
+describe("registerRowsToCsv", () => {
+  it("writes one row per filtered chain — all of them, not a page", () => {
+    const chains = Array.from({ length: 120 }, (_, i) => toRepairChain(apiRow({ id: `line-${i}` })))
+    const rows = registerRowsToCsv(chains)
+    expect(rows).toHaveLength(120)
+    for (const row of rows) expect(row).toHaveLength(REGISTER_CSV_HEADERS.length)
+  })
+
+  it("leaves unknown values empty rather than writing 0", () => {
+    // A CSV cell is read without the column's caveats beside it: an exported 0
+    // asserts "none" where the source only said "not recorded".
+    const [row] = registerRowsToCsv([
+      toRepairChain(apiRow({ stockOnHand: null, reorderPoint: null, criticality: null })),
+    ])
+    const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+    expect(cell("Stock on hand")).toBe("")
+    expect(cell("Reorder point")).toBe("")
+    expect(cell("Criticality")).toBe("")
+  })
+
+  it("carries the overdue status, the blocked flag and the lead-time verdict", () => {
+    const [row] = registerRowsToCsv([toRepairChain(apiRow({ poBlocked: true }))])
+    const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+    expect(cell("Overdue status")).toBe("Overdue")
+    expect(cell("Blocked in SAP")).toBe("Yes")
+    expect(cell("Lead-time status")).toBe("BEYOND_LEAD_TIME")
+    expect(cell("Repair PO")).toBe("4500001052/1310")
+  })
+})
+
+describe("overdueStatusOf and isOpenRepair", () => {
+  it("uses the backend's overdue status when it sent one", () => {
+    expect(overdueStatusOf(toRepairChain(apiRow({ overdueStatus: "NO_DUE_DATE" })))).toBe(
+      "NO_DUE_DATE",
+    )
+  })
+
+  it("counts a line reading 'Received' as back, not open", () => {
+    // One live line reads Received without being Closed. `!== "Closed"` would
+    // call it open and put the overview's aging chart one off the KPI.
+    const chain = toRepairChain(apiRow({ repairStatus: "Received", overdueStatus: "RECEIVED" }))
+    expect(isOpenRepair(chain)).toBe(false)
+    expect(isOpenRepair(toRepairChain(apiRow()))).toBe(true)
+  })
+})
+
+describe("registerDescription", () => {
+  const meta = { totalLines: 1181, openLines: 744 } as ApiRegisterMeta
+
+  it("says how many deleted lines were left out, and how many blocked ones kept", () => {
+    const text = registerDescription({ ...meta, excludedDeletedLines: 44, blockedLines: 72 }, "2026-09-24")
+    expect(text).toContain("44 lines deleted in SAP are excluded")
+    expect(text).toContain("72 blocked in SAP are included and flagged")
+  })
+
+  it("says nothing about exclusions a backend does not report", () => {
+    const text = registerDescription(meta, "2026-09-24")
+    expect(text).not.toContain("deleted")
+    expect(text).not.toContain("blocked")
   })
 })
 

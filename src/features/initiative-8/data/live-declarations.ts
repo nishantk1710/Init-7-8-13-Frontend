@@ -110,6 +110,41 @@ export function toDeclarationItem(row: ApiDeclarationItem): DeclarationItem {
   }
 }
 
+/**
+ * Attach each row's quantity still under repair, joined from the register on
+ * `relatedRepairId`.
+ *
+ * Only ever the attestation form's DEFAULT quantity. The declaration API does
+ * not carry it, and asking the person to type a number the register already
+ * knows invites a wrong one. A line that is back (0 under repair) or missing
+ * from the register gets nothing, and the form falls back to 1.
+ */
+export function withQuantitiesUnderRepair(
+  items: DeclarationItem[],
+  chains: { id: string; qtyUnderRepair: number }[],
+): DeclarationItem[] {
+  const quantities = new Map(chains.map((chain) => [chain.id, chain.qtyUnderRepair]))
+  return items.map((item) => {
+    const quantity = item.relatedRepairId ? quantities.get(item.relatedRepairId) : undefined
+    return quantity !== undefined && quantity > 0
+      ? { ...item, quantityUnderRepair: quantity }
+      : item
+  })
+}
+
+/**
+ * The form's quantity field as a number the API will accept, or `undefined`.
+ *
+ * Checked before the round trip so the button can say no; the backend applies
+ * its own range check too and its 422 says why, which the form shows as-is.
+ */
+export function parseAttestationQuantity(input: string): number | undefined {
+  const trimmed = input.trim()
+  if (trimmed === "") return undefined
+  const value = Number(trimmed)
+  return Number.isFinite(value) && value > 0 ? value : undefined
+}
+
 export type LiveDeclarations = {
   items: DeclarationItem[]
   meta: ApiDeclarationMeta

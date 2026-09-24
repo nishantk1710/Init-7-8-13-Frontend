@@ -27,6 +27,13 @@ export const initiative8Manifest: InitiativeManifest = {
         icon: "file-text",
         href: "/repairable-spares/declarations",
       },
+      // Every finding the I08 checks raise: missing attestations, and new
+      // units bought while a repair was open with no justification recorded.
+      {
+        label: "Exception Queue",
+        icon: "alert-triangle",
+        href: "/repairable-spares/exceptions",
+      },
       {
         label: "Coding Candidates",
         icon: "search",
