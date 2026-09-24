@@ -37,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatCount } from "@/lib/utils"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -141,7 +140,6 @@ const ALL_RAW_STATUSES = [
 ] as const
 
 export function LivePipelineWorkspace() {
-  const { openMaterial360 } = useMaterial360()
   // Part 37 -- portfolio-wide counts, not one fetched page's: with ~113k
   // accumulated rows almost all Pending Review, a 200-row page (like every
   // other portfolio-count bug found this session -- Pending Approval KPI,
@@ -354,7 +352,7 @@ export function LivePipelineWorkspace() {
                   <TableRow key={rec.id}>
                     <TableCell>
                       <Link href={`/inventory-planning/recommendations/${rec.id}`} className="hover:underline">
-                        <MaterialIdentity material={rec.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={rec.material}  />
                       </Link>
                     </TableCell>
                     <TableCell>

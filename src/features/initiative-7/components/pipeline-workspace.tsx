@@ -233,7 +233,7 @@ function ScenarioPipelineWorkspace() {
                         href={`/inventory-planning/recommendations/${rec.id}`}
                         className="hover:underline"
                       >
-                        <MaterialIdentity material={rec.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={rec.material}  />
                       </Link>
                     </TableCell>
                     <TableCell>

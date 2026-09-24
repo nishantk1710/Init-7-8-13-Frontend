@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react"
-
+import { useRouter } from "next/navigation"
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
@@ -76,17 +76,19 @@ function RecommendationDetailView({
   onLiveChanged?: () => void
 }) {
   const plant = getPlantById(recommendation.plantId)
+  const router = useRouter()
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        <Link
-          href="/inventory-planning/recommendations"
+        <button
+          type="button"
+          onClick={() => router.back()}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" />
-          Back to Recommendations
-        </Link>
+          Back
+        </button>
 
         <PageHeader
           title={recommendation.material.description}
