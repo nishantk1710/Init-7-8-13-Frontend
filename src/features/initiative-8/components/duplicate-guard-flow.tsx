@@ -16,7 +16,6 @@ import {
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import { formatZAR } from "@/lib/utils"
 import { UNKNOWN, formatDaysRemaining, vendorLabel } from "@/features/initiative-8/utils/status"
-import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
 const DEFAULT_MATERIAL_ID = "800-14201" // Scenario C
 
@@ -74,15 +73,6 @@ export function DuplicateGuardFlow() {
 
   return (
     <div className="flex flex-col gap-4">
-      {USING_LIVE_DATA && (
-        <AlertBanner tone="warning" title="This walkthrough uses demo data, not SAP">
-          The repairable-unit rule behind it (FR-6) is not built on the backend
-          yet, so the materials offered here are hand-written scenarios that do
-          not exist in SAP. The Repair Register and Repair Detail screens beside
-          it show real July-extract data.
-        </AlertBanner>
-      )}
-
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 text-sm font-medium text-foreground">New Procurement Attempt</div>
         <p className="mb-3 text-xs text-muted-foreground">

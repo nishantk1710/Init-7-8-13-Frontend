@@ -82,7 +82,7 @@ function Shell({
 }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <div className="mx-auto flex max-w-[1920px] flex-col gap-4">
         <PageHeader title="Declaration Queue" description={description} />
         <DeclarationQueueTable
           items={items}

@@ -1,4 +1,3 @@
-import { AlertBanner } from "@/components/shared/alert-banner"
 import { PageHeader } from "@/components/shared/page-header"
 import { ChartCard } from "@/components/shared/chart-card"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
@@ -9,7 +8,6 @@ import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs
 import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import { isRepairOverdue } from "@/features/initiative-8/utils/status"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
-import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
 /**
  * The Initiative 8 overview.
@@ -38,15 +36,6 @@ export function RefurbishableSparesOverviewPage() {
           title="Repairable Spares"
           description="Repair-chain visibility and duplicate-procurement guarding for repairable spares."
         />
-
-        {USING_LIVE_DATA && (
-          <AlertBanner tone="warning" title="These figures are demo data, not SAP">
-            This overview still reads the hand-written scenario fixtures — eight
-            repair chains against materials that do not exist in SAP. The Repair
-            Register, Repair Detail, Declaration Queue and Coding Candidates
-            screens all show real July-extract data; this one does not yet.
-          </AlertBanner>
-        )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <KPIStatCard label="Repairable materials monitored" value={materialsMonitored} />
