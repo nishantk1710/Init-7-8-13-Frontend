@@ -5,7 +5,9 @@ import {
   AssessmentCaveats,
 } from "@/components/assistant/assessment-card"
 import { SessionReference } from "@/components/assistant/session-reference"
+import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type {
+  ApiLinkedReservation,
   ApiJustification,
   ApiPlan,
   ApiQuantitySuggestion,
@@ -100,7 +102,11 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
         </Section>
       )}
 
-      <Linkage note={trace.linkageNote} />
+      <Linkage
+        note={trace.linkageNote}
+        sessionId={trace.sessionId}
+        linked={trace.linkedReservations ?? []}
+      />
     </div>
   )
 }
@@ -287,21 +293,44 @@ function JustificationCard({
   )
 }
 
-function Linkage({ note }: { note: string }) {
+function Linkage({
+  note,
+  sessionId,
+  linked,
+}: {
+  note: string
+  sessionId: string
+  linked: ApiLinkedReservation[]
+}) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-      <h2 className="text-sm font-medium text-foreground">
-        Link to the reservation
-      </h2>
+    <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border p-4">
+      <h2 className="text-sm font-medium text-foreground">Link to the reservation</h2>
       <p className="text-sm text-muted-foreground">{note}</p>
-      <p className="text-[11px] text-muted-foreground">
-        The platform cannot read the reference back off a reservation until the
-        SAP team exposes <code className="font-mono">Bednr</code> on{" "}
-        <code className="font-mono">ReservationItemSet</code>. Until then this
-        session stands on its own: it records what the planner was told and
-        what they decided, and nothing here claims to know which reservation
-        followed.
-      </p>
+      {linked.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {linked.map((l) => (
+            <li key={`${l.reservationNumber}/${l.reservationItem}`} className="flex flex-wrap items-center gap-2 text-sm">
+              <Link
+                href={`/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(sessionId)}`}
+                className="font-mono text-primary underline-offset-4 hover:underline"
+              >
+                {l.reservationNumber}/{l.reservationItem}
+              </Link>
+              <span className="text-xs text-muted-foreground">
+                item text &ldquo;{l.sgtxt ?? ""}&rdquo;
+                {l.source === "UAT_SGTXT" ? " · UAT simulation" : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          The link is read from the reservation&rsquo;s item text (SGTXT) in the loaded SAP
+          extract. Until a reservation carrying this session&rsquo;s ID is loaded, this session
+          stands on its own: it records what the planner was told and what they decided.
+        </p>
+      )}
+      <UatReservationTools sessionId={sessionId} />
     </div>
   )
 }

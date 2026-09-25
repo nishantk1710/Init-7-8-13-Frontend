@@ -357,6 +357,13 @@ export interface ConsumptionPlan {
   reservationItem: string | null
   capturedBy: string
   capturedAt: string
+  /** Reservations whose item text (SGTXT) carries this plan's session ID. */
+  linkedReservations?: {
+    reservationNumber: string
+    reservationItem: string
+    source: string
+    sgtxt: string | null
+  }[]
 }
 
 /** FR-3's answer, computed on demand for one material, plant and quantity. */
@@ -493,4 +500,31 @@ export interface I13SnapshotStatus {
   buildingSince: string | null
   rebuilding: boolean
   lastError: string | null
+}
+
+/**
+ * `GET /i13/utilisation-ledger` — one reservation item through PR, PO, receipt
+ * and issue. Unlike the procurement-anchored ledger, every reservation appears,
+ * including those with no purchase requisition — and so does the assistant
+ * session its item text (SGTXT) names.
+ */
+export interface ReservationLedgerRow {
+  ledgerId: string
+  reservationNumber: string
+  reservationItem: string
+  material: string
+  plant: string
+  reservationQuantity: number | null
+  requirementDate: string | null
+  prNumber: string | null
+  poNumber: string | null
+  poItem: string | null
+  receivedQuantity: number | null
+  issuedQuantity: number | null
+  lastGrDate: string | null
+  lastIssueDate: string | null
+  lifecycleStatus: string
+  sessionId: string | null
+  sgtxt: string | null
+  uatSimulated: boolean
 }

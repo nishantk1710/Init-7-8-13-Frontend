@@ -58,6 +58,7 @@ import {
   type JustificationEntry,
   type QuantitySuggestion,
   type ReclassificationCandidate,
+  type ReservationLedgerRow,
   type UsagePattern,
   type RequesterConfirmation,
   type UtilisationLedgerEntry,
@@ -952,5 +953,49 @@ export function getI13SnapshotStatus(): Promise<I13SnapshotStatus> {
     buildingSince: str(raw.building_since),
     rebuilding: Boolean(raw.rebuilding),
     lastError: str(raw.last_error),
+  }))
+}
+
+function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
+  return {
+    ledgerId: String(raw.ledger_id ?? ""),
+    reservationNumber: String(raw.reservation_number ?? ""),
+    reservationItem: String(raw.reservation_item ?? ""),
+    material: String(raw.material ?? ""),
+    plant: String(raw.plant ?? ""),
+    reservationQuantity: toNumber(raw.reservation_quantity as string) ?? null,
+    requirementDate: str(raw.requirement_date),
+    prNumber: str(raw.pr_number),
+    poNumber: str(raw.po_number),
+    poItem: str(raw.po_item),
+    receivedQuantity: toNumber(raw.received_quantity as string) ?? null,
+    issuedQuantity: toNumber(raw.issued_quantity as string) ?? null,
+    lastGrDate: str(raw.last_gr_date),
+    lastIssueDate: str(raw.last_issue_date),
+    lifecycleStatus: String(raw.lifecycle_status ?? ""),
+    sessionId: str(raw.session_id),
+    sgtxt: str(raw.sgtxt),
+    uatSimulated: Boolean(raw.uat_simulated),
+  }
+}
+
+/** `GET /i13/utilisation-ledger` — the reservation-anchored ledger, with the session each item text names. */
+export function getI13ReservationLedgerList(params?: {
+  plant?: string
+  material?: string
+  sessionId?: string
+  limit?: number
+  offset?: number
+}): Promise<ApiList<ReservationLedgerRow>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    session_id: params?.sessionId,
+    limit: params?.limit ?? 1000,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/utilisation-ledger${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toReservationLedgerRow),
   }))
 }

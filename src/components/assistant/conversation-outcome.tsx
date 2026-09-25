@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
+import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type { ApiRouting } from "@/lib/api/assistant"
 
 type Destination = { href: string; label: string; what: string }
@@ -23,6 +24,11 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
         href: `/oar-utilization/watch?${scope}`,
         label: "WATCH",
         what: "cover and acquired-vs-plan for this part, now measured against your plan",
+      },
+      {
+        href: `/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(sessionId)}`,
+        label: "Utilization Ledger",
+        what: "the reservation, once its item text (SGTXT) carries this session ID",
       },
       {
         href: `/oar-utilization/aging-exceptions?${scope}`,
@@ -74,6 +80,9 @@ export function ConversationOutcome({ sessionId, routing }: { sessionId: string;
           </li>
         ))}
       </ul>
+      <div className="mt-3">
+        <UatReservationTools sessionId={sessionId} />
+      </div>
     </div>
   )
 }
