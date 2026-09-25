@@ -56,7 +56,7 @@ export function SessionReference({
       await navigator.clipboard.writeText(sessionId)
       setCopied(true)
       toast.success("Reference copied", {
-        description: "Type it into the reservation in SAP.",
+        description: "Type it into the reservation's item text (SGTXT) in SAP.",
       })
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -84,7 +84,7 @@ export function SessionReference({
           {sessionId}
         </span>
         <span className="text-xs text-muted-foreground">
-          Type this into the reservation in SAP so this advice can be linked to
+          Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
           what you actually reserve.
         </span>
         {expiresAt && !expired && (

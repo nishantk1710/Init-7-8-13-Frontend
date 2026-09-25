@@ -9,6 +9,7 @@ import {
   type ComplianceCheck,
 } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
+import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -53,6 +54,8 @@ export default async function AssistantSessionsPage({
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
   let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
+  // Best-effort: the log is the page; this count is one card on it.
+  const compliance: SessionCompliance | null = await getSessionCompliance().catch(() => null)
   try {
     // One round trip each, in parallel. The compliance panel is derived from
     // both, and a sequential pair would double the wait for a screen whose
@@ -86,17 +89,28 @@ export default async function AssistantSessionsPage({
       state: "counted",
       count: sessions?.items.filter((s) => s.outcome === "ABANDONED").length ?? 0,
     },
-    {
-      // The one that cannot be a number. See the note in CompliancePanel.
-      id: "missing-session",
-      label: "Reservations with no session",
-      description:
-        "An 80-series or OAR reservation saved without a valid session reference — I08 FR-8 and I13 FR-4.",
-      state: "blocked",
-      reason:
-        "The platform cannot read a session reference back off a reservation, so it cannot tell which reservations are missing one. A zero here would mean the check never ran, not that everyone complied.",
-      dependency: "Bednr on ReservationItemSet (B2)",
-    },
+    compliance
+      ? {
+          id: "missing-session",
+          label: "Reservations with no session",
+          description: `OAR reservations required since ${compliance.goLiveDate} whose item text (SGTXT) carries no valid session ID — I08 FR-8 and I13 FR-4.`,
+          state: "counted",
+          count: compliance.missingSession + compliance.invalidSession,
+          detail:
+            `${compliance.covered} of ${compliance.reservations} carry a session with a plan; ` +
+            `${compliance.invalidSession} carry an ID that is mistyped or not for that part; ` +
+            `${compliance.sessionWithoutPlan} name a session that captured no plan.`,
+        }
+      : {
+          id: "missing-session",
+          label: "Reservations with no session",
+          description:
+            "An 80-series or OAR reservation saved without a valid session reference — I08 FR-8 and I13 FR-4.",
+          state: "blocked",
+          reason:
+            "The session count could not be loaded from the backend, so it is not shown. A zero here would mean the check never ran, not that everyone complied.",
+          dependency: "GET /api/i13/session-compliance",
+        },
   ]
 
   return (

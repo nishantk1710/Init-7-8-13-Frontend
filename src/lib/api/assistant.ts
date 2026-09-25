@@ -208,14 +208,29 @@ export type ApiPlan = {
   /** `OPEN` or `CLOSED`. The exception engine only treats `OPEN` as a commitment. */
   status: string
   /**
-   * Null until FR-8 links it, which is the normal state and not a gap: the
-   * assistant runs while the reservation is being created, so there is no number
-   * yet. It stays null until `Bednr` is exposed on `ReservationItemSet` (B2).
+   * Null until a reservation's item text (SGTXT) carries this plan's session ID
+   * — the normal state and not a gap: the assistant runs while the reservation
+   * is being created, so there is no number yet. Filled from the first
+   * `linkedReservations` entry once the link is read back.
    */
   reservationNumber: string | null
   reservationItem: string | null
   capturedBy: string
   capturedAt: string
+  /** Reservations whose SGTXT names this plan's session. */
+  linkedReservations?: ApiLinkedReservation[]
+}
+
+/** A reservation item whose item text (SGTXT) carries the session ID. */
+export type ApiLinkedReservation = {
+  reservationNumber: string
+  reservationItem: string
+  material: string
+  plant: string
+  /** `SGTXT` from the loaded extract, or `UAT_SGTXT` from the UAT overlay. */
+  source: string
+  sgtxt: string | null
+  firstSeenAt: string
 }
 
 export type ApiQuantitySuggestion = {
@@ -305,7 +320,9 @@ export type SessionTraceResponse = {
   plans: ApiPlan[]
   quantitySuggestions: ApiQuantitySuggestion[]
   justifications: ApiJustification[]
-  /** Says in words what is not yet linked, and why. Show it; do not summarise it. */
+  /** Reservations whose item text (SGTXT) carries this session's ID. */
+  linkedReservations?: ApiLinkedReservation[]
+  /** Says in words what is linked, or what is not yet and why. Show it; do not summarise it. */
   linkageNote: string
 }
 

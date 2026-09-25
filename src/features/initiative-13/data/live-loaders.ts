@@ -39,6 +39,7 @@ import {
   getI13Grni,
   getI13LedgerList,
   getI13ReclassificationList,
+  getI13ReservationLedgerList,
   getI13Summary,
   getI13UsagePatterns,
   getI13Validation,
@@ -47,6 +48,7 @@ import {
   type GrniEntry,
   type I13Summary,
   type ReclassificationCandidate,
+  type ReservationLedgerRow,
   type UsagePattern,
   type UtilisationLedgerEntry,
   type ValidationResult,
@@ -362,4 +364,31 @@ export async function loadLiveUsagePatterns(
     limit: 200,
   })
   return { ...cap(rows, total), plantOptions: plantsOf(rows), historyMonths }
+}
+
+export type LiveReservationLedger = Capped<ReservationLedgerRow> & {
+  plantOptions: string[]
+  /** Rows whose item text names an assistant session. */
+  linkedCount: number
+}
+
+/**
+ * The reservation-anchored ledger: every OAR reservation item, with the session
+ * its item text (SGTXT) names. Where a reservation made through the assistant
+ * appears once the extract carries it (or, in UAT, once it is simulated).
+ */
+export async function loadLiveReservationLedger(
+  filters: LedgerFilters & { session?: string } = {}
+): Promise<LiveReservationLedger> {
+  const { items: rows, total } = await getI13ReservationLedgerList({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    sessionId: filters.session || undefined,
+    limit: ROW_CAP,
+  })
+  return {
+    ...cap(rows, total),
+    plantOptions: plantsOf(rows),
+    linkedCount: rows.filter((r) => r.sessionId).length,
+  }
 }

@@ -32,6 +32,10 @@ export type I13SearchParams = {
   status?: string
   zmm065?: number
   gr30Day?: number
+  /** Ledger screen: `reservations` shows the reservation-anchored ledger. */
+  view?: string
+  /** Ledger screen: only reservations whose item text names this session. */
+  session?: string
 }
 
 /** Next hands `searchParams` as a promise of possibly-repeated values. */
@@ -70,6 +74,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     status: single(raw.status),
     zmm065: positiveInt(raw.zmm065),
     gr30Day: positiveInt(raw.gr30Day),
+    view: single(raw.view),
+    session: single(raw.session),
   }
 }
 
