@@ -41,6 +41,18 @@ export const initiative13Manifest: InitiativeManifest = {
         icon: "eye",
         href: "/oar-utilization/watch",
       },
+      // FR-6 per reservation line, and the monthly shape behind WATCH's
+      // consumption figure -- both served from the backend's I13 snapshot.
+      {
+        label: "30-Day GR-Not-Issued",
+        icon: "trending-down",
+        href: "/oar-utilization/gr-not-issued",
+      },
+      {
+        label: "Usage Pattern",
+        icon: "chart-bar",
+        href: "/oar-utilization/usage-patterns",
+      },
       {
         label: "Redeployment",
         icon: "arrows-right-left",

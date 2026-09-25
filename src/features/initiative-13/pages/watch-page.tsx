@@ -76,7 +76,7 @@ export async function WatchPage({ searchParams }: { searchParams: I13SearchParam
         ) : (
           <>
             <WatchTable metrics={live.rows} sessionsByKey={sessionsByKey} />
-            <RowCapNote atLimit={live.atLimit} count={live.count} noun="WATCH position" />
+            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="WATCH position" />
           </>
         )}
       </div>

@@ -138,11 +138,78 @@ async function readErrorDetail(response: Response): Promise<ApiErrorDetail> {
       const detail = (body as { detail: unknown }).detail
       if (typeof detail === "string") return detail
       if (isValidationIssueArray(detail)) return detail
+      // The I13 snapshot's 503 sends {status, message}; keep the sentence.
+      if (typeof detail === "object" && detail !== null && "message" in detail) {
+        const message = (detail as { message: unknown }).message
+        if (typeof message === "string") return message
+      }
     }
     return null
   } catch {
     return null
   }
+}
+
+/**
+ * How long a GET may take before it is abandoned, in milliseconds.
+ *
+ * Without one, a hung backend held a server-rendered page until Node's own
+ * ~5-minute header timeout and then failed with a bare "fetch failed". POSTs
+ * get no default timeout: every one writes to an append-only table, and giving
+ * up on a write that may have landed is worse than waiting for it.
+ */
+export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS ?? 20000)
+
+/**
+ * The backend answers 503 with `Retry-After` while the I13 snapshot is still
+ * being built after a restart (about a minute). Said as that, not as a fault.
+ */
+function preparingMessage(response: Response): string {
+  const retry = response.headers.get("Retry-After")
+  return (
+    "The backend is still preparing this data after a restart — this takes about a minute. " +
+    `Reload the page${retry ? ` in ${retry} seconds` : " shortly"}.`
+  )
+}
+
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
+  const method = init?.method ?? "GET"
+  const signal =
+    init?.signal ?? (method === "GET" && API_GET_TIMEOUT_MS > 0 ? AbortSignal.timeout(API_GET_TIMEOUT_MS) : undefined)
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...init,
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        [ACTOR_ID_HEADER]: currentActorId(),
+        ...init?.headers,
+      },
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new ApiError(
+        `The backend did not respond within ${Math.round(API_GET_TIMEOUT_MS / 1000)} seconds (${method} ${url}).`,
+        504
+      )
+    }
+    throw error
+  }
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response)
+    throw new ApiError(
+      response.status === 503 && response.headers.get("Retry-After")
+        ? preparingMessage(response)
+        : `${method} ${url} failed with ${response.status}`,
+      response.status,
+      detail
+    )
+  }
+  return response
 }
 
 /**
@@ -153,24 +220,7 @@ async function readErrorDetail(response: Response): Promise<ApiErrorDetail> {
  * only sometimes present is harder to reason about than one that always is.
  */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
-
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      [ACTOR_ID_HEADER]: currentActorId(),
-      ...init?.headers,
-    },
-  })
-
-  if (!response.ok) {
-    throw new ApiError(
-      `${init?.method ?? "GET"} ${url} failed with ${response.status}`,
-      response.status,
-      await readErrorDetail(response)
-    )
-  }
+  const response = await request(path, init)
 
   // 204 has no body. Nothing in this API returns one today, but a JSON parse of
   // an empty body throws a SyntaxError that reads as a server fault rather than
@@ -178,6 +228,29 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (response.status === 204) return undefined as T
 
   return (await response.json()) as T
+}
+
+/** A list response together with the population total the backend reported. */
+export type ApiList<T> = {
+  items: T[]
+  /** `X-Total-Count`, or `null` when the route does not send one. */
+  total: number | null
+  headers: Headers
+}
+
+/**
+ * GET a bare-array list and read `X-Total-Count` alongside it.
+ *
+ * The I13 list routes keep their bare-array bodies (so no existing caller's
+ * shape changed) and report the unpaged total in that header, which is what
+ * lets a screen say "1,000 of 42,649" instead of "there may be more".
+ */
+export async function apiFetchList<T>(path: string, init?: RequestInit): Promise<ApiList<T>> {
+  const response = await request(path, init)
+  const items = (await response.json()) as T[]
+  const header = response.headers.get("X-Total-Count")
+  const total = header === null ? null : Number(header)
+  return { items, total: Number.isFinite(total) ? total : null, headers: response.headers }
 }
 
 /**

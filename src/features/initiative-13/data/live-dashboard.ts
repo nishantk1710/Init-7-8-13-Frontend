@@ -111,7 +111,7 @@ export async function loadLiveDashboard(
         })
       ),
       section(loadLiveSummary()),
-      section(loadLiveReclassification(scope)),
+      section(loadLiveReclassification(scope, { allPositions: true })),
       section(loadLiveActExceptions(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope)),

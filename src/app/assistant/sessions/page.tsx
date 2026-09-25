@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { connection } from "next/server"
 
 import { SessionLogTable } from "@/components/assistant/session-log-table"
@@ -24,7 +25,26 @@ export const metadata: Metadata = {
  * than an honest failure: the entire purpose of this screen is to show what
  * was actually recorded.
  */
-export default async function AssistantSessionsPage() {
+/** One value from a possibly-repeated query parameter, trimmed, or undefined. */
+function single(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return undefined
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+export default async function AssistantSessionsPage({
+  searchParams,
+}: {
+  /**
+   * `?material=&plant=` narrows the log to one part. The session chips on the
+   * OAR WATCH and Exceptions screens link here with both, and this page used to
+   * ignore them and show every session.
+   */
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const params = await searchParams
+  const material = single(params.material)
+  const plant = single(params.plant)
   // Not statically prerendered. A build-time snapshot would show a log that
   // never gains the session somebody opened a minute ago, which on a
   // compliance screen reads as "nobody used the assistant".
@@ -38,8 +58,8 @@ export default async function AssistantSessionsPage() {
     // both, and a sequential pair would double the wait for a screen whose
     // whole job is to be glanced at.
     ;[sessions, justifications] = await Promise.all([
-      listSessions({ limit: 200 }),
-      listJustifications({ limit: 200 }),
+      listSessions({ material, plant, limit: 200 }),
+      listJustifications({ material, plant, limit: 200 }),
     ])
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
@@ -84,8 +104,17 @@ export default async function AssistantSessionsPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title="Assistant sessions"
-          description="Every time the assistant was opened, whether or not the advice was taken."
+          description={
+            material || plant
+              ? `Sessions for ${[material && `material ${material}`, plant && `plant ${plant}`].filter(Boolean).join(" at ")}.`
+              : "Every time the assistant was opened, whether or not the advice was taken."
+          }
         />
+        {(material || plant) && (
+          <Link href="/assistant/sessions" className="-mt-3 text-xs text-primary underline-offset-4 hover:underline">
+            Show every session
+          </Link>
+        )}
 
         {sessions === null ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">

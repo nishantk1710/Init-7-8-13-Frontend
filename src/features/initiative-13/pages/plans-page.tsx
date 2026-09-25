@@ -75,15 +75,18 @@ export async function ConsumptionPlansPage({
         ) : (
           <>
             <PlansTable plans={live.rows} />
-            <RowCapNote atLimit={live.atLimit} count={live.count} noun="captured plan" />
+            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="captured plan" />
             <p className="text-[11px] text-muted-foreground">
               {formatCount(live.count)} captured plan
-              {live.count === 1 ? "" : "s"}. A plan cannot yet clear a{" "}
-              <code className="font-mono">NO_PLAN</code> exception: the
-              reservation does not exist when the plan is captured, and the field
-              that would carry the session identifier back (
-              <code className="font-mono">RESB.BEDNR</code>) is not exposed on
-              the SAP entity set.
+              {live.count === 1 ? "" : "s"}. The reservation does not exist yet
+              when a plan is captured, and the field that would carry the session
+              identifier back (<code className="font-mono">RESB.BEDNR</code>) is
+              not exposed on the SAP entity set. Until it is, a plan covers the
+              reservations for its material and plant whose requirement date
+              falls inside its window: those clear their{" "}
+              <code className="font-mono">NO_PLAN</code> exception, and the plan
+              breaches only if nothing is issued by the window&rsquo;s end plus
+              the grace period.
             </p>
           </>
         )}

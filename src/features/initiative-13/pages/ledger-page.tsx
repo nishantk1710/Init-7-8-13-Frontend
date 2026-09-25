@@ -82,7 +82,7 @@ export async function UtilizationLedgerPage({
         ) : (
           <>
             <UtilizationLedgerTable entries={live.rows} />
-            <RowCapNote atLimit={live.atLimit} count={live.count} noun="ledger line" />
+            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="ledger line" />
           </>
         )}
 

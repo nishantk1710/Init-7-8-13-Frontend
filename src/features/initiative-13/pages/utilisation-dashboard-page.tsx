@@ -233,6 +233,7 @@ export async function UtilisationDashboardPage({
                 <RowCapNote
                   atLimit={dashboard.reclassification.data.atLimit}
                   count={dashboard.reclassification.data.count}
+                  total={dashboard.reclassification.data.total}
                   noun="candidate"
                 />
               </>
@@ -274,7 +275,7 @@ export async function UtilisationDashboardPage({
         </div>
 
         {watch && (
-          <RowCapNote atLimit={watch.atLimit} count={watch.count} noun="WATCH position" />
+          <RowCapNote atLimit={watch.atLimit} count={watch.count} total={watch.total} noun="WATCH position" />
         )}
 
         <DataSourcePanel />

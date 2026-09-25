@@ -59,11 +59,12 @@ export function SectionUnavailable({ message }: { message?: string }) {
 }
 
 /**
- * Said out loud whenever a response came back exactly full.
+ * How many rows this screen shows, said out loud.
  *
- * The I13 list routes return bare arrays with a `limit` and no total, so a full
- * response means "there may be more" and nothing can say how many more. The
- * wording reflects that: "the first N", never "N of M".
+ * The I13 list routes report the unpaged population in `X-Total-Count`, so a
+ * capped list says "the first 1,000 of 42,649". Without a total (a route that
+ * does not send one) a full response only means "there may be more", and the
+ * wording says exactly that.
  *
  * This exists because the ledger route has always defaulted `limit` to 100, the
  * client never sent one, and the screen had been showing at most a hundred rows
@@ -72,10 +73,13 @@ export function SectionUnavailable({ message }: { message?: string }) {
 export function RowCapNote({
   atLimit,
   count,
+  total = null,
   noun,
 }: {
   atLimit: boolean
   count: number
+  /** The whole filtered population, when the backend reported it. */
+  total?: number | null
   /** Singular; pluralised with a bare "s". */
   noun: string
 }) {
@@ -87,24 +91,30 @@ export function RowCapNote({
       </p>
     )
   }
+  if (total !== null) {
+    return (
+      <p className="text-[11px] text-warning">
+        Showing the first {formatCount(count)} of {formatCount(total)} {noun}s
+        that match. Narrow the filters to see the rest.
+      </p>
+    )
+  }
   return (
     <p className="text-[11px] text-warning">
       Showing the first {formatCount(count)} {noun}s. The response came back
-      full, so there are likely more — narrow the filters to see them. These
-      endpoints serve a bare list with no total, so nothing can say how many more
-      there are.
+      full, so there are likely more — narrow the filters to see them.
     </p>
   )
 }
 
 /**
- * How stale this screen is.
+ * When these figures were computed.
  *
- * Not a nicety on Initiative 13. Nothing recomputes on its own — there is no
- * scheduler, and detection runs when somebody calls it — so every figure dates
- * from the last run. A screen that does not say when that was invites the
- * reader to assume "now", and FR-6 asks for a daily refresh that nothing is
- * currently providing.
+ * The OAR screens are served from the backend's I13 snapshot, built once from
+ * the SAP extract and rebuilt automatically when the extract is reloaded (and
+ * each new day). A plan captured through the assistant updates its own
+ * material's row straight away. Saying when the figures date from still
+ * matters: they are as of the last SAP load, not live SAP.
  */
 export function CalculatedAtNote({ calculatedAt }: { calculatedAt: string | null }) {
   if (!calculatedAt) {
@@ -116,8 +126,8 @@ export function CalculatedAtNote({ calculatedAt }: { calculatedAt: string | null
   }
   return (
     <span className="text-[11px] text-muted-foreground">
-      Figures computed {new Date(calculatedAt).toLocaleString()} — nothing
-      recalculates on its own
+      Figures computed {new Date(calculatedAt).toLocaleString()} from the latest
+      SAP extract — refreshed automatically when it is reloaded
     </span>
   )
 }

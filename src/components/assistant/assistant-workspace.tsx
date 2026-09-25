@@ -8,6 +8,8 @@ import {
   StepRenderer,
   ThinkingIndicator,
 } from "@/components/assistant/step-renderer"
+import { revalidateAfterConversation } from "@/components/assistant/actions"
+import { ConversationOutcome } from "@/components/assistant/conversation-outcome"
 import { NarrativeNote } from "@/components/assistant/narrative-note"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { postTurn, type ApiStep, type StartSessionResponse } from "@/lib/api/assistant"
@@ -90,6 +92,10 @@ export function AssistantWorkspace({
       try {
         const response = await postTurn(start.sessionId, payload)
         setTranscript((previous) => appendAnswer(previous, echo, response.step))
+        if (response.step.kind === "terminal") {
+          // Best-effort: the records are written whether or not this lands.
+          void revalidateAfterConversation(start.routing.flow).catch(() => undefined)
+        }
       } catch (caught) {
         if (caught instanceof ApiError) {
           const perField = caught.fieldErrors()
@@ -117,7 +123,7 @@ export function AssistantWorkspace({
         setSubmitting(false)
       }
     },
-    [start.sessionId]
+    [start.sessionId, start.routing.flow]
   )
 
   const onChoice = useCallback(
@@ -207,10 +213,12 @@ export function AssistantWorkspace({
       </div>
 
       {transcript.current === null && (
-        <p className="text-xs text-muted-foreground">
-          This conversation is finished. It stays readable at its reference for
-          as long as the record exists.
-        </p>
+        <>
+          <ConversationOutcome sessionId={start.sessionId} routing={start.routing} />
+          <p className="text-xs text-muted-foreground">
+            It stays readable at its reference for as long as the record exists.
+          </p>
+        </>
       )}
     </div>
   )

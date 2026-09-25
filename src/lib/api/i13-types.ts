@@ -426,3 +426,71 @@ export interface I13Summary {
   reclassificationCandidateCount: number
   valuationIsMocked: boolean
 }
+
+/**
+ * `GET /i13/grni` — one reservation-ledger entry received and not issued for at
+ * least the GR-not-issued threshold (FRS FR-6). The per-entry form of WATCH's
+ * `grNotIssuedFlag`, which is per material and plant.
+ */
+export interface GrniEntry {
+  ledgerId: string
+  reservationNumber: string
+  reservationItem: string
+  material: string
+  plant: string
+  materialScope: MaterialScope
+  prNumber: string | null
+  poNumber: string | null
+  poItem: string | null
+  receivedQuantity: number
+  issuedQuantity: number
+  outstandingQuantity: number
+  firstGrDate: string | null
+  lastGrDate: string
+  daysSinceGr: number
+  thresholdDays: number
+  requirementDate: string | null
+  lifecycleStatus: string
+}
+
+/** One month of net goods issues and receipts for one material and plant. */
+export interface MonthlyConsumption {
+  /** `YYYY-MM`. */
+  month: string
+  issuedQuantity: number
+  issueCount: number
+  receivedQuantity: number
+}
+
+/**
+ * `GET /i13/usage-patterns` — month-by-month usage for one material and plant.
+ * `months` covers every month of the delivered history, zero months included,
+ * so a gap in consumption shows as a gap.
+ */
+export interface UsagePattern {
+  material: string
+  plant: string
+  materialScope: MaterialScope
+  agingBand: AgingBand | null
+  stockOnHand: number | null
+  averageMonthlyConsumption: number | null
+  monthsOfCover: number | null
+  issuedQuantityTotal: number
+  issueCountTotal: number
+  activeMonths: number
+  lastIssueMonth: string | null
+  months: MonthlyConsumption[]
+}
+
+/** `GET /i13/snapshot` — what the OAR screens are being served from. */
+export interface I13SnapshotStatus {
+  status: "idle" | "building" | "ready" | "failed" | string
+  enabled: boolean
+  version: number | null
+  referenceDate: string | null
+  builtAt: string | null
+  buildSeconds: number | null
+  buildingSince: string | null
+  rebuilding: boolean
+  lastError: string | null
+}

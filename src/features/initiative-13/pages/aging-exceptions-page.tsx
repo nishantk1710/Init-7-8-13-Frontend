@@ -101,7 +101,7 @@ export async function ExceptionsPage({
               reasonCategories={reasonCategories}
               sessionsByKey={live.sessionsByKey}
             />
-            <RowCapNote atLimit={live.atLimit} count={live.count} noun="exception" />
+            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="exception" />
           </>
         )}
       </div>

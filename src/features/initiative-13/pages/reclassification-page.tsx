@@ -46,7 +46,7 @@ export async function ReclassificationPage({
           title="Reclassification Candidates"
           description={
             live
-              ? `${formatCount(live.candidateCount)} of ${formatCount(live.count)} OAR material-plant positions meet the SOP threshold for review as a stocked material. Advisory evidence only — the decision sits with VZI.`
+              ? `${formatCount(live.candidateCount)} of ${formatCount(live.positionCount ?? live.count)} OAR material-plant positions meet the SOP threshold for review as a stocked material. Only those candidates are listed. Advisory evidence only — the decision sits with VZI.`
               : "OAR materials consumed frequently enough to warrant review as a stocked material — advisory evidence only, computed by the backend."
           }
         />
@@ -58,7 +58,7 @@ export async function ReclassificationPage({
         ) : (
           <>
             <ReclassificationTable candidates={live.rows} />
-            <RowCapNote atLimit={live.atLimit} count={live.count} noun="candidate" />
+            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="candidate" />
           </>
         )}
       </div>

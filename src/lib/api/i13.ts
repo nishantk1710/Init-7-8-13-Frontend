@@ -30,7 +30,7 @@
  */
 
 import { listJustifications } from "@/lib/api/assistant"
-import { apiFetch, apiPost } from "@/lib/api/client"
+import { apiFetch, apiFetchList, apiPost, type ApiList } from "@/lib/api/client"
 import { oneOf, toCount, toNumber } from "@/lib/api/format"
 import {
   ACQUIRED_VS_PLAN_STATUSES,
@@ -46,17 +46,19 @@ import {
   type ActException,
   type ActExceptionDetail,
   type ActExceptionEvent,
-  type ActExceptionStatus,
   type ActExceptionType,
   type ConsumptionAttribution,
   type ConsumptionPlan,
   type CrossPlantStock,
   type DataSourceStatus,
+  type GrniEntry,
+  type I13SnapshotStatus,
   type I13Exception,
   type I13Summary,
   type JustificationEntry,
   type QuantitySuggestion,
   type ReclassificationCandidate,
+  type UsagePattern,
   type RequesterConfirmation,
   type UtilisationLedgerEntry,
   type ValidationResult,
@@ -408,6 +410,25 @@ export function getI13Ledger(params?: {
   return apiFetch<RawRecord[]>(`/i13/ledger${query}`).then((rows) => rows.map(toLedgerEntry))
 }
 
+/** `GET /i13/ledger` with the population total from `X-Total-Count`. */
+export function getI13LedgerList(params?: {
+  plant?: string
+  material?: string
+  limit?: number
+  offset?: number
+}): Promise<ApiList<UtilisationLedgerEntry>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    limit: params?.limit ?? 1000,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/ledger${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toLedgerEntry),
+  }))
+}
+
 export function getI13LedgerEntry(ledgerId: string): Promise<UtilisationLedgerEntry> {
   return apiFetch<RawRecord>(`/i13/ledger/${encodeURIComponent(ledgerId)}`).then(
     toLedgerEntry
@@ -458,6 +479,31 @@ export function getI13Reclassification(params?: {
   return apiFetch<RawRecord[]>(`/i13/reclassification${query}`).then((rows) =>
     rows.map(toReclassificationCandidate)
   )
+}
+
+/**
+ * `GET /i13/reclassification` with a bound and the total. `candidatesOnly`
+ * asks for the positions that meet the SOP threshold — a few hundred of the
+ * ~44k OAR positions, which is the list a reviewer actually works through.
+ */
+export function getI13ReclassificationList(params?: {
+  plant?: string
+  material?: string
+  candidatesOnly?: boolean
+  limit?: number
+  offset?: number
+}): Promise<ApiList<ReclassificationCandidate>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    candidates_only: params?.candidatesOnly ? "true" : undefined,
+    limit: params?.limit,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/reclassification${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toReclassificationCandidate),
+  }))
 }
 
 export function getI13Validation(params?: {
@@ -578,6 +624,25 @@ export function getI13ActUtilisation(params?: {
   )
 }
 
+/** `GET /i13/act/utilisation` with the population total from `X-Total-Count`. */
+export function getI13ActUtilisationList(
+  params?: Parameters<typeof getI13ActUtilisation>[0]
+): Promise<ApiList<WatchMetric>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    aging_band: params?.agingBand,
+    grni: params?.grni === undefined ? undefined : String(params.grni),
+    acquired_vs_plan_status: params?.acquiredVsPlanStatus,
+    limit: params?.limit,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/act/utilisation${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toWatchMetric),
+  }))
+}
+
 export function getI13ActExceptions(params?: {
   plant?: string
   material?: string
@@ -599,6 +664,25 @@ export function getI13ActExceptions(params?: {
   return apiFetch<RawRecord[]>(`/i13/act/exceptions${query}`).then((rows) =>
     rows.map(toActException)
   )
+}
+
+/** `GET /i13/act/exceptions`, paged in SQL, with the total from `X-Total-Count`. */
+export function getI13ActExceptionsList(
+  params?: Parameters<typeof getI13ActExceptions>[0]
+): Promise<ApiList<ActException>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    type: params?.type,
+    status: params?.status,
+    owner_requester_id: params?.ownerRequesterId,
+    limit: params?.limit,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/act/exceptions${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toActException),
+  }))
 }
 
 export function getI13ActExceptionDetail(exceptionId: string): Promise<ActExceptionDetail> {
@@ -673,37 +757,39 @@ export function runI13Detection(params?: {
 
 // --- Justifications -------------------------------------------------------
 //
-// The ACT API has no bulk "list every confirmation" endpoint (see
-// `app/schemas/i13_act.py`): a confirmation only appears nested inside one
-// exception's detail response. `getI13Justifications` composes the two
-// read-only endpoints that do exist — list exceptions whose status implies a
-// confirmation was recorded, then fetch detail for a *bounded* page of those —
-// and keeps only entries whose `confirmation` actually came back non-null.
-
-const JUSTIFICATION_CANDIDATE_STATUSES: readonly ActExceptionStatus[] = [
-  "CONFIRMED",
-  "RESOLVED",
-]
-const MAX_JUSTIFICATION_DETAIL_FETCH = 30
+// `GET /i13/act/confirmations` lists every requester confirmation together with
+// the exception it answers, in one query. It replaces the list-then-detail
+// fan-out this used to do (two exception lists, then up to thirty detail
+// fetches, capped because each confirmation was only visible on a detail).
 
 export async function getI13Justifications(params?: {
   plant?: string
   material?: string
+  limit?: number
 }): Promise<JustificationEntry[]> {
-  const lists = await Promise.all(
-    JUSTIFICATION_CANDIDATE_STATUSES.map((status) =>
-      getI13ActExceptions({
-        plant: params?.plant,
-        material: params?.material,
-        status,
-      })
-    )
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    limit: params?.limit ?? 200,
+  })
+  const rows = await apiFetch<{ confirmation: RawRecord; exception: RawRecord }[]>(
+    `/i13/act/confirmations${query}`
   )
-  const candidates = lists.flat().slice(0, MAX_JUSTIFICATION_DETAIL_FETCH)
-  const details = await Promise.all(
-    candidates.map((c) => getI13ActExceptionDetail(c.exceptionId))
-  )
-  return selectConfirmedExceptions(details)
+  return rows.map((row) => {
+    const exception = toActException(row.exception)
+    const confirmation = toRequesterConfirmation(row.confirmation)
+    return {
+      exceptionId: exception.exceptionId,
+      exceptionType: exception.exceptionType,
+      material: exception.material,
+      plant: exception.plant,
+      ownerRequesterId: exception.ownerRequesterId,
+      reasonCategory: confirmation.reasonCategory,
+      freeText: confirmation.freeText,
+      actorId: confirmation.actorId,
+      submittedAt: confirmation.submittedAt,
+    }
+  })
 }
 
 /**
@@ -718,10 +804,7 @@ export async function getI13Justifications(params?: {
  * `app/assistant/turns.py` write the shared table, and the ACT confirmation
  * route writes nowhere near it. So they concatenate without dedupe.
  *
- * Note the asymmetry in cost. The shared table is ONE request. The ACT half is
- * two list calls plus up to thirty detail fetches, because a confirmation is
- * only visible on an exception's detail. That is why the fetch is capped, and
- * why this now runs on the server rather than in the browser on every keystroke.
+ * Two requests in total: one per table.
  */
 export async function getI13AllJustifications(params?: {
   plant?: string
@@ -758,3 +841,116 @@ export function selectConfirmedExceptions(
 }
 
 export type { ActExceptionType }
+
+// --- GRNI, usage patterns, snapshot ---------------------------------------
+
+function toGrniEntry(raw: RawRecord): GrniEntry {
+  return {
+    ledgerId: String(raw.ledger_id ?? ""),
+    reservationNumber: String(raw.reservation_number ?? ""),
+    reservationItem: String(raw.reservation_item ?? ""),
+    material: String(raw.material ?? ""),
+    plant: String(raw.plant ?? ""),
+    materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
+    prNumber: str(raw.pr_number),
+    poNumber: str(raw.po_number),
+    poItem: str(raw.po_item),
+    receivedQuantity: toNumber(raw.received_quantity as string) ?? 0,
+    issuedQuantity: toNumber(raw.issued_quantity as string) ?? 0,
+    outstandingQuantity: toNumber(raw.outstanding_quantity as string) ?? 0,
+    firstGrDate: str(raw.first_gr_date),
+    lastGrDate: String(raw.last_gr_date ?? ""),
+    daysSinceGr: toCount(raw.days_since_gr as number),
+    thresholdDays: toCount(raw.threshold_days as number),
+    requirementDate: str(raw.requirement_date),
+    lifecycleStatus: String(raw.lifecycle_status ?? ""),
+  }
+}
+
+/**
+ * `GET /i13/grni` — goods received and not issued for 30+ days, per
+ * reservation line, oldest receipt first. Served from the I13 snapshot.
+ */
+export function getI13Grni(params?: {
+  plant?: string
+  material?: string
+  minDays?: number
+  limit?: number
+  offset?: number
+}): Promise<ApiList<GrniEntry>> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    min_days: params?.minDays,
+    limit: params?.limit ?? 500,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/grni${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toGrniEntry),
+  }))
+}
+
+function toUsagePattern(raw: RawRecord): UsagePattern {
+  const months = Array.isArray(raw.months) ? (raw.months as RawRecord[]) : []
+  return {
+    material: String(raw.material ?? ""),
+    plant: String(raw.plant ?? ""),
+    materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
+    agingBand: raw.aging_band ? oneOf(raw.aging_band as string, AGING_BANDS, "NON_MOVING") : null,
+    stockOnHand: toNumber(raw.stock_on_hand as string) ?? null,
+    averageMonthlyConsumption: toNumber(raw.average_monthly_consumption as string) ?? null,
+    monthsOfCover: toNumber(raw.months_of_cover as string) ?? null,
+    issuedQuantityTotal: toNumber(raw.issued_quantity_total as string) ?? 0,
+    issueCountTotal: toCount(raw.issue_count_total as number),
+    activeMonths: toCount(raw.active_months as number),
+    lastIssueMonth: str(raw.last_issue_month),
+    months: months.map((m) => ({
+      month: String(m.month ?? ""),
+      issuedQuantity: toNumber(m.issued_quantity as string) ?? 0,
+      issueCount: toCount(m.issue_count as number),
+      receivedQuantity: toNumber(m.received_quantity as string) ?? 0,
+    })),
+  }
+}
+
+/**
+ * `GET /i13/usage-patterns` — month-by-month goods issues per material and
+ * plant, most issued first. `historyMonths` is the span the delivered movement
+ * history covers (from `X-I13-History-Months`), e.g. `2025-08..2026-08`.
+ */
+export function getI13UsagePatterns(params?: {
+  plant?: string
+  material?: string
+  agingBand?: string
+  limit?: number
+  offset?: number
+}): Promise<ApiList<UsagePattern> & { historyMonths: string | null }> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    aging_band: params?.agingBand,
+    limit: params?.limit ?? 100,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/usage-patterns${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toUsagePattern),
+    historyMonths: list.headers.get("X-I13-History-Months"),
+  }))
+}
+
+/** `GET /i13/snapshot` — when the OAR data was built and as of which date. */
+export function getI13SnapshotStatus(): Promise<I13SnapshotStatus> {
+  return apiFetch<RawRecord>("/i13/snapshot").then((raw) => ({
+    status: String(raw.status ?? "idle"),
+    enabled: Boolean(raw.enabled),
+    version: typeof raw.version === "number" ? raw.version : null,
+    referenceDate: str(raw.reference_date),
+    builtAt: str(raw.built_at),
+    buildSeconds: typeof raw.build_seconds === "number" ? raw.build_seconds : null,
+    buildingSince: str(raw.building_since),
+    rebuilding: Boolean(raw.rebuilding),
+    lastError: str(raw.last_error),
+  }))
+}
