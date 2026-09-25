@@ -1,0 +1,89 @@
+# Frontend deployment to Azure App Service (app-vzi-aicom-fe-nonprod-san).
+#
+# REQUIRED BEFORE THIS RUNS
+#
+#   * Repository secret AZURE_WEBAPP_PUBLISH_PROFILE -- the App Service's
+#     publish profile (Overview -> Download publish profile).
+#   * Repository variable API_BASE_URL -- the backend's base URL including /api,
+#     e.g. https://<backend default domain>/api. A variable, not a secret: it
+#     ends up in the browser bundle anyway.
+#   * On the App Service: Startup Command `node server.js` and app setting
+#     SCM_DO_BUILD_DURING_DEPLOYMENT=false. The build happens here, not there.
+#   * On the backend: FRONTEND_ORIGIN set to this app's URL, or every API call
+#     is refused by CORS.
+#
+# NEXT_PUBLIC_* values are inlined into the JavaScript at build time. Setting
+# them as App Service app settings does nothing, which is why they live here.
+#
+# No test step: 21 tests fail on a clean checkout because data-generator/ lives
+# in the backend repo since the split (see CLAUDE.md). Gating deploys on them
+# would block every deploy for a reason unrelated to the code being deployed.
+
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Two deployments racing onto one App Service leave it in whichever state
+  # finished last, which is not necessarily the newer commit.
+  group: deploy-frontend
+  cancel-in-progress: false
+
+env:
+  AZURE_WEBAPP_NAME: app-vzi-aicom-fe-nonprod-san
+  NODE_VERSION: "22"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard -- refuse to deploy without configuration
+        run: |
+          if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
+            echo "Secret AZURE_WEBAPP_PUBLISH_PROFILE is not set. See the header of this file."
+            exit 1
+          fi
+          if [ -z "${{ vars.API_BASE_URL }}" ]; then
+            echo "Variable API_BASE_URL is not set. Without it the build would point at localhost:8000."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          NEXT_PUBLIC_DATASET: ${{ vars.DATASET || 'scenario' }}
+        run: npm run build
+
+      # The standalone output deliberately omits public/ and .next/static/ --
+      # Next expects a CDN to serve them. Without a CDN, copy them in or every
+      # page renders unstyled with broken images.
+      - name: Assemble standalone bundle
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Deploy
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .next/standalone
+
+      - name: Smoke check
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 10 --retry-delay 10 --retry-all-errors \
+            "${{ steps.deploy.outputs.webapp-url }}"
