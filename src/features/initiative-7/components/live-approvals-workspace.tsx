@@ -1,12 +1,32 @@
+// Part 22 — I07 complete frontend live data integration.
+//
+// Live-mode counterpart to approvals-workspace.tsx. Reuses the same table/
+// filter/sidebar layout and the same shared UI primitives, but every row
+// comes from the real backend (GET /recommendations, filtered by the real
+// submitted statuses -- see hooks/use-live-approval-queue.ts) instead of the
+// scenario dataset's in-memory simulation. The outcome tabs use the
+// backend's own status vocabulary (Pending/Approved/Rejected/Returned) --
+// not the scenario's approve/adjust/reject taxonomy, since ADJUST/HOLD/
+// SEND_BACK are real, distinct backend statuses with no single scenario
+// equivalent.
+//
+// AUTHENTICATION LIMITATION (Part 13 deferred): there is no signed-in user,
+// so "My queue" here is not filterable by a real identity the way the
+// scenario's DEMO_ROLE persona fakes it -- this component shows only "All
+// approvals", honestly, rather than fabricating a queue split with no real
+// basis.
+
 "use client"
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { AlertTriangle, RefreshCw } from "lucide-react"
 
+import { EmptyState } from "@/components/shared/empty-state"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -14,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -24,36 +45,34 @@ import {
 } from "@/components/ui/table"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatZAR } from "@/lib/utils"
-import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@/features/initiative-7/data/approval-chain"
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
-import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
-import { LiveApprovalsWorkspace } from "@/features/initiative-7/components/live-approvals-workspace"
+import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
-import { approvalDueLabel, waitingDays } from "@/features/initiative-7/utils/inventory-calc"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const ALL = "all"
 
-/** The persona this mockup is signed in as — drives "My queue". */
-export const DEMO_ROLE: ApprovalRole = "Engineering Manager"
+type StatusTab = "pending" | "approved" | "rejected" | "returned"
 
-type OutcomeTab = "pending" | "approved" | "adjusted" | "rejected"
-type QueueTab = "mine" | "team" | "all"
-
-const OUTCOME_TABS: { key: OutcomeTab; label: string; tone: "warning" | "success" | "default" | "danger" }[] = [
+const STATUS_TABS: { key: StatusTab; label: string; tone: "warning" | "success" | "default" | "danger" }[] = [
   { key: "pending", label: "Pending", tone: "warning" },
   { key: "approved", label: "Approved", tone: "success" },
-  { key: "adjusted", label: "Adjusted", tone: "default" },
+  { key: "returned", label: "Returned", tone: "default" },
   { key: "rejected", label: "Rejected", tone: "danger" },
 ]
 
 const SORT_OPTIONS = [
-  { value: "due", label: "Due date" },
+  { value: "generated", label: "Most recent" },
   { value: "impact", label: "Impact" },
   { value: "risk", label: "Risk" },
 ] as const
 
 const RISK_ORDER: Record<Recommendation["risk"], number> = { critical: 0, high: 1, medium: 2, low: 3 }
+
+function statusTabFor(rec: Recommendation): StatusTab {
+  if (rec.status === "Approved" || rec.status === "Implemented") return "approved"
+  if (rec.status === "Rejected") return "rejected"
+  if (rec.status === "Returned") return "returned"
+  return "pending"
+}
 
 function ChangeSummary({ rec }: { rec: Recommendation }) {
   return (
@@ -71,9 +90,10 @@ function ChangeSummary({ rec }: { rec: Recommendation }) {
   )
 }
 
-/** The 4-step chain for one recommendation, with where it currently sits. */
-function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
-  const { stateFor } = useInventoryWorkflow()
+/** The real approval route/pending-role for one selected recommendation,
+ * fetched on demand rather than for the whole queue. */
+function LiveApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
+  const { state, loading, error } = useLiveWorkflowState(rec?.id ?? null)
 
   if (!rec) {
     return (
@@ -86,8 +106,6 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
     )
   }
 
-  const state = stateFor(rec.id)
-
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div>
@@ -97,56 +115,45 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
         </div>
       </div>
 
-      <ol className="flex flex-col gap-3">
-        {APPROVAL_ROLES.map((role, index) => {
-          const isDone = state.submitted && index < state.stepIndex
-          const isCurrent = state.submitted && index === state.stepIndex && state.outcome !== "rejected"
-          const isRejected = state.outcome === "rejected" && index === state.stepIndex
-          const meta = isRejected
-            ? "Rejected"
-            : isDone
-              ? "Approved"
-              : isCurrent
-                ? "Pending"
-                : "Not yet reached"
-          return (
-            <li key={role} className="flex items-start gap-2.5">
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
-                  isRejected
-                    ? "bg-destructive/10 text-destructive"
-                    : isDone
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : error ? (
+        <p className="text-[12px] text-destructive">Could not load workflow state: {error.message}</p>
+      ) : state ? (
+        <ol className="flex flex-col gap-3">
+          {state.route.map((role, index) => {
+            const isDone = index < state.chain_index
+            const isCurrent = role === state.pending_role
+            return (
+              <li key={role} className="flex items-start gap-2.5">
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
+                    isDone
                       ? "bg-success/15 text-success"
                       : isCurrent
                         ? "bg-warning/15 text-warning"
                         : "bg-muted text-muted-foreground"
-                )}
-              >
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <div className="text-[13px] font-medium text-foreground">{role}</div>
-                <div
-                  className={cn(
-                    "text-[11px]",
-                    isRejected
-                      ? "text-destructive"
-                      : isCurrent
-                        ? "text-warning"
-                        : isDone
-                          ? "text-success"
-                          : "text-muted-foreground"
                   )}
                 >
-                  {meta}
-                  {(isDone || isCurrent) && ` · ${approverName(role)}`}
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-medium text-foreground">{role}</div>
+                  <div
+                    className={cn(
+                      "text-[11px]",
+                      isCurrent ? "text-warning" : isDone ? "text-success" : "text-muted-foreground"
+                    )}
+                  >
+                    {isDone ? "Done" : isCurrent ? "Pending" : "Not yet reached"}
+                  </div>
                 </div>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+              </li>
+            )
+          })}
+        </ol>
+      ) : null}
 
       <Link
         href={`/inventory-planning/recommendations/${rec.id}`}
@@ -158,90 +165,73 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
   )
 }
 
-export function ApprovalsWorkspace() {
-  if (USING_LIVE_DATA) {
-    return <LiveApprovalsWorkspace />
-  }
-  return <ScenarioApprovalsWorkspace />
-}
-
-function ScenarioApprovalsWorkspace() {
+export function LiveApprovalsWorkspace() {
   const { openMaterial360 } = useMaterial360()
-  const { stateFor, pendingRole } = useInventoryWorkflow()
-  const [outcomeTab, setOutcomeTab] = useState<OutcomeTab>("pending")
-  const [queueTab, setQueueTab] = useState<QueueTab>("all")
+  const { recommendations, loading, error, refetch } = useLiveApprovalQueue()
+  const [statusTab, setStatusTab] = useState<StatusTab>("pending")
   const [circuit, setCircuit] = useState<string>(ALL)
   const [criticality, setCriticality] = useState<string>(ALL)
-  const [sortBy, setSortBy] = useState<string>("due")
+  const [sortBy, setSortBy] = useState<string>("generated")
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  /** Everything that has entered the chain, with its live state attached. */
-  const submitted = useMemo(
-    () =>
-      RECOMMENDATIONS.map((rec) => ({
-        rec,
-        state: stateFor(rec.id),
-        role: pendingRole(rec.id),
-      })).filter((row) => row.state.submitted),
-    [stateFor, pendingRole]
-  )
-
-  const outcomeCounts = useMemo(
-    () => ({
-      pending: submitted.filter((r) => r.role !== null).length,
-      approved: submitted.filter((r) => r.state.outcome === "approved").length,
-      adjusted: submitted.filter((r) => r.state.outcome === "adjusted").length,
-      rejected: submitted.filter((r) => r.state.outcome === "rejected").length,
-    }),
-    [submitted]
-  )
-
-  const byOutcome = useMemo(
-    () =>
-      submitted.filter((row) =>
-        outcomeTab === "pending" ? row.role !== null : row.state.outcome === outcomeTab
-      ),
-    [submitted, outcomeTab]
-  )
-
-  const queueCounts = useMemo(
-    () => ({
-      mine: byOutcome.filter((r) => r.role === DEMO_ROLE).length,
-      team: byOutcome.filter((r) => r.role !== null && r.role !== DEMO_ROLE).length,
-      all: byOutcome.length,
-    }),
-    [byOutcome]
-  )
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusTab, number> = { pending: 0, approved: 0, rejected: 0, returned: 0 }
+    for (const rec of recommendations) counts[statusTabFor(rec)] += 1
+    return counts
+  }, [recommendations])
 
   const rows = useMemo(() => {
-    const scoped = byOutcome.filter((row) => {
-      if (queueTab === "mine" && row.role !== DEMO_ROLE) return false
-      if (queueTab === "team" && (row.role === null || row.role === DEMO_ROLE)) return false
-      if (circuit !== ALL && row.rec.circuit !== circuit) return false
-      if (criticality !== ALL && row.rec.criticality !== criticality) return false
+    const scoped = recommendations.filter((rec) => {
+      if (statusTabFor(rec) !== statusTab) return false
+      if (circuit !== ALL && rec.circuit !== circuit) return false
+      if (criticality !== ALL && rec.criticality !== criticality) return false
       return true
     })
 
     return [...scoped].sort((a, b) => {
-      if (sortBy === "impact") return Math.abs(b.rec.workingCapitalImpact) - Math.abs(a.rec.workingCapitalImpact)
-      if (sortBy === "risk") return RISK_ORDER[a.rec.risk] - RISK_ORDER[b.rec.risk]
-      // Due date: longest-waiting first.
-      return waitingDays(b.state.submittedOn ?? "") - waitingDays(a.state.submittedOn ?? "")
+      if (sortBy === "impact") return Math.abs(b.workingCapitalImpact) - Math.abs(a.workingCapitalImpact)
+      if (sortBy === "risk") return RISK_ORDER[a.risk] - RISK_ORDER[b.risk]
+      return new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
     })
-  }, [byOutcome, queueTab, circuit, criticality, sortBy])
+  }, [recommendations, statusTab, circuit, criticality, sortBy])
 
-  const selected = rows.find((r) => r.rec.id === selectedId)?.rec ?? rows[0]?.rec ?? null
+  const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="size-4" />}
+        title="Could not load the approval queue from the backend"
+        description={error.message}
+        actions={
+          <Button size="sm" variant="outline" onClick={refetch}>
+            <RefreshCw className="size-3.5" />
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {OUTCOME_TABS.map((tab) => {
-          const isActive = outcomeTab === tab.key
+        {STATUS_TABS.map((tab) => {
+          const isActive = statusTab === tab.key
           return (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setOutcomeTab(tab.key)}
+              onClick={() => setStatusTab(tab.key)}
               className={cn(
                 "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
                 isActive
@@ -250,38 +240,18 @@ function ScenarioApprovalsWorkspace() {
               )}
             >
               {tab.label}
-              <span className="font-semibold tabular-nums text-foreground">{outcomeCounts[tab.key]}</span>
+              <span className="font-semibold tabular-nums text-foreground">{statusCounts[tab.key]}</span>
             </button>
           )
         })}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border">
-        <div className="flex items-center gap-5">
-          {(
-            [
-              { key: "mine", label: `My queue (${queueCounts.mine})` },
-              { key: "team", label: `Team queue (${queueCounts.team})` },
-              { key: "all", label: `All approvals (${queueCounts.all})` },
-            ] as { key: QueueTab; label: string }[]
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setQueueTab(tab.key)}
-              className={cn(
-                "border-b-2 px-0.5 py-2.5 text-sm transition-colors",
-                queueTab === tab.key
-                  ? "border-primary font-medium text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+        <p className="text-xs text-muted-foreground">
+          {rows.length} recommendation{rows.length === 1 ? "" : "s"} — live from the backend approval chain.
+        </p>
 
-        <div className="flex flex-wrap items-center gap-2 pb-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={circuit} onValueChange={(v) => setCircuit(v ?? ALL)}>
             <SelectTrigger className="h-8 w-full sm:w-36">
               <SelectValue placeholder="All circuits">
@@ -316,9 +286,9 @@ function ScenarioApprovalsWorkspace() {
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>Sort by</span>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v ?? "due")}>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v ?? "generated")}>
               <SelectTrigger className="h-8 w-32">
-                <SelectValue placeholder="Due date">
+                <SelectValue placeholder="Most recent">
                   {(v: string) => SORT_OPTIONS.find((o) => o.value === v)?.label ?? v}
                 </SelectValue>
               </SelectTrigger>
@@ -337,26 +307,22 @@ function ScenarioApprovalsWorkspace() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_260px]">
         <div className="min-w-0">
           {rows.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Nothing in this queue right now.
-            </div>
+            <EmptyState title="Nothing in this queue right now" />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[230px]">Material</TableHead>
-                    <TableHead className="w-[130px]">Requested by</TableHead>
                     <TableHead className="w-[112px]">Change summary</TableHead>
                     <TableHead className="w-[110px] text-right">Impact</TableHead>
                     <TableHead className="w-[92px]">Risk</TableHead>
-                    <TableHead className="w-[96px]">Due date</TableHead>
+                    <TableHead className="w-[96px]">Status</TableHead>
                     <TableHead className="w-[84px]">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map(({ rec, state }) => {
-                    const due = approvalDueLabel(state.submittedOn ?? "")
+                  {rows.map((rec) => {
                     const isSelected = selected?.id === rec.id
                     const releases = rec.workingCapitalImpact > 0
                     return (
@@ -377,12 +343,6 @@ function ScenarioApprovalsWorkspace() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-[13px] text-foreground">{state.requestedBy ?? "—"}</div>
-                          <div className="text-[11px] whitespace-nowrap text-muted-foreground">
-                            {state.submittedOn ?? ""}
-                          </div>
-                        </TableCell>
-                        <TableCell>
                           <ChangeSummary rec={rec} />
                         </TableCell>
                         <TableCell
@@ -397,13 +357,8 @@ function ScenarioApprovalsWorkspace() {
                         <TableCell>
                           <RiskBadge level={rec.risk} />
                         </TableCell>
-                        <TableCell
-                          className={cn(
-                            "text-[13px] whitespace-nowrap",
-                            due.overdue ? "font-medium text-destructive" : "text-muted-foreground"
-                          )}
-                        >
-                          {due.label}
+                        <TableCell>
+                          <StatusBadge tone="default">{rec.status}</StatusBadge>
                         </TableCell>
                         <TableCell>
                           <Link
@@ -424,12 +379,11 @@ function ScenarioApprovalsWorkspace() {
             </div>
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Due dates are seven days from submission against the dataset&apos;s reference date — illustrative
-            thresholds, not an agreed SLA. Decisions are simulated; no SAP write ever occurs.
+            Live backend data. Decisions are taken on the recommendation detail page.
           </p>
         </div>
 
-        <ApprovalWorkflowSidebar rec={selected} />
+        <LiveApprovalWorkflowSidebar rec={selected} />
       </div>
     </div>
   )

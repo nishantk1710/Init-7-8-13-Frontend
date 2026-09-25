@@ -22,6 +22,16 @@ export const initiative7Manifest: InitiativeManifest = {
         icon: "gauge",
         href: "/inventory-planning/pipeline",
       },
+      {
+        label: "Adoption Tracking",
+        icon: "clipboard-check",
+        href: "/inventory-planning/adoption",
+      },
+      {
+        label: "Quarterly Reports",
+        icon: "file-text",
+        href: "/inventory-planning/reports",
+      },
     ],
   },
 }

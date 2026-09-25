@@ -63,6 +63,10 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** Machine-readable code from the backend's {error:{code,message,details}}
+     * envelope (see app/schemas/i7/errors.py), when the response body parsed
+     * as that shape. Undefined for a network failure or a non-JSON body. */
+    readonly code?: string,
     readonly detail: ApiErrorDetail = null
   ) {
     super(message)

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, TriangleAlert } from "lucide-react"
 
 import { MaterialIdentity } from "@/components/shared/material-identity"
@@ -14,16 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { cn, formatCount, formatZAR } from "@/lib/utils"
 import {
-  CRITICALITY_CODE,
   RecommendationReviewPanel,
   SubmitForApprovalBox,
 } from "@/features/initiative-7/components/recommendation-review-panel"
+import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
-import type { DemandPattern, Recommendation } from "@/features/initiative-7/types/inventory"
+import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
+import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const COLUMN_COUNT = 9
 
@@ -40,25 +41,45 @@ const STATUS_LABEL: Partial<Record<Recommendation["status"], string>> = {
   "Pending Review": "Needs review",
 }
 
-/** XYZ class from the demand pattern: X = smooth, Y = predictable-but-sparse, Z = erratic. */
-const DEMAND_CODE: Record<DemandPattern, string> = {
-  Smooth: "X",
-  "Slow-Moving": "Y",
-  Intermittent: "Y",
-  Erratic: "Z",
-  Lumpy: "Z",
+/** Criticality and demand pattern, in plain words -- not the ABC-XYZ shorthand
+ * (A/B/C/D-X/Y/Z) this used to show, which needed a legend to read. Same two
+ * facts, just spelled out so the table needs no separate key. */
+function segmentLabel(rec: Recommendation): string {
+  return `${rec.criticality} - ${rec.demandPattern}`
 }
 
-function segmentCode(rec: Recommendation): string {
-  return `${CRITICALITY_CODE[rec.criticality]}-${DEMAND_CODE[rec.demandPattern]}`
+/** True only for a live-backend recommendation the backend has not actually
+ * computed yet (see rationale.ts's "nothing computed" short-circuit on the
+ * backend) -- surfaced here as the one `factors` entry mapDetailToRecommendation
+ * adds for that case. Scenario/generated recommendations never carry this
+ * label, so this only changes behaviour for live-mode rows. Without this
+ * check, a 0/0 delta from two un-computed stock parameters reads as "no
+ * change" -- which claims equality between two numbers that were never
+ * calculated at all. */
+function isNotYetComputed(rec: Recommendation): boolean {
+  return rec.factors.some((factor) => factor.label === "Blocked")
 }
 
-function ValueChangeCell({ rec }: { rec: Recommendation }) {
-  const delta = rec.workingCapitalImpact
-  if (delta === 0) return <span className="text-muted-foreground">no change</span>
+/** `rec` is the row's own object. In live mode this is the list/summary
+ * mapping (mapSummaryToRecommendation) -- its current/recommended stock
+ * params AND unit_price/workingCapitalImpact are real values straight from
+ * the list endpoint (Part 29/34), so no detail fetch is needed just to show
+ * this cell. `liveDetail`, when present (row has been expanded), is used
+ * instead since it is the more complete record, but both now carry a real
+ * monetary delta. */
+function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?: Recommendation }) {
+  const source = liveDetail ?? rec
+  if (isNotYetComputed(source)) {
+    return <span className="text-muted-foreground">not yet computed</span>
+  }
 
-  const ropDelta = rec.recommended.rop - rec.current.rop
-  const pct = rec.current.rop === 0 ? null : Math.round((ropDelta / rec.current.rop) * 100)
+  const delta = source.workingCapitalImpact
+  if (delta === 0) {
+    return <span className="text-muted-foreground">no change</span>
+  }
+
+  const ropDelta = source.recommended.rop - source.current.rop
+  const pct = source.current.rop === 0 ? null : Math.round((ropDelta / source.current.rop) * 100)
   // Positive workingCapitalImpact releases capital; negative ties more up.
   const DeltaIcon = delta > 0 ? ArrowDown : ArrowUp
   const tone = delta > 0 ? "text-success" : "text-warning"
@@ -77,8 +98,13 @@ function ValueChangeCell({ rec }: { rec: Recommendation }) {
   )
 }
 
-function RopChangeCell({ rec }: { rec: Recommendation }) {
-  const delta = rec.recommended.rop - rec.current.rop
+function RopChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?: Recommendation }) {
+  const source = liveDetail ?? rec
+  if (isNotYetComputed(source)) {
+    return <span className="text-muted-foreground">not yet computed</span>
+  }
+
+  const delta = source.recommended.rop - source.current.rop
   if (delta === 0) return <span className="text-muted-foreground">no change</span>
 
   const DeltaIcon = delta < 0 ? ArrowDown : ArrowUp
@@ -93,13 +119,78 @@ function RopChangeCell({ rec }: { rec: Recommendation }) {
 }
 
 
+/** In live mode, the row's own `rec` comes from the list/summary endpoint,
+ * which carries no stock parameters/lead time/service level (see
+ * mapSummaryToRecommendation's zeroed fields) -- only the detail endpoint
+ * has them. Fetches that detail via the existing useLiveRecommendation(id)
+ * hook and reports it up to the row (via onDetail) so the collapsed row's
+ * own Value/ROP change cells can use the same fetch, rather than each
+ * re-fetching independently. */
+function LiveExpandedRecommendationPanel({
+  rec,
+  onDetail,
+}: {
+  rec: Recommendation
+  onDetail: (detail: Recommendation) => void
+}) {
+  const { data: detail, loading, error, refetch } = useLiveRecommendation(rec.id)
+
+  useEffect(() => {
+    if (detail) onDetail(detail)
+  }, [detail, onDetail])
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading full recommendation detail…</p>
+  }
+  if (error || !detail) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Could not load full detail for this recommendation. Showing summary data only.
+      </p>
+    )
+  }
+  return (
+    <RecommendationReviewPanel
+      rec={detail}
+      action={<LiveDecisionActions recommendationId={detail.id} status={detail.status} onChanged={refetch} />}
+    />
+  )
+}
+
+/** In live mode, the row's own `rec` comes from the list/summary endpoint,
+ * which carries no stock parameters/lead time/service level (see
+ * mapSummaryToRecommendation's zeroed fields) -- only the detail endpoint
+ * has them. Expanding a row fetches that detail via useLiveRecommendation(id)
+ * and renders it in place of the summary object; scenario/generated mode
+ * renders unchanged since this component is never mounted there (branch is
+ * at the call site, not inside a hook-bearing component, to satisfy
+ * rules-of-hooks). */
+function ExpandedRecommendationPanel({
+  rec,
+  onDetail,
+}: {
+  rec: Recommendation
+  onDetail: (detail: Recommendation) => void
+}) {
+  if (!USING_LIVE_DATA) {
+    return <RecommendationReviewPanel rec={rec} action={<SubmitForApprovalBox rec={rec} />} />
+  }
+  return <LiveExpandedRecommendationPanel rec={rec} onDetail={onDetail} />
+}
+
 /** Recommendation table with an expandable row per material, mirroring the
  * change-review layout: scan the impact in the row, open it for the full
  * rationale and the submit action. */
 export function RecommendationReviewTable({ recommendations }: { recommendations: Recommendation[] }) {
-  const { openMaterial360, } = useMaterial360()
   const { stateFor } = useInventoryWorkflow()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Populated only for a row that has been expanded at least once (see
+  // LiveExpandedRecommendationPanel's onDetail) -- the row's Value/ROP
+  // change cells read from here instead of re-fetching independently.
+  const [liveDetails, setLiveDetails] = useState<Record<string, Recommendation>>({})
+  const recordDetail = useCallback((detail: Recommendation) => {
+    setLiveDetails((prev) => (prev[detail.id] === detail ? prev : { ...prev, [detail.id]: detail }))
+  }, [])
 
   if (recommendations.length === 0) {
     return (
@@ -118,7 +209,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
               <TableHead className="w-8" />
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
-              <TableHead>Segment</TableHead>
+              <TableHead>Criticality - Demand pattern</TableHead>
               <TableHead>Circuit</TableHead>
               <TableHead>Stockout risk</TableHead>
               <TableHead className="text-right">Value change</TableHead>
@@ -147,7 +238,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <MaterialIdentity material={rec.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={rec.material} />
                         {atRisk && (
                           <TriangleAlert
                             className="size-3.5 shrink-0 text-warning"
@@ -160,17 +251,17 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                       {getPlantById(rec.plantId)?.name ?? rec.plantId}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tone="default">{segmentCode(rec)}</StatusBadge>
+                      <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
                     <TableCell>
                       <RiskBadge level={rec.risk} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <ValueChangeCell rec={rec} />
+                      <ValueChangeCell rec={rec} liveDetail={liveDetails[rec.id]} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <RopChangeCell rec={rec} />
+                      <RopChangeCell rec={rec} liveDetail={liveDetails[rec.id]} />
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={STATUS_TONE[rec.status]}>
@@ -184,7 +275,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
                       <TableCell colSpan={COLUMN_COUNT - 1} className="bg-muted/30 py-4 whitespace-normal">
-                        <RecommendationReviewPanel rec={rec} action={<SubmitForApprovalBox rec={rec} />} />
+                        <ExpandedRecommendationPanel rec={rec} onDetail={recordDetail} />
                       </TableCell>
                     </TableRow>
                   )}
