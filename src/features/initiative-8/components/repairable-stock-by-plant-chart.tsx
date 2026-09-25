@@ -11,7 +11,6 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { formatCount } from "@/lib/utils"
 
 function PlantTooltip({ active, payload, label }: TooltipContentProps) {
@@ -26,15 +25,17 @@ function PlantTooltip({ active, payload, label }: TooltipContentProps) {
   )
 }
 
-export function RepairableStockByPlantChart({ chains }: { chains: RepairChain[] }) {
-  const byPlant = new Map<string, number>()
-  for (const c of chains) {
-    // Unknown stock contributes nothing rather than breaking the sum. It is
-    // not the same as zero, so the bar is an understatement, not an invention.
-    byPlant.set(c.plant.name, (byPlant.get(c.plant.name) ?? 0) + (c.stockOnHand ?? 0))
-  }
-  const data = Array.from(byPlant.entries()).map(([plant, stock]) => ({ plant, stock }))
-
+/**
+ * Stock on hand by plant. Aggregated by `stockByPlant` in
+ * `data/live-overview.ts` over the repairable universe — one row per material
+ * and plant — rather than over register lines, where a material with three
+ * repairs would have its stock counted three times.
+ */
+export function RepairableStockByPlantChart({
+  data,
+}: {
+  data: { plant: string; stock: number }[]
+}) {
   return (
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">

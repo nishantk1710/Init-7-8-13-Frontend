@@ -1,6 +1,8 @@
 import type {
   AgingBucket,
   DeclarationStatus,
+  ExceptionSeverity,
+  OverdueStatus,
   ReceiptStatus,
   RepairChain,
   RepairStatus,
@@ -29,6 +31,80 @@ export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Pending: "default",
   Completed: "success",
   Flagged: "danger",
+}
+
+/** The lifecycle order, for sorting status options that come from the data. */
+export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
+  "PR Raised",
+  "PO Issued",
+  "At Vendor",
+  "In Transit Return",
+  "Received",
+  "Closed",
+]
+
+export const OVERDUE_STATUSES: readonly OverdueStatus[] = [
+  "OVERDUE",
+  "ON_TIME",
+  "NO_DUE_DATE",
+  "RECEIVED",
+]
+
+export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
+  OVERDUE: "Overdue",
+  ON_TIME: "On time",
+  NO_DUE_DATE: "No due date",
+  RECEIVED: "Received",
+}
+
+/**
+ * NO_DUE_DATE is a warning, not a neutral: nobody agreed a return date, and
+ * those are exactly the lines nobody is chasing.
+ */
+export const OVERDUE_STATUS_TONE: Record<OverdueStatus, Tone> = {
+  OVERDUE: "danger",
+  ON_TIME: "default",
+  NO_DUE_DATE: "warning",
+  RECEIVED: "success",
+}
+
+/**
+ * ZMM065 criticality -> tone. Keyed by string, not a closed union: the ratings
+ * are the backend's vocabulary, and an unrecognised one falls back to
+ * "default" rather than failing a lookup.
+ */
+export const CRITICALITY_TONE: Record<string, Tone> = {
+  CRITICAL: "danger",
+  IMPACT: "warning",
+  INSURANCE: "warning",
+  NORMAL: "default",
+  OBSOLETE: "default",
+}
+
+/** Filter/CSV label for a line with no criticality rating on record. */
+export const NO_CRITICALITY = "Not recorded"
+
+export const EXCEPTION_SEVERITY_TONE: Record<ExceptionSeverity, Tone> = {
+  critical: "danger",
+  warning: "warning",
+  info: "default",
+}
+
+const EXCEPTION_TYPE_LABEL: Record<string, string> = {
+  MISSING_ATTESTATION: "Missing attestation",
+  UNJUSTIFIED_ACQUISITION: "Unjustified acquisition",
+}
+
+/**
+ * A readable label for an exception type — including one this build has never
+ * heard of, which is humanised from its code ("SOME_NEW_CHECK" -> "Some new
+ * check") rather than shown raw or dropped.
+ */
+export function exceptionTypeLabel(type: string): string {
+  const known = EXCEPTION_TYPE_LABEL[type]
+  if (known) return known
+  const words = type.replace(/_/g, " ").trim().toLowerCase()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : UNKNOWN
 }
 
 /**
@@ -98,6 +174,28 @@ export function isRepairOverdue(chain: RepairChain): boolean {
 export function hasNoDueDate(chain: RepairChain): boolean {
   if (chain.overdueStatus) return chain.overdueStatus === "NO_DUE_DATE"
   return chain.expectedReturn === undefined
+}
+
+/**
+ * The line's overdue status for a badge or a filter. The backend's answer when
+ * it sent one; otherwise derived through the same helpers as above, received
+ * first, so a unit that came back is never shown as late.
+ */
+export function overdueStatusOf(chain: RepairChain): OverdueStatus {
+  if (chain.overdueStatus) return chain.overdueStatus
+  if (chain.repairStatus === "Closed" || chain.receivedAt) return "RECEIVED"
+  if (isRepairOverdue(chain)) return "OVERDUE"
+  return hasNoDueDate(chain) ? "NO_DUE_DATE" : "ON_TIME"
+}
+
+/**
+ * Still out: the unit has not come back. The same test the register's
+ * `openLines` count uses, so a chart built on it agrees with the KPI beside
+ * it. Not `repairStatus !== "Closed"` — a line can read "Received" without
+ * being closed, and it is back all the same.
+ */
+export function isOpenRepair(chain: RepairChain): boolean {
+  return overdueStatusOf(chain) !== "RECEIVED"
 }
 
 /**

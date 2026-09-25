@@ -8,9 +8,10 @@
  * writes to SAP** — the platform reads SAP and records its own findings beside
  * it. That last part is the guarantee that matters and it has not changed.
  *
- * Consumed under `NEXT_PUBLIC_DATASET=live` by the register, the repair detail
- * page and the declaration queue (W5.4). Every other page, selector and
- * cross-initiative adapter still reads the scenario fixtures in every mode.
+ * Consumed by the overview, the register, the repair detail page, the
+ * declaration queue, the exception queue and the Duplicate Guard. The Home
+ * page, the action centre, the audit log and the cross-initiative selectors
+ * still read the scenario fixtures in every mode.
  *
  * ## Three things to know before wiring a page to this
  *
@@ -158,6 +159,19 @@ export type ApiRepairChain = {
   deliveryCompleted: boolean
   reversals: number
   scheduleLines: number
+
+  /**
+   * NORMAL, OBSOLETE, CRITICAL, IMPACT, INSURANCE — or null when ZMM065 has no
+   * rating for this material. Never defaulted. Optional only until every
+   * backend in use serves it.
+   */
+  criticality?: string | null
+  /**
+   * The PO line is blocked in SAP (EKPO.LOEKZ = 'S'). Still a live repair line
+   * and still counted — flagged, not excluded. Deleted lines ('L') are the ones
+   * the register leaves out; see `ApiRegisterMeta.excludedDeletedLines`.
+   */
+  poBlocked?: boolean
 }
 
 export type ApiRegisterMeta = {
@@ -185,6 +199,11 @@ export type ApiRegisterMeta = {
   distinctVendors: number
   vendorsResolvedToAName: number
   candidatesScanned: number
+  /** PO lines deleted in SAP (EKPO.LOEKZ = 'L'), left out of every count above.
+   *  Optional until every backend in use serves it. */
+  excludedDeletedLines?: number
+  /** Lines blocked in SAP — included above, flagged with `poBlocked`. */
+  blockedLines?: number
 }
 
 export type ApiUniverseItem = {
@@ -345,14 +364,30 @@ export type ApiDeclarationMeta = {
   attestationWindowDays: number
 }
 
-/** One row of `GET /api/i8/exceptions`. No frontend type existed before this. */
+/**
+ * One row of `GET /api/i8/exceptions`.
+ *
+ * `type` is a plain string, not a closed union. Two are raised today —
+ * `MISSING_ATTESTATION` (a repair line went out with no condition assessment)
+ * and `UNJUSTIFIED_ACQUISITION` (a new unit was bought while a repair of the
+ * same material and plant was open, and nobody recorded why) — and the backend
+ * declares more than it raises. A type this build has not heard of must still
+ * render, so nothing may switch exhaustively over it.
+ */
 export type ApiExceptionItem = {
   id: string
   type: string
   severity: "info" | "warning" | "critical"
   material: ApiMaterialReference
   plant: ApiPlantReference | null
+  /** The repair line. For `UNJUSTIFIED_ACQUISITION`, the repair that was open
+   *  when the new unit was bought. */
   repairLine: ApiSAPDocumentReference
+  /**
+   * The new-purchase PO line, for `UNJUSTIFIED_ACQUISITION`. Null for
+   * `MISSING_ATTESTATION`; optional until every backend in use serves it.
+   */
+  acquisitionLine?: ApiSAPDocumentReference | null
   title: string
   /** Says what is missing AND what was searched for. */
   detail: string
@@ -385,11 +420,20 @@ export type ApiExceptionMeta = {
   /** The cutover these counts were measured against. Null means none is set. */
   attestationCutoverDate: string | null
   /**
-   * Which exception types the backend actually raises. MISSING_SESSION_ID and
-   * UNJUSTIFIED_ACQUISITION are declared but never raised, so an empty count is
-   * distinguishable from an unimplemented check.
+   * Which exception types the backend actually raises, so an empty count is
+   * distinguishable from an unimplemented check. MISSING_SESSION_ID is
+   * declared but never raised.
    */
   typesRaised: string[]
+  /** New 80-series purchases the UNJUSTIFIED_ACQUISITION check looked at.
+   *  Optional until every backend in use serves it. */
+  acquisitionsChecked?: number
+  /** How far either side of a purchase a NEW_ACQUISITION justification is
+   *  searched for. */
+  justificationWindowDays?: number
+  /** The justification check's own cutover — purchases before it count as
+   *  pre-automation. Null means none is set. */
+  justificationCutoverDate?: string | null
 }
 
 /** One recorded attestation. */
@@ -577,11 +621,12 @@ export type ExceptionQuery = {
 
 /**
  * `GET /api/i8/exceptions` — repair lines that went out with no recorded
- * condition assessment.
+ * condition assessment, and new units bought while a repair was open with no
+ * justification on record.
  *
- * Expect this to be large. Every historical repair line raises it, because the
- * control did not exist before this platform — that number is the business case
- * for W5.3, not a bug in it.
+ * Expect this to be large. Every historical repair line raises the first kind,
+ * because the control did not exist before this platform — that number is the
+ * business case for W5.3, not a bug in it.
  */
 export function getExceptions(
   query: ExceptionQuery = {},
@@ -612,14 +657,71 @@ export function getAttestations(
  * silent about that looks broken.
  *
  * Throws `ApiError` with status 422 when a business rule is broken (an unknown
- * fault category, a `supersedes` pointing nowhere); `detail` says what is
- * allowed.
+ * fault category, a `supersedes` pointing nowhere, a material that is not
+ * 80-series or not in the repairable universe, a plant other than 1300/1500,
+ * an out-of-range quantity); `detail` says what is allowed.
  */
 export function createAttestation(body: AttestationRequest): Promise<ApiAttestation> {
   return apiFetch("/i8/attestations", {
     method: "POST",
     body: JSON.stringify(body),
   })
+}
+
+// --- FR-6: does a repairable unit already exist? -----------------------------
+
+/** One open repair line the answer rests on. */
+export type ApiRepairableUnitEvidence = {
+  purchasingDocument: string
+  item: string
+  quantity: string
+  raisedAt: string | null
+  dueDate: string | null
+  /** Positive once past the promised date. Null when no date was agreed. */
+  daysOverdue: number | null
+  vendor: string | null
+  vendorName: string | null
+  status: string
+  /** Whether a dispatch movement is on record. Measured false on every open
+   *  repair in the extract — the PO exists, the shipment is not evidenced. */
+  dispatched: boolean
+}
+
+/** `GET /api/i8/repairable-unit` — the Duplicate Guard's question, answered. */
+export type ApiRepairableUnit = {
+  materialId: string
+  plant: string
+  /** False for anything outside the 80-series: there is nothing to look for. */
+  isRepairableMaterial: boolean
+  exists: boolean
+  sources: ("STOCK" | "ON_REPAIR_ORDER")[]
+  /** Null when there is no stock record at all — unknown, not zero. */
+  stockOnHand: string | null
+  stockIsUnknown: boolean
+  stockLocations: number
+  openRepairLines: number
+  quantityUnderRepair: string
+  soonestDueDate: string | null
+  overdueLines: number
+  /** One sentence, written by the backend to be shown as-is. */
+  headline: string
+  /** What the answer does NOT prove, in words meant for the requester. */
+  caveats: string[]
+  evidence: ApiRepairableUnitEvidence[]
+  referenceDate: string
+}
+
+/**
+ * `GET /api/i8/repairable-unit?material=&plant=` — is there already a
+ * repairable unit of this material at this plant, in stock or on a repair
+ * order? FR-6, and advisory only: the answer informs a requester, it never
+ * blocks one.
+ */
+export function getRepairableUnit(query: {
+  material: string
+  plant: string
+}): Promise<ApiRepairableUnit> {
+  return apiFetch(`/i8/repairable-unit${queryString(query)}`)
 }
 
 // --- W5.5: coding candidates ------------------------------------------------

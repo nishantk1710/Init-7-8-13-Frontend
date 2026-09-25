@@ -2,7 +2,11 @@ import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { DeclarationQueueTable } from "@/features/initiative-8/components/declaration-queue-table"
-import { loadLiveDeclarations } from "@/features/initiative-8/data/live-declarations"
+import {
+  loadLiveDeclarations,
+  withQuantitiesUnderRepair,
+} from "@/features/initiative-8/data/live-declarations"
+import { loadLiveRegister } from "@/features/initiative-8/data/live-register"
 import type { DeclarationItem } from "@/features/initiative-8/types/repair"
 import { getAttestations } from "@/lib/api/i8"
 
@@ -30,15 +34,23 @@ export async function DeclarationQueuePage() {
   // is VZI's vocabulary, it will change, and the backend validates against the
   // same list it serves. Fetched alongside the queue so the form has it before
   // anybody opens the dialog.
+  //
+  // The register is read too, best-effort, for one thing only: the quantity
+  // still under repair on each row's line, which the form offers as its
+  // default. A register failure costs that default (it falls back to 1), not
+  // the queue.
   let live: Awaited<ReturnType<typeof loadLiveDeclarations>> | null = null
   let faultCategories: string[] = []
   let loadError: string | null = null
   try {
-    const [queue, attestations] = await Promise.all([
+    const [queue, attestations, register] = await Promise.all([
       loadLiveDeclarations(),
       getAttestations(),
+      loadLiveRegister().catch(() => null),
     ])
-    live = queue
+    live = register
+      ? { ...queue, items: withQuantitiesUnderRepair(queue.items, register.chains) }
+      : queue
     faultCategories = attestations.faultCategories
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)

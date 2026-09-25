@@ -13,7 +13,7 @@ import {
 } from "recharts"
 
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { DEFAULT_AGING_BUCKETS } from "@/features/initiative-8/utils/status"
+import { DEFAULT_AGING_BUCKETS, isOpenRepair } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
 // Cycled by index rather than a 1:1 array, since the band count is backend
@@ -47,7 +47,9 @@ export function RepairAgingChart({
    *  Defaults to the fixed bands the fixtures were written against. */
   bands?: string[]
 }) {
-  const open = chains.filter((c) => c.repairStatus !== "Closed")
+  // Still out -- the register's own definition of open, so the bars add up to
+  // the "open repair lines" figure beside them.
+  const open = chains.filter(isOpenRepair)
   const data = bands.map((bucket) => ({
     bucket,
     count: open.filter((c) => c.agingBucket === bucket).length,

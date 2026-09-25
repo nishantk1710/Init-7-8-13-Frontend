@@ -64,7 +64,10 @@ export default async function I08JustificationsPage() {
           </div>
         ) : (
           <>
-            <JustificationLog entries={entries.items.map(fromAssistant)} />
+            <JustificationLog
+              entries={entries.items.map(fromAssistant)}
+              csvFilename="i08-new-acquisition-justifications.csv"
+            />
             {/* The backend's own note, served rather than written here. */}
             {entries.note && (
               <p className="text-[11px] text-muted-foreground">{entries.note}</p>

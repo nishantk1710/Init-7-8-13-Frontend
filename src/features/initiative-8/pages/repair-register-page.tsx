@@ -2,8 +2,11 @@ import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { RepairRegisterTable } from "@/features/initiative-8/components/repair-register-table"
-import { loadLiveRegister } from "@/features/initiative-8/data/live-register"
-import type { RepairChain } from "@/features/initiative-8/types/repair"
+import {
+  loadLiveRegister,
+  registerDescription,
+} from "@/features/initiative-8/data/live-register"
+import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
 
 /**
  * The Repair Register (FR-10).
@@ -62,14 +65,12 @@ export async function RepairRegisterPage() {
 
   return (
     <Shell
-      description={
-        `${live.meta.totalLines.toLocaleString()} repair lines from the ` +
-        `July extract — ${live.meta.openLines.toLocaleString()} still open, ` +
-        `as at ${live.referenceDate}.`
-      }
+      description={registerDescription(live.meta, live.referenceDate)}
       chains={live.chains}
       plantOptions={live.plantOptions}
       vendorOptions={live.vendorOptions}
+      repairStatusOptions={live.repairStatusOptions}
+      criticalityOptions={live.criticalityOptions}
       agingBands={live.agingBands}
     />
   )
@@ -80,6 +81,8 @@ function Shell({
   chains,
   plantOptions,
   vendorOptions,
+  repairStatusOptions,
+  criticalityOptions,
   agingBands,
   loadError,
 }: {
@@ -87,6 +90,8 @@ function Shell({
   chains?: RepairChain[]
   plantOptions?: { plantId: string; name: string }[]
   vendorOptions?: string[]
+  repairStatusOptions?: RepairStatus[]
+  criticalityOptions?: string[]
   agingBands?: string[]
   loadError?: string | null
 }) {
@@ -98,6 +103,8 @@ function Shell({
           chains={chains}
           plantOptions={plantOptions}
           vendorOptions={vendorOptions}
+          repairStatusOptions={repairStatusOptions}
+          criticalityOptions={criticalityOptions}
           agingBands={agingBands}
           loadError={loadError}
         />

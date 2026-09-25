@@ -42,7 +42,12 @@ import type {
   RepairChain,
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
-import { DEFAULT_AGING_BUCKETS } from "@/features/initiative-8/utils/status"
+import {
+  DEFAULT_AGING_BUCKETS,
+  NO_CRITICALITY,
+  REPAIR_STATUS_ORDER,
+  vendorLabel,
+} from "@/features/initiative-8/utils/status"
 import type { ApiRepairChain, ApiRegisterMeta } from "@/lib/api/i8"
 import { formatApiDate, getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
@@ -182,11 +187,17 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // as compliance.
     leadTimeDays: orUndefined(row.leadTimeDays),
     daysOverLeadTime: orUndefined(row.daysOverLeadTime),
+
+    // Undefined when ZMM065 has no rating -- never defaulted to NORMAL, which
+    // would quietly downgrade an unrated part.
+    criticality: orUndefined(row.criticality),
+    // A blocked PO line is still a live repair: kept, and flagged on screen.
+    poBlocked: row.poBlocked ?? false,
   }
 }
 
-export type LiveRegister = {
-  chains: RepairChain[]
+/** The filter dropdowns' choices, every one read off the rows themselves. */
+export type RegisterOptions = {
   /** Distinct plants present in the data, for the filter. Built from the rows
    *  rather than the fixture plant list, whose ids do not exist here. */
   plantOptions: { plantId: string; name: string }[]
@@ -194,6 +205,77 @@ export type LiveRegister = {
    *  455 lines with no PO header stay findable instead of vanishing from both
    *  the dropdown and the results. */
   vendorOptions: string[]
+  /** The repair statuses that actually occur, in lifecycle order — three in
+   *  the July extract, not the six the type allows. Offering a status no row
+   *  has is a filter that can only ever return nothing. */
+  repairStatusOptions: RepairStatus[]
+  /** Criticality ratings present, most severe first, with `NO_CRITICALITY`
+   *  last when any line is unrated — so unrated lines can be found, not just
+   *  excluded. */
+  criticalityOptions: string[]
+}
+
+const CRITICALITY_ORDER = ["CRITICAL", "IMPACT", "INSURANCE", "NORMAL", "OBSOLETE"]
+
+/** Rank in a fixed order, with anything unlisted after it, alphabetically. */
+function byKnownOrder(order: readonly string[]) {
+  return (a: string, b: string) => {
+    const rankA = order.includes(a) ? order.indexOf(a) : order.length
+    const rankB = order.includes(b) ? order.indexOf(b) : order.length
+    return rankA - rankB || a.localeCompare(b)
+  }
+}
+
+/** Every dropdown's options, derived from the rows rather than a fixed list. */
+export function buildRegisterOptions(chains: RepairChain[]): RegisterOptions {
+  const plants = new Map<string, string>()
+  const vendors = new Set<string>()
+  const statuses = new Set<RepairStatus>()
+  const criticalities = new Set<string>()
+  let hasUnrated = false
+  for (const chain of chains) {
+    plants.set(chain.plant.plantId, chain.plant.name)
+    vendors.add(vendorLabel(chain))
+    statuses.add(chain.repairStatus)
+    if (chain.criticality) criticalities.add(chain.criticality)
+    else hasUnrated = true
+  }
+
+  return {
+    plantOptions: [...plants]
+      .map(([plantId, name]) => ({ plantId, name }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    vendorOptions: [...vendors].sort((a, b) => a.localeCompare(b)),
+    repairStatusOptions: [...statuses].sort(byKnownOrder(REPAIR_STATUS_ORDER)),
+    criticalityOptions: [
+      ...[...criticalities].sort(byKnownOrder(CRITICALITY_ORDER)),
+      ...(hasUnrated ? [NO_CRITICALITY] : []),
+    ],
+  }
+}
+
+/**
+ * The register page's header line. Says what is left out as well as what is
+ * in: a register that silently dropped the lines deleted in SAP would disagree
+ * with an EKPO row count and nobody could say why. Each extra clause appears
+ * only when the backend serves its count.
+ */
+export function registerDescription(meta: ApiRegisterMeta, referenceDate: string): string {
+  let text =
+    `${meta.totalLines.toLocaleString()} repair lines from the ` +
+    `July extract — ${meta.openLines.toLocaleString()} still open, ` +
+    `as at ${referenceDate}.`
+  if (meta.excludedDeletedLines) {
+    text += ` ${meta.excludedDeletedLines.toLocaleString()} lines deleted in SAP are excluded.`
+  }
+  if (meta.blockedLines) {
+    text += ` ${meta.blockedLines.toLocaleString()} blocked in SAP are included and flagged.`
+  }
+  return text
+}
+
+export type LiveRegister = RegisterOptions & {
+  chains: RepairChain[]
   /** The currently configured aging bands (`GET /api/i8/snapshot`'s
    *  `rules.agingBands`), for the chart and the filter dropdown to render
    *  instead of a hard-coded list. Falls back to `DEFAULT_AGING_BUCKETS` if
@@ -247,19 +329,9 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     // Keep the default silently -- this is presentation, not data integrity.
   }
 
-  const plants = new Map<string, string>()
-  const vendors = new Set<string>()
-  for (const chain of chains) {
-    plants.set(chain.plant.plantId, chain.plant.name)
-    vendors.add(chain.vendorName ?? chain.vendor ?? "Unknown vendor")
-  }
-
   return {
     chains,
-    plantOptions: [...plants]
-      .map(([plantId, name]) => ({ plantId, name }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    vendorOptions: [...vendors].sort((a, b) => a.localeCompare(b)),
+    ...buildRegisterOptions(chains),
     agingBands,
     meta: meta!,
     referenceDate,

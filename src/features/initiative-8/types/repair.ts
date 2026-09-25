@@ -212,6 +212,18 @@ export interface RepairChain {
    * the most persuasive possible argument against repairing anything.
    */
   newUnitLeadTimeDays?: number
+
+  /**
+   * NORMAL, OBSOLETE, CRITICAL, IMPACT or INSURANCE, from ZMM065. Undefined
+   * when no rating exists — "not recorded", never "NORMAL".
+   */
+  criticality?: string
+
+  /**
+   * The repair PO line is blocked in SAP. Still a live line — it stays in
+   * every count and is flagged on screen rather than hidden.
+   */
+  poBlocked?: boolean
   notes?: string
 }
 
@@ -309,10 +321,52 @@ export interface DeclarationItem {
   source: DeclarationSource
   hasActiveRepair: boolean
   relatedRepairId?: string
+
+  /**
+   * Units still out on the related repair line, joined from the register.
+   * Only the default for the attestation form's quantity — undefined when the
+   * register could not be read or the line is already back.
+   */
+  quantityUnderRepair?: number
   status: DeclarationStatus
   declaredBy?: string
   declaredAt?: string
   condition?: DeclarationCondition
   nextAction: string
   createdAt: string
+}
+
+/** How loudly an exception should read. Served by the backend, never derived. */
+export type ExceptionSeverity = "info" | "warning" | "critical"
+
+/**
+ * One row of the exception queue (`GET /api/i8/exceptions`).
+ *
+ * `type` is a plain string, not a closed union: `MISSING_ATTESTATION` and
+ * `UNJUSTIFIED_ACQUISITION` are raised today, and a type added on the backend
+ * later must still render — with a readable label and a neutral tone — rather
+ * than falling through a `Record<Union, …>` lookup.
+ */
+export interface RepairException {
+  id: string
+  type: string
+  severity: ExceptionSeverity
+  material: MaterialReference
+  /** Undefined when the backend names no plant — shown as unknown, not guessed. */
+  plant?: PlantReference
+  /** The repair line. For an unjustified acquisition, the repair that was open
+   *  when the new unit was bought. */
+  repairLine: SAPDocumentReference
+  /** `{EBELN}-{EBELP}` for the register detail route; undefined when the line
+   *  number is missing, so no link is built to a page that cannot resolve. */
+  repairId?: string
+  /** The new-purchase PO line. Only unjustified acquisitions carry one. */
+  acquisitionLine?: SAPDocumentReference
+  title: string
+  detail: string
+  /** Display date ("7 Apr 2025"), or undefined when the line has none. */
+  raisedAt?: string
+  isOpenRepair: boolean
+  /** Raised before Spares Automation existed — a reason, not a violation. */
+  preAutomation: boolean
 }
