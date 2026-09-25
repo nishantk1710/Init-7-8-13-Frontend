@@ -119,6 +119,22 @@ function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
 }
 
 /**
+ * Compact OAR → Min-Max label beside the rationale heading, so an approver
+ * sees at a glance that this is an OAR material being proposed for Min-Max.
+ * Same source and colouring as OarConversionSection: the backend's own
+ * eligibility verdict, never re-derived here.
+ */
+function OarConversionLabel({ oar }: { oar: OarConversionInfo }) {
+  const eligibility = oar.conversionEligibility
+  return (
+    <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "default"}>
+      <ArrowRightLeft className="size-3" />
+      OAR → Min-Max{eligibility ? ` · ${eligibility.replace(/_/g, " ")}` : ""}
+    </StatusBadge>
+  )
+}
+
+/**
  * "Send for approval" box — the planner-side action, shown while a
  * recommendation is still theirs to submit.
  */
@@ -205,10 +221,13 @@ export function RecommendationReviewPanel({
 
       <div className="flex flex-col gap-3">
         <div>
-          <h4 className="flex items-center gap-1.5 text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
-            <MessageSquare className="size-3.5" />
-            Why this recommendation?
-          </h4>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="flex items-center gap-1.5 text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
+              <MessageSquare className="size-3.5" />
+              Why this recommendation?
+            </h4>
+            {rec.oarConversion && <OarConversionLabel oar={rec.oarConversion} />}
+          </div>
           {rec.rationale?.text ? (
             <div className="mt-1.5 flex flex-col gap-1.5">
               <ul className="list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
