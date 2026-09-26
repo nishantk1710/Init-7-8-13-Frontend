@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "mock:record": "node --no-warnings scripts/mock-data/record.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

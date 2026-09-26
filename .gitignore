@@ -60,3 +60,7 @@ yarn-error.log*
 # --- Local dev convenience scripts ---
 # Machine-specific launcher (Docker Desktop + backend + frontend). Never shared.
 start-dev.bat
+
+# --- Demo-mode raw recordings (scripts/mock-data/record.mts) ---
+# Large and one file per request; only src/mocks/demo-dataset.json is committed.
+/.mock-recordings/
