@@ -363,6 +363,7 @@ describe("ApiError models both arms of FastAPI's detail", () => {
     const error = new ApiError(
       "POST /api/assistant/sessions failed with 422",
       422,
+      undefined,
       "quantity must be a number, got 'abc'"
     )
     expect(error.detailText()).toBe("quantity must be a number, got 'abc'")
@@ -372,7 +373,7 @@ describe("ApiError models both arms of FastAPI's detail", () => {
   it("renders an array detail as field-attributed lines", () => {
     // The commonest failure there is — a required field left empty — and the
     // arm that prints "[object Object]" if you assume a string.
-    const error = new ApiError("failed with 422", 422, [
+    const error = new ApiError("failed with 422", 422, undefined, [
       { type: "missing", loc: ["body", "plant"], msg: "Field required" },
     ])
     expect(error.detailText()).toBe("plant: Field required")
@@ -380,7 +381,7 @@ describe("ApiError models both arms of FastAPI's detail", () => {
   })
 
   it("attributes a query-parameter failure to the parameter", () => {
-    const error = new ApiError("failed with 422", 422, [
+    const error = new ApiError("failed with 422", 422, undefined, [
       {
         type: "greater_than_equal",
         loc: ["query", "limit"],
@@ -393,7 +394,7 @@ describe("ApiError models both arms of FastAPI's detail", () => {
   })
 
   it("keeps the first issue per field rather than stacking them", () => {
-    const error = new ApiError("failed with 422", 422, [
+    const error = new ApiError("failed with 422", 422, undefined, [
       { type: "missing", loc: ["body", "purpose"], msg: "Field required" },
       { type: "string_type", loc: ["body", "purpose"], msg: "Input should be a valid string" },
     ])

@@ -210,6 +210,7 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
         ? preparingMessage(response)
         : `${method} ${url} failed with ${response.status}`,
       response.status,
+      undefined,
       detail
     )
   }
