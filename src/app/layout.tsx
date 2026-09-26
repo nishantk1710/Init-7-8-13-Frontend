@@ -3,12 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
-import { AppToaster } from "@/components/shared/app-toaster";
 import { DataModeBanner } from "@/components/shared/data-mode";
-import { Material360Drawer } from "@/components/shared/material-360-drawer";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Material360Provider } from "@/lib/material-360-context";
-import { InventoryWorkflowProvider } from "@/features/initiative-7/context/workflow-context";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -26,6 +21,15 @@ export const metadata: Metadata = {
     "One integrated spares management application — inventory planning, repairable spares and OAR utilization tracking.",
 };
 
+/**
+ * Shared by both frontends this app serves (see src/proxy.ts):
+ *
+ *   live   app/(live)/  -- this branch's frontend, reading the real backend
+ *   demo   app/demo/    -- main's frontend as it was, on its own mock data
+ *
+ * Each brings its own shell (sidebar, providers) in its own layout; this one
+ * only holds what they have in common, plus the strip saying which is showing.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,28 +41,15 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex h-full min-h-0 overflow-hidden">
+      <body className="flex h-full min-h-0 flex-col overflow-hidden">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <Material360Provider>
-            {/* Global, not just /inventory-planning/* — both the Approvals
-                page and the Action Center's Inventory Planning tab render
-                the same ApprovalsWorkspace and need the same live state,
-                not a second, desynced copy. */}
-            <InventoryWorkflowProvider>
-              <Sidebar />
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <DataModeBanner />
-                {children}
-              </div>
-              <Material360Drawer />
-              <AppToaster />
-            </InventoryWorkflowProvider>
-          </Material360Provider>
+          <DataModeBanner />
+          <div className="flex min-h-0 flex-1">{children}</div>
         </ThemeProvider>
       </body>
     </html>

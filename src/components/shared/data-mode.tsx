@@ -20,7 +20,7 @@ function useDataMode(): DataMode | null {
   return useSyncExternalStore(subscribe, clientDataMode, () => null)
 }
 
-/** Sidebar switch between the live backend and the recorded demo dataset. */
+/** Sidebar switch between the live frontend and main's demo frontend. */
 export function DataModeToggle() {
   const mode = useDataMode()
 
@@ -45,7 +45,7 @@ export function DataModeToggle() {
               aria-checked={active}
               disabled={mode === null}
               onClick={() => {
-                if (!active) setDataMode(option)
+                if (!active) void setDataMode(option)
               }}
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 font-medium transition-colors",
@@ -69,8 +69,9 @@ type Health = { state: "checking" } | { state: "ok" } | { state: "down"; reason:
 /**
  * A strip across the top of every page saying which data this is.
  *
- * Demo mode always says so: a recorded number next to nothing that marks it
- * as recorded is the confusion this app goes out of its way to avoid.
+ * Demo mode always says so: a mock number next to nothing that marks it as
+ * mock is the confusion this app goes out of its way to avoid. Rendered by the
+ * shared root layout, so it sits above both frontends.
  *
  * Live mode says nothing while the backend answers. When GET /health fails, it
  * says that, and offers demo mode -- so a broken backend integration costs a
@@ -103,10 +104,10 @@ export function DataModeBanner() {
       <Strip tone="demo">
         <FlaskConical className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1">
-          <strong className="font-semibold">Demo data.</strong> A recorded snapshot of the backend — not
-          connected to SAP, and nothing you do here is saved.
+          <strong className="font-semibold">Demo mode.</strong> Mock data for demonstration — not connected
+          to SAP or the backend.
         </span>
-        <StripButton onClick={() => setDataMode("live")}>Switch to live</StripButton>
+        <StripButton onClick={() => void setDataMode("live")}>Switch to live</StripButton>
       </Strip>
     )
   }
@@ -128,7 +129,7 @@ export function DataModeBanner() {
           <RefreshCw className="size-3" />
           Retry
         </StripButton>
-        <StripButton onClick={() => setDataMode("demo")}>Switch to demo data</StripButton>
+        <StripButton onClick={() => void setDataMode("demo")}>Switch to demo data</StripButton>
       </Strip>
     )
   }

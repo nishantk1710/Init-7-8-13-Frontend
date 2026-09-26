@@ -1,25 +1,25 @@
-// Where the app's backend data comes from: the live backend, or the recorded
-// demo dataset. Switched at RUNTIME, per browser, from the sidebar toggle --
-// one build, one deployment, either data source.
+// Which frontend the app serves: this branch's live frontend, or main's demo
+// frontend as it was. Switched at RUNTIME, per browser, from the Data source
+// toggle -- one build, one deployment, both frontends.
 //
-//   live   every call goes to NEXT_PUBLIC_API_BASE_URL, as it always has.
-//   demo   every call is answered from src/mocks/responses/ -- real responses
-//          recorded from the backend (scripts/mock-data/record.mts), so the
-//          screens render exactly as they do live. Nothing is written: POSTs
-//          are refused with a sentence, apart from the assistant, which plays
-//          a scripted conversation (src/mocks/assistant.ts).
+//   live   app/(live)/ + the rest of src/ -- reads the real backend
+//          (NEXT_PUBLIC_API_BASE_URL), exactly as before.
+//   demo   app/demo/ + src/demo/ -- main's frontend, unchanged, on its own
+//          mock data. Never calls the backend.
+//
+// src/proxy.ts reads the cookie on every request and rewrites to the demo tree
+// in demo mode, so URLs look the same in both.
 //
 // Why a toggle at all: the deployed app has to keep working while the Azure
-// backend integration settles. Demo mode is the known-good fallback one click
-// away, and the live-mode health check (components/shared/data-mode-banner.tsx)
-// offers it the moment the backend stops answering.
+// backend integration settles. Demo is the known-good fallback one click away,
+// and the live-mode health check (components/shared/data-mode.tsx) offers it
+// the moment the backend stops answering.
 //
-// NOT TO BE CONFUSED WITH lib/dataset-mode.ts, which is older and different:
-// that build-time flag decides whether the remaining hand-written scenario
-// fixtures label themselves. This one decides whether the backend is called.
+// NOT TO BE CONFUSED WITH lib/dataset-mode.ts, an older build-time flag that
+// only decides whether the live frontend's remaining fixtures label themselves.
 //
-// The mode lives in a COOKIE rather than localStorage because server
-// components fetch too, and a server only sees cookies.
+// Kept free of imports and of browser globals at module level: src/proxy.ts
+// imports it too.
 
 export type DataMode = "demo" | "live"
 
@@ -47,39 +47,30 @@ function readCookie(cookieHeader: string): string | undefined {
   return undefined
 }
 
-/** The mode in the browser. Synchronous: it is only a cookie read. */
+/** The mode in the browser. */
 export function clientDataMode(): DataMode {
   return parseDataMode(readCookie(document.cookie)) ?? DEFAULT_DATA_MODE
 }
 
 /**
- * The mode for the current request, on either side.
+ * Switch mode and load the other frontend.
  *
- * On the server this reads the request's cookie, which makes the calling route
- * dynamic -- necessary, since the same URL renders different data per mode.
- * Next's own control-flow errors (the one that marks a route dynamic during a
- * build) are rethrown untouched; swallowing it would prerender the page with
- * one mode baked in and the toggle would silently stop working there.
+ * Stays on the current page when the other frontend has it too, so the same
+ * screen can be compared across modes. The two frontends do not share every
+ * route (main has /chat, this branch /assistant), so when the page does not
+ * exist on the other side, lands on /home instead of a 404.
  */
-export async function currentDataMode(): Promise<DataMode> {
-  if (typeof window !== "undefined") return clientDataMode()
-  const [{ cookies }, { unstable_rethrow }] = await Promise.all([
-    import("next/headers"),
-    import("next/navigation"),
-  ])
-  try {
-    const store = await cookies()
-    return parseDataMode(store.get(DATA_MODE_COOKIE)?.value) ?? DEFAULT_DATA_MODE
-  } catch (error) {
-    unstable_rethrow(error)
-    // Outside a request altogether (a test, a script): there is no cookie.
-    return DEFAULT_DATA_MODE
-  }
-}
-
-/** Switch mode and reload, so server and client both refetch in the new mode. */
-export function setDataMode(mode: DataMode): void {
+export async function setDataMode(mode: DataMode): Promise<void> {
   const oneYear = 60 * 60 * 24 * 365
   document.cookie = `${DATA_MODE_COOKIE}=${mode}; path=/; max-age=${oneYear}; samesite=lax`
-  window.location.reload()
+  try {
+    const probe = await fetch(window.location.pathname, { method: "HEAD", cache: "no-store" })
+    if (probe.ok) {
+      window.location.reload()
+      return
+    }
+  } catch {
+    // Fall through to /home.
+  }
+  window.location.assign("/home")
 }
