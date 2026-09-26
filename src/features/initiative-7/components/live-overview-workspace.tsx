@@ -86,7 +86,7 @@ function AdoptionStatusTooltip({ active, payload }: TooltipContentProps) {
 
 // The only two plants MARC/OAR data actually covers (see CLAUDE.md's
 // "Plant coverage gap" -- raw_marc holds 1300/1200 only, and every
-// DISMM/OAR-adjacent figure elsewhere in I07 is scoped to Black Mountain and
+// MRP-type/OAR-adjacent figure elsewhere in I07 is scoped to Black Mountain and
 // Gamsberg specifically, never the other SAP plant codes that show up
 // elsewhere in the extract as unrelated noise for this initiative). Real SAP
 // plant codes, human names hardcoded here since no plant-code -> name
