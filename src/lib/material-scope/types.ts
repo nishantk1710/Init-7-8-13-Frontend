@@ -1,6 +1,6 @@
 // W2.4 — material-scope predicate types. See docs-eng/WS2_INTEGRATION_PLAN.md §5.
 //
-// Nothing outside `lib/sap/scope/*` may reference a scope's underlying SAP
+// Nothing outside `lib/material-scope/*` may reference a scope's underlying SAP
 // field names or values directly — everything is expressed through this
 // module's public API (`isInScope`, `isMaterialInScope`, `toODataFilter`).
 

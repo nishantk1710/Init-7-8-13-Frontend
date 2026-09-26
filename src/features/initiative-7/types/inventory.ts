@@ -16,7 +16,7 @@ export type Circuit =
   | "Flotation"
   /**
    * No source produces circuit for a real material — see the WS2 gap report
-   * (`npm run gap-report`). Rather than defaulting mapped rows into a real
+   * (the removed `npm run gap-report`; see backend/docs for the field-source analysis). Rather than defaulting mapped rows into a real
    * circuit and quietly reporting every material as, say, Crushing, they carry
    * this. Deliberately absent from CIRCUITS below, so it is never offered as a
    * filter option — it is a missing value, not a category.

@@ -15,7 +15,7 @@ import { getUserById } from "@/lib/shared-data/users"
 import { getPlantById } from "@/lib/shared-data/plants"
 import type { OARPersonRef, UtilizationLedgerLine } from "@/features/initiative-13/types/oar"
 import { materialRef, unitPriceFor } from "@/features/initiative-13/data/materials"
-import { USING_GENERATED_DATA } from "@/lib/sap/dataset-mode"
+import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
 import generatedLedger from "@/features/initiative-13/data/generated/ledger.json"
 
 function person(userId: string): OARPersonRef {
@@ -383,7 +383,7 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
   },
 ]
 
-/** Mapped from SAP + platform rows by `npm run dataset:build`. See lib/sap/dataset-mode. */
+/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
 export const LEDGER_LINES: UtilizationLedgerLine[] = USING_GENERATED_DATA
   ? (generatedLedger as unknown as UtilizationLedgerLine[])
   : SCENARIO_LEDGER_LINES

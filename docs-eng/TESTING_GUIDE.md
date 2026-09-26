@@ -1,3 +1,21 @@
+> **HISTORICAL — the layer this describes has been removed.**
+>
+> The TypeScript CPI client (`src/lib/sap/`) and its scripts were deleted on
+> 2026-09-11. SAP access is now owned by the Python backend, at
+> `backend/app/integrations/sap/`, because two implementations of one wire
+> protocol would need fixing twice every time SAP drifts — and it demonstrably
+> drifts (`Edm.Decimal` → `Edm.String`, a changed requisition key, both inside a
+> week).
+>
+> **This document is kept deliberately.** The findings in it were measured
+> against live CPI and are still true of SAP: the paging instability, the
+> silently-ignored filters, the zero-row entity sets, the `$count` failures.
+> Every one of them is now encoded in
+> `backend/app/integrations/sap/known_conditions.py` and its tests.
+>
+> What is no longer true: the file paths, the `npm run` commands, and the
+> per-set "flip to live" mechanics. Do not follow those.
+
 # Testing Guide — how to check WS2 yourself
 
 You've read [phase_summary.md](phase_summary.md) and want to verify it

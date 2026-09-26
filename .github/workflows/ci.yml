@@ -1,0 +1,58 @@
+# Frontend CI.
+#
+# Paths are relative to the REPOSITORY root, and this repository's root is the
+# Next.js application -- there is no `frontend/` prefix and no
+# `working-directory`. That is the difference from the old combined workflow in
+# the outer spares-ai repo, which needed both.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      # 55 tests, covering the material-scope module -- the OAR rule that
+      # decides which materials I07 and I13 act on.
+      #
+      # This used to be 256 tests. The other ~200 covered a TypeScript CPI
+      # client in src/lib/sap/, which has been removed: SAP access is owned by
+      # the Python backend (backend/app/integrations/sap/), and two
+      # implementations of one wire protocol would need fixing twice on every
+      # SAP drift. Those tests moved with it.
+      #
+      # The honest consequence: **no UI component in this app has a test.**
+      # That was already true when the suite was 256 strong -- every one of them
+      # tested the SAP layer, none tested a screen. Worth fixing; not fixed here.
+      - run: npm test
+
+      # Verified to pass on a clean Linux-equivalent checkout before being
+      # enabled. Catches type errors the tests do not -- all 24 routes must
+      # still compile.
+      - run: npm run build
+
+      # `npm run lint` is deliberately still not a step. It reports 3
+      # pre-existing errors in src/components (React setState-in-effect and
+      # memoization), unrelated to anything above. Add this step in the same
+      # change that clears them, so CI starts green and stays meaningful:
+      #
+      #   - run: npm run lint
