@@ -1,0 +1,70 @@
+{
+  "routing": {
+    "flow": "i13",
+    "materialId": "1000000123",
+    "plant": "1300",
+    "eightySeries": false,
+    "materialScope": "OAR",
+    "mrpType": "ND",
+    "alsoMatched": null,
+    "reason": "1000000123 is OAR (planned on demand) at plant 1300 -- MRP type ND."
+  },
+  "sessionId": "SQ4X9B2T7M",
+  "expiresAt": "2026-08-01T09:14:22Z",
+  "step": {
+    "id": "i13_assessment",
+    "kind": "choice",
+    "prompt": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.\n\nThis part is planned on demand, so a consumption plan is expected. Do you want to go ahead with this reservation?",
+    "choices": [
+      {
+        "value": "proceed",
+        "label": "Yes -- continue",
+        "description": "You will be asked what the material is for."
+      },
+      {
+        "value": "not_needed",
+        "label": "No -- I do not need it after all",
+        "description": "Nothing is captured beyond the advice you were shown."
+      }
+    ],
+    "fields": [],
+    "facts": {
+      "flow": "i13",
+      "material": "1000000123",
+      "plant": "1300",
+      "requestedQuantity": "5",
+      "headline": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.",
+      "caveats": [
+        "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.",
+        "Stock received 58 days ago for this part has still not been issued, which is already an open exception."
+      ],
+      "stockOnHand": "11",
+      "openPoQuantity": "0",
+      "averageMonthlyConsumption": "1",
+      "monthsOfCover": "11",
+      "monthsOfCoverReason": null,
+      "projectedMonthsOfCover": null,
+      "daysSinceLastMovement": 443,
+      "daysSinceLastIssue": 443,
+      "lastMovementDate": "2025-05-14",
+      "consumptionCount12m": 12,
+      "consumedQty12m": "12",
+      "agingBand": "SLOW",
+      "inventoryTurns": null,
+      "grNotIssuedFlag": true,
+      "grNotIssuedDaysSinceGr": 58,
+      "acquiredVsPlanStatus": "NO_PLAN",
+      "materialScope": "OAR",
+      "crossPlantStock": [
+        {
+          "plant": "1500",
+          "stockOnHand": "2"
+        }
+      ],
+      "referenceDate": "2026-07-31"
+    },
+    "footnote": "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.\nStock received 58 days ago for this part has still not been issued, which is already an open exception.",
+    "sessionId": null
+  },
+  "narrative": null
+}

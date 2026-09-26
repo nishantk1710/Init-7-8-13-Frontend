@@ -34,7 +34,56 @@ export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "
 /** How a procurement request originated. */
 export type DeclarationSource = "Manual" | "MRP-generated"
 
-export type AgingBucket = "0-15" | "16-30" | "31-45" | "46-60" | "60+"
+/**
+ * A label like `"0-15"` or `"60+"`.
+ *
+ * Not a fixed literal union: the day boundaries behind these bands are
+ * configuration on the backend (`I8_AGING_BAND_BOUNDARIES`, FRS open item 5,
+ * pending VZI calibration), so the set of valid labels can change without a
+ * frontend deploy. `DEFAULT_AGING_BUCKETS` in `utils/status.ts` is the
+ * fallback used in `scenario` mode and if a live snapshot fetch fails — it is
+ * a default, not the contract.
+ */
+export type AgingBucket = string
+
+/**
+ * Where a repair line stands against its promised return date.
+ *
+ * Served by `GET /api/i8/register` as `overdueStatus`. It exists because
+ * "not overdue" and "nobody ever agreed a date" are different answers, and
+ * collapsing them hides exactly the lines that need chasing — 63 of the 1,225
+ * repair lines in the July extract have no schedule line at all.
+ *
+ * Prefer `isRepairOverdue()` in `utils/status.ts` over comparing
+ * `daysRemainingInRepair` directly: that field is now optional, and
+ * `undefined < 0` is `false`, which would silently mark an undated line as
+ * on time.
+ */
+export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+
+/**
+ * Where a repair line stands against the material's planned delivery time.
+ *
+ * Served by `GET /api/i8/register` as `leadTimeStatus`. A **second,
+ * independent** signal, not a fallback for `OverdueStatus`: one asks whether
+ * the line passed the date somebody promised on the PO, this asks whether it
+ * has taken longer than this material normally takes. A row can be `ON_TIME`
+ * and `BEYOND_LEAD_TIME` at once — that disagreement is the finding, not an
+ * error to resolve away, and it is why the check runs on every line rather
+ * than only the 63 with no agreed date.
+ *
+ * The benchmark is `MARC.PLIFZ` (planned delivery time, calendar days, PO to
+ * received) — the same field Initiative 07 uses, so the two initiatives cannot
+ * report different turnarounds for the same part.
+ *
+ * `NO_LEAD_TIME` means there is nothing to compare against, and covers every
+ * Gamsberg line: the planning extract omits plant 1500 entirely. Render it as
+ * "not known", never as "fine".
+ */
+export type LeadTimeStatus =
+  | "WITHIN_LEAD_TIME"
+  | "BEYOND_LEAD_TIME"
+  | "NO_LEAD_TIME"
 
 /**
  * A single repairable material's active (or recently closed) repair chain —
@@ -45,30 +94,207 @@ export interface RepairChain {
   id: string
   material: MaterialReference
   plant: PlantReference
-  stockOnHand: number
-  reorderPoint: number
+
+  /**
+   * Unrestricted stock on hand, summed across storage locations.
+   *
+   * Optional: the backend returns null when the material has no MARD row.
+   * That is "we do not know", which is not the same as zero stock — and zero
+   * stock is what triggers a duplicate purchase, so the two must not be
+   * conflated.
+   */
+  stockOnHand?: number
+
+  /**
+   * Optional, and undefined far more often than you would expect: the MARC
+   * extract covers plants 1300 and 1200 only, so **every Gamsberg material
+   * has no reorder point at all**. Rendering a missing one as 0 would read as
+   * "never reorder this", which is a worse answer than "unknown".
+   */
+  reorderPoint?: number
+
   /** Units physically out for repair right now (0 once received/closed). */
   qtyUnderRepair: number
   repairPR: SAPDocumentReference
   repairPO?: SAPDocumentReference
-  vendor: string
+
+  /**
+   * Optional: the vendor comes from the purchase-order header, and 455 of the
+   * 1,225 repair lines have no header in the July extract (EKKO starts
+   * 07-Jan-2025; EKPO reaches further back). Undefined means "not known from
+   * this data" — an empty string would read as a vendor whose name is blank.
+   *
+   * When it is a bare SAP vendor code, `vendorName` carries the display name
+   * if LFA1 knows it. It usually does not: only 4 of the 61 repair vendors in
+   * the extract resolve to a name.
+   */
+  vendor?: string
+
+  /** Display name for `vendor`, when the vendor master knows it. */
+  vendorName?: string
+
   repairStatus: RepairStatus
   receiptStatus: ReceiptStatus
   declarationStatus: DeclarationStatus
+
+  /**
+   * Where this line stands against its promised date. Authoritative when
+   * present — use `isRepairOverdue()` rather than reading it directly, so the
+   * mock-data path keeps working.
+   */
+  overdueStatus?: OverdueStatus
+
+  /**
+   * Whether this line has run past its material's planned delivery time.
+   * Independent of `overdueStatus` — see the type's own note. Optional because
+   * the mock-data path does not produce it.
+   */
+  leadTimeStatus?: LeadTimeStatus
+
   /** Days since the repair PR was raised. */
   daysOpen: number
   agingBucket: AgingBucket
+
+  /**
+   * The planned delivery time this line is measured against, in calendar days.
+   * Undefined where none is maintained — including every Gamsberg line.
+   */
+  leadTimeDays?: number
+
+  /**
+   * Days past the planned delivery time; negative while still inside it.
+   * Undefined when there is no lead time to measure against — NOT 0, so an
+   * unmeasurable line cannot average in as "finished exactly on time".
+   */
+  daysOverLeadTime?: number
   raisedAt: string
   poIssuedAt?: string
   sentToVendorAt?: string
-  expectedReturn: string
-  /** Negative once the expected-return date has passed. */
-  daysRemainingInRepair: number
+
+  /**
+   * Optional: 63 of the 1,225 repair lines have no schedule line in SAP, so no
+   * return date was ever agreed. Those are the lines nobody is chasing, which
+   * is precisely why a placeholder date must not be invented for them — they
+   * come through as `overdueStatus: "NO_DUE_DATE"`.
+   */
+  expectedReturn?: string
+
+  /**
+   * Negative once the expected-return date has passed. Undefined when there is
+   * no expected return to count towards.
+   *
+   * Do not test this with `< 0` to mean overdue: `undefined < 0` is `false`,
+   * so an undated line would silently read as on time. Use `isRepairOverdue()`.
+   */
+  daysRemainingInRepair?: number
+
   receivedAt?: string
-  newUnitCost: number
+
+  /**
+   * Optional: no valuation source is in Initiative 8's table set (MBEW was
+   * extracted for I07 and I13), so live data does not carry it. Sending 0
+   * would make every repair look infinitely worth doing.
+   */
+  newUnitCost?: number
+
   repairCost: number
-  newUnitLeadTimeDays: number
+
+  /**
+   * Lead time to buy a NEW one — the number that makes waiting for a repair
+   * worth it.
+   *
+   * Optional, and undefined on **357 of the 1,225 repair lines**: it comes from
+   * the MARC planning extract, which covers plants 1300 and 1200 only, so every
+   * Gamsberg line has none. Exactly the same gap as `reorderPoint`, measured on
+   * exactly the same rows.
+   *
+   * Rendering it as 0 would read as "a new one arrives immediately", which is
+   * the most persuasive possible argument against repairing anything.
+   */
+  newUnitLeadTimeDays?: number
+
+  /**
+   * NORMAL, OBSOLETE, CRITICAL, IMPACT or INSURANCE, from ZMM065. Undefined
+   * when no rating exists — "not recorded", never "NORMAL".
+   */
+  criticality?: string
+
+  /**
+   * The repair PO line is blocked in SAP. Still a live line — it stays in
+   * every count and is flagged on screen rather than hidden.
+   */
+  poBlocked?: boolean
   notes?: string
+}
+
+/** One PO line whose free text mentioned repair (W5.5 coding-candidate screen). */
+export interface CodingCandidateLine {
+  purchasingDocument: string
+  item: string
+  plant?: PlantReference
+  /** The text the verdict was reached on — served so a cataloguer can check
+   *  the call without going back to SAP. */
+  shortText: string
+  matchedKeywords: string[]
+  raisedAt?: string
+  itemCategory?: string
+}
+
+/**
+ * An 80-series material carrying the identical text as a coding candidate.
+ *
+ * SAP's own counter-example, not a model's opinion: the naming convention was
+ * demonstrably applied to this exact description elsewhere and not here.
+ */
+export interface CodingCandidateTwin {
+  materialId: string
+  sharedText: string
+}
+
+/**
+ * One material the coding-candidate screen judged (FR-2): PO free text talks
+ * about repair, but the material is not 80-series coded. Advisory only —
+ * nothing here writes to SAP or changes a material's coding.
+ *
+ * `verdict`/`confidence` are plain strings, not a closed union: the verdict
+ * vocabulary (`MISCODED_REPAIRABLE`, `REPAIR_SERVICE`,
+ * `CONSUMABLE_FOR_REPAIR`, `UNCLEAR`, `UNSCREENED`) is a backend
+ * implementation decision, not an FRS-specified set — see
+ * `app/initiatives/i8/coding_candidates.py`.
+ */
+export interface CodingCandidate {
+  /** No material-master description exists for most of these (roughly nine
+   *  in ten 80-series materials are outside it, and these are the ones
+   *  furthest from being coded at all) — `description` falls back to the
+   *  first PO short text the material was screened on, which is the only
+   *  descriptive text that actually exists for it. */
+  material: MaterialReference
+  verdict: string
+  /** high / medium / low, as the model reported it. Empty when unscreened —
+   *  never treated as a real judgement, however low a threshold is set. */
+  confidence: string
+  /** Why, in the model's own words. */
+  reason: string
+  plants: string[]
+  lines: CodingCandidateLine[]
+  distinctTexts: string[]
+  twins: CodingCandidateTwin[]
+  /** SAP itself carries the counter-example — the strongest evidence this
+   *  screen produces, and it owes nothing to the model. */
+  isCorroborated: boolean
+  /** MISCODED_REPAIRABLE or UNCLEAR — the ones a human should look at. */
+  isActionable: boolean
+  /** Whether the model's own confidence clears the configured threshold. A
+   *  sibling to `isActionable`, not a replacement — they answer different
+   *  questions. */
+  meetsConfidenceThreshold: boolean
+  /** Expected false on every row — true would mean this screen and the
+   *  repairable universe (FR-1) disagree about the same material. */
+  inRepairableUniverse: boolean
+  model: string
+  /** WHO answered — "stub" means nothing was really judged. */
+  provider: string
+  screenedAt?: string
 }
 
 /** One row in the mandatory Condition-to-Repair Declaration Queue. */
@@ -76,14 +302,71 @@ export interface DeclarationItem {
   id: string
   pr: SAPDocumentReference
   material: MaterialReference
+
+  /**
+   * Optional, and only populated by the live API.
+   *
+   * The condition-to-repair attestation is recorded per material-PLANT, not per
+   * material — the same part can be assessed at Black Mountain and at Gamsberg
+   * and the two are different records. So the form needs the plant, and the
+   * queue row is where it comes from.
+   *
+   * The scenario fixtures omit it: their declarations were written before the
+   * write path existed, and inventing a plant for them would put a site on an
+   * audit record that never named one.
+   */
+  plant?: PlantReference
+
   requester: string
   source: DeclarationSource
   hasActiveRepair: boolean
   relatedRepairId?: string
+
+  /**
+   * Units still out on the related repair line, joined from the register.
+   * Only the default for the attestation form's quantity — undefined when the
+   * register could not be read or the line is already back.
+   */
+  quantityUnderRepair?: number
   status: DeclarationStatus
   declaredBy?: string
   declaredAt?: string
   condition?: DeclarationCondition
   nextAction: string
   createdAt: string
+}
+
+/** How loudly an exception should read. Served by the backend, never derived. */
+export type ExceptionSeverity = "info" | "warning" | "critical"
+
+/**
+ * One row of the exception queue (`GET /api/i8/exceptions`).
+ *
+ * `type` is a plain string, not a closed union: `MISSING_ATTESTATION` and
+ * `UNJUSTIFIED_ACQUISITION` are raised today, and a type added on the backend
+ * later must still render — with a readable label and a neutral tone — rather
+ * than falling through a `Record<Union, …>` lookup.
+ */
+export interface RepairException {
+  id: string
+  type: string
+  severity: ExceptionSeverity
+  material: MaterialReference
+  /** Undefined when the backend names no plant — shown as unknown, not guessed. */
+  plant?: PlantReference
+  /** The repair line. For an unjustified acquisition, the repair that was open
+   *  when the new unit was bought. */
+  repairLine: SAPDocumentReference
+  /** `{EBELN}-{EBELP}` for the register detail route; undefined when the line
+   *  number is missing, so no link is built to a page that cannot resolve. */
+  repairId?: string
+  /** The new-purchase PO line. Only unjustified acquisitions carry one. */
+  acquisitionLine?: SAPDocumentReference
+  title: string
+  detail: string
+  /** Display date ("7 Apr 2025"), or undefined when the line has none. */
+  raisedAt?: string
+  isOpenRepair: boolean
+  /** Raised before Spares Automation existed — a reason, not a violation. */
+  preAutomation: boolean
 }

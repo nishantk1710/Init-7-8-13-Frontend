@@ -56,7 +56,7 @@ Seed scenarios:
   shared-catalog "Seal Assy, Mech Type XR-200"): active repair, 2 units under
   repair. See Integration Contracts below.
 - Remaining rows (`RC-8003`..`RC-8008`, `D-90045`, `D-90078`, `D-90031`,
-  `D-90099`, `D-90205`) spread across all 3 plants, 5 vendors, every repair
+  `D-90099`, `D-90205`) spread across both plants, 5 vendors, every repair
   status, every declaration status, and both aging extremes (including one
   overdue chain, `RC-8006`, and one flagged duplicate, `RC-8008`/`D-90099`).
 
@@ -100,8 +100,11 @@ side effects, safe to call from server components.
 - `formatZAR`, `cn` from `@/lib/utils`; `toast` from `sonner`
 
 `src/features/initiative-8/utils/status.ts` holds this module's own
-status→tone maps and aging-bucket logic (`AGING_BUCKETS`,
-`agingBucketForDays`) — local, not shared with other initiatives.
+status→tone maps and aging-bucket logic (`DEFAULT_AGING_BUCKETS`,
+`CODING_VERDICT_TONE`, `CODING_CONFIDENCE_TONE`) — local, not shared with
+other initiatives. Aging bands themselves are backend configuration
+(`GET /api/i8/snapshot`'s `rules.agingBands`); `DEFAULT_AGING_BUCKETS` is only
+the `scenario`-mode/fetch-failure fallback.
 
 ## Integration contracts
 

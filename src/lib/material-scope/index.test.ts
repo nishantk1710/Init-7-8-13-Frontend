@@ -1,31 +1,38 @@
 import { readFileSync } from "node:fs"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { isInScope, isMaterialInScope, SCOPES, toODataFilter } from "./index"
-import { OAR_MRP_TYPES, OBSOLETE_MATERIAL_STATUS } from "./config"
+import { OAR_MRP_TYPES } from "./config"
 import type { FieldRow } from "./types"
 import { generatedSapDir } from "./fixtures-root"
 
 describe("isInScope — the configured oar scope", () => {
-  it("selects maintained ND/PD material-plant rows that are not obsolete", () => {
-    expect(isInScope("oar", { Mstae: "" }, { Dismm: "ND" })).toBe("in-scope")
-    expect(isInScope("oar", { Mstae: "" }, { Dismm: "PD" })).toBe("in-scope")
+  it("selects maintained ND/PD material-plant rows", () => {
+    expect(isInScope("oar", {}, { Dismm: "ND" })).toBe("in-scope")
+    expect(isInScope("oar", {}, { Dismm: "PD" })).toBe("in-scope")
   })
 
-  it("excludes planned stock and obsolete materials", () => {
-    expect(isInScope("oar", { Mstae: "" }, { Dismm: "VB" })).toBe("not-in-scope")
-    expect(isInScope("oar", { Mstae: "01" }, { Dismm: "ND" })).toBe("not-in-scope")
+  it("excludes planned stock", () => {
+    expect(isInScope("oar", {}, { Dismm: "VB" })).toBe("not-in-scope")
+  })
+
+  it("MSTAE plays no part in the OAR rule -- confirmed 2026-09-18, only Dismm matters", () => {
+    // The MSTAE/material-status exclusion carried over from an earlier draft
+    // has been dropped; a material with Mstae="01" (obsolete) is still
+    // in-scope if its Dismm is ND/PD, matching the backend's
+    // app/initiatives/i7/policy/oar.py::current_oar_policy.
+    expect(isInScope("oar", { Mstae: "01" }, { Dismm: "ND" })).toBe("in-scope")
   })
 
   it("reports cannot-determine for an unmaintained MRP Type rather than guessing 'not OAR'", () => {
     // 47% of live MaterialPlantSet rows look like this — see phase_summary.md Phase 0.
-    expect(isInScope("oar", { Mstae: "" }, { Dismm: "" })).toBe("cannot-determine")
-    expect(isInScope("oar", { Mstae: "" }, {})).toBe("cannot-determine")
+    expect(isInScope("oar", {}, { Dismm: "" })).toBe("cannot-determine")
+    expect(isInScope("oar", {}, {})).toBe("cannot-determine")
   })
 
   it("treats MRP Types nobody has ruled on as out of scope, not in it", () => {
     // V1/M0/RP/VI/VH/V2 all exist live; none is in the configured OAR set.
     for (const code of ["V1", "M0", "RP", "VI", "VH", "V2"]) {
-      expect(isInScope("oar", { Mstae: "" }, { Dismm: code })).toBe("not-in-scope")
+      expect(isInScope("oar", {}, { Dismm: code })).toBe("not-in-scope")
     }
   })
 
@@ -45,7 +52,7 @@ describe("isMaterialInScope — roll-up policy", () => {
     delete SCOPES.__test_all
   })
 
-  const material: FieldRow = { Mstae: "" }
+  const material: FieldRow = {}
   const oarPlant: FieldRow = { Werks: "1000", Dismm: "PD" }
   const plannedPlant: FieldRow = { Werks: "4000", Dismm: "VB" }
   const unmaintainedPlant: FieldRow = { Werks: "2000", Dismm: "" }
@@ -105,28 +112,19 @@ describe("against the generated synthetic fixture", () => {
   const naive = rows.filter(({ plant }) => (OAR_MRP_TYPES as readonly string[]).includes(plant.Dismm ?? ""))
 
   // Behaviour, not hard-coded counts — these survive the next regeneration of the fixture.
-  it("every selected row genuinely satisfies both halves of the configured rule", () => {
-    for (const { material, plant } of inScope) {
+  it("every selected row genuinely satisfies the configured rule (Dismm alone)", () => {
+    for (const { plant } of inScope) {
       expect(OAR_MRP_TYPES as readonly string[]).toContain(plant.Dismm)
-      expect(material.Mstae).not.toBe(OBSOLETE_MATERIAL_STATUS)
     }
   })
 
-  it("the refined rule is a strict subset of the naive MRP-type-only rule", () => {
-    expect(inScope.length).toBeLessThan(naive.length)
+  it("the configured rule is exactly the naive MRP-type-only rule -- MSTAE plays no part", () => {
+    // Confirmed 2026-09-18: Dismm in {ND, PD} is the whole rule, so this scope
+    // and the naive MRP-type check select the identical row set.
+    expect(inScope.length).toBe(naive.length)
     const naiveKeys = new Set(naive.map(({ plant }) => `${plant.Matnr}|${plant.Werks}`))
     for (const { plant } of inScope) {
       expect(naiveKeys.has(`${plant.Matnr}|${plant.Werks}`)).toBe(true)
-    }
-  })
-
-  it("the rows the refinement removes are exactly the obsolete ones", () => {
-    const removed = naive.filter(
-      ({ plant }) => isInScope("oar", byMatnr.get(plant.Matnr!) ?? {}, plant) !== "in-scope"
-    )
-    expect(removed.length).toBeGreaterThan(0)
-    for (const { plant } of removed) {
-      expect(byMatnr.get(plant.Matnr!)?.Mstae).toBe(OBSOLETE_MATERIAL_STATUS)
     }
   })
 

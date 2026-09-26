@@ -1,6 +1,12 @@
 // Seed dataset for the Redeployment page — a requested material at one plant
-// matched against unused stock found at the other plants. Advisory only: no
+// matched against unused stock found at the other plant. Advisory only: no
 // automatic SAP stock transfer is simulated anywhere in this module.
+//
+// Scope is two plants (1300 Black Mountain, 1500 Gamsberg), so a request can
+// have AT MOST ONE match: the only candidate source is the site that is not
+// the requesting one. Every candidate below therefore carries a single match.
+// `matches` stays an array because the page renders a list and because a
+// third site would restore the many-match case without a type change.
 
 import type { RedeploymentCandidate } from "@/features/initiative-13/types/oar"
 import { materialRef } from "@/features/initiative-13/data/materials"
@@ -22,16 +28,10 @@ export const REDEPLOYMENT_CANDIDATES: RedeploymentCandidate[] = [
     sourceLedgerLineId: "OAR-LDG-0003",
     matches: [
       {
-        plant: plant("PLANT-SKZ"),
+        plant: plant("PLANT-BMM"),
         qtyAvailable: 4,
         lastMovementDate: "29 Jul 2026",
         condition: "New — marked no longer required after warranty claim (OAR-TRK-0003)",
-      },
-      {
-        plant: plant("PLANT-BMM"),
-        qtyAvailable: 1,
-        lastMovementDate: "3 Jun 2026",
-        condition: "New — surplus from over-receipt",
       },
     ],
   },
@@ -53,7 +53,7 @@ export const REDEPLOYMENT_CANDIDATES: RedeploymentCandidate[] = [
   {
     id: "RDP-0003",
     material: materialRef("OAR-77002"),
-    requestingPlant: plant("PLANT-SKZ"),
+    requestingPlant: plant("PLANT-BMM"),
     qtyNeeded: 2,
     requestedFor: "CV-11 gearbox coupling rebuild",
     matches: [
@@ -62,12 +62,6 @@ export const REDEPLOYMENT_CANDIDATES: RedeploymentCandidate[] = [
         qtyAvailable: 3,
         lastMovementDate: "15 Jul 2026",
         condition: "New — engineering spares pool excess",
-      },
-      {
-        plant: plant("PLANT-BMM"),
-        qtyAvailable: 1,
-        lastMovementDate: "22 Jun 2026",
-        condition: "New — unused since project scope change",
       },
     ],
   },

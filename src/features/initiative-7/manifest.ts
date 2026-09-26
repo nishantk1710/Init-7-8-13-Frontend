@@ -24,8 +24,8 @@ export const initiative7Manifest: InitiativeManifest = {
       },
       {
         label: "Adoption Tracking",
-        icon: "check-circle",
-        href: "/inventory-planning/adoption-tracking",
+        icon: "clipboard-check",
+        href: "/inventory-planning/adoption",
       },
       {
         label: "Quarterly Reports",

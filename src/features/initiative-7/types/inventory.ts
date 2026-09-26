@@ -114,6 +114,36 @@ export interface OarColdStartGuidance {
   note: string
 }
 
+/** OAR-to-Min-Max conversion suggestion (FRS SOP 3.1.1), read verbatim from
+ * the backend's OarInfo/conversion.evaluate() result -- never recomputed or
+ * re-triggered in the frontend. Only meaningful when `isOar` is true; a
+ * non-OAR (Min-Max) recommendation has no conversion decision to show.
+ * `demandClass` is FR-2's pattern, carried here purely as supporting/
+ * confidence context -- it is not one of the three OR'd triggers. */
+export interface OarConversionInfo {
+  isOar: boolean | null
+  conversionEligibility: "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN" | null
+  conversionTrigger: "CONSUMPTION_FREQUENCY" | "PRODUCTION_IMPACT" | "I13_HOD_APPROVED_REQUEST" | "NONE" | "UNKNOWN" | null
+  conversionDetail: string | null
+  demandClass: string | null
+  consumptionCount12m: number | null
+  consumptionCountThreshold: number | null
+  /** Trigger 2 (criticality/tier) evidence -- null when unresolved. */
+  productionImpact: boolean | null
+  /** null when the I13 HOD ledger has no data for this material-plant yet
+   * (the stub's honest "unknown", never a fabricated false). */
+  i13HodApproved: boolean | null
+}
+
+/** AI-generated (or deterministic-fallback) explanation, read verbatim from
+ * the backend — never generated or recomputed in the frontend. Present only
+ * on recommendations sourced from the live API (see `services/i7-api.ts`);
+ * scenario/generated fixtures have no equivalent field. */
+export interface RationaleInfo {
+  text: string | null
+  source: "AI_GENERATED" | "DETERMINISTIC_FALLBACK" | null
+}
+
 export interface Recommendation {
   id: string
   material: MaterialReference
@@ -130,6 +160,11 @@ export interface Recommendation {
   leadTimeDays: number
   leadTimeVarianceDays: number
   serviceLevelTarget: number
+  /** Backend-computed Z-factor for serviceLevelTarget (Phase 5's own
+   * inventory.service_level.resolve() result), read verbatim. Only present
+   * on live-API recommendations; when absent, callers fall back to the
+   * client-side illustrative approximation (see utils/inventory-calc.ts). */
+  zFactor?: number | null
   unitPrice: number
   annualConsumption: number
   /** ZAR — positive releases working capital (stock reduced), negative is additional investment */
@@ -139,6 +174,32 @@ export interface Recommendation {
   championChallenger: ChampionChallenger
   workflow: WorkflowStep[]
   oarColdStart?: OarColdStartGuidance
+  /** Only present on live-API recommendations (see mapDetailToRecommendation
+   * in services/i7-api.ts) -- absent for scenario/generated fixtures. */
+  oarConversion?: OarConversionInfo
   generatedAt: string
+  /** When this recommendation's row last changed (submit/hold/approve/reject
+   * all update the existing row in place) -- the correct "waiting since"
+   * anchor for pipeline/stuck-detection views. Only present on live-API
+   * recommendations; scenario mode derives its own waiting time from
+   * workflow-context state instead (see pipeline-workspace.tsx). */
+  updatedAt?: string
   scenarioNote?: string
+  /** Only present on live-API recommendations. */
+  rationale?: RationaleInfo
+  /** The approval role whose decision this recommendation is next waiting
+   * on, or null once it has left the approval chain (approved/rejected/not
+   * yet submitted). Derived server-side from status + chain_index + route
+   * (see RecommendationSummary.route's docstring on the backend) -- only
+   * present on live-API recommendations. */
+  pendingRole?: string | null
+  /** Index into `routeLength` of the role above -- "step chainIndex of
+   * routeLength" for a pipeline progress indicator. Only present on
+   * live-API recommendations. */
+  chainIndex?: number
+  /** Length of this recommendation's resolved approval route -- varies by
+   * criticality tier/OAR routing, so never assume a fixed constant (see
+   * RecommendationSummary.route's docstring). Only present on live-API
+   * recommendations. */
+  routeLength?: number
 }

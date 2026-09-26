@@ -1,0 +1,102 @@
+{
+  "sessionId": "SQ4X9B2T7M",
+  "step": {
+    "id": "i13_capture_plan",
+    "kind": "form",
+    "prompt": "What is this material for?",
+    "choices": [],
+    "fields": [
+      {
+        "name": "purpose",
+        "label": "What it is for",
+        "type": "textarea",
+        "required": true,
+        "options": [],
+        "helpText": "The job, machine or work order this is going to.",
+        "default": null
+      },
+      {
+        "name": "planned_quantity",
+        "label": "How many you plan to use",
+        "type": "number",
+        "required": true,
+        "options": [],
+        "helpText": null,
+        "default": "5"
+      },
+      {
+        "name": "window_start",
+        "label": "Expected to be used from",
+        "type": "date",
+        "required": false,
+        "options": [],
+        "helpText": "Leave blank if you genuinely do not know yet.",
+        "default": null
+      },
+      {
+        "name": "window_end",
+        "label": "...and by",
+        "type": "date",
+        "required": false,
+        "options": [],
+        "helpText": null,
+        "default": null
+      },
+      {
+        "name": "cost_centre",
+        "label": "Cost centre",
+        "type": "text",
+        "required": false,
+        "options": [],
+        "helpText": "Only if you know it.",
+        "default": null
+      },
+      {
+        "name": "order_number",
+        "label": "Work order",
+        "type": "text",
+        "required": false,
+        "options": [],
+        "helpText": null,
+        "default": null
+      }
+    ],
+    "facts": {
+      "flow": "i13",
+      "material": "1000000123",
+      "plant": "1300",
+      "requestedQuantity": "5",
+      "headline": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.",
+      "caveats": [
+        "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.",
+        "Stock received 58 days ago for this part has still not been issued, which is already an open exception."
+      ],
+      "stockOnHand": "11",
+      "openPoQuantity": "0",
+      "averageMonthlyConsumption": "1",
+      "monthsOfCover": "11",
+      "monthsOfCoverReason": null,
+      "projectedMonthsOfCover": null,
+      "daysSinceLastMovement": 443,
+      "daysSinceLastIssue": 443,
+      "lastMovementDate": "2025-05-14",
+      "consumptionCount12m": 12,
+      "consumedQty12m": "12",
+      "agingBand": "SLOW",
+      "inventoryTurns": null,
+      "grNotIssuedFlag": true,
+      "grNotIssuedDaysSinceGr": 58,
+      "acquiredVsPlanStatus": "NO_PLAN",
+      "materialScope": "OAR",
+      "crossPlantStock": [
+        {
+          "plant": "1500",
+          "stockOnHand": "2"
+        }
+      ],
+      "referenceDate": "2026-07-31"
+    },
+    "footnote": null,
+    "sessionId": null
+  }
+}

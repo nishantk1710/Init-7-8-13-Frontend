@@ -51,11 +51,20 @@ export function MaterialTable({ materials }: { materials: Material[] }) {
           <TableRow
             key={material.id}
             className="cursor-pointer"
-            onClick={() => router.push(`/chat/new/${material.id}`)}
+            // `/chat` was retired in phase 5 of WS7 — the assistant lands at
+            // /assistant instead. `Material` carries no plant field, and
+            // stock, repairs and cover are all held per plant, so this opens
+            // the assistant's opener with the material filled in rather than
+            // a session directly (matching the rule AskAssistantLink
+            // documents for a plant-less caller): the planner picks the site
+            // instead of the platform guessing it.
+            onClick={() =>
+              router.push(`/assistant?material=${encodeURIComponent(material.id)}`)
+            }
           >
             <TableCell>
               <Link
-                href={`/chat/new/${material.id}`}
+                href={`/assistant?material=${encodeURIComponent(material.id)}`}
                 onClick={(e) => e.stopPropagation()}
                 className="font-medium text-primary hover:underline"
               >
