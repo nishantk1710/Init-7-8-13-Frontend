@@ -24,7 +24,6 @@
  */
 
 import { ACTOR_ID_HEADER, currentActorId } from "@/lib/api/actor"
-import { currentDataMode } from "@/lib/data-mode"
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"
@@ -177,23 +176,9 @@ function preparingMessage(response: Response): string {
   )
 }
 
-/**
- * Every call to the backend goes through here, which makes this the one place
- * demo mode (lib/data-mode.ts) has to intervene: in demo mode the recorded
- * dataset answers instead of the network, with a real `Response`, so the error
- * handling below applies to both modes unchanged.
- */
 async function request(path: string, init?: RequestInit): Promise<Response> {
-  const relative = path.startsWith("/") ? path : `/${path}`
+  const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
   const method = init?.method ?? "GET"
-
-  if ((await currentDataMode()) === "demo") {
-    // Imported on demand: live mode never downloads the resolver or the index.
-    const { resolveMock } = await import("@/mocks/resolve")
-    return checked(await resolveMock(relative, init), method, `demo:${relative}`)
-  }
-
-  const url = `${API_BASE_URL}${relative}`
   const signal =
     init?.signal ?? (method === "GET" && API_GET_TIMEOUT_MS > 0 ? AbortSignal.timeout(API_GET_TIMEOUT_MS) : undefined)
 
@@ -218,11 +203,6 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
     throw error
   }
 
-  return checked(response, method, url)
-}
-
-/** Throw ApiError for a non-2xx response; return it otherwise. */
-async function checked(response: Response, method: string, url: string): Promise<Response> {
   if (!response.ok) {
     const detail = await readErrorDetail(response)
     throw new ApiError(
@@ -252,14 +232,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (response.status === 204) return undefined as T
 
   return (await response.json()) as T
-}
-
-/**
- * The raw `Response`, for a body that is not JSON (the Excel export).
- * Throws ApiError on a non-2xx response, and honours demo mode, like the rest.
- */
-export function apiFetchResponse(path: string, init?: RequestInit): Promise<Response> {
-  return request(path, init)
 }
 
 /** A list response together with the population total the backend reported. */
