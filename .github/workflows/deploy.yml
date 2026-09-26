@@ -1,69 +1,96 @@
-# Frontend deployment.
+# Frontend deployment to Azure App Service (app-vzi-aicom-fe-nonprod-san).
 #
-# NOT WIRED UP, and deliberately so -- for one more reason than the backend's
-# equivalent: nobody has decided where this deploys to. The root README says
-# only "Frontend hosting". Azure Static Web Apps, an Azure App Service running
-# `next start`, and a container are all live options, and they need different
-# workflows:
+# REQUIRED BEFORE THIS RUNS
 #
-#   Static Web Apps   requires a static export; incompatible with any route
-#                     that needs a Node server at request time.
-#   App Service       runs `next start`, keeps server rendering, needs a Node
-#                     runtime and a startup command.
-#   Container         most portable, most infrastructure to own.
+#   * Repository secret AZURE_WEBAPP_PUBLISH_PROFILE -- the App Service's
+#     publish profile (Overview -> Download publish profile).
+#   * Repository variable API_BASE_URL -- the backend's base URL including /api,
+#     e.g. https://<backend default domain>/api. A variable, not a secret: it
+#     ends up in the browser bundle anyway.
+#   * On the App Service: Startup Command `node server.js` and app setting
+#     SCM_DO_BUILD_DURING_DEPLOYMENT=false. The build happens here, not there.
+#   * On the backend: FRONTEND_ORIGIN set to this app's URL, or every API call
+#     is refused by CORS.
+#   * Optional repository variable DATA_MODE -- "demo" (the default) or "live":
+#     which frontend the site opens in. Demo mode never calls the backend.
 #
-# So this file is a placeholder with the shared parts filled in -- checkout,
-# install, build -- and the deploy step left as the decision it is. Trigger is
-# manual only; committing it cannot break anything.
+# NEXT_PUBLIC_* values are inlined into the JavaScript at build time. Setting
+# them as App Service app settings does nothing, which is why they live here.
 #
-# Before this can run:
-#   1. Decide the hosting target above.
-#   2. Set NEXT_PUBLIC_API_BASE_URL to the deployed backend's /api URL. It is
-#      baked in at BUILD time, not read at runtime -- a wrong value here means
-#      rebuilding, not just re-configuring.
-#   3. Add whatever credential that target needs as a repository secret.
+# No test step: 21 tests fail on a clean checkout because data-generator/ lives
+# in the backend repo since the split (see CLAUDE.md). Gating deploys on them
+# would block every deploy for a reason unrelated to the code being deployed.
 
-name: Deploy (not yet active)
+name: Deploy frontend
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Type "deploy" to confirm. Placeholder pipeline -- the hosting target is not chosen yet.'
-        required: true
-        default: ""
+
+concurrency:
+  # Two deployments racing onto one App Service leave it in whichever state
+  # finished last, which is not necessarily the newer commit.
+  group: deploy-frontend
+  cancel-in-progress: false
+
+env:
+  AZURE_WEBAPP_NAME: app-vzi-aicom-fe-nonprod-san
+  NODE_VERSION: "22"
 
 jobs:
   deploy:
-    if: ${{ github.event.inputs.confirm == 'deploy' }}
     runs-on: ubuntu-latest
-    environment: production
-
     steps:
       - uses: actions/checkout@v4
 
+      - name: Guard -- refuse to deploy without configuration
+        run: |
+          if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
+            echo "Secret AZURE_WEBAPP_PUBLISH_PROFILE is not set. See the header of this file."
+            exit 1
+          fi
+          if [ -z "${{ vars.API_BASE_URL }}" ]; then
+            echo "Variable API_BASE_URL is not set. Without it the build would point at localhost:8000."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
 
       - run: npm ci
 
-      - name: Guard -- refuse to deploy until a target is chosen
-        run: |
-          echo "No hosting target configured. See the header of this file."
-          exit 1
-
       - name: Build
         env:
-          # Baked into the bundle at build time. Must point at the deployed
-          # backend, not localhost.
-          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          NEXT_PUBLIC_DATASET: ${{ vars.DATASET || 'scenario' }}
+          # Which frontend a browser opens in before touching the Data source
+          # toggle: main's mock frontend ("demo") or the live one ("live").
+          # Demo until the backend integration is trusted -- set repository
+          # variable DATA_MODE=live to flip the default. See docs-eng/demo-mode.md.
+          NEXT_PUBLIC_DEFAULT_DATA_MODE: ${{ vars.DATA_MODE || 'demo' }}
         run: npm run build
 
-      # - name: Deploy
-      #   Fill in once the target is chosen:
-      #     Static Web Apps -> Azure/static-web-apps-deploy@v1
-      #     App Service     -> azure/webapps-deploy@v3
-      #     Container       -> docker/build-push-action + azure/webapps-deploy
+      # The standalone output deliberately omits public/ and .next/static/ --
+      # Next expects a CDN to serve them. Without a CDN, copy them in or every
+      # page renders unstyled with broken images.
+      - name: Assemble standalone bundle
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Deploy
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .next/standalone
+
+      - name: Smoke check
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 10 --retry-delay 10 --retry-all-errors \
+            "${{ steps.deploy.outputs.webapp-url }}"
