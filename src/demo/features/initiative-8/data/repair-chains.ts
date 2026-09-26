@@ -1,5 +1,5 @@
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
-import { USING_GENERATED_DATA } from "@demo/lib/sap/dataset-mode"
+import { USING_GENERATED_DATA } from "@demo/lib/dataset-mode"
 import generatedRepairChains from "@demo/features/initiative-8/data/generated/repair-chains.json"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
@@ -242,7 +242,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
   },
 ]
 
-/** Mapped from SAP + platform rows by `npm run dataset:build`. See lib/sap/dataset-mode. */
+/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
 export const REPAIR_CHAINS: RepairChain[] = USING_GENERATED_DATA
   ? (generatedRepairChains as unknown as RepairChain[])
   : SCENARIO_REPAIR_CHAINS
