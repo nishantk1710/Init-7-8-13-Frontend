@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 import { AppToaster } from "@/components/shared/app-toaster";
+import { DataModeBanner } from "@/components/shared/data-mode";
 import { Material360Drawer } from "@/components/shared/material-360-drawer";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Material360Provider } from "@/lib/material-360-context";
@@ -50,7 +51,10 @@ export default function RootLayout({
                 not a second, desynced copy. */}
             <InventoryWorkflowProvider>
               <Sidebar />
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <DataModeBanner />
+                {children}
+              </div>
               <Material360Drawer />
               <AppToaster />
             </InventoryWorkflowProvider>

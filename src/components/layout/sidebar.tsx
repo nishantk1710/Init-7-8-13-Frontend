@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Plus } from "lucide-react"
 
+import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
 import {
   CATEGORIES,
@@ -169,6 +170,7 @@ export function Sidebar() {
       </NavSection>
 
       <div className="mt-auto border-t border-border py-1">
+        <DataModeToggle />
         <ThemeToggle />
       </div>
     </aside>
