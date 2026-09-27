@@ -6,7 +6,7 @@ original request through Reservation → PR → PO → Goods Receipt → Goods I
 
 ## How this module gets its data
 
-**Every screen except Redeployment reads the FastAPI backend.** The claim this
+**Every screen reads the FastAPI backend.** The claim this
 README used to open with — "a high-fidelity UI mockup with deterministic mock
 data, no real backend/SAP calls anywhere in this module" — stopped being true at
 W6.7 and is corrected here.
@@ -37,21 +37,19 @@ Three rules worth knowing before changing anything here:
 
 ### What is still fixture-backed, and says so on screen
 
-- **Redeployment** — entirely hand-written. D10 defers the workflow and there is
-  no endpoint; cross-plant stock is in scope for *visibility* only, which is
-  served on every ACT exception and in the assistant's cross-check.
-- **Three Overview charts** — unutilized value by department, NM/SM inflow, and
-  redeployment avoidance. No endpoint serves them and no valuation source exists
-  in Initiative 13's table set.
 - **The four cross-initiative selectors** (`summary`, `global-actions`,
   `audit-events`, `material-360-adapter`) and `oar-lookup`. They are
   **synchronous** and are consumed by app-wide shared code — `lib/aggregation.ts`,
   the material router, the Material 360 drawer — which Initiative 7 reads too.
   Making them live is an async refactor across somebody else's module.
 
-Each of the first two carries a `USING_LIVE_DATA` banner, the same way
-Initiative 8's overview does. A hand-written number sitting unlabelled beside a
-real one is exactly the confusion `lib/dataset-mode.ts` exists to prevent.
+Apart from those selectors, no Initiative 13 screen shows fixture data any more. The Redeployment screen and the
+three hand-written Overview charts (unutilised value by department, NM/SM
+inflow, redeployment avoidance) were removed rather than labelled. The FRS
+puts the redeployment workflow out of scope (§3.2, D10), and no valuation
+source exists in Initiative 13's table set. Cross-plant stock is still in scope
+for *visibility*: it is served on every ACT exception and in the assistant's
+cross-check.
 
 ## Ownership
 
@@ -73,15 +71,28 @@ by the global shell) calls into for OAR routing precedence.
 
 | Route | Component | Purpose |
 |---|---|---|
-| `/oar-utilization` | `pages/overview-page.tsx` | KPIs + charts. Aging and acquired-vs-plan are backend-computed; three charts are demo data and are banner-labelled |
-| `/oar-utilization/utilisation-dashboard` | `pages/utilisation-dashboard-page.tsx` | **W6.7 (FR-10).** One consolidated view, fetched server-side in a single `Promise.allSettled`; optional sections degrade independently |
+| `/oar-utilization` | `pages/utilisation-dashboard-page.tsx` | **Dashboard, W6.7 (FR-10).** The landing page. One consolidated view, fetched server-side in a single `Promise.allSettled`; optional sections degrade independently |
 | `/oar-utilization/ledger` | `pages/ledger-page.tsx` | Every OAR reservation line with its document chain, expandable |
 | `/oar-utilization/aging-exceptions` | `pages/aging-exceptions-page.tsx` | **The FR-9 ACT queue.** Owner, routing state, escalation, session link, and a confirmation that is really recorded |
-| `/oar-utilization/watch` | `pages/watch-page.tsx` | FR-1/FR-6 metrics per material and plant, from the persisted W6.3 mart |
+| `/oar-utilization/watch` | `pages/watch-page.tsx` | FR-1/FR-6, in three tabs held in `?view=`: **Metrics** (default, the persisted W6.3 mart), **30-Day GR-Not-Issued** (`grni`, per reservation line) and **Usage Pattern** (`usage`, monthly net issues). Only the active tab is fetched |
 | `/oar-utilization/plans` | `pages/plans-page.tsx` | **FR-4.** Consumption plans captured through the assistant — the real ones, kept apart from the 742 generated rows |
-| `/oar-utilization/reclassification` | `pages/reclassification-page.tsx` | SOP evidence for a stocked-material review, advisory only |
-| `/oar-utilization/redeployment` | `pages/redeployment-page.tsx` | Fixture-backed; D10 defers the workflow |
+| `/oar-utilization/reclassification` | `pages/reclassification-page.tsx` | **FR-8.** SOP evidence for a stocked-material review, advisory only |
 | `/oar-utilization/validation` | `pages/validation-page.tsx` | Reconciliation against ZMM065 and the 30-Day GR Report |
+
+The reservation-time assistant (FR-2, FR-3) is not an I13 nav item. It is
+shared with Initiative 8 at `/assistant` and has its own sidebar section.
+
+### Retired routes (permanent redirects)
+
+| Old route | Now lands on |
+|---|---|
+| `/oar-utilization/utilisation-dashboard` | `/oar-utilization` |
+| `/oar-utilization/gr-not-issued` | `/oar-utilization/watch?view=grni` |
+| `/oar-utilization/usage-patterns` | `/oar-utilization/watch?view=usage` |
+| `/oar-utilization/redeployment` | `/oar-utilization/aging-exceptions` |
+
+The first three keep the query they arrived with (`utils/redirects.ts`), so a
+shared filtered link still lands filtered.
 
 ### The Exceptions screen reads a different endpoint than it used to
 
@@ -106,8 +117,6 @@ the row says why instead of offering a button that fails.
   Confirmation chain, rendered via the shared `Timeline` component.
 - `EscalationTimelineEvent` — one step in the Requester → HOD → Inventory
   Control escalation chain.
-- `RedeploymentCandidate` / `RedeploymentMatch` — a requested material at one
-  plant matched against unused stock at the other plant.
 - `ReclassificationCandidate` — consumption-frequency stats + recommendation
   for a stocked-material review.
 
@@ -122,7 +131,7 @@ that shared file.
   material (`OAR-77002`) not present in the shared catalog.
 - `ledger.ts` — `LEDGER_LINES`, 11 rows covering seed scenarios E (happy
   path, `OAR-LDG-0001`), F (confirmation overdue, `OAR-LDG-0002`), G (no
-  longer required → redeployment pool, `OAR-LDG-0003`), H (three
+  longer required, `OAR-LDG-0003`), H (three
   reservations consolidated into one PR/PO, `OAR-LDG-0004..0006`,
   `allocationMethod: "Shared / FIFO Mock Allocation"`), I (frequent-use
   reclassification candidate `500-31005`, `OAR-LDG-0007`), plus four filler
@@ -130,13 +139,9 @@ that shared file.
   six departments.
 - `escalations.ts` — `ESCALATION_TIMELINES`, keyed by ledger line id, named
   people sourced from `@/lib/shared-data/users`.
-- `redeployment.ts` — `REDEPLOYMENT_CANDIDATES`, using both `PLANTS`. Scope is
-  two plants, so a candidate has at most one match: the site that is not the
-  requesting one.
 - `reclassification.ts` — `RECLASSIFICATION_CANDIDATES`, includes `500-31005`.
-- `overview-metrics.ts` — KPIs computed from `LEDGER_LINES` plus a few
-  standalone illustrative chart datasets (aging buckets, plan-vs-actual,
-  NM/SM inflow trend).
+- `overview-metrics.ts` — summary KPIs computed from `LEDGER_LINES`, read only
+  by `selectors/summary.ts`.
 
 ## Public exports
 
@@ -150,9 +155,8 @@ that shared file.
   Action Center, derived from ledger exception lines + reclassification data.
 - `selectors/audit-events.ts` → `getInitiative13AuditEvents()` — global Audit
   Trail, derived from the ledger's document chain, escalation timelines and
-  reclassification flags (seeded/static — UI actions on the Aging
-  Exceptions/Redeployment pages simulate a write via toast + local component
-  state, and do not mutate this feed).
+  reclassification flags (seeded/static; it is not mutated by
+  anything recorded on the Exceptions screen).
 - `selectors/oar-lookup.ts` → `isOARMaterial(materialId)` — the top-precedence
   check in `lib/material-router.ts`'s `routeMaterial()`, which is what
   triggers the chat's conversational consumption-plan capture.

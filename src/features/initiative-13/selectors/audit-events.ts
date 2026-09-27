@@ -6,10 +6,10 @@ import { RECLASSIFICATION_CANDIDATES } from "@/features/initiative-13/data/recla
 /**
  * Every Initiative 13 audit-worthy event for the global Audit Trail —
  * derived from the ledger's document chain (consumption confirmed,
- * re-planned, redeployed) plus the escalation timelines and the
+ * re-planned, marked no longer required) plus the escalation timelines and the
  * reclassification candidate set. Static/seeded, matching how the rest of
- * this mockup module works: UI actions on the Aging Exceptions / Redeployment
- * pages simulate a write via toast + local state, they don't mutate this feed.
+ * this mockup module works: UI actions on the Exceptions page
+ * simulate a write via toast + local state, they don't mutate this feed.
  */
 export function getInitiative13AuditEvents(): AuditEvent[] {
   const events: AuditEvent[] = []
@@ -40,10 +40,10 @@ export function getInitiative13AuditEvents(): AuditEvent[] {
       }
       if (step.stage === "No Longer Required") {
         events.push({
-          id: `oar-audit-${line.id}-redeployed`,
+          id: `oar-audit-${line.id}-no-longer-required`,
           initiative: "initiative-13",
           entityId: line.trackingId,
-          eventType: "Marked for Redeployment",
+          eventType: "Marked No Longer Required",
           description: `${line.material.description} — ${step.description}`,
           actor: line.requester.name,
           timestamp: step.timestamp,

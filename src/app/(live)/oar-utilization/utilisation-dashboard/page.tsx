@@ -1,19 +1,13 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { UtilisationDashboardPage } from "@/features/initiative-13/pages/utilisation-dashboard-page"
-import {
-  parseSearchParams,
-  type RawSearchParams,
-} from "@/features/initiative-13/utils/search-params"
+import { redirectTarget } from "@/features/initiative-13/utils/redirects"
+import type { RawSearchParams } from "@/features/initiative-13/utils/search-params"
 
-export const metadata: Metadata = {
-  title: "Utilisation Dashboard — OAR Utilization — Spares AI",
-}
-
+/** The dashboard is the module's landing page now; old links keep working. */
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
-  return <UtilisationDashboardPage searchParams={parseSearchParams(await searchParams)} />
+  permanentRedirect(redirectTarget("/oar-utilization", await searchParams))
 }

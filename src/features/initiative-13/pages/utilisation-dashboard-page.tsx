@@ -38,7 +38,14 @@ const AGING_BAND_LABELS: Record<string, string> = {
 }
 
 /**
- * W6.7 — the Utilisation Dashboard (FR-10).
+ * W6.7 — the Utilisation Dashboard (FR-10), and the module's landing page at
+ * `/oar-utilization`.
+ *
+ * It absorbed the old Overview, which carried nothing this page lacked except
+ * three hand-written charts (unutilised value by department, NM/SM inflow,
+ * redeployment avoidance). Those were dropped rather than moved: the FRS does
+ * not ask for them and there is no valuation source behind them (MBEW is not
+ * required, FRS §7.3).
  *
  * One consolidated view: KPIs, aging distribution, non-mover drilldown,
  * acquired-versus-plan, exception status, reclassification candidates, captured
@@ -115,8 +122,8 @@ export async function UtilisationDashboardPage({
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
-          title="Utilisation Dashboard"
-          description="KPIs, aging, non-mover drilldown, acquired-vs-plan, exceptions, reclassification candidates, captured plans, justifications and validation — one consolidated view over the read-only Initiative 13 API (FR-10)."
+          title="OAR Utilization"
+          description="End-to-end tracking of OAR spares from reservation through utilization — KPIs, aging, non-mover drilldown, acquired-vs-plan, exceptions, reclassification candidates, captured plans, justifications and validation in one view (FR-10)."
           actions={<CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />}
         />
 

@@ -4,9 +4,13 @@ import { RECLASSIFICATION_CANDIDATES } from "@/features/initiative-13/data/recla
 
 /**
  * Every open Initiative 13 action for the global Action Center — derived
- * from the ledger's exception lines plus the redeployment/reclassification
- * seed data, so this stays in sync with what the Aging Exceptions,
- * Redeployment and Reclassification pages actually show.
+ * from the ledger's exception lines plus the reclassification seed data, so
+ * this stays in sync with what the Exceptions and Reclassification pages
+ * actually show.
+ *
+ * A "no longer required" line points at Exceptions, not at a redeployment
+ * screen: the formal redeployment workflow is out of scope (FRS §3.2, D10),
+ * and the cross-plant stock visibility that is in scope is shown there.
  */
 export function getInitiative13GlobalActions(): GlobalAction[] {
   const actions: GlobalAction[] = []
@@ -28,14 +32,14 @@ export function getInitiative13GlobalActions(): GlobalAction[] {
     }
     if (line.exception === "No Longer Required") {
       actions.push({
-        id: `oar-action-${line.id}-redeploy`,
+        id: `oar-action-${line.id}-no-longer-required`,
         initiative: "initiative-13",
-        title: `Redeployment opportunity — ${line.material.description} available at ${line.plant.name}`,
+        title: `No longer required — ${line.material.description} unused at ${line.plant.name}`,
         severity: "info",
         entityId: line.id,
         materialId: line.material.materialId,
         plantId: line.plant.plantId,
-        href: "/oar-utilization/redeployment",
+        href: "/oar-utilization/aging-exceptions",
         createdAt: line.plannedConsumptionDate,
       })
     }
