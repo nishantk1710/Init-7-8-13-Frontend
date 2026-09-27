@@ -20,7 +20,12 @@ function quickActionsFor(materialId: string, route: ReturnType<typeof classifyMa
     case "initiative-13":
       return [
         { label: "View Utilisation Ledger", href: "/oar-utilization/ledger" },
-        { label: "View Released OAR", href: "/oar-utilization/redeployment" },
+        // WATCH, narrowed to this material (FR-6). This replaced a link to the
+        // Redeployment screen, which is out of scope (FRS §3.2, D10).
+        {
+          label: "View WATCH Metrics",
+          href: `/oar-utilization/watch?material=${encodeURIComponent(materialId)}`,
+        },
       ]
     case "initiative-8":
       return [

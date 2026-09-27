@@ -1,11 +1,10 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { RedeploymentPage } from "@/features/initiative-13/pages/redeployment-page"
-
-export const metadata: Metadata = {
-  title: "Redeployment — OAR Utilization — Spares AI",
-}
-
+/**
+ * Redeployment is out of scope (I13 FRS §3.2, D10 defers the workflow). The
+ * cross-plant stock visibility that is in scope lives on each ACT exception, so
+ * that is where an old link lands.
+ */
 export default function Page() {
-  return <RedeploymentPage />
+  permanentRedirect("/oar-utilization/aging-exceptions")
 }

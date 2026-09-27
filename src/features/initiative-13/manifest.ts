@@ -1,68 +1,65 @@
 import type { InitiativeManifest } from "@/lib/domain/manifest"
 
+/**
+ * The nav carries only what the I13 FRS (v1.2) scopes, one item per screen.
+ *
+ * Removed, not forgotten: Redeployment (FRS §3.2 / D10 defers the workflow;
+ * cross-plant stock stays as visibility on Exceptions and in the assistant), and
+ * the separate Overview, 30-Day GR-Not-Issued and Usage Pattern screens, which
+ * are now the Dashboard and two WATCH tabs. Their old URLs redirect.
+ *
+ * The reservation-time assistant (FR-2, FR-3) is not listed here: it is shared
+ * with Initiative 8 and already has its own section at the top of the sidebar.
+ */
 export const initiative13Manifest: InitiativeManifest = {
   id: "initiative-13",
   name: "OAR Utilization",
   description:
     "End-to-end tracking of OAR spares demand from reservation through utilization",
-  // The module's own overview page — also where Home's summary card "open"
-  // link lands.
+  // The module's landing page is the FR-10 dashboard — also where Home's
+  // summary card "open" link lands.
   href: "/oar-utilization",
   navSection: {
     title: "OAR Utilization",
     items: [
-      { label: "Overview", icon: "package", href: "/oar-utilization" },
-      {
-        label: "Utilisation Dashboard",
-        icon: "gauge",
-        href: "/oar-utilization/utilisation-dashboard",
-      },
+      // FR-10: KPIs, aging, non-movers, acquired vs plan, exceptions,
+      // reclassification, plans, justifications and validation in one view.
+      { label: "Dashboard", icon: "layout-dashboard", href: "/oar-utilization" },
+      // FR-5: the deterministic STITCH ledger.
       {
         label: "Utilization Ledger",
         icon: "layers",
         href: "/oar-utilization/ledger",
       },
+      // FR-7 detection and the FR-9 ACT queue with HOD escalation.
       {
         label: "Exceptions",
-        icon: "clock",
+        icon: "alert-triangle",
         href: "/oar-utilization/aging-exceptions",
       },
-      // FR-4's record, and the one screen this module never had. The plans
-      // captured through the assistant are what separate a real
-      // acquired-versus-plan figure from one resting on generated reference
-      // data, so they get a place in the nav rather than only a dashboard panel.
+      // FR-4's record. The plans captured through the assistant are what
+      // separate a real acquired-versus-plan figure from one resting on
+      // generated reference data, so they get a place in the nav rather than
+      // only a dashboard panel.
       {
         label: "Consumption Plans",
-        icon: "clipboard-check",
+        icon: "file-text",
         href: "/oar-utilization/plans",
       },
+      // FR-1 and FR-6, with the 30-day GR-not-issued lines and the monthly
+      // usage pattern as tabs (?view=grni | usage).
       {
         label: "WATCH",
         icon: "eye",
         href: "/oar-utilization/watch",
       },
-      // FR-6 per reservation line, and the monthly shape behind WATCH's
-      // consumption figure -- both served from the backend's I13 snapshot.
-      {
-        label: "30-Day GR-Not-Issued",
-        icon: "trending-down",
-        href: "/oar-utilization/gr-not-issued",
-      },
-      {
-        label: "Usage Pattern",
-        icon: "chart-bar",
-        href: "/oar-utilization/usage-patterns",
-      },
-      {
-        label: "Redeployment",
-        icon: "arrows-right-left",
-        href: "/oar-utilization/redeployment",
-      },
+      // FR-8: SOP reclassification evidence, advisory only.
       {
         label: "Reclassification",
         icon: "sliders",
         href: "/oar-utilization/reclassification",
       },
+      // FR-6 / FR-10: reconciliation against ZMM065 and the 30-Day GR Report.
       {
         label: "Validation",
         icon: "clipboard-check",

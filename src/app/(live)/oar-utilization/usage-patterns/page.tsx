@@ -1,19 +1,13 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { UsagePatternsPage } from "@/features/initiative-13/pages/usage-patterns-page"
-import {
-  parseSearchParams,
-  type RawSearchParams,
-} from "@/features/initiative-13/utils/search-params"
+import { redirectTarget } from "@/features/initiative-13/utils/redirects"
+import type { RawSearchParams } from "@/features/initiative-13/utils/search-params"
 
-export const metadata: Metadata = {
-  title: "Usage pattern — OAR Utilization — Spares AI",
-}
-
+/** Usage Pattern is a WATCH tab now (FR-6); old links keep working. */
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
-  return <UsagePatternsPage searchParams={parseSearchParams(await searchParams)} />
+  permanentRedirect(redirectTarget("/oar-utilization/watch", await searchParams, { view: "usage" }))
 }

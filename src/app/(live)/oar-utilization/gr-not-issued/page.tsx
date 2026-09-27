@@ -1,19 +1,13 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { GrniPage } from "@/features/initiative-13/pages/grni-page"
-import {
-  parseSearchParams,
-  type RawSearchParams,
-} from "@/features/initiative-13/utils/search-params"
+import { redirectTarget } from "@/features/initiative-13/utils/redirects"
+import type { RawSearchParams } from "@/features/initiative-13/utils/search-params"
 
-export const metadata: Metadata = {
-  title: "30-Day GR-Not-Issued — OAR Utilization — Spares AI",
-}
-
+/** 30-Day GR-Not-Issued is a WATCH tab now (FR-6); old links keep working. */
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
-  return <GrniPage searchParams={parseSearchParams(await searchParams)} />
+  permanentRedirect(redirectTarget("/oar-utilization/watch", await searchParams, { view: "grni" }))
 }

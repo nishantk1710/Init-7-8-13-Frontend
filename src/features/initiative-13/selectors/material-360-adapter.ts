@@ -13,11 +13,11 @@ export function getInitiative13Material360Signal(materialId: string): Material36
   if (lines.length === 0) return null
 
   const overdue = lines.filter((l) => l.exception === "Consumption Overdue").length
-  const redeployable = lines.filter((l) => l.exception === "No Longer Required").length
+  const noLongerRequired = lines.filter((l) => l.exception === "No Longer Required").length
   const unutilizedQty = lines.reduce((sum, l) => sum + Math.max(l.qtyRequested - l.qtyConfirmedUsed, 0), 0)
   const reclassification = RECLASSIFICATION_CANDIDATES.find((c) => c.material.materialId === materialId)
 
-  const status = overdue > 0 ? "attention" : redeployable > 0 ? "attention" : "healthy"
+  const status = overdue > 0 ? "attention" : noLongerRequired > 0 ? "attention" : "healthy"
 
   return {
     initiative: "initiative-13",
@@ -28,7 +28,7 @@ export function getInitiative13Material360Signal(materialId: string): Material36
       { label: "Open OAR lines", value: String(lines.length) },
       { label: "Unutilized qty", value: String(unutilizedQty) },
       { label: "Overdue confirmations", value: String(overdue) },
-      { label: "Available for redeployment", value: String(redeployable) },
+      { label: "No longer required", value: String(noLongerRequired) },
       ...(reclassification
         ? [{ label: "Reclassification", value: reclassification.recommendation }]
         : []),
