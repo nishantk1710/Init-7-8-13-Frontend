@@ -28,11 +28,13 @@ import { cn } from "@/lib/utils"
 import { APPROVAL_ROLES } from "@/features/initiative-7/data/approval-chain"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { CHAIN_LENGTH, useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
+import { LivePipelineWorkspace } from "@/features/initiative-7/components/live-pipeline-workspace"
 import {
   pipelineHealth,
   waitingDays,
   type PipelineHealth,
 } from "@/features/initiative-7/utils/inventory-calc"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const ALL = "all"
 
@@ -48,6 +50,13 @@ const HEALTH_TONE: Record<PipelineHealth, "success" | "warning" | "danger"> = {
 const STAGES = ["Not submitted", ...APPROVAL_ROLES, "Approved"] as const
 
 export function PipelineWorkspace() {
+  if (USING_LIVE_DATA) {
+    return <LivePipelineWorkspace />
+  }
+  return <ScenarioPipelineWorkspace />
+}
+
+function ScenarioPipelineWorkspace() {
   const { openMaterial360 } = useMaterial360()
   const { stateFor, pendingRole } = useInventoryWorkflow()
   const [tab, setTab] = useState<StatusTab>("in-flight")
@@ -154,13 +163,13 @@ export function PipelineWorkspace() {
                 >
                   <div
                     className={cn(
-                      "text-2xl font-semibold tabular-nums",
+                      "truncate text-2xl font-semibold tabular-nums",
                       isEmpty ? "text-muted-foreground" : "text-primary"
                     )}
                   >
                     {count}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-muted-foreground">{stageName}</div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{stageName}</div>
                 </button>
                 {index < STAGES.length - 1 && (
                   <ChevronRight className="size-4 self-center shrink-0 text-muted-foreground" />
@@ -224,7 +233,7 @@ export function PipelineWorkspace() {
                         href={`/inventory-planning/recommendations/${rec.id}`}
                         className="hover:underline"
                       >
-                        <MaterialIdentity material={rec.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={rec.material}  />
                       </Link>
                     </TableCell>
                     <TableCell>

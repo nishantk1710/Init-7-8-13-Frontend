@@ -27,8 +27,10 @@ import { cn, formatZAR } from "@/lib/utils"
 import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@/features/initiative-7/data/approval-chain"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
+import { LiveApprovalsWorkspace } from "@/features/initiative-7/components/live-approvals-workspace"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
 import { approvalDueLabel, waitingDays } from "@/features/initiative-7/utils/inventory-calc"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const ALL = "all"
 
@@ -52,13 +54,6 @@ const SORT_OPTIONS = [
 ] as const
 
 const RISK_ORDER: Record<Recommendation["risk"], number> = { critical: 0, high: 1, medium: 2, low: 3 }
-
-const CRITICALITY_CODE: Record<Recommendation["criticality"], string> = {
-  Critical: "A",
-  High: "B",
-  Medium: "C",
-  Low: "D",
-}
 
 function ChangeSummary({ rec }: { rec: Recommendation }) {
   return (
@@ -164,6 +159,13 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
 }
 
 export function ApprovalsWorkspace() {
+  if (USING_LIVE_DATA) {
+    return <LiveApprovalsWorkspace />
+  }
+  return <ScenarioApprovalsWorkspace />
+}
+
+function ScenarioApprovalsWorkspace() {
   const { openMaterial360 } = useMaterial360()
   const { stateFor, pendingRole } = useInventoryWorkflow()
   const [outcomeTab, setOutcomeTab] = useState<OutcomeTab>("pending")
@@ -370,7 +372,7 @@ export function ApprovalsWorkspace() {
                             className="max-w-[210px]"
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <StatusBadge tone="default">{CRITICALITY_CODE[rec.criticality]}</StatusBadge>
+                            <StatusBadge tone="default">{rec.criticality}</StatusBadge>
                             <span>{rec.circuit}</span>
                           </div>
                         </TableCell>

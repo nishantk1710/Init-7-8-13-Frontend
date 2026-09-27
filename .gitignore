@@ -56,3 +56,7 @@ yarn-error.log*
 *.tgz
 *.7z
 *.rar
+
+# --- Local dev convenience scripts ---
+# Machine-specific launcher (Docker Desktop + backend + frontend). Never shared.
+start-dev.bat

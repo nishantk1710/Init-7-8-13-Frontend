@@ -1,0 +1,13 @@
+{
+  "sessionId": "S7K2M4P8Q1",
+  "step": {
+    "id": "i08_done",
+    "kind": "terminal",
+    "prompt": "Recorded, with your reason. Nothing is blocked -- the reservation is yours to make.\n\nYour session reference is S7K2M4P8Q1. Type it into the reservation in SAP so this advice can be linked to what you actually reserve.",
+    "choices": [],
+    "fields": [],
+    "facts": null,
+    "footnote": null,
+    "sessionId": "S7K2M4P8Q1"
+  }
+}

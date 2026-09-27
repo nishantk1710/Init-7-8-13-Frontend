@@ -1,6 +1,11 @@
 import type { GlobalAction } from "@/lib/domain/contracts"
 import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
+import {
+  formatDaysRemaining,
+  isRepairOverdue,
+  vendorLabel,
+} from "@/features/initiative-8/utils/status"
 
 /**
  * Every open Initiative 8 item for the global Action Center: flagged
@@ -37,13 +42,13 @@ export function getInitiative8GlobalActions(): GlobalAction[] {
   }
 
   for (const c of REPAIR_CHAINS) {
-    if (c.repairStatus !== "Closed" && c.daysRemainingInRepair < 0) {
+    if (isRepairOverdue(c)) {
       actions.push({
         id: `i8-overdue-${c.id}`,
         initiative: "initiative-8",
-        title: `Repair overdue — ${c.material.materialId} at ${c.vendor} (${Math.abs(
-          c.daysRemainingInRepair
-        )} days past due)`,
+        title: `Repair overdue — ${c.material.materialId} at ${vendorLabel(
+          c
+        )} (${formatDaysRemaining(c)})`,
         severity: "critical",
         entityId: c.id,
         materialId: c.material.materialId,

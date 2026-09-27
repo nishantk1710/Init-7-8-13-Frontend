@@ -1,0 +1,25 @@
+{
+  "routing": {
+    "flow": "i08",
+    "materialId": "8000005632",
+    "plant": "1300",
+    "eightySeries": true,
+    "materialScope": "OAR",
+    "mrpType": "ND",
+    "alsoMatched": "i13",
+    "reason": "8000005632 is an 80-series repairable material. It is also OAR by MRP type, and the repairable flow takes precedence."
+  },
+  "sessionId": "S7K2M4P8Q1",
+  "expiresAt": "2026-08-01T09:14:22Z",
+  "step": {
+    "id": "i08_done",
+    "kind": "terminal",
+    "prompt": "No repairable unit exists for 8000005632 at plant 1300: none in stock and no repair on order. Buying a new one takes about 30 days. Nothing here suggests holding off, so go ahead.\n\nYour session reference is S7K2M4P8Q1. Type it into the reservation in SAP so this advice can be linked to what you actually reserve.",
+    "choices": [],
+    "fields": [],
+    "facts": null,
+    "footnote": null,
+    "sessionId": "S7K2M4P8Q1"
+  },
+  "narrative": null
+}

@@ -130,7 +130,7 @@ Open `http://localhost:3000`. What to actually look at:
 
 - **[/inventory-planning/recommendations](http://localhost:3000/inventory-planning/recommendations)** (I07) — should load 200 rows. Model-comparison panels and "why this recommendation" bullets will be **empty** — that's the 14-field gap from Phase 7 made visible, not a bug.
 - **[/repairable-spares/repair-register](http://localhost:3000/repairable-spares/repair-register)** (I08) — 321 repair chains. Open one; the vendor name (e.g. "Springbok Rewind Services (Pty) Ltd") should resolve through the real PO → vendor join.
-- **[/oar-utilization/ledger](http://localhost:3000/oar-utilization/ledger)** (I13) — 742 consumption-plan lines. Materials will show plant `3000` rather than a named mine site, and circuit will show `Unassigned` — again, expected: no identity mapping exists yet (Phase 8).
+- **[/oar-utilization/ledger](http://localhost:3000/oar-utilization/ledger)** (I13) — 742 consumption-plan lines. Materials will show their SAP plant code (`1300` or `1500`) rather than a fixture site name, and circuit will show `Unassigned` — expected: the plant identities now map (`PLANT-BMM` → `1300`, `PLANT-GBG` → `1500`), but the material and circuit mappings still do not (Phase 8).
 
 Compare against the default demo data by dropping the env var:
 ```

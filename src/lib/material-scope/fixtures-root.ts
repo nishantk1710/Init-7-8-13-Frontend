@@ -76,6 +76,23 @@ export function fixturesRoot(): string {
   )
 }
 
+/**
+ * Whether the fixtures can be found at all.
+ *
+ * For tests that need them to skip -- visibly, by name -- in a checkout of the
+ * frontend repository alone, where `data-generator/` does not exist (it lives
+ * in the backend repository since the split). Everything else should call
+ * fixturesRoot() and let it throw.
+ */
+export function fixturesAvailable(): boolean {
+  try {
+    fixturesRoot()
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** `<root>/discovery` — the live SAP metadata snapshot the contract is built from. */
 export function discoveryDir(): string {
   return resolve(fixturesRoot(), "discovery")

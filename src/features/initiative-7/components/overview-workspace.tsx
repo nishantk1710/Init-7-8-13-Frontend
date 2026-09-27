@@ -18,7 +18,9 @@ import { RecommendationStatusChart } from "@/features/initiative-7/components/re
 import { TrendLineChart } from "@/features/initiative-7/components/trend-line-chart"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { EXCESS_INVENTORY_TREND, STOCKOUT_RISK_TREND } from "@/features/initiative-7/data/monitoring-series"
+import { LiveInventoryOptimizationOverviewWorkspace } from "@/features/initiative-7/components/live-overview-workspace"
 import type { Circuit, RecommendationStatus } from "@/features/initiative-7/types/inventory"
+import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 /** Overview page body — owns the dashboard filter state and derives the
  * filtered recommendation set every KPI/chart below reads from. Chart
@@ -27,6 +29,13 @@ import type { Circuit, RecommendationStatus } from "@/features/initiative-7/type
  * (stockout risk, excess inventory) stay portfolio-wide: they're authored
  * monthly series, not per-material, so there's nothing to filter them by. */
 export function InventoryOptimizationOverviewWorkspace() {
+  if (USING_LIVE_DATA) {
+    return <LiveInventoryOptimizationOverviewWorkspace />
+  }
+  return <ScenarioInventoryOptimizationOverviewWorkspace />
+}
+
+function ScenarioInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
 
   const filtered = useMemo(() => {

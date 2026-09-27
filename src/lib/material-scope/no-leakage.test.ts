@@ -45,7 +45,13 @@ function sourceFiles(dir: string): string[] {
 }
 
 // This file necessarily contains every banned token, since it defines them.
-const files = sourceFiles(SRC).filter((f) => !f.endsWith("no-leakage.test.ts"))
+// src/demo/ and app/demo/ are main's frontend kept verbatim for demo mode
+// (lib/data-mode.ts), with main's own SAP layer -- a frozen copy this rule
+// does not govern.
+const DEMO_COPIES = [join("src", "demo") + sep, join("src", "app", "demo") + sep]
+const files = sourceFiles(SRC).filter(
+  (f) => !f.endsWith("no-leakage.test.ts") && !DEMO_COPIES.some((d) => relative(".", f).startsWith(d))
+)
 const isInSapLayer = (file: string) => relative(".", file).startsWith(SCOPE_LAYER + sep)
 
 function offenders(patterns: RegExp[], candidates: string[]): string[] {

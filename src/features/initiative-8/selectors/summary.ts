@@ -3,6 +3,7 @@ import { DECLARATIONS } from "@/features/initiative-8/data/declarations"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import { initiative8Manifest } from "@/features/initiative-8/manifest"
 import { getInitiative8GlobalActions } from "@/features/initiative-8/selectors/global-actions"
+import { isRepairOverdue } from "@/features/initiative-8/utils/status"
 
 /**
  * Real numbers derived from `features/initiative-8/data/*`. Feeds the Spares
@@ -12,7 +13,7 @@ export function getInitiative8Summary(): InitiativeSummary {
   const activeChains = REPAIR_CHAINS.filter((c) => c.repairStatus !== "Closed")
   const qtyUnderRepair = REPAIR_CHAINS.reduce((sum, c) => sum + c.qtyUnderRepair, 0)
   const flaggedCount = DECLARATIONS.filter((d) => d.status === "Flagged").length
-  const overdueCount = activeChains.filter((c) => c.daysRemainingInRepair < 0).length
+  const overdueCount = activeChains.filter(isRepairOverdue).length
   const pendingDeclarations = DECLARATIONS.filter(
     (d) => d.status === "Required" || d.status === "Pending"
   ).length

@@ -19,10 +19,6 @@ export interface Material {
   leadTimeDays: number
 }
 
-// ---- Chat domain ----
-
-export type MessageRole = "user" | "ai"
-
 /** Key into the ICONS registry in constants.ts */
 export type IconKey =
   | "cpu"
@@ -60,109 +56,15 @@ export type IconKey =
   | "inbox"
   | "cancel"
 
-export interface ChatOption {
-  id: string
-  icon: IconKey
-  label: string
-  description: string
-}
-
-export interface OptionGroupData {
-  id: string
-  options: ChatOption[]
-  /** the suggested default (live groups) or the final answer (locked groups) */
-  defaultSelectedId?: string
-  /** true = already answered when the session was authored; always disabled */
-  locked?: boolean
-  /** historical confirmation timestamp, used only when locked */
-  resolvedAt?: string
-  /** if true, resolving this (via a live click) advances the workflow stepper */
-  advancesWorkflow?: boolean
-}
-
-export interface ActionOptionsData {
-  id: string
-  actions: ChatOption[]
-  /** id of the action styled with a permanent success accent, e.g. "proceed" */
-  accentId?: string
-  /** set when this action was already taken earlier in the session's history */
-  resolvedActionId?: string
-}
-
-export interface ChatMessage {
-  id: string
-  role: MessageRole
-  timestamp: string // pre-formatted "10:23 AM"
-  authorLabel: string // "You" | "Spares Assistant"
-  text?: string // supports **bold** lite markdown
-  /** materialId — renders the Material Assistant's classification card inline, in-transcript. */
-  classification?: string
-  options?: OptionGroupData
-  actions?: ActionOptionsData
-  footerNote?: string
-}
-
-export type WorkflowStepStatus = "done" | "active" | "pending"
-
-export interface WorkflowStepData {
-  id: string
-  label: string
-  status: WorkflowStepStatus
-  meta?: string
-  /** visual tone override for the active step, e.g. escalated/overdue */
-  tone?: "default" | "warning" | "danger"
-}
-
-export type EmailStatus = "sent" | "pending" | "escalated"
-
-export interface EmailNotificationData {
-  id: string
-  status: EmailStatus
-  text: string
-  time: string
-}
-
-export interface TraceTag {
-  label: string
-  kind: "cat" | "tier" | "status"
-}
-
-export interface TraceInfo {
-  tags: TraceTag[]
-  material: string
-  equipment: string
-  requester: string
-  specMatch: string
-  selectionsDone: number
-  selectionsTotal: number
-}
-
-export type SessionStatus =
-  | "in_progress"
-  | "pending_approval"
-  | "escalated"
-  | "completed"
-  | "new"
-
-export interface NavBadge {
-  type: "count" | "alert"
-  value?: number
-}
-
-export interface ChatSession {
-  id: string // e.g. "SPR-2847"
-  title: string // full chat header title
-  navLabel: string // short sidebar label
-  navSubtitle: string
-  navBadge?: NavBadge
-  category: Category
-  status: SessionStatus
-  materialId: string
-  requester: string
-  date: string // pre-formatted "DD MMM YYYY" — when the session was opened
-  messages: ChatMessage[]
-  workflow: WorkflowStepData[]
-  emails: EmailNotificationData[]
-  trace: TraceInfo
-}
-
+// ---------------------------------------------------------------------------
+// The chat-domain types that used to live here are gone (WS7 phase 5).
+//
+// ChatSession, ChatMessage, MessageRole, OptionGroupData, OptionData,
+// ActionData, TraceInfo, TraceTag, WorkflowStepData, EmailNotificationData and
+// EmailStatus all described the scripted mock conversation and its side
+// panel. The reservation assistant types its own wire shapes against the
+// backend in lib/api/assistant.ts, so none of them had a second reader.
+//
+// Material, Category, LifecycleStatus and IconKey above are unrelated and
+// stay -- they back the material catalogue and the nav.
+// ---------------------------------------------------------------------------

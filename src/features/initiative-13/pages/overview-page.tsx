@@ -1,26 +1,86 @@
-import { Activity, ArrowRightLeft, Clock, PackageCheck, RefreshCcw, TrendingDown, TriangleAlert, Wallet } from "lucide-react"
+import { connection } from "next/server"
+import Link from "next/link"
+import { ArrowUpRight } from "lucide-react"
 
-import { PageHeader } from "@/components/shared/page-header"
+import { AlertBanner } from "@/components/shared/alert-banner"
 import { ChartCard } from "@/components/shared/chart-card"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
+import { PageHeader } from "@/components/shared/page-header"
+import { buttonVariants } from "@/components/ui/button"
 import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DepartmentValueChart } from "@/features/initiative-13/components/department-value-chart"
-import { PlanVsActualChart } from "@/features/initiative-13/components/plan-vs-actual-chart"
 import { InflowTrendChart } from "@/features/initiative-13/components/inflow-trend-chart"
+import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
+import {
+  CalculatedAtNote,
+  LoadFailure,
+} from "@/features/initiative-13/components/load-states"
 import { RedeploymentAvoidanceChart } from "@/features/initiative-13/components/redeployment-avoidance-chart"
 import {
-  AGING_BUCKETS,
   NM_SM_INFLOW_TREND,
-  PLAN_VS_ACTUAL,
   REDEPLOYMENT_AVOIDANCE,
-  getOverviewKpis,
   getUnutilizedValueByDepartment,
 } from "@/features/initiative-13/data/overview-metrics"
-import { formatCount, formatZARCompact } from "@/lib/utils"
+import { loadLiveSummary, loadLiveWatch } from "@/features/initiative-13/data/live-loaders"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
-export function OARUtilizationOverviewPage() {
-  const kpis = getOverviewKpis()
+const AGING_BAND_LABELS: Record<string, string> = {
+  FAST: "Fast-moving",
+  SLOW: "Slow-moving",
+  NON_MOVING: "Non-moving",
+}
+
+const PLAN_STATUS_LABELS: Record<string, string> = {
+  NO_PLAN: "No plan",
+  BELOW_PLAN: "Below plan",
+  ON_PLAN: "On plan",
+  ABOVE_PLAN: "Above plan",
+}
+
+/**
+ * The Initiative 13 overview.
+ *
+ * **Half of this page is demo data, and it now says so.** The KPIs and the two
+ * distribution charts are backend-computed; the department-value, NM/SM inflow
+ * and redeployment-avoidance charts are hand-written illustrations with no
+ * endpoint behind them. That was previously disclosed only in the small grey
+ * subtitle under each chart, which is not where somebody reading a number looks.
+ *
+ * This is the same banner Initiative 8's overview carries for the same reason:
+ * a hand-written figure sitting unlabelled beside a real one is exactly the
+ * confusion the dataset-mode module exists to prevent.
+ */
+export async function OARUtilizationOverviewPage() {
+  await connection()
+
+  let summary: Awaited<ReturnType<typeof loadLiveSummary>> | null = null
+  let watch: Awaited<ReturnType<typeof loadLiveWatch>> | null = null
+  let loadError: string | null = null
+  try {
+    const [summaryResult, watchResult] = await Promise.all([
+      loadLiveSummary(),
+      loadLiveWatch(),
+    ])
+    summary = summaryResult
+    watch = watchResult
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error)
+  }
+
   const departmentValue = getUnutilizedValueByDepartment()
+
+  // Counted from the rows the backend classified. Nothing here re-derives an
+  // aging band or a plan status -- doing so would let this page disagree with
+  // the WATCH screen about the same material.
+  const agingDistribution = countBy(
+    watch?.rows.map((row) => row.agingBand) ?? [],
+    ["FAST", "SLOW", "NON_MOVING"],
+    AGING_BAND_LABELS
+  )
+  const planDistribution = countBy(
+    watch?.rows.map((row) => row.acquiredVsPlanStatus) ?? [],
+    ["NO_PLAN", "BELOW_PLAN", "ON_PLAN", "ABOVE_PLAN"],
+    PLAN_STATUS_LABELS
+  )
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -28,77 +88,68 @@ export function OARUtilizationOverviewPage() {
         <PageHeader
           title="OAR Utilization"
           description="End-to-end tracking of OAR spares demand from reservation through utilization."
+          actions={
+            <div className="flex items-center gap-3">
+              <CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />
+              <Link
+                href="/oar-utilization/utilisation-dashboard"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                Open Utilisation Dashboard
+                <ArrowUpRight className="size-3.5" />
+              </Link>
+            </div>
+          }
         />
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KPIStatCard
-            label="Unutilized OAR value"
-            value={formatZARCompact(kpis.unutilizedValue)}
-            hint="across open lines"
-            icon={<Wallet className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Unutilized OAR qty"
-            value={formatCount(kpis.unutilizedQty)}
-            hint="units not yet confirmed used"
-            icon={<PackageCheck className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Plan compliance"
-            value={`${kpis.complianceRate}%`}
-            hint="on-plan consumption"
-            icon={<Activity className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Aged OAR lines"
-            value={kpis.agedLines}
-            hint="overdue or no longer required"
-            icon={<TriangleAlert className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Re-planned lines"
-            value={kpis.replannedLines}
-            hint="consumption date moved"
-            icon={<RefreshCcw className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Released quantity"
-            value={formatCount(kpis.releasedQty)}
-            hint="marked available for redeployment"
-            icon={<TrendingDown className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="Redeployment opportunities"
-            value={kpis.redeploymentOpportunities}
-            hint="cross-plant matches open"
-            icon={<ArrowRightLeft className="size-3.5" />}
-          />
-          <KPIStatCard
-            label="NM/SM inflow"
-            value={kpis.nmSmInflow}
-            hint="new lines this month"
-            icon={<Clock className="size-3.5" />}
-          />
-        </div>
+        {USING_LIVE_DATA && (
+          <AlertBanner tone="warning" title="Three charts on this page are demo data, not SAP">
+            Unutilized value by department, the NM/SM inflow trend and
+            redeployment avoidance are hand-written illustrations — no endpoint
+            serves them, and no valuation source exists in Initiative 13&rsquo;s
+            table set. The KPIs, aging buckets and acquired-versus-plan chart are
+            computed by the backend from the July extract.
+          </AlertBanner>
+        )}
+
+        {loadError !== null && <LoadFailure what="utilization summary" message={loadError} />}
+
+        {summary && <KpiSummary summary={summary} />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <ChartCard title="Aging buckets" subtitle="Open OAR lines by days since planned consumption" span={6}>
-            <AgingBucketsChart data={AGING_BUCKETS} />
+          <ChartCard
+            title="Aging buckets"
+            subtitle="OAR material+plant positions by backend-computed aging band"
+            span={6}
+          >
+            <AgingBucketsChart data={agingDistribution} />
           </ChartCard>
-          <ChartCard title="Unutilized value by department" subtitle="Requested minus confirmed-used, by cost center" span={6}>
+          <ChartCard
+            title="Unutilized value by department"
+            subtitle="Requested minus confirmed-used, by cost center — illustrative, mock data"
+            span={6}
+          >
             <DepartmentValueChart data={departmentValue} />
           </ChartCard>
-          <ChartCard title="Plan vs. actual consumption" subtitle="Lines planned to consume vs. confirmed consumed, by month" span={6}>
-            <PlanVsActualChart data={PLAN_VS_ACTUAL} />
+          <ChartCard
+            title="Acquired vs. plan"
+            subtitle="Positions by backend-computed acquired-vs-plan status"
+            span={6}
+          >
+            <AgingBucketsChart data={planDistribution} />
           </ChartCard>
-          <ChartCard title="NM/SM inflow trend" subtitle="New non-moving / slow-moving lines entering OAR tracking" span={6}>
+          <ChartCard
+            title="NM/SM inflow trend"
+            subtitle="New non-moving / slow-moving lines entering OAR tracking — illustrative, mock data"
+            span={6}
+          >
             <InflowTrendChart data={NM_SM_INFLOW_TREND} />
           </ChartCard>
           <ChartCard
             title="Redeployment / purchase avoidance"
-            subtitle="Estimated repurchase value avoided by redeploying unused stock"
+            subtitle="Estimated repurchase value avoided by redeploying unused stock — illustrative, mock data"
             span={12}
-            footnote="Advisory estimates only — no automatic SAP stock transfer is simulated."
+            footnote="Advisory estimates only — no automatic SAP stock transfer is simulated. Not backed by the FastAPI service; there is no redeployment endpoint yet."
           >
             <RedeploymentAvoidanceChart data={REDEPLOYMENT_AVOIDANCE} />
           </ChartCard>
@@ -106,4 +157,18 @@ export function OARUtilizationOverviewPage() {
       </div>
     </div>
   )
+}
+
+/** Count occurrences, keeping every expected bucket so a zero is visible. */
+function countBy(
+  values: string[],
+  buckets: string[],
+  labels: Record<string, string>
+): { bucket: string; count: number }[] {
+  const counts: Record<string, number> = Object.fromEntries(buckets.map((b) => [b, 0]))
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1
+  return Object.entries(counts).map(([key, count]) => ({
+    bucket: labels[key] ?? key,
+    count,
+  }))
 }

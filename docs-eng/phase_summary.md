@@ -551,11 +551,22 @@ didn't, and the reason is a genuine finding rather than unfinished work:
 > | | The app says | SAP says |
 > |---|---|---|
 > | Material | `500-14892` | `000000000080000000` |
-> | Plant | `PLANT-GBG` (Gamsberg) | `3000` — and SAP has 5 plant codes to the app's 3 named sites |
+> | Plant | `PLANT-GBG` (Gamsberg) | `1500` — see the scope note below; the plant row is now **resolved** |
 > | User | `U-007` | `VZIREQ01` |
 >
 > Nothing maps between those vocabularies, and **no SAP field supplies the
 > mapping.** VZI has to provide it.
+
+> **Update, 21-Sep-2026 — the plant row is answered.** Scope is now two plants,
+> `1300` Black Mountain Mining and `1500` Gamsberg, and the fixture sites map
+> onto them one-for-one: `PLANT-BMM` → `1300`, `PLANT-GBG` → `1500`. The
+> mapping is recorded on each site as `sapPlantCode` in
+> `src/lib/shared-data/plants.ts`. The third fixture site, `PLANT-SKZ`
+> (Skorpion Zinc), was never in the extract and has been removed.
+>
+> **Material and user are still unmapped**, so the paragraphs below still hold
+> for those two — they are what blocks deleting the hand-written data, not the
+> plant identity.
 
 That matters more than it sounds. The hand-written data isn't just sample
 rows — it encodes designed demo scenarios that other screens look up **by
@@ -571,10 +582,11 @@ scenario data still the default. **Deleting the hand-written data is now
 blocked on one specific input from VZI — the material/plant/user mapping —
 rather than on any code.** That's a much better place to be than a broken app.
 
-We deliberately did **not** invent that mapping. A guessed plant mapping would
-put a confident, wrong mine site on every screen; instead, generated mode
-honestly shows `Plant 3000`, and materials show their SAP number. The gap is
-visible rather than disguised.
+We deliberately did **not** invent that mapping. A guessed mapping would put a
+confident, wrong value on every screen; instead, generated mode shows the SAP
+code and the SAP material number as they are. The gap is visible rather than
+disguised. (The plant half has since been supplied rather than guessed — see
+the update above.)
 
 **What the generated mode makes visible, which is the point:** switch it on
 and the recommendation screens show empty model-comparison panels, no
@@ -589,10 +601,10 @@ which resolves through SAP's vendor list to "Springbok Rewind Services (Pty)
 Ltd". That's a real four-table SAP join running through the whole stack.
 
 **Your action items:**
-1. **Ask VZI for the material / plant / user identity mapping.** This is now
-   the single thing blocking the hand-written data from being deleted. The
-   plant one is probably a short conversation — someone knows which mine site
-   plant code 3000 is.
+1. **Ask VZI for the material / user identity mapping.** This is now the single
+   thing blocking the hand-written data from being deleted. ~~The plant one is
+   probably a short conversation~~ — **the plant mapping has since been
+   supplied**: `PLANT-BMM` → `1300`, `PLANT-GBG` → `1500`.
 2. Have a look at `NEXT_PUBLIC_DATASET=generated npm run dev` before any
    stakeholder demo, so the difference between "what the prototype shows" and
    "what SAP can currently back" is something you've seen yourself.
@@ -941,9 +953,11 @@ largest single remaining blocker in WS2, and it's a different question from
 client, an authorisation filter on the CPI user, or a projection that needs a
 mandatory filter.
 
-**4. Ask for the material / plant / user identity mapping** (from Phase 8).
-The app says `PLANT-GBG`; SAP says `3000`. Nothing connects them. This is what
-blocks deleting the hand-written demo data.
+**4. Ask for the material / user identity mapping** (from Phase 8). This is
+what blocks deleting the hand-written demo data. **The plant part is closed:**
+scope is `1300` and `1500`, and the fixture sites map onto them one-for-one
+(`PLANT-BMM` → `1300`, `PLANT-GBG` → `1500`), recorded as `sapPlantCode` in
+`src/lib/shared-data/plants.ts`.
 
 **5. Ask VZI IT whether CPI restricts inbound traffic by IP.** If it does,
 Azure's outbound address must be allow-listed *before* anyone tries to connect.
