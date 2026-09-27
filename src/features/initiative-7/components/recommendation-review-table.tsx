@@ -16,15 +16,11 @@ import {
 } from "@/components/ui/table"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { cn, formatCount, formatZAR } from "@/lib/utils"
-import {
-  RecommendationReviewPanel,
-  SubmitForApprovalBox,
-} from "@/features/initiative-7/components/recommendation-review-panel"
+import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
 import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const COLUMN_COUNT = 9
 
@@ -157,14 +153,11 @@ function LiveExpandedRecommendationPanel({
   )
 }
 
-/** In live mode, the row's own `rec` comes from the list/summary endpoint,
- * which carries no stock parameters/lead time/service level (see
- * mapSummaryToRecommendation's zeroed fields) -- only the detail endpoint
- * has them. Expanding a row fetches that detail via useLiveRecommendation(id)
- * and renders it in place of the summary object; scenario/generated mode
- * renders unchanged since this component is never mounted there (branch is
- * at the call site, not inside a hook-bearing component, to satisfy
- * rules-of-hooks). */
+/** The row's own `rec` comes from the list/summary endpoint, which carries no
+ * stock parameters/lead time/service level (see mapSummaryToRecommendation's
+ * zeroed fields) -- only the detail endpoint has them. Expanding a row
+ * fetches that detail via useLiveRecommendation(id) and renders it in place
+ * of the summary object. */
 function ExpandedRecommendationPanel({
   rec,
   onDetail,
@@ -172,9 +165,6 @@ function ExpandedRecommendationPanel({
   rec: Recommendation
   onDetail: (detail: Recommendation) => void
 }) {
-  if (!USING_LIVE_DATA) {
-    return <RecommendationReviewPanel rec={rec} action={<SubmitForApprovalBox rec={rec} />} />
-  }
   return <LiveExpandedRecommendationPanel rec={rec} onDetail={onDetail} />
 }
 
