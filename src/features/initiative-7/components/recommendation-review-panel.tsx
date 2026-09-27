@@ -11,7 +11,6 @@ import { ParameterComparison } from "@/features/initiative-7/components/paramete
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import type { Criticality, DemandPattern, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 /** ABC class from the criticality tier, most severe first. */
 export const CRITICALITY_CODE: Record<Criticality, string> = {
@@ -208,11 +207,6 @@ export function RecommendationReviewPanel({
           <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
             Consumption history &amp; forecast
           </h4>
-          {!USING_LIVE_DATA && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Six months of actuals, then a one-step-ahead smoothing forecast on the same series.
-            </p>
-          )}
           <ForecastVsActualChart recommendations={[rec]} />
         </div>
 

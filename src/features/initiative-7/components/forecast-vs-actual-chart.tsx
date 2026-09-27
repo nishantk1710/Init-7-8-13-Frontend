@@ -19,11 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { fetchForecastHistory, type ForecastHistory } from "@/features/initiative-7/services/i7-api"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
-import { aggregateConsumption, oneStepAheadForecast } from "@/features/initiative-7/utils/inventory-calc"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
+import { aggregateConsumption } from "@/features/initiative-7/utils/inventory-calc"
 
 const ACTUAL_COLOR = "var(--chart-3)"
 const FORECAST_COLOR = "var(--chart-1)"
@@ -54,27 +52,21 @@ function ForecastTooltip({ active, payload, label }: TooltipContentProps) {
 
 /** Aggregate consumption for whichever recommendations are in view.
  *
- * In scenario mode, "Forecast" is a one-step-ahead exponential-smoothing
- * recompute of the same actuals series -- illustrative, matching the mock
- * data's own made-up numbers.
- *
- * In live mode this must NOT recompute a forecast client-side: the backend's
- * real model (SBA/Croston, see app/initiatives/i7/forecasting/service.py)
- * already produced the real number, persisted as a single scalar
- * `forecast_rate` (one monthly demand-rate figure, not a per-period series --
- * confirmed against the schema/DB). A client-side smoothing recompute here
- * would silently diverge from the number that actually drove the
- * recommendation's ROP/Safety Stock -- exactly the "the architecture rule
- * forbids recomputing in live mode" violation why-recommended.tsx's own
- * comment already calls out for this same chart. So live mode plots the real
- * `avgDailyConsumption` (which carries the backend's forecast_rate -- see
- * mapDetailToRecommendation) as a flat reference line instead: the true
- * value, honestly shown as flat because that is genuinely what the backend
- * computed, not a fabricated month-by-month curve. */
+ * This must NOT recompute a forecast client-side: the backend's real model
+ * (SBA/Croston, see app/initiatives/i7/forecasting/service.py) already
+ * produced the real number, persisted as a single scalar `forecast_rate`
+ * (one monthly demand-rate figure, not a per-period series -- confirmed
+ * against the schema/DB). A client-side smoothing recompute here would
+ * silently diverge from the number that actually drove the recommendation's
+ * ROP/Safety Stock. So this plots the real `avgDailyConsumption` (which
+ * carries the backend's forecast_rate -- see mapDetailToRecommendation) as a
+ * flat reference line instead: the true value, honestly shown as flat
+ * because that is genuinely what the backend computed, not a fabricated
+ * month-by-month curve. */
 export function ForecastVsActualChart({
-  recommendations = RECOMMENDATIONS,
+  recommendations,
 }: {
-  recommendations?: Recommendation[]
+  recommendations: Recommendation[]
 }) {
   const [windowSize, setWindowSize] = useState<WindowValue>("6")
 
@@ -83,7 +75,7 @@ export function ForecastVsActualChart({
   // (and only replaces the flat-line fallback below) when exactly one
   // recommendation is in view. Multiple materials in view keep the existing
   // flat-line-of-forecast_rate behaviour unchanged.
-  const soleRecommendationId = USING_LIVE_DATA && recommendations.length === 1 ? recommendations[0].id : null
+  const soleRecommendationId = recommendations.length === 1 ? recommendations[0].id : null
   const [liveHistory, setLiveHistory] = useState<ForecastHistory | null>(null)
 
   useEffect(() => {
@@ -119,24 +111,15 @@ export function ForecastVsActualChart({
       }))
     }
 
-    if (USING_LIVE_DATA) {
-      // No persisted backtest history yet for this view (multi-material, or
-      // a material-plant with no forecast run since the table shipped) --
-      // fall back to the honest flat reference line: the real forecast_rate
-      // that drove the recommendation, never a fabricated month-by-month
-      // curve.
-      const forecastRate = recommendations.reduce((sum, r) => sum + r.avgDailyConsumption, 0)
-      return series.map((p) => ({
-        period: p.period,
-        actual: p.qty,
-        forecast: Math.round(forecastRate * 10) / 10,
-      }))
-    }
-    const forecast = oneStepAheadForecast(series.map((p) => p.qty))
-    return series.map((p, i) => ({
+    // No persisted backtest history yet for this view (multi-material, or a
+    // material-plant with no forecast run since the table shipped) -- fall
+    // back to the honest flat reference line: the real forecast_rate that
+    // drove the recommendation, never a fabricated month-by-month curve.
+    const forecastRate = recommendations.reduce((sum, r) => sum + r.avgDailyConsumption, 0)
+    return series.map((p) => ({
       period: p.period,
       actual: p.qty,
-      forecast: Math.round(forecast[i] * 10) / 10,
+      forecast: Math.round(forecastRate * 10) / 10,
     }))
   }, [recommendations, windowSize, soleRecommendationId, liveHistory])
 
@@ -154,13 +137,11 @@ export function ForecastVsActualChart({
 
   return (
     <div className="flex flex-col gap-3">
-      {USING_LIVE_DATA && (
-        <p className="text-[11px] text-muted-foreground">
-          {usingRealHistory
-            ? `Real model output (${liveHistory?.modelName ?? "champion model"}): each point is that model's own rolling-origin prediction against what actually happened, never recomputed.`
-            : "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve. (No persisted backtest history yet for this view.)"}
-        </p>
-      )}
+      <p className="text-[11px] text-muted-foreground">
+        {usingRealHistory
+          ? `Real model output (${liveHistory?.modelName ?? "champion model"}): each point is that model's own rolling-origin prediction against what actually happened, never recomputed.`
+          : "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve. (No persisted backtest history yet for this view.)"}
+      </p>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Show:</span>
         <Select value={windowSize} onValueChange={(v) => setWindowSize((v ?? "6") as WindowValue)}>

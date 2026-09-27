@@ -16,13 +16,10 @@ import {
   RECOMMENDATION_FILTER_CALCULATED,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
-import { RECOMMENDATIONS, getRecommendationsForMaterial } from "@/features/initiative-7/data/recommendations"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/features/initiative-7/utils/sap-plants"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
-import { formatCount } from "@/lib/utils"
 
 // The backend's own page-size ceiling (see app/api/i7/recommendations.py's
 // MAX_PAGE_SIZE) -- fetched once and filtered client-side below, exactly
@@ -189,32 +186,16 @@ export function RecommendationsWorkspace() {
   const reviewMaterial = searchParams.get("reviewMaterial")
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
 
-  const matches = reviewMaterial ? getRecommendationsForMaterial(reviewMaterial) : []
-
-  const filtered = useMemo(() => applyFilters(RECOMMENDATIONS, filters), [filters])
-
   const banner = reviewMaterial && (
     <AlertBanner tone="info" title={`Reviewing material flagged by OAR Utilization for reclassification review — ${reviewMaterial}`}>
-      {matches.length > 0
-        ? "A matching inventory planning recommendation is in the table below."
-        : "No open inventory planning recommendation exists yet for this material."}
+      A matching inventory planning recommendation may be in the table below.
     </AlertBanner>
   )
-
-  if (USING_LIVE_DATA) {
-    return (
-      <div className="flex flex-col gap-4">
-        {banner}
-        <LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} />
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-4">
       {banner}
-      <DashboardFilters value={filters} onChange={setFilters} layout="bar" />
-      <RecommendationReviewTable recommendations={filtered} />
+      <LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} />
     </div>
   )
 }
