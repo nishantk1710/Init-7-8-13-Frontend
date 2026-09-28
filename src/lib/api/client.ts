@@ -128,6 +128,13 @@ function fieldNameOf(issue: ValidationIssue): string | null {
   return null
 }
 
+/** What a failed response's body said. */
+type ErrorBody = {
+  detail: ApiErrorDetail
+  /** The snapshot 503's `status` ("building" or "failed"); null on any other body. */
+  snapshotStatus: string | null
+}
+
 /**
  * Read the error body without letting the read itself throw.
  *
@@ -135,22 +142,24 @@ function fieldNameOf(issue: ValidationIssue): string | null {
  * rejection is not, and failing to parse the body of a failure must not replace
  * the real failure with a JSON syntax error.
  */
-async function readErrorDetail(response: Response): Promise<ApiErrorDetail> {
+async function readErrorBody(response: Response): Promise<ErrorBody> {
   try {
     const body: unknown = await response.json()
     if (typeof body === "object" && body !== null && "detail" in body) {
       const detail = (body as { detail: unknown }).detail
-      if (typeof detail === "string") return detail
-      if (isValidationIssueArray(detail)) return detail
-      // The I13 snapshot's 503 sends {status, message}; keep the sentence.
+      if (typeof detail === "string") return { detail, snapshotStatus: null }
+      if (isValidationIssueArray(detail)) return { detail, snapshotStatus: null }
+      // The I08/I13 snapshot's 503 sends {status, message}; keep both.
       if (typeof detail === "object" && detail !== null && "message" in detail) {
-        const message = (detail as { message: unknown }).message
-        if (typeof message === "string") return message
+        const { message, status } = detail as { message: unknown; status?: unknown }
+        if (typeof message === "string") {
+          return { detail: message, snapshotStatus: typeof status === "string" ? status : null }
+        }
       }
     }
-    return null
+    return { detail: null, snapshotStatus: null }
   } catch {
-    return null
+    return { detail: null, snapshotStatus: null }
   }
 }
 
@@ -165,14 +174,28 @@ async function readErrorDetail(response: Response): Promise<ApiErrorDetail> {
 export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS ?? 20000)
 
 /**
- * The backend answers 503 with `Retry-After` while the I13 snapshot is still
- * being built after a restart (about a minute). Said as that, not as a fault.
+ * The backend answers 503 with `Retry-After` while an I08 or I13 snapshot is
+ * unavailable, for one of two reasons the body tells apart:
+ *
+ *   - `building`: still being built after a restart (about a minute). Said as
+ *     that, not as a fault.
+ *   - `failed`: the last build errored, and the backend retries it at most once
+ *     a minute. Calling this "still preparing" hid a build that failed on every
+ *     attempt behind a message that promised it would clear by itself.
  */
-function preparingMessage(response: Response): string {
+function unavailableMessage(response: Response, body: ErrorBody): string {
   const retry = response.headers.get("Retry-After")
+  const when = retry ? ` in ${retry} seconds` : " shortly"
+  if (body.snapshotStatus === "failed") {
+    const reason = typeof body.detail === "string" ? body.detail : "The backend could not prepare this data"
+    return (
+      `${reason}. The backend retries at most once a minute — reload the page${when}. ` +
+      "If this keeps happening, the backend log has the cause."
+    )
+  }
   return (
     "The backend is still preparing this data after a restart — this takes about a minute. " +
-    `Reload the page${retry ? ` in ${retry} seconds` : " shortly"}.`
+    `Reload the page${when}.`
   )
 }
 
@@ -204,14 +227,14 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   }
 
   if (!response.ok) {
-    const detail = await readErrorDetail(response)
+    const body = await readErrorBody(response)
     throw new ApiError(
       response.status === 503 && response.headers.get("Retry-After")
-        ? preparingMessage(response)
+        ? unavailableMessage(response, body)
         : `${method} ${url} failed with ${response.status}`,
       response.status,
       undefined,
-      detail
+      body.detail
     )
   }
   return response
