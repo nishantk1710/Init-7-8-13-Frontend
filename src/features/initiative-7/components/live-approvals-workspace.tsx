@@ -44,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useMaterial360 } from "@/lib/material-360-context"
-import { cn, formatMoney } from "@/lib/utils"
+import { cn, formatZAR } from "@/lib/utils"
 import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
 
@@ -352,7 +352,7 @@ export function LiveApprovalsWorkspace() {
                           )}
                         >
                           {releases ? "−" : "+"}
-                          {formatMoney(Math.abs(rec.workingCapitalImpact), rec.currency)}
+                          {formatZAR(Math.abs(rec.workingCapitalImpact))}
                         </TableCell>
                         <TableCell>
                           <RiskBadge level={rec.risk} />
