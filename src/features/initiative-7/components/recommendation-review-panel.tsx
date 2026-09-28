@@ -5,7 +5,7 @@ import { ArrowRightLeft, MessageSquare, Send, ShieldCheck } from "lucide-react"
 
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import { formatCount, formatZAR } from "@/lib/utils"
+import { formatCount, formatMoney } from "@/lib/utils"
 import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
@@ -261,12 +261,12 @@ export function RecommendationReviewPanel({
               </>
             )}
           </Fact>
-          <Fact label="Unit price">{formatZAR(rec.unitPrice)}</Fact>
+          <Fact label="Unit price">{formatMoney(rec.unitPrice, rec.currency)}</Fact>
           <Fact label="Annual consumption">{formatCount(rec.annualConsumption)} units</Fact>
           <Fact label="Working capital">
             <span className={capital > 0 ? "font-medium text-success" : "font-medium text-warning"}>
               {capital > 0 ? "−" : "+"}
-              {formatZAR(Math.abs(capital))}
+              {formatMoney(Math.abs(capital), rec.currency)}
               {capital > 0 ? " released" : " tied up"}
             </span>
           </Fact>

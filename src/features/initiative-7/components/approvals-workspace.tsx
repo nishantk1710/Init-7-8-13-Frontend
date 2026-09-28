@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useMaterial360 } from "@/lib/material-360-context"
-import { cn, formatZAR } from "@/lib/utils"
+import { cn, formatMoney } from "@/lib/utils"
 import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@/features/initiative-7/data/approval-chain"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
@@ -392,7 +392,7 @@ function ScenarioApprovalsWorkspace() {
                           )}
                         >
                           {releases ? "−" : "+"}
-                          {formatZAR(Math.abs(rec.workingCapitalImpact))}
+                          {formatMoney(Math.abs(rec.workingCapitalImpact), rec.currency)}
                         </TableCell>
                         <TableCell>
                           <RiskBadge level={rec.risk} />
