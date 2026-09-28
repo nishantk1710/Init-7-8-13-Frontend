@@ -256,7 +256,6 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     leadTimeVarianceDays: 0,
     serviceLevelTarget: 0,
     unitPrice: toNumber(row.unit_price) ?? 0,
-    currency: row.currency ?? null,
     annualConsumption: 0,
     // Same formula as the detail mapper's own workingCapitalImpact -- unit_price
     // is now carried on the list endpoint too (Part 34), so this no longer has
@@ -319,7 +318,6 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     serviceLevelTarget: toNumber(detail.service_level.service_level) ?? 0,
     zFactor: toNumber(detail.service_level.z_factor),
     unitPrice: toNumber(detail.unit_price) ?? 0,
-    currency: detail.currency ?? null,
     annualConsumption: (toNumber(detail.demand.forecast_rate) ?? 0) * 12,
     workingCapitalImpact:
       detail.impact.status === "AVAILABLE"
@@ -454,8 +452,6 @@ export interface RecommendationSummaryStats {
   awaitingApprovalCount: number
   readyForReviewCount: number
   notEvaluableCount: number
-  /** Currency of the money figures, when every priced material shares one. */
-  currency: string | null
   netSafetyStockValueImpact: number | null
   criticalStockoutRiskCount: number
   excessInventoryCandidatesCount: number
@@ -487,7 +483,6 @@ export async function fetchRecommendationSummary(
     awaitingApprovalCount: response.awaiting_approval_count,
     readyForReviewCount: response.ready_for_review_count,
     notEvaluableCount: response.not_evaluable_count,
-    currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     excessInventoryCandidatesCount: response.excess_inventory_candidates_count,
