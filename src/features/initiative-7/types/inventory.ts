@@ -166,6 +166,10 @@ export interface Recommendation {
    * client-side illustrative approximation (see utils/inventory-calc.ts). */
   zFactor?: number | null
   unitPrice: number
+  /** ISO code unitPrice and workingCapitalImpact are in, from SAP (MBEW
+   * WAERS) on live-API recommendations; `null` when SAP supplied none;
+   * absent on the scenario fixtures, which are ZAR. Format with formatMoney. */
+  currency?: string | null
   annualConsumption: number
   /** ZAR — positive releases working capital (stock reduced), negative is additional investment */
   workingCapitalImpact: number

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { AlertTriangle, Clock, Layers, Wallet } from "lucide-react"
 
-import { cn, formatCount } from "@/lib/utils"
+import { cn, commonCurrency, currencyPrefix, formatCount } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import {
@@ -39,11 +39,12 @@ function pct(part: number, whole: number): string {
   return value.toFixed(1)
 }
 
-/** Compact signed ZAR in millions, e.g. -1048500 -> "−R 1.05M". */
-function formatCompactSignedZAR(amount: number): string {
+/** Compact signed amount in millions, e.g. -1048500 -> "−R 1.05M", in the
+ * recommendations' own currency (see formatMoney / currencyPrefix). */
+function formatCompactSigned(amount: number, currency?: string | null): string {
   const sign = amount < 0 ? "−" : amount > 0 ? "+" : ""
   const millions = Math.abs(amount) / 1_000_000
-  return `${sign}R ${millions.toFixed(2)}M`
+  return `${sign}${currencyPrefix(currency)}${millions.toFixed(2)}M`
 }
 
 /**
@@ -178,7 +179,7 @@ export function InventoryPortfolioKpis({
         title="Working Capital Impact"
         icon={<Wallet className="size-3.5" />}
         tone="success"
-        value={formatCompactSignedZAR(netImpact)}
+        value={formatCompactSigned(netImpact, commonCurrency(recommendations.map((r) => r.currency)))}
         caption={netImpact >= 0 ? "Net release" : "Net additional investment"}
       />
       <PortfolioKpiCard
