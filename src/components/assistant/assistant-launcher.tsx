@@ -8,6 +8,7 @@ import {
   OutOfScopeNotice,
 } from "@/components/assistant/routing-notice"
 import { StepError } from "@/components/assistant/step-renderer"
+import { setRequesterActor } from "@/lib/api/actor"
 import { startSession, type StartSessionResponse } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
 
@@ -93,6 +94,10 @@ export function AssistantLauncher({
     // repeat is deduplicated.
     const key = JSON.stringify([materialId, plant, department, requestedFor, origin])
     if (request.current?.key !== key) {
+      // The typed Requester becomes the actor for this session: the session,
+      // its turns and its justifications are recorded under that name rather
+      // than the no-sign-in placeholder. Cleared when no name was given.
+      setRequesterActor(requestedFor)
       request.current = {
         key,
         // Omitted rather than sent empty. The backend collapses whitespace to
