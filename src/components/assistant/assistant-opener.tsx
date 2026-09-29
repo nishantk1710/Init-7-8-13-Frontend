@@ -19,12 +19,10 @@ import { Input } from "@/components/ui/input"
  *
  * ## Who is filling this in
  *
- * One coordinator runs this for the whole site. They are **not** the person who
- * wants the part — they type that name into `Requester`. The two are recorded
- * separately: the coordinator is taken from the `X-Actor-Id` header as the
- * author of the record, and the typed name is data about the reservation. This
- * form never touches the header, so nothing typed here can become an audit
- * author.
+ * The name typed into `Requester` is the only person field. It is sent as
+ * `requestedFor` and also becomes the `X-Actor-Id` for the session (see
+ * `setRequesterActor`), so the session, turns and justifications show that
+ * name instead of the no-sign-in placeholder.
  */
 export function AssistantOpener({
   defaultMaterial = "",

@@ -51,12 +51,55 @@ export const ACTOR_ID_HEADER = "X-Actor-Id"
 
 const FALLBACK_ACTOR_ID = "UNAUTHENTICATED-FRONTEND"
 
+/** Where the name typed into the assistant's `Requester` field is kept. */
+const REQUESTER_STORAGE_KEY = "assistant.requester"
+
+/** The narrowest actor column in the backend (`actor_id String(40)` on the
+ *  quantity-suggestion and ACT tables), so the name fits every table it lands in. */
+const MAX_REQUESTER_LENGTH = 40
+
+/** HTTP header values must be Latin-1; anything else makes `fetch` throw. */
+const HEADER_SAFE = /^[\x20-\x7E\xA0-\xFF]+$/
+
+/**
+ * Record the name typed into the assistant's `Requester` field as the actor for
+ * this browser tab, so the session, its turns and its justifications are
+ * stamped with that name instead of the placeholder. `null` (or blank) clears
+ * it, e.g. for a session opened from SAP that carries no name.
+ *
+ * Tab-scoped (`sessionStorage`), so two tabs can run two requesters side by side.
+ */
+export function setRequesterActor(name: string | null | undefined): void {
+  if (typeof window === "undefined") return
+  try {
+    const trimmed = name?.trim().slice(0, MAX_REQUESTER_LENGTH).trim()
+    if (trimmed && HEADER_SAFE.test(trimmed)) window.sessionStorage.setItem(REQUESTER_STORAGE_KEY, trimmed)
+    else window.sessionStorage.removeItem(REQUESTER_STORAGE_KEY)
+  } catch {
+    // Storage blocked: fall back to the configured / placeholder actor.
+  }
+}
+
+function requesterActor(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return window.sessionStorage.getItem(REQUESTER_STORAGE_KEY)?.trim() || null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Who we claim to be. Never returns empty: an empty header is indistinguishable
  * from no header, which would silently hand the row back to the backend default
  * and undo the point of this module.
+ *
+ * Order: the requester typed into the assistant, then `NEXT_PUBLIC_ACTOR_ID`,
+ * then the loud placeholder.
  */
 export function currentActorId(): string {
+  const requester = requesterActor()
+  if (requester) return requester
   const configured = process.env.NEXT_PUBLIC_ACTOR_ID?.trim()
   return configured && configured.length > 0 ? configured : FALLBACK_ACTOR_ID
 }
