@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getPlantById } from "@/lib/shared-data/plants"
-import { cn, formatCount, formatZAR } from "@/lib/utils"
+import { cn, formatCount, formatMoney } from "@/lib/utils"
 import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
 import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
@@ -83,7 +83,7 @@ function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?
   return (
     <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
-      {formatZAR(Math.abs(delta))}
+      {formatMoney(Math.abs(delta), source.currency)}
       {pct !== null && (
         <span className="font-normal text-muted-foreground">
           ({pct > 0 ? "+" : ""}

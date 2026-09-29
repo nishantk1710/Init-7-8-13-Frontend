@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getPlantById } from "@/lib/shared-data/plants"
-import { formatZAR } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils"
 import { DecisionActions, DecisionHistory } from "@/features/initiative-7/components/decision-panel"
 import { LiveDecisionActions, LiveDecisionHistory } from "@/features/initiative-7/components/live-decision-panel"
 import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
@@ -107,7 +107,7 @@ function RecommendationDetailView({
           </span>
           <span className="rounded-full bg-muted px-2.5 py-1">Demand pattern: {recommendation.demandPattern}</span>
           <span className="rounded-full bg-muted px-2.5 py-1">Lead time: {recommendation.leadTimeDays}d (±{recommendation.leadTimeVarianceDays}d)</span>
-          <span className="rounded-full bg-muted px-2.5 py-1">Unit price: {formatZAR(recommendation.unitPrice)}</span>
+          <span className="rounded-full bg-muted px-2.5 py-1">Unit price: {formatMoney(recommendation.unitPrice, recommendation.currency)}</span>
           <span className="rounded-full bg-muted px-2.5 py-1">
             Service-level target: {Math.round(recommendation.serviceLevelTarget * 100)}%
           </span>
