@@ -111,6 +111,8 @@ export interface ApiRecommendationSummary {
   recommended: ApiStockParameters
   impact: ApiImpactInfo
   unit_price: ApiDecimal
+  /** ISO code unit_price is in (SAP MBEW WAERS); null when SAP supplied none. */
+  currency?: string | null
 }
 
 export interface ApiRecommendationListResponse {
@@ -160,6 +162,8 @@ export interface ApiRecommendationSummaryStats {
   awaiting_approval_count: number
   ready_for_review_count: number
   not_evaluable_count: number
+  /** Currency of every money figure here, when all priced materials share one. */
+  currency?: string | null
   net_safety_stock_value_impact: ApiDecimal
   critical_stockout_risk_count: number
   excess_inventory_candidates_count: number
@@ -173,6 +177,7 @@ export interface ApiRecommendationDetail {
   plant: string
   circuit: string | null
   unit_price: ApiDecimal
+  currency?: string | null
   current: ApiStockParameters
   recommended: ApiStockParameters
   demand: ApiDemandInfo
