@@ -207,12 +207,23 @@ function derivePendingRole(rawStatus: string, chainIndex: number, route: string[
   return route[chainIndex] ?? null
 }
 
-function materialRefFor(materialNumber: string): MaterialReference {
+function materialRefFor(materialNumber: string, description?: string | null): MaterialReference {
   // Live recommendations use the real SAP material number as both id and
   // code -- there is no app-side catalog entry to join against (see
-  // lib/sap/dataset-mode.ts's identity-gap note), so no description beyond
-  // the number itself is available here.
-  return { materialId: materialNumber, materialCode: materialNumber, description: materialNumber }
+  // lib/sap/dataset-mode.ts's identity-gap note).
+  //
+  // The description IS available: the backend joins it from MAKT through
+  // i7_staged_material. It falls back to the material number rather than to an
+  // empty string because `description` is required on MaterialReference (a
+  // frozen contract) and several screens render `${materialId} — ${description}`
+  // -- an empty value there renders a dangling em-dash, and the search haystacks
+  // on the Recommendations, Overview and Pipeline tables concatenate it, where
+  // an empty string would silently match every query.
+  return {
+    materialId: materialNumber,
+    materialCode: materialNumber,
+    description: description ?? materialNumber,
+  }
 }
 
 /** Maps one list-endpoint row into the existing Recommendation shape, for
@@ -234,7 +245,7 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     row.status === "NOT_EVALUABLE" ? [{ label: "Blocked", detail: "Not yet evaluated by the backend." }] : []
   return {
     id: row.recommendation_id,
-    material: materialRefFor(row.material),
+    material: materialRefFor(row.material, row.description),
     plantId: row.plant,
     circuit: "Unassigned",
     criticality,
@@ -295,7 +306,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
 
   return {
     id: detail.recommendation_id,
-    material: materialRefFor(detail.material),
+    material: materialRefFor(detail.material, detail.description),
     plantId: detail.plant,
     circuit: mapCircuit(detail.circuit),
     criticality,

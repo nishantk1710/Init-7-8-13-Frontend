@@ -97,6 +97,9 @@ export interface ApiGovernanceInfo {
 export interface ApiRecommendationSummary {
   recommendation_id: string
   material: string
+  /** MAKT material description, joined server-side from i7_staged_material.
+   * Null when MAKT has no row for the material. */
+  description: string | null
   plant: string
   status: string
   is_oar: boolean | null
@@ -170,6 +173,8 @@ export interface ApiRecommendationSummaryStats {
 export interface ApiRecommendationDetail {
   recommendation_id: string
   material: string
+  /** MAKT material description -- see ApiRecommendationSummary.description. */
+  description: string | null
   plant: string
   circuit: string | null
   unit_price: ApiDecimal
