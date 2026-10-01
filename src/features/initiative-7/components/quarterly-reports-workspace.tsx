@@ -51,7 +51,8 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
-import { fetchQuarterlyReportExportBlob } from "@/features/initiative-7/services/i7-api"
+import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { ApiError } from "@/lib/api/client"
 import type {
   ApiBaselineComparisonRow,
   ApiForecastAccuracyMetric,
@@ -321,15 +322,40 @@ const MATERIALS_PAGE_SIZE = 5
 
 export function QuarterlyReportsWorkspace() {
   const quarters = candidateQuarters()
-  const { data: existingReports } = useQuarterlyReports(50)
+  const { data: existingReports, refetch: refetchReportsList } = useQuarterlyReports(50)
   const [selectedQuarter, setSelectedQuarter] = useState<string>(quarters[0] ?? "")
   const [tab, setTab] = useState<GenerationTab>("landing")
   const [materialsPage, setMaterialsPage] = useState(1)
-  const { data: report, loading, error, status, refetch } =
+  const { data: report, loading, error, status, refetch, generate, generating, generationError } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
   const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  // "Generate latest closed quarter", from the landing grid -- no quarter is
+  // selected yet at that point, so this cannot reuse useQuarterlyReport's own
+  // generate() (which acts on the hook's current `quarter`). A thin,
+  // self-contained action: call the no-arg generate endpoint, then open the
+  // quarter the backend actually picked and refresh the landing grid's list
+  // so the new report's card appears without a manual reload.
+  const [generatingLatest, setGeneratingLatest] = useState(false)
+  const [generateLatestError, setGenerateLatestError] = useState<string | null>(null)
+
+  async function handleGenerateLatest() {
+    setGeneratingLatest(true)
+    setGenerateLatestError(null)
+    try {
+      const generated = await generateQuarterlyReport()
+      refetchReportsList()
+      openReport(generated.metadata.quarter)
+    } catch (err) {
+      setGenerateLatestError(
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Report generation failed.",
+      )
+    } finally {
+      setGeneratingLatest(false)
+    }
+  }
 
   async function handleDownload() {
     if (!selectedQuarter) return
@@ -410,6 +436,9 @@ export function QuarterlyReportsWorkspace() {
           quarters={(existingReports ?? []).map((r) => r.quarter)}
           existingReports={existingReports ?? []}
           onView={openReport}
+          onGenerateLatest={handleGenerateLatest}
+          generating={generatingLatest}
+          generateError={generateLatestError}
         />
       )}
 
@@ -481,7 +510,12 @@ export function QuarterlyReportsWorkspace() {
           )}
 
           {error && !report && (
-            <EmptyReportState quarter={selectedQuarter} />
+            <EmptyReportState
+              quarter={selectedQuarter}
+              onGenerate={generate}
+              generating={generating}
+              generateError={generationError instanceof Error ? generationError.message : null}
+            />
           )}
 
           {report && (
@@ -1035,22 +1069,50 @@ export function QuarterlyReportsWorkspace() {
   )
 }
 
+/** A manual "Generate" trigger, in the same pending/idle visual language as
+ * the report view's own Download button (see handleDownload/downloadState
+ * above) -- spinner while in flight, disabled for the duration so a double
+ * click cannot submit two concurrent generations (harmless either way, since
+ * the backend upserts by quarter, but a disabled button during the ~40-50s
+ * call is the honest reflection of "a request is already running"). */
+function GenerateReportButton({
+  label,
+  generating,
+  onClick,
+}: {
+  label: string
+  generating: boolean
+  onClick: () => void
+}) {
+  return (
+    <Button size="sm" variant="outline" onClick={onClick} disabled={generating}>
+      {generating ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+      {generating ? "Generating…" : label}
+    </Button>
+  )
+}
+
 /** The landing grid: one card per quarter that has an actual generated
  * report -- callers pass only `existingReports`' own quarters, never the
  * candidate/current-quarter list, so a quarter with nothing generated yet
- * shows no card at all rather than a placeholder. There is no manual
- * Generate action anywhere in this UI -- every report is produced only by
- * the scheduled task (Windows Task Scheduler "I07 Quarterly Report", see
- * app/reporting/generate_quarterly.py --auto); a card simply appears once
- * that task has run. */
+ * shows no card at all rather than a placeholder. A manual "Generate latest
+ * closed quarter" action (wired to POST .../generate with no quarter, which
+ * the backend resolves itself -- see period.latest_closed_quarter) sits
+ * alongside the automatic path; it does not replace it. */
 function QuarterlyLandingGrid({
   quarters,
   existingReports,
   onView,
+  onGenerateLatest,
+  generating,
+  generateError,
 }: {
   quarters: string[]
   existingReports: QuarterlyReportListRow[]
   onView: (quarter: string) => void
+  onGenerateLatest: () => void
+  generating: boolean
+  generateError: string | null
 }) {
   const byQuarter = new Map(existingReports.map((r) => [r.quarter, r]))
 
@@ -1060,14 +1122,27 @@ function QuarterlyLandingGrid({
         <FileBarChart className="mx-auto size-10 text-muted-foreground" />
         <div className="mt-3 text-base font-medium text-foreground">No quarterly reports yet</div>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Reports are generated automatically after each quarter closes.
+          Quarterly reports are generated automatically after each quarter closes. You can also generate the
+          latest closed quarter manually.
         </p>
+        <div className="mt-4 flex justify-center">
+          <GenerateReportButton label="Generate latest closed quarter" generating={generating} onClick={onGenerateLatest} />
+        </div>
+        {generateError && <p className="mt-2 text-xs text-destructive">{generateError}</p>}
       </div>
     )
   }
 
   return (
     <div>
+      <div className="mb-3.5 flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Reports are generated automatically after each quarter closes. You can also generate the latest closed
+          quarter manually.
+        </p>
+        <GenerateReportButton label="Generate latest closed quarter" generating={generating} onClick={onGenerateLatest} />
+      </div>
+      {generateError && <p className="mb-3 text-xs text-destructive">{generateError}</p>}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {quarters.map((quarter) => {
           const existing = byQuarter.get(quarter)
@@ -1096,14 +1171,29 @@ function QuarterlyLandingGrid({
   )
 }
 
-function EmptyReportState({ quarter }: { quarter: string }) {
+function EmptyReportState({
+  quarter,
+  onGenerate,
+  generating,
+  generateError,
+}: {
+  quarter: string
+  onGenerate: () => void
+  generating: boolean
+  generateError: string | null
+}) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
       <FileBarChart className="mx-auto size-10 text-muted-foreground" />
       <div className="mt-3 text-base font-medium text-foreground">No report generated for {quarter}</div>
       <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-        Reports are generated automatically after each quarter closes.
+        Quarterly reports are generated automatically after each quarter closes. You can also generate the latest
+        closed quarter manually.
       </p>
+      <div className="mt-4 flex justify-center">
+        <GenerateReportButton label={`Generate ${quarter}`} generating={generating} onClick={onGenerate} />
+      </div>
+      {generateError && <p className="mt-2 text-xs text-destructive">{generateError}</p>}
     </div>
   )
 }

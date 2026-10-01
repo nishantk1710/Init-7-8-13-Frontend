@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   fetchQuarterlyReport,
   fetchQuarterlyReports,
+  generateQuarterlyReport,
   mapDetailToRecommendation,
   mapStatus,
   mapSummaryToRecommendation,
@@ -764,5 +765,38 @@ describe("fetchQuarterlyReport", () => {
     const rop = rows[1]
     expect(rop.availability_status).toBe("AVAILABLE")
     expect(rop.both_available_count).toBe(6)
+  })
+
+  describe("generateQuarterlyReport", () => {
+    it("POSTs an explicit quarter in the request body when one is given", async () => {
+      const report = reportFixture()
+      stubFetchJson(report)
+
+      await generateQuarterlyReport("Q3 2026")
+
+      const [, init] = vi.mocked(fetch).mock.calls[0]
+      expect(init?.method).toBe("POST")
+      expect(JSON.parse(init?.body as string)).toEqual({ quarter: "Q3 2026" })
+    })
+
+    it("POSTs an empty body when no quarter is given, letting the backend resolve the latest closed quarter", async () => {
+      const report = reportFixture()
+      stubFetchJson(report)
+
+      await generateQuarterlyReport()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0]
+      expect(init?.method).toBe("POST")
+      expect(JSON.parse(init?.body as string)).toEqual({})
+    })
+
+    it("returns the report the backend actually generated, including whichever quarter it picked", async () => {
+      const report = reportFixture({ metadata: { ...reportFixture().metadata, quarter: "Q3 2026" } })
+      stubFetchJson(report)
+
+      const result = await generateQuarterlyReport()
+
+      expect(result.metadata.quarter).toBe("Q3 2026")
+    })
   })
 })
