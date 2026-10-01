@@ -644,11 +644,14 @@ export async function fetchQuarterlyReport(quarter: string): Promise<ApiQuarterl
 /** POST /reports/quarterly/generate -- synchronous, typically 40-50s against
  * current data volumes (see app/api/i7/reports.py's module docstring).
  * Idempotent per quarter: calling twice overwrites the one row rather than
- * creating a duplicate. */
-export async function generateQuarterlyReport(quarter: string): Promise<ApiQuarterlyReport> {
+ * creating a duplicate. `quarter` is optional -- omit it to have the backend
+ * resolve and generate the latest *closed* calendar quarter itself (see
+ * `latest_closed_quarter` on the backend); the returned report's
+ * `metadata.quarter` says which quarter actually ran. */
+export async function generateQuarterlyReport(quarter?: string): Promise<ApiQuarterlyReport> {
   return apiFetch<ApiQuarterlyReport>(`${I7_BASE}/reports/quarterly/generate`, {
     method: "POST",
-    body: JSON.stringify({ quarter }),
+    body: JSON.stringify(quarter ? { quarter } : {}),
   })
 }
 
