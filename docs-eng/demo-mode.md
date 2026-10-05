@@ -52,3 +52,31 @@ NEXT_PUBLIC_API_BASE_URL=https://<backend>/api # used by live mode, as before
 
 Both are read at build time (`NEXT_PUBLIC_*`), so set them in the deploy
 workflow's build step.
+
+## The assistant's own demo switch (temporary)
+
+Separate from the toggle above, and much narrower. With
+
+```bash
+NEXT_PUBLIC_ASSISTANT_DEMO=true
+```
+
+the **live** frontend's reservation assistant (`/assistant/*`) runs two scripted
+sessions — repairable `8000005632` and OAR `1000000123` — from the material
+search to the finished trace. Every other screen stays live.
+
+- Driven by the checked-in wire fixtures in `src/lib/api/__fixtures__/`, which
+  are generated from the backend's own serialisers. Nothing is sent to the
+  backend; demo sessions live in the browser's localStorage.
+- Demo references start with `D`. The backend only accepts `S`, so a demo
+  reference typed into a real reservation can never link to a real session.
+- Every assistant screen carries a "Demo" strip, and each demo reference a
+  `DEMO` chip. **Reset demo** on the session log clears runs in that browser.
+
+Deploy: set repository variable `ASSISTANT_DEMO=true` (read by
+`.github/workflows/deploy.yml`). Switch off by deleting it and redeploying,
+once the deployed backend opens real repairable and OAR sessions.
+
+Remove the code afterwards: delete `src/lib/assistant/demo/` and
+`src/components/assistant/demo/`, then `grep -rn ASSISTANT_DEMO src` and drop
+each branch. Keep the fixtures — the type tests read them.

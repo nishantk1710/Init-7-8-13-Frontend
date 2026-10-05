@@ -136,6 +136,8 @@ export function AssistantLauncher({
             "",
             `/assistant/sessions/${response.sessionId}`
           )
+          // The reference in the tab too, so it is findable from any tab strip.
+          document.title = `Session ${response.sessionId} — Spares AI`
         }
       })
       .catch((caught: unknown) => {

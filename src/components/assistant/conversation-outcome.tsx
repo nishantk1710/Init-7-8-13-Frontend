@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react"
 
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type { ApiRouting } from "@/lib/api/assistant"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 
 type Destination = { href: string; label: string; what: string }
 
@@ -12,6 +13,14 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
     href: `/assistant/sessions/${encodeURIComponent(sessionId)}`,
     label: "Session trace",
     what: "every question and answer, as recorded",
+  }
+  if (ASSISTANT_DEMO) {
+    // The OAR and repairable screens read the live backend, which never saw a
+    // demo session. Sending a presenter there would show the record missing.
+    return [
+      trace,
+      { href: "/assistant/sessions", label: "Sessions", what: "this session beside the other demo sessions" },
+    ]
   }
   if (routing.flow === "i13") {
     return [

@@ -71,6 +71,11 @@ jobs:
           # Demo until the backend integration is trusted -- set repository
           # variable DATA_MODE=live to flip the default. See docs-eng/demo-mode.md.
           NEXT_PUBLIC_DEFAULT_DATA_MODE: ${{ vars.DATA_MODE || 'demo' }}
+          # TEMPORARY. The reservation assistant's two scripted demo sessions
+          # (src/lib/assistant/demo/flag.ts). Off unless repository variable
+          # ASSISTANT_DEMO=true; delete the variable and redeploy once the
+          # backend opens real repairable and OAR sessions.
+          NEXT_PUBLIC_ASSISTANT_DEMO: ${{ vars.ASSISTANT_DEMO || 'false' }}
         run: npm run build
 
       # The standalone output deliberately omits public/ and .next/static/ --
