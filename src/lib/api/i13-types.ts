@@ -417,9 +417,58 @@ export interface ReconciliationSourceResult {
   status: string
 }
 
+/** One material-plant where the platform's aging band and ZMM065's disagree. */
+export interface Zmm065Mismatch {
+  material: string
+  plant: string
+  reportBand: string
+  platformBand: string
+  reportLastIssueDate: string | null
+  platformLastIssueDate: string | null
+  reason: string
+}
+
+/** FR-6 aging reconciliation against ZMM065, as of the report's run date. */
+export interface Zmm065Validation {
+  reportDate: string | null
+  rowsInReport: number
+  compared: number
+  agreed: number
+  agreementPct: number | null
+  excludedNonAging: Record<string, number>
+  mismatchReasons: Record<string, number>
+  /** The first rows the backend lists; the counts above are complete. */
+  mismatches: Zmm065Mismatch[]
+}
+
+/** One 30-Day GR Report receipt the platform's SAP data did not confirm. */
+export interface GrReceiptCheck {
+  postDate: string
+  material: string
+  poNumber: string
+  poItem: string
+  status: string
+  plant: string | null
+}
+
+/** FR-6 receipt-by-receipt confirmation of the 30-Day GR Report. */
+export interface Gr30DayValidation {
+  reportDate: string | null
+  windowStart: string | null
+  rowsInReport: number
+  confirmed: number
+  plants: Record<string, number>
+  /** Context only: how many receipts the platform holds for the same plant and window. */
+  platformReceiptsInWindow: number
+  unconfirmed: GrReceiptCheck[]
+}
+
 export interface ValidationResult {
   tolerancePct: number
   results: ReconciliationSourceResult[]
+  /** Null when the report is not loaded in the backend. */
+  zmm065: Zmm065Validation | null
+  gr30Day: Gr30DayValidation | null
 }
 
 export interface I13Summary {

@@ -78,8 +78,6 @@ export type DashboardFilters = {
   material?: string
   agingBand?: string
   acquiredVsPlanStatus?: string
-  zmm065ReferenceCount?: number
-  gr30DayReferenceCount?: number
 }
 
 export type LiveDashboard = {
@@ -115,12 +113,7 @@ export async function loadLiveDashboard(
       section(loadLiveActExceptions(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope)),
-      section(
-        loadLiveValidation({
-          zmm065ReferenceCount: filters.zmm065ReferenceCount,
-          gr30DayReferenceCount: filters.gr30DayReferenceCount,
-        })
-      ),
+      section(loadLiveValidation()),
     ])
 
   return {

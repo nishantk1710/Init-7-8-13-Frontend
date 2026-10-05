@@ -62,8 +62,10 @@ import {
   type UsagePattern,
   type RequesterConfirmation,
   type UtilisationLedgerEntry,
+  type Gr30DayValidation,
   type ValidationResult,
   type WatchMetric,
+  type Zmm065Validation,
 } from "@/lib/api/i13-types"
 import {
   mergeJustifications,
@@ -358,6 +360,58 @@ function toValidationResult(raw: RawRecord): ValidationResult {
       withinTolerance: (r.within_tolerance as boolean | null) ?? null,
       status: String(r.status ?? ""),
     })),
+    zmm065: raw.zmm065 ? toZmm065Validation(raw.zmm065 as RawRecord) : null,
+    gr30Day: raw.gr_30_day ? toGr30DayValidation(raw.gr_30_day as RawRecord) : null,
+  }
+}
+
+function toCountMap(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries((raw as Record<string, unknown> | null) ?? {})) {
+    out[key] = toCount(value as number)
+  }
+  return out
+}
+
+function toZmm065Validation(raw: RawRecord): Zmm065Validation {
+  const mismatches = (raw.mismatches as RawRecord[] | undefined) ?? []
+  return {
+    reportDate: (raw.report_date as string | null) ?? null,
+    rowsInReport: toCount(raw.rows_in_report as number),
+    compared: toCount(raw.compared as number),
+    agreed: toCount(raw.agreed as number),
+    agreementPct: toNumber(raw.agreement_pct as number) ?? null,
+    excludedNonAging: toCountMap(raw.excluded_non_aging),
+    mismatchReasons: toCountMap(raw.mismatch_reasons),
+    mismatches: mismatches.map((m) => ({
+      material: String(m.material ?? ""),
+      plant: String(m.plant ?? ""),
+      reportBand: String(m.report_band ?? ""),
+      platformBand: String(m.platform_band ?? ""),
+      reportLastIssueDate: (m.report_last_issue_date as string | null) ?? null,
+      platformLastIssueDate: (m.platform_last_issue_date as string | null) ?? null,
+      reason: String(m.reason ?? ""),
+    })),
+  }
+}
+
+function toGr30DayValidation(raw: RawRecord): Gr30DayValidation {
+  const unconfirmed = (raw.unconfirmed as RawRecord[] | undefined) ?? []
+  return {
+    reportDate: (raw.report_date as string | null) ?? null,
+    windowStart: (raw.window_start as string | null) ?? null,
+    rowsInReport: toCount(raw.rows_in_report as number),
+    confirmed: toCount(raw.confirmed as number),
+    plants: toCountMap(raw.plants),
+    platformReceiptsInWindow: toCount(raw.platform_receipts_in_window as number),
+    unconfirmed: unconfirmed.map((c) => ({
+      postDate: String(c.post_date ?? ""),
+      material: String(c.material ?? ""),
+      poNumber: String(c.po_number ?? ""),
+      poItem: String(c.po_item ?? ""),
+      status: String(c.status ?? ""),
+      plant: (c.plant as string | null) ?? null,
+    })),
   }
 }
 
@@ -507,15 +561,12 @@ export function getI13ReclassificationList(params?: {
   }))
 }
 
-export function getI13Validation(params?: {
-  zmm065ReferenceCount?: number
-  gr30DayReferenceCount?: number
-}): Promise<ValidationResult> {
-  const query = buildQuery({
-    zmm065_reference_count: params?.zmm065ReferenceCount,
-    gr_30_day_reference_count: params?.gr30DayReferenceCount,
-  })
-  return apiFetch<RawRecord>(`/i13/validation${query}`).then(toValidationResult)
+/**
+ * `GET /i13/validation` — FR-6 reconciliation. The backend reads ZMM065 and the
+ * 30-Day GR Report from its own database; there is nothing to pass in.
+ */
+export function getI13Validation(): Promise<ValidationResult> {
+  return apiFetch<RawRecord>("/i13/validation").then(toValidationResult)
 }
 
 // --- W6.4 consumption attribution -----------------------------------------
