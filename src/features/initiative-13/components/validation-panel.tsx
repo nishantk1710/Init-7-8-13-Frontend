@@ -26,6 +26,7 @@ const BAND_LABEL: Record<string, string> = {
 
 /** What each backend mismatch reason means, in the words a reviewer needs. */
 const ZMM065_REASON: Record<string, string> = {
+  MATERIAL_NOT_IN_PLATFORM_DATA: "Material not in the platform's data (no goods movements at all)",
   LAST_ISSUE_BEFORE_PLATFORM_HISTORY:
     "Last issue is older than the movement history the platform holds",
   LAST_ISSUE_DATE_DIFFERS: "Platform and report have different last-issue dates",
@@ -109,6 +110,10 @@ export function ValidationPanel({ result }: { result: ValidationResult }) {
 function Zmm065Section({ detail }: { detail: Zmm065Validation }) {
   const excluded = Object.entries(detail.excludedNonAging)
   const reasons = Object.entries(detail.mismatchReasons).sort((a, b) => b[1] - a[1])
+  const notInData = detail.mismatchReasons.MATERIAL_NOT_IN_PLATFORM_DATA ?? 0
+  // Most of the report's materials missing is a coverage gap, not a set of
+  // disagreements: the SAP data loaded is not the population ZMM065 was run on.
+  const coverageGap = detail.compared > 0 && notInData * 2 > detail.compared
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-foreground">ZMM065 aging</h3>
@@ -124,6 +129,13 @@ function Zmm065Section({ detail }: { detail: Zmm065Validation }) {
             .map(([status, n]) => `${status} ${formatCount(n)}`)
             .join(", ")}.`}
       </p>
+      {coverageGap && (
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-foreground">
+          {formatCount(notInData)} of {formatCount(detail.compared)} materials in this ZMM065 have no goods
+          movements in the platform&apos;s SAP data. The data loaded does not cover what the report was run
+          against, so these figures say more about data coverage than about aging.
+        </p>
+      )}
       {reasons.length > 0 && (
         <ul className="list-inside list-disc text-xs text-muted-foreground">
           {reasons.map(([reason, n]) => (
