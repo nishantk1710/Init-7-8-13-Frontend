@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import dynamic from "next/dynamic"
 import { connection } from "next/server"
 
 import { SessionNotFoundNotice } from "@/components/assistant/routing-notice"
@@ -9,6 +10,12 @@ import {
 import { PageHeader } from "@/components/shared/page-header"
 import { getSession } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+
+/** Demo mode only. The run lives in the browser, so the trace is read there. */
+const DemoSessionTrace = dynamic(() =>
+  import("@/components/assistant/demo/demo-session-trace").then((m) => m.DemoSessionTrace)
+)
 
 export async function generateMetadata({
   params,
@@ -44,6 +51,21 @@ export default async function AssistantSessionPage({
 }) {
   await connection()
   const { sessionId } = await params
+
+  if (ASSISTANT_DEMO) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="flex flex-col gap-5">
+          <BackToSessions />
+          <PageHeader
+            title="Assistant session"
+            description="What the assistant said, what the requester decided, and what was recorded."
+          />
+          <DemoSessionTrace sessionId={sessionId} />
+        </div>
+      </div>
+    )
+  }
 
   let trace: Awaited<ReturnType<typeof getSession>> | null = null
   let notFound: string | null = null

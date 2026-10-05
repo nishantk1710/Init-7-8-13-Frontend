@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { AskBox } from "@/components/assistant/ask-box"
 import { AssistantOpener } from "@/components/assistant/assistant-opener"
 import { PageHeader } from "@/components/shared/page-header"
 
@@ -41,13 +40,6 @@ export default async function AssistantPage({
         />
 
         <AssistantOpener defaultMaterial={material} defaultPlant={plant} />
-
-        {/* Separate from the conversation on purpose. `/api/assistant/ask` is a
-            stateless intent matcher that writes nothing, so putting it in the
-            same input as a turn answer would make an unrecorded answer look
-            recorded. It lives here and on the session log, never inside an
-            open session. */}
-        <AskBox />
 
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-foreground">

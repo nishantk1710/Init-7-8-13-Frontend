@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { connection } from "next/server"
 
@@ -10,6 +11,12 @@ import {
 } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
 import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+
+/** Demo mode only. The runs live in the browser, so the log is read there. */
+const DemoSessionLog = dynamic(() =>
+  import("@/components/assistant/demo/demo-session-log").then((m) => m.DemoSessionLog)
+)
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -50,6 +57,20 @@ export default async function AssistantSessionsPage({
   // never gains the session somebody opened a minute ago, which on a
   // compliance screen reads as "nobody used the assistant".
   await connection()
+
+  if (ASSISTANT_DEMO) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="flex flex-col gap-5">
+          <PageHeader
+            title="Assistant sessions"
+            description="Every time the assistant was opened, whether or not the advice was taken."
+          />
+          <DemoSessionLog material={material} plant={plant} />
+        </div>
+      </div>
+    )
+  }
 
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
   let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null

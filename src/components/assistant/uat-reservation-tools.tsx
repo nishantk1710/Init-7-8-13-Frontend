@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { FlaskConical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ApiError } from "@/lib/api/client"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import {
   getUatStatus,
   listUatCandidates,
@@ -16,6 +18,11 @@ import {
   type UatCandidate,
   type UatReservation,
 } from "@/lib/api/session-links"
+
+/** Loaded only when the demo switch is on, so live never fetches the fixtures. */
+const DemoReservationTools = dynamic(() =>
+  import("@/components/assistant/demo/demo-reservation-tools").then((m) => m.DemoReservationTools)
+)
 
 /**
  * UAT stand-in for "the requester typed the session ID into SAP".
@@ -33,6 +40,16 @@ import {
  * never appear in production.
  */
 export function UatReservationTools({ sessionId }: { sessionId: string }) {
+  // The demo has its own stand-in, against the browser's demo store. A module
+  // constant, so the same branch is taken on every render.
+  return ASSISTANT_DEMO ? (
+    <DemoReservationTools sessionId={sessionId} />
+  ) : (
+    <LiveUatReservationTools sessionId={sessionId} />
+  )
+}
+
+function LiveUatReservationTools({ sessionId }: { sessionId: string }) {
   const router = useRouter()
   const [enabled, setEnabled] = useState(false)
   const [rows, setRows] = useState<UatReservation[]>([])
@@ -94,7 +111,7 @@ export function UatReservationTools({ sessionId }: { sessionId: string }) {
         <p className="text-sm font-medium text-foreground">UAT: stand in for SAP</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        In SAP the requester types <span className="font-mono">{sessionId}</span> into the
+        In SAP the requester types <span className="font-mono">{sessionId}</span>{" "}into the
         reservation&rsquo;s item text (SGTXT) and the next extract carries it here. UAT
         cannot write to SAP, so these do it against a UAT-only table. The loaded SAP data is
         never changed.

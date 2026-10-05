@@ -37,6 +37,15 @@
  */
 
 import { apiFetch, apiPost } from "@/lib/api/client"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+
+/**
+ * The scripted demo, loaded only when `NEXT_PUBLIC_ASSISTANT_DEMO` is on.
+ *
+ * Imported lazily so a live build does not carry the fixtures. Temporary: see
+ * `lib/assistant/demo/flag.ts` for when and how it is switched off.
+ */
+const demo = () => import("@/lib/assistant/demo")
 
 // --- the conversation -------------------------------------------------------
 
@@ -369,27 +378,26 @@ export type JustificationListResponse = {
   note: string
 }
 
-// --- the free-text box ------------------------------------------------------
+// --- finding a material ----------------------------------------------------
 
 /**
- * A deterministic answer, or a plain statement that there is none.
+ * One material at one plant that a typed fragment could mean.
  *
- * `answered` is false for a question this assistant does not cover, and `text`
- * then says so and lists what it does. Render that as a sentence, never as an
- * error and never as an empty result: a box that silently does nothing teaches
- * people it is broken, and one that guesses teaches them it is unreliable.
- *
- * `sources` names the endpoints every number came from. **No model is involved
- * in this path at all** — a backend test asserts the module does not even import
- * the AI layer.
+ * `flowHint` uses the same two predicates as the router, so the badge and the
+ * session agree. It is still a hint: the router decides when the session opens.
  */
-export type AskResponse = {
-  intent: string
-  answered: boolean
-  text: string
-  sources: string[]
-  data: Record<string, unknown>
-  suggestions: string[]
+export type ApiMaterialMatch = {
+  materialId: string
+  /** Null where neither MAKT nor ZMM065 names the part. Found by number only. */
+  description: string | null
+  plant: string
+  plantName: string | null
+  flowHint: ApiFlow
+  mrpType: string | null
+}
+
+export type MaterialSearchResponse = {
+  items: ApiMaterialMatch[]
   note: string
 }
 
@@ -403,9 +411,10 @@ export type AskResponse = {
  * platform has no read model for it (an OAR part WATCH has never seen); that
  * `detail` is a sentence worth showing.
  */
-export function startSession(
+export async function startSession(
   body: StartSessionRequest
 ): Promise<StartSessionResponse> {
+  if (ASSISTANT_DEMO) return (await demo()).startSession(body)
   return apiPost<StartSessionResponse>("/assistant/sessions", body)
 }
 
@@ -417,10 +426,11 @@ export function startSession(
  * session" is the exact compliance finding raised against somebody who skipped
  * the assistant, so a typo must not read as an accusation.
  */
-export function postTurn(
+export async function postTurn(
   sessionId: string,
   answer: Record<string, unknown>
 ): Promise<AnswerResponse> {
+  if (ASSISTANT_DEMO) return (await demo()).postTurn(sessionId, answer)
   return apiPost<AnswerResponse>(
     `/assistant/sessions/${encodeURIComponent(sessionId)}/turns`,
     { answer } satisfies AnswerRequest
@@ -456,19 +466,21 @@ export function listSessions(params?: {
   return apiFetch<SessionListResponse>(`/assistant/sessions${query(params)}`)
 }
 
-/** Ask one of a fixed set of questions. Never throws for "I do not know". */
-export function ask(question: string): Promise<AskResponse> {
-  return apiPost<AskResponse>("/assistant/ask", { question })
-}
-
 /**
- * The questions the free-text box can actually answer.
+ * Materials a typed number or name could mean, one row per plant.
  *
- * Served rather than hard-coded so the chips cannot offer a question the backend
- * has stopped answering.
+ * A query shorter than two characters comes back as an empty list rather than
+ * an error. Writes nothing, so it is safe to call as somebody types.
  */
-export function getAskSuggestions(): Promise<string[]> {
-  return apiFetch<string[]>("/assistant/ask/suggestions")
+export async function searchMaterials(
+  q: string,
+  options?: { limit?: number; signal?: AbortSignal }
+): Promise<MaterialSearchResponse> {
+  if (ASSISTANT_DEMO) return (await demo()).searchMaterials(q)
+  return apiFetch<MaterialSearchResponse>(
+    `/assistant/materials${query({ q, limit: options?.limit })}`,
+    { signal: options?.signal }
+  )
 }
 
 /** Record a justification. Shared by both initiatives. */

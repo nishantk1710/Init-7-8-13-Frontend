@@ -14,6 +14,7 @@ import { NarrativeNote } from "@/components/assistant/narrative-note"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { postTurn, type ApiStep, type StartSessionResponse } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import {
   choiceAnswer,
   formAnswer,
@@ -92,8 +93,9 @@ export function AssistantWorkspace({
       try {
         const response = await postTurn(start.sessionId, payload)
         setTranscript((previous) => appendAnswer(previous, echo, response.step))
-        if (response.step.kind === "terminal") {
-          // Best-effort: the records are written whether or not this lands.
+        // Best-effort: the records are written whether or not this lands. A
+        // demo session writes nothing, so there is nothing to revalidate.
+        if (response.step.kind === "terminal" && !ASSISTANT_DEMO) {
           void revalidateAfterConversation(start.routing.flow).catch(() => undefined)
         }
       } catch (caught) {
@@ -153,6 +155,11 @@ export function AssistantWorkspace({
       <SessionReference
         sessionId={start.sessionId}
         expiresAt={start.expiresAt}
+        // Pinned to the top of the scroll container: a long conversation (the
+        // plan form has six fields) must not scroll the reference out of sight.
+        // -top-6 cancels the container's p-6, so it pins flush to the edge and
+        // nothing scrolls past above it.
+        className="sticky -top-6 z-10 shadow-sm"
       />
 
       {/* Above the conversation and outside the feed, deliberately.
