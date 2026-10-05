@@ -19,7 +19,6 @@ import { NonMoverExport } from "@/features/initiative-13/components/non-mover-ex
 import { NonMoverTable } from "@/features/initiative-13/components/non-mover-table"
 import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { ReclassificationTable } from "@/features/initiative-13/components/reclassification-table"
-import { ReferenceCountForm } from "@/features/initiative-13/components/reference-count-form"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
@@ -93,8 +92,6 @@ export async function UtilisationDashboardPage({
     material: searchParams.material,
     agingBand: searchParams.agingBand,
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
-    zmm065ReferenceCount: searchParams.zmm065,
-    gr30DayReferenceCount: searchParams.gr30Day,
   })
 
   const { watch } = dashboard
@@ -267,12 +264,9 @@ export async function UtilisationDashboardPage({
 
           <ChartCard
             title="Validation"
-            subtitle="Reconciliation against ZMM065 and the 30-Day GR Report — all tolerance math runs in the backend"
+            subtitle="Reconciliation against ZMM065 and the 30-Day GR Report, read by the backend from its own database — all tolerance math runs there"
             span={12}
           >
-            <div className="mb-3">
-              <ReferenceCountForm />
-            </div>
             {dashboard.validation.status === "ready" ? (
               <ValidationPanel result={dashboard.validation.data} />
             ) : (

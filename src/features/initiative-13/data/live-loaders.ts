@@ -316,11 +316,9 @@ export function loadLiveSummary(): Promise<I13Summary> {
   return getI13Summary()
 }
 
-export function loadLiveValidation(params: {
-  zmm065ReferenceCount?: number
-  gr30DayReferenceCount?: number
-}): Promise<ValidationResult> {
-  return getI13Validation(params)
+/** FR-6 reconciliation; the backend reads both reports itself. */
+export function loadLiveValidation(): Promise<ValidationResult> {
+  return getI13Validation()
 }
 
 export type LiveGrni = Capped<GrniEntry> & {

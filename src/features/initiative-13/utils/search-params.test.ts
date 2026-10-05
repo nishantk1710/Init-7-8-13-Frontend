@@ -36,15 +36,10 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams({ material: " 8000005632 " }).material).toBe("8000005632")
   })
 
-  it("drops a negative reference count instead of sending it on", () => {
-    // A negative reconciliation reference would come back as a confident
-    // variance against a number nobody supplied.
-    expect(parseSearchParams({ zmm065: "-1" }).zmm065).toBeUndefined()
-    expect(parseSearchParams({ zmm065: "abc" }).zmm065).toBeUndefined()
-  })
-
-  it("keeps zero, which is a real reference count", () => {
-    expect(parseSearchParams({ zmm065: "0" }).zmm065).toBe(0)
+  it("no longer carries reconciliation reference counts", () => {
+    // ZMM065 and the 30-Day GR Report are read by the backend now; a stale
+    // ?zmm065= link is simply ignored.
+    expect(parseSearchParams({ zmm065: "5", gr30Day: "7" })).not.toHaveProperty("zmm065")
   })
 })
 

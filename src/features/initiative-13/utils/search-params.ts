@@ -30,8 +30,6 @@ export type I13SearchParams = {
   acquiredVsPlanStatus?: string
   type?: string
   status?: string
-  zmm065?: number
-  gr30Day?: number
   /** Ledger screen: `reservations` shows the reservation-anchored ledger. */
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
@@ -54,16 +52,6 @@ function single(value: string | string[] | undefined): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined
 }
 
-function positiveInt(value: string | string[] | undefined): number | undefined {
-  const raw = single(value)
-  if (raw === undefined) return undefined
-  const parsed = Number(raw)
-  // NaN and negatives are dropped rather than sent on. A reconciliation
-  // reference count of -1 would come back as a confident variance against a
-  // number nobody supplied.
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
-}
-
 export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
   return {
     plant: single(raw.plant),
@@ -72,8 +60,6 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     acquiredVsPlanStatus: single(raw.acquiredVsPlanStatus),
     type: single(raw.type),
     status: single(raw.status),
-    zmm065: positiveInt(raw.zmm065),
-    gr30Day: positiveInt(raw.gr30Day),
     view: single(raw.view),
     session: single(raw.session),
   }

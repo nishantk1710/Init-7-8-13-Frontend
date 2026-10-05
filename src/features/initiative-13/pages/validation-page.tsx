@@ -2,39 +2,29 @@ import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
-import { ReferenceCountForm } from "@/features/initiative-13/components/reference-count-form"
 import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
 import { loadLiveValidation } from "@/features/initiative-13/data/live-loaders"
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
 
 /**
  * Validation — FR-6's monthly reconciliation, and FRS acceptance criterion 4.
  *
- * Every tolerance comparison runs in the backend. The reference counts typed
- * into the form are passed straight through as query parameters and never
- * compared here: two implementations of one reconciliation rule would disagree
- * eventually, and this is the screen whose entire purpose is to say whether two
- * numbers agree.
+ * Every comparison runs in the backend, which reads ZMM065 and the 30-Day GR
+ * Report from its own database (they arrive as workbook exports — no SAP route
+ * carries a report). Nothing is compared here: two implementations of one
+ * reconciliation rule would disagree eventually, and this is the screen whose
+ * entire purpose is to say whether two sources agree.
  *
- * Expect `REFERENCE_UNAVAILABLE` until somebody supplies the counts. Neither
- * report exists as an export in this repository, and the reconciliation
- * tolerance itself is still an open item with VZI — so an empty result here is
- * a missing input, not a failure.
+ * `REFERENCE_UNAVAILABLE` means a report is not loaded in the backend — a
+ * missing input, not a failure. The tolerance itself is still an open item
+ * with VZI.
  */
-export async function ValidationPage({
-  searchParams,
-}: {
-  searchParams: I13SearchParams
-}) {
+export async function ValidationPage() {
   await connection()
 
   let result: Awaited<ReturnType<typeof loadLiveValidation>> | null = null
   let loadError: string | null = null
   try {
-    result = await loadLiveValidation({
-      zmm065ReferenceCount: searchParams.zmm065,
-      gr30DayReferenceCount: searchParams.gr30Day,
-    })
+    result = await loadLiveValidation()
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
@@ -44,10 +34,8 @@ export async function ValidationPage({
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Validation"
-          description="Reconciliation of backend-computed counts against ZMM065 and the 30-Day GR Report. All reconciliation math runs in the backend — reference counts entered here are passed straight through as query parameters."
+          description="The platform's aging bands reconciled against ZMM065 as of the report's run date, and every 30-Day GR Report receipt confirmed against the platform's SAP data. All reconciliation runs in the backend."
         />
-
-        <ReferenceCountForm />
 
         {result === null ? (
           <LoadFailure what="validation data" message={loadError} />
