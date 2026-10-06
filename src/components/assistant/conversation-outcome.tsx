@@ -15,12 +15,20 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
     what: "every question and answer, as recorded",
   }
   if (ASSISTANT_DEMO) {
-    // The OAR and repairable screens read the live backend, which never saw a
-    // demo session. Sending a presenter there would show the record missing.
-    return [
-      trace,
-      { href: "/assistant/sessions", label: "Sessions", what: "this session beside the other demo sessions" },
-    ]
+    // Only the screens that have a demo stand-in. The rest read the live
+    // backend, which never saw a demo session, and would show it missing.
+    const sessions: Destination = {
+      href: "/assistant/sessions",
+      label: "Sessions",
+      what: "this session beside the other demo sessions",
+    }
+    const landed: Destination[] =
+      routing.flow === "i13"
+        ? [{ href: `/oar-utilization/plans?${scope}`, label: "Consumption plans", what: "the plan you just gave, if you gave one" }]
+        : routing.flow === "i08"
+          ? [{ href: "/repairable-spares/justifications", label: "Justifications", what: "the new-acquisition reason, if you recorded one" }]
+          : []
+    return [...landed, trace, sessions]
   }
   if (routing.flow === "i13") {
     return [

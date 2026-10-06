@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic"
 import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
@@ -7,7 +8,13 @@ import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { loadLivePlans } from "@/features/initiative-13/data/live-loaders"
 import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { formatCount } from "@/lib/utils"
+
+/** Demo mode only: the plans captured in this browser's demo sessions. */
+const DemoPlans = dynamic(() =>
+  import("@/components/assistant/demo/demo-records").then((m) => m.DemoPlans)
+)
 
 /**
  * Captured consumption plans — FR-4, and the screen Initiative 13 did not have.
@@ -40,6 +47,20 @@ export async function ConsumptionPlansPage({
   searchParams: I13SearchParams
 }) {
   await connection()
+
+  if (ASSISTANT_DEMO) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4">
+          <PageHeader
+            title="Consumption plans"
+            description="What requesters said each OAR spare was for, captured at the moment of the reservation through the assistant (FR-4)."
+          />
+          <DemoPlans material={searchParams.material || undefined} plant={searchParams.plant || undefined} />
+        </div>
+      </div>
+    )
+  }
 
   let live: Awaited<ReturnType<typeof loadLivePlans>> | null = null
   let loadError: string | null = null

@@ -70,8 +70,10 @@ search to the finished trace. Every other screen stays live.
   backend; demo sessions live in the browser's localStorage.
 - Demo references start with `D`. The backend only accepts `S`, so a demo
   reference typed into a real reservation can never link to a real session.
-- Every assistant screen carries a "Demo" strip, and each demo reference a
-  `DEMO` chip. **Reset demo** on the session log clears runs in that browser.
+- Each demo reference carries a `DEMO` chip. **Reset demo** on the session log
+  clears runs in that browser.
+- The records also land where live ones would: the I08 justification log and
+  the I13 consumption plans show the demo sessions' justifications and plans.
 
 Deploy: set repository variable `ASSISTANT_DEMO=true` (read by
 `.github/workflows/deploy.yml`). Switch off by deleting it and redeploying,

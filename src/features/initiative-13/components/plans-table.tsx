@@ -76,7 +76,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">{plan.plant}</TableCell>
-              <TableCell className="max-w-[260px] text-foreground">{plan.purpose}</TableCell>
+              <TableCell className="max-w-[260px] whitespace-normal text-foreground">{plan.purpose}</TableCell>
               <TableCell className="text-right text-foreground">
                 {/* Rendered as the string the backend sent. A planned quantity
                     round-tripped through a JS number is not the number that was

@@ -1,10 +1,17 @@
 import type { Metadata } from "next"
+import dynamic from "next/dynamic"
 import { connection } from "next/server"
 
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { PageHeader } from "@/components/shared/page-header"
 import { listJustifications } from "@/lib/api/assistant"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { fromAssistant } from "@/lib/assistant/justifications"
+
+/** Demo mode only: the justifications recorded in this browser's demo sessions. */
+const DemoJustifications = dynamic(() =>
+  import("@/components/assistant/demo/demo-records").then((m) => m.DemoJustifications)
+)
 
 export const metadata: Metadata = {
   title: "New-acquisition justifications — Spares AI",
@@ -38,6 +45,23 @@ export default async function I08JustificationsPage() {
   // Reads a table that grows as people use the assistant, so a build-time
   // snapshot would be permanently empty.
   await connection()
+
+  if (ASSISTANT_DEMO) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="flex flex-col gap-5">
+          <PageHeader
+            title="New-acquisition justifications"
+            description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
+          />
+          <DemoJustifications
+            kinds={["NEW_ACQUISITION"]}
+            csvFilename="i08-new-acquisition-justifications.csv"
+          />
+        </div>
+      </div>
+    )
+  }
 
   let entries: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null

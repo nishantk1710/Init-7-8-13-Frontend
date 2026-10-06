@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Check, Copy } from "lucide-react"
 import { toast } from "sonner"
 
-import { DemoChip } from "@/components/assistant/demo/demo-strip"
+import { DemoChip } from "@/components/assistant/demo/demo-chip"
 import { Button } from "@/components/ui/button"
 import { isDemoSessionId } from "@/lib/assistant/demo/ids"
 import { cn } from "@/lib/utils"
