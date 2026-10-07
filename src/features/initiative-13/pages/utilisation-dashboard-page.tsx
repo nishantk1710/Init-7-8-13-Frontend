@@ -40,7 +40,7 @@ import {
   PLAN_STATUS_ORDER,
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
-import type { AcquiredVsPlanStatus, ActExceptionStatus, WatchMetric } from "@/lib/api/i13"
+import type { AcquiredVsPlanStatus, ActExceptionStatus } from "@/lib/api/i13"
 import { formatApiDateTime } from "@/lib/api/format"
 import { buttonVariants } from "@/components/ui/button"
 import { cn, formatCount } from "@/lib/utils"
@@ -51,10 +51,8 @@ import { cn, formatCount } from "@/lib/utils"
  *
  * ## Layout
  *
- * Overview first, detail on demand. The top of the page answers "how is OAR
- * stock moving, and what needs a person?" — the movement split, the four
- * actionable counts (each linking to its screen), plan coverage and exception
- * status. Every FR-10 drilldown (non-movers, acquired-vs-plan, exceptions,
+ * Overview first, detail on demand: the KPI cards, then plan coverage and
+ * exception status. Every FR-10 drilldown (non-movers, acquired-vs-plan, exceptions,
  * reclassification, captured plans, justifications, validation) is still here,
  * in one tabbed card below, instead of seven full-width tables stacked on one
  * scroll. Provenance and row-cap notes live in a collapsed "About this data".
@@ -158,10 +156,7 @@ export async function UtilisationDashboardPage({
         />
 
         {dashboard.summary.status === "ready" ? (
-          <KpiSummary
-            summary={dashboard.summary.data}
-            inView={watch ? <InViewFacts rows={watch.rows} total={watch.total ?? watch.count} /> : undefined}
-          />
+          <KpiSummary summary={dashboard.summary.data} />
         ) : (
           <SectionFallback section={dashboard.summary} what="utilisation summary" />
         )}
@@ -377,49 +372,6 @@ export async function UtilisationDashboardPage({
           </div>
         </details>
       </div>
-    </div>
-  )
-}
-
-/**
- * Three plain aggregates of the filtered WATCH rows — a max, a sum and a count
- * of fields the backend computed. Nothing is reclassified.
- */
-function InViewFacts({ rows, total }: { rows: WatchMetric[]; total: number }) {
-  const nonMoving = rows.filter((r) => r.agingBand === "NON_MOVING")
-  const longestIdle = rows.reduce<number | null>(
-    (max, r) =>
-      r.daysSinceLastMovement !== null && (max === null || r.daysSinceLastMovement > max)
-        ? r.daysSinceLastMovement
-        : max,
-    null
-  )
-  const idleUnits = nonMoving.reduce((sum, r) => sum + (r.stockOnHand ?? 0), 0)
-  const noIssues = rows.filter((r) => r.consumptionCount12m === 0).length
-
-  const facts = [
-    { label: "Positions in view", value: formatCount(total) },
-    {
-      label: "Longest idle",
-      value: longestIdle === null ? "—" : `${(longestIdle / 365).toFixed(1)} yrs`,
-    },
-    { label: "Idle units on hand", value: formatCount(idleUnits) },
-    { label: "No issues in 12 months", value: formatCount(noIssues) },
-  ]
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-        For the current filters
-      </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-        {facts.map((f) => (
-          <div key={f.label} className="flex flex-col gap-0.5">
-            <dt className="text-xs text-muted-foreground">{f.label}</dt>
-            <dd className="text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
-          </div>
-        ))}
-      </dl>
     </div>
   )
 }
