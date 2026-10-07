@@ -426,6 +426,8 @@ function toSummary(raw: RawRecord): I13Summary {
     noPlanCount: toCount(raw.no_plan_count as number),
     reclassificationCandidateCount: toCount(raw.reclassification_candidate_count as number),
     valuationIsMocked: Boolean(raw.valuation_is_mocked),
+    referencePlanCount:
+      raw.reference_plan_count == null ? null : toCount(raw.reference_plan_count as number),
   }
 }
 
@@ -606,8 +608,8 @@ export function getI13ConsumptionAttribution(params?: {
 /**
  * `GET /i13/consumption-plans` — the plans this platform actually captured.
  *
- * Deliberately **not** merged with the 742 fabricated rows in
- * `consumption_plans.csv`. Everything returned here was stated by a person in a
+ * Deliberately **not** merged with the fabricated rows in
+ * `consumption_plans.csv` (read only where I13_REFERENCE_PLANS_ENABLED is on). Everything returned here was stated by a person in a
  * conversation, which is the single most important thing to be able to say
  * before anybody demos the exception queue.
  */

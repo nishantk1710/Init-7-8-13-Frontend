@@ -114,6 +114,8 @@ export async function UtilisationDashboardPage({
 
   const capturedPlanCount =
     dashboard.plans.status === "ready" ? dashboard.plans.data.count : null
+  const referencePlanCount =
+    dashboard.summary.status === "ready" ? dashboard.summary.data.referencePlanCount : null
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -137,7 +139,10 @@ export async function UtilisationDashboardPage({
           <SectionFallback section={dashboard.summary} what="utilisation summary" />
         )}
 
-        <PlanProvenanceNote capturedCount={capturedPlanCount} />
+        <PlanProvenanceNote
+          capturedCount={capturedPlanCount}
+          referenceCount={referencePlanCount}
+        />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <ChartCard
@@ -208,7 +213,7 @@ export async function UtilisationDashboardPage({
 
           <ChartCard
             title="Captured consumption plans"
-            subtitle="FR-4 — plans stated by a person in the assistant, kept apart from the 742 generated reference rows"
+            subtitle="FR-4 — plans stated by a person in the assistant, kept apart from any generated reference rows"
             span={12}
           >
             {dashboard.plans.status === "ready" ? (

@@ -22,9 +22,9 @@ import type { ConsumptionPlan } from "@/lib/api/i13"
  * Consumption plans captured through the assistant — FR-4's record.
  *
  * Every row was stated by a person in a conversation: a purpose, a quantity,
- * a window, and where known a cost centre or order. The 742 `REFERENCE_CSV`
- * rows that most acquired-versus-plan figures still rest on are not here, and
- * that separation is the whole value of the screen.
+ * a window, and where known a cost centre or order. Generated `REFERENCE_CSV`
+ * rows, where the backend is configured to read them, are not here, and that
+ * separation is the whole value of the screen.
  *
  * ## Why the session column is the important one
  *

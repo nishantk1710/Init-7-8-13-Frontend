@@ -481,6 +481,10 @@ export interface I13Summary {
   noPlanCount: number
   reclassificationCandidateCount: number
   valuationIsMocked: boolean
+  /** Generated reference plans behind the plan-based counts — 0 unless the
+   * backend's I13_REFERENCE_PLANS_ENABLED is on. `null` from a backend that
+   * predates the field: unknown, never assumed to be 0. */
+  referencePlanCount: number | null
 }
 
 /**
