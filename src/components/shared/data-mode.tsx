@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { Database, FlaskConical, RefreshCw } from "lucide-react"
+import { Database, Layers, RefreshCw } from "lucide-react"
 
 import { getHealth } from "@/lib/api/client"
 import { clientDataMode, setDataMode, type DataMode } from "@/lib/data-mode"
@@ -20,7 +20,11 @@ function useDataMode(): DataMode | null {
   return useSyncExternalStore(subscribe, clientDataMode, () => null)
 }
 
-/** Sidebar switch between the live frontend and main's demo frontend. */
+/**
+ * Sidebar switch between the live frontend and main's demo frontend. In both
+ * sidebars: since the demo strip went, this is the only way between the two.
+ * The demo option is labelled "Snapshot" -- the app is shown to customers.
+ */
 export function DataModeToggle() {
   const mode = useDataMode()
 
@@ -35,7 +39,7 @@ export function DataModeToggle() {
         className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-[12px]"
       >
         {(["demo", "live"] as const).map((option) => {
-          const Icon = option === "demo" ? FlaskConical : Database
+          const Icon = option === "demo" ? Layers : Database
           const active = mode === option
           return (
             <button
@@ -55,7 +59,7 @@ export function DataModeToggle() {
               )}
             >
               <Icon className="size-3.5 shrink-0" />
-              {option === "demo" ? "Demo" : "Live"}
+              {option === "demo" ? "Snapshot" : "Live"}
             </button>
           )
         })}
@@ -67,11 +71,11 @@ export function DataModeToggle() {
 type Health = { state: "checking" } | { state: "ok" } | { state: "down"; reason: string }
 
 /**
- * A strip across the top of every page saying which data this is.
+ * A strip across the top of every page when the live backend is down.
  *
- * Demo mode always says so: a mock number next to nothing that marks it as
- * mock is the confusion this app goes out of its way to avoid. Rendered by the
- * shared root layout, so it sits above both frontends.
+ * Demo mode shows no strip: the app is shown to customers, and the sidebar
+ * toggle says which data source is selected. Rendered by the shared root
+ * layout, so it sits above both frontends.
  *
  * Live mode says nothing while the backend answers. When GET /health fails, it
  * says that, and offers demo mode -- so a broken backend integration costs a
@@ -99,22 +103,9 @@ export function DataModeBanner() {
     }
   }, [mode, attempt])
 
-  if (mode === "demo") {
-    return (
-      <Strip tone="demo">
-        <FlaskConical className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1">
-          <strong className="font-semibold">Demo mode.</strong> Mock data for demonstration — not connected
-          to SAP or the backend.
-        </span>
-        <StripButton onClick={() => void setDataMode("live")}>Switch to live</StripButton>
-      </Strip>
-    )
-  }
-
   if (mode === "live" && health.state === "down") {
     return (
-      <Strip tone="down">
+      <Strip>
         <Database className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1" title={health.reason}>
           <strong className="font-semibold">The live backend is not responding.</strong> Screens that read it
@@ -129,7 +120,7 @@ export function DataModeBanner() {
           <RefreshCw className="size-3" />
           Retry
         </StripButton>
-        <StripButton onClick={() => void setDataMode("demo")}>Switch to demo data</StripButton>
+        <StripButton onClick={() => void setDataMode("demo")}>Switch to snapshot data</StripButton>
       </Strip>
     )
   }
@@ -137,16 +128,11 @@ export function DataModeBanner() {
   return null
 }
 
-function Strip({ tone, children }: { tone: "demo" | "down"; children: React.ReactNode }) {
+function Strip({ children }: { children: React.ReactNode }) {
   return (
     <div
       role="status"
-      className={cn(
-        "flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-4 py-1.5 text-xs",
-        tone === "demo"
-          ? "border-warning/30 bg-warning/10 text-warning"
-          : "border-destructive/30 bg-destructive/10 text-destructive"
-      )}
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-destructive/30 bg-destructive/10 px-4 py-1.5 text-xs text-destructive"
     >
       {children}
     </div>

@@ -157,11 +157,6 @@ export default async function AssistantSessionsPage({
               The session log could not be loaded.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              This screen has no demo fallback on purpose. A log of invented
-              sessions would be worse than no log — the point of it is that it
-              shows what was actually recorded.
-            </p>
           </div>
         ) : (
           <>

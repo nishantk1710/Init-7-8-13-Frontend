@@ -70,8 +70,8 @@ export function DemoSessionLog({ material, plant }: { material?: string; plant?:
         count: 0,
         detail:
           linked === 1
-            ? "1 demo reservation carries a demo session reference."
-            : `${linked} demo reservations carry a demo session reference.`,
+            ? "1 reservation carries a session reference."
+            : `${linked} reservations carry a session reference.`,
       },
     ]
   }, [items, material, plant, state])
@@ -79,27 +79,23 @@ export function DemoSessionLog({ material, plant }: { material?: string; plant?:
   if (list === null) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
-        Loading demo sessions…
+        Loading sessions…
       </p>
     )
   }
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Demo sessions are kept in this browser only. Two are always here; anything you run is
-          added beside them.
-        </p>
+      <div className="flex justify-end">
         <Button
           size="sm"
           variant="outline"
           onClick={() => {
-            if (window.confirm("Clear every demo session run in this browser?")) resetDemo()
+            if (window.confirm("Reset the session log? Sessions run since the last reset are removed.")) resetDemo()
           }}
         >
           <RotateCcw aria-hidden />
-          Reset demo
+          Reset log
         </Button>
       </div>
       <CompliancePanel checks={checks} />

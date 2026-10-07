@@ -14,9 +14,7 @@ export function getInitiative8Summary(): InitiativeSummary {
   const qtyUnderRepair = REPAIR_CHAINS.reduce((sum, c) => sum + c.qtyUnderRepair, 0)
   const flaggedCount = DECLARATIONS.filter((d) => d.status === "Flagged").length
   const overdueCount = activeChains.filter(isRepairOverdue).length
-  const pendingDeclarations = DECLARATIONS.filter(
-    (d) => d.status === "Required" || d.status === "Pending"
-  ).length
+  const pendingDeclarations = DECLARATIONS.filter((d) => d.status === "Required").length
 
   const health: InitiativeHealth =
     flaggedCount > 0 ? "critical" : overdueCount > 0 || pendingDeclarations > 2 ? "attention" : "healthy"
@@ -30,7 +28,7 @@ export function getInitiative8Summary(): InitiativeSummary {
       { label: "Active repair chains", value: activeChains.length },
       { label: "Qty under repair", value: qtyUnderRepair },
       { label: "Pending declarations", value: pendingDeclarations },
-      { label: "Duplicate alerts", value: flaggedCount },
+      { label: "Flagged declarations", value: flaggedCount },
     ],
     actions: getInitiative8GlobalActions(),
   }

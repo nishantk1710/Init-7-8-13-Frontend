@@ -2,6 +2,7 @@ import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   NO_CRITICALITY,
   OVERDUE_STATUS_LABEL,
+  isPartiallyReceived,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -77,7 +78,7 @@ export const REGISTER_CSV_HEADERS = [
   "Vendor",
   "Qty under repair",
   "Repair status",
-  "Receipt status",
+  "Partially received",
   "Overdue status",
   "Expected return",
   "Days open",
@@ -112,7 +113,7 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
     vendorLabel(c),
     c.qtyUnderRepair,
     c.repairStatus,
-    c.receiptStatus,
+    isPartiallyReceived(c) ? "Yes" : "No",
     OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
     c.expectedReturn ?? "",
     c.daysOpen,

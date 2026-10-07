@@ -86,7 +86,7 @@ export async function ConsumptionPlansPage({
           generated reference rows that most acquired-versus-plan figures still
           rest on are deliberately kept out — a list that blended them would make
           it impossible to tell at a glance which is which, which is the single
-          most important thing to know before demonstrating the exception queue.
+          most important thing to know before working the exception queue.
         </AlertBanner>
 
         <I13UrlFilters fields={["plant", "material"]} plants={live?.plantOptions} />

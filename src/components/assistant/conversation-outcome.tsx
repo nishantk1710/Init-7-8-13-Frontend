@@ -20,7 +20,7 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
     const sessions: Destination = {
       href: "/assistant/sessions",
       label: "Sessions",
-      what: "this session beside the other demo sessions",
+      what: "this session beside every other session",
     }
     const landed: Destination[] =
       routing.flow === "i13"

@@ -138,7 +138,7 @@ describe("the demo script", () => {
     expect(run).toBeNull()
     expect(response.sessionId).toBeNull()
     expect(response.routing.flow).toBe("none")
-    expect(response.routing.reason).toContain("not one of the two demo materials")
+    expect(response.routing.reason).toBe("Material 2000000456 was not found at plant 1300.")
   })
 
   it("refuses a bad answer as a 422 with a sentence", () => {
@@ -146,6 +146,13 @@ describe("the demo script", () => {
     expect(refusal(() => answerDemoRun(run!, { choice: "maybe" }, NOW))).toContain(
       "choice must be one of"
     )
+  })
+
+  it("asks how many will be procured on the plan form", () => {
+    const { run } = open(DEMO_OAR)
+    const { response } = answerDemoRun(run!, { choice: "proceed" }, NOW)
+    const quantity = response.step.fields.find((f) => f.name === "planned_quantity")
+    expect(quantity?.label).toBe("How many you plan to procure")
   })
 
   it("refuses an inverted plan window and a non-positive quantity", () => {

@@ -80,8 +80,8 @@ export function buildAuditTrailForRecommendation(rec: Recommendation): AuditEven
       id: `${rec.id}-sap-simulated`,
       initiative: "initiative-7",
       entityId: rec.id,
-      eventType: "SAP update simulated",
-      description: `Simulated SAP MRP-view update for ${rec.material.description} — ROP ${rec.recommended.rop}, Safety Stock ${rec.recommended.safetyStock}, Max Stock ${rec.recommended.maxStock}. No live SAP write occurred.`,
+      eventType: "SAP update prepared",
+      description: `SAP MRP-view update prepared for ${rec.material.description} — ROP ${rec.recommended.rop}, Safety Stock ${rec.recommended.safetyStock}, Max Stock ${rec.recommended.maxStock}. Not posted to SAP from the platform.`,
       actor: "System",
       timestamp: rec.generatedAt,
     })

@@ -36,7 +36,7 @@ export function getInitiative8Material360Signal(materialId: string): Material360
         label: isClosed ? "Received" : "Expected return",
         value: isClosed ? (chain.receivedAt ?? "—") : chain.expectedReturn,
       },
-      { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised (Simulated)" },
+      { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised" },
     ],
   }
 }

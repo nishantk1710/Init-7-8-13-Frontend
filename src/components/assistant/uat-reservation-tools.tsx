@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { FlaskConical } from "lucide-react"
+import { Link2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ApiError } from "@/lib/api/client"
@@ -105,29 +105,29 @@ function LiveUatReservationTools({ sessionId }: { sessionId: string }) {
   const [number, item] = choice.split("/")
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-dashed border-warning/50 bg-warning/5 p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
-        <FlaskConical className="size-4 text-warning" aria-hidden />
-        <p className="text-sm font-medium text-foreground">UAT: stand in for SAP</p>
+        <Link2 className="size-4 text-primary" aria-hidden />
+        <p className="text-sm font-medium text-foreground">Link SAP reservation</p>
       </div>
       <p className="text-xs text-muted-foreground">
         In SAP the requester types <span className="font-mono">{sessionId}</span>{" "}into the
-        reservation&rsquo;s item text (SGTXT) and the next extract carries it here. UAT
-        cannot write to SAP, so these do it against a UAT-only table. The loaded SAP data is
-        never changed.
+        reservation&rsquo;s item text (SGTXT), and the next extract links the reservation to this
+        session. The platform does not write to SAP, so these links are kept in its own table;
+        the loaded SAP data is never changed.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           disabled={busy || simulated !== undefined}
-          onClick={() => run(() => simulateUatReservation(sessionId), "Simulated reservation created and linked.")}
+          onClick={() => run(() => simulateUatReservation(sessionId), "Reservation created and linked.")}
         >
-          Simulate SAP reservation
+          Create reservation
         </Button>
         <span className="text-[11px] text-muted-foreground">
           {simulated
-            ? `Already simulated: ${simulated.reservationNumber}`
+            ? `Already created: ${simulated.reservationNumber}`
             : "A new reservation for this part with SGTXT = the session ID. It has no PO, receipt or issue."}
         </span>
       </div>
@@ -174,7 +174,7 @@ function LiveUatReservationTools({ sessionId }: { sessionId: string }) {
                 {r.reservationNumber}/{r.reservationItem}
               </span>
               <span className="text-muted-foreground">
-                {r.simulated ? "simulated" : `stamped (was "${r.originalSgtxt ?? ""}")`} · SGTXT {r.sgtxt}
+                {r.simulated ? "created" : `stamped (was "${r.originalSgtxt ?? ""}")`} · SGTXT {r.sgtxt}
               </span>
               <Button
                 size="xs"
