@@ -41,7 +41,7 @@ export function getInitiative8Material360Signal(materialId: string): Material360
           ? (chain.receivedAt ?? UNKNOWN)
           : (chain.expectedReturn ?? "No date agreed"),
       },
-      { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised (Simulated)" },
+      { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised" },
     ],
   }
 }

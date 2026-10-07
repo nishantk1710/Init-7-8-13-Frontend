@@ -81,7 +81,7 @@ export function DeclarationQueueTable() {
           : r
       )
     )
-    toast.success(`Declared ${activeRow.material.materialId} as "${condition}" — Simulated, not yet written to SAP.`)
+    toast.success(`Declared ${activeRow.material.materialId} as "${condition}" — not posted to SAP.`)
     setDialogFor(null)
   }
 

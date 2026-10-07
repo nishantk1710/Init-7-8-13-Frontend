@@ -100,6 +100,20 @@ describe("toRepairChain", () => {
     expect(chain.qtyUnderRepair).toBe(1)
   })
 
+  it("keeps a missing repair cost as undefined, never as R 0.00", () => {
+    // A zero would render as a free repair. No price on the line is "not
+    // known", and the detail page says so.
+    const chain = toRepairChain(apiRow({ repairCost: null }))
+    expect(chain.repairCost).toBeUndefined()
+  })
+
+  it("does not accept In Transit Return, which is not an FRS stage", () => {
+    const chain = toRepairChain(
+      apiRow({ repairStatus: "In Transit Return" } as Partial<ApiRepairChain>),
+    )
+    expect(chain.repairStatus).toBe("PR Raised")
+  })
+
   it("keeps unknown stock as undefined, never as zero", () => {
     // Zero stock is what triggers a duplicate purchase. "We do not know" and
     // "there is none" must not render the same.
@@ -314,6 +328,19 @@ describe("registerRowsToCsv", () => {
     expect(cell("Lead-time status")).toBe("BEYOND_LEAD_TIME")
     expect(cell("Repair PO")).toBe("4500001052/1310")
   })
+
+  it("flags a partial receipt in place of the old receipt-status column", () => {
+    // The only thing the receipt status said that the repair status does not.
+    expect(REGISTER_CSV_HEADERS).not.toContain("Receipt status")
+    const cell = (row: (string | number)[], header: string) =>
+      row[REGISTER_CSV_HEADERS.indexOf(header)]
+    const [partial, whole] = registerRowsToCsv([
+      toRepairChain(apiRow({ receiptStatus: "Partially Received" })),
+      toRepairChain(apiRow({ receiptStatus: "Received" })),
+    ])
+    expect(cell(partial, "Partially received")).toBe("Yes")
+    expect(cell(whole, "Partially received")).toBe("No")
+  })
 })
 
 describe("overdueStatusOf and isOpenRepair", () => {
@@ -345,6 +372,32 @@ describe("registerDescription", () => {
     const text = registerDescription(meta, "2026-09-24")
     expect(text).not.toContain("deleted")
     expect(text).not.toContain("blocked")
+  })
+
+  // The caption used to open "1,181 repair lines from the July extract" in
+  // static text, and went on saying it after a CSV full pull had replaced
+  // every raw table underneath -- so the one line a reader would use to tell
+  // the two sources apart was the one line that could not know.
+  it("never names the source, whatever the backend serves", () => {
+    const withStamp = registerDescription(meta, "2026-09-24", "2026-10-07T05:01:11Z")
+    const without = registerDescription(meta, "2026-09-24")
+    for (const text of [withStamp, without]) {
+      expect(text).not.toContain("July")
+      expect(text).not.toContain("extract")
+    }
+    expect(withStamp).toContain("1,181 repair lines — 744 still open")
+  })
+
+  it("reports how fresh the data is when the backend says", () => {
+    const text = registerDescription(meta, "2026-09-24", "2026-10-07T05:01:11Z")
+    expect(text).toContain("SAP data loaded")
+    expect(text).toContain("2026")
+  })
+
+  it("claims no freshness the backend did not give it", () => {
+    for (const absent of [undefined, null, ""]) {
+      expect(registerDescription(meta, "2026-09-24", absent)).not.toContain("loaded")
+    }
   })
 })
 

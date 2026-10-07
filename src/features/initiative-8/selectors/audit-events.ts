@@ -4,8 +4,8 @@ import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 
 /**
  * Every Initiative 8 audit-worthy event for the global Audit Trail: repair
- * PR/PO lifecycle steps, duplicate-procurement warnings shown, and completed
- * condition-to-repair declarations. All "Simulated" — no live SAP writes.
+ * PR/PO lifecycle steps, flagged condition declarations, and completed
+ * condition-to-repair declarations. Nothing is written to SAP.
  */
 export function getInitiative8AuditEvents(): AuditEvent[] {
   const events: AuditEvent[] = []
@@ -16,7 +16,7 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
       initiative: "initiative-8",
       entityId: c.id,
       eventType: "Repair PR Raised",
-      description: `${c.repairPR.documentNumber} raised for ${c.material.materialId} (${c.material.description}) — Simulated.`,
+      description: `${c.repairPR.documentNumber} raised for ${c.material.materialId} (${c.material.description}).`,
       timestamp: c.raisedAt,
     })
 
@@ -26,7 +26,7 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
         initiative: "initiative-8",
         entityId: c.id,
         eventType: "Repair PO Issued",
-        description: `${c.repairPO.documentNumber} issued to ${c.vendor} for ${c.material.materialId} — Simulated.`,
+        description: `${c.repairPO.documentNumber} issued to ${c.vendor} for ${c.material.materialId}.`,
         timestamp: c.poIssuedAt,
       })
     }
@@ -37,7 +37,7 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
         initiative: "initiative-8",
         entityId: c.id,
         eventType: "Sent To Vendor",
-        description: `Unit for ${c.material.materialId} dispatched to ${c.vendor} — Simulated goods issue.`,
+        description: `Unit for ${c.material.materialId} dispatched to ${c.vendor} (goods issue).`,
         timestamp: c.sentToVendorAt,
       })
     }
@@ -48,20 +48,20 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
         initiative: "initiative-8",
         entityId: c.id,
         eventType: "Repair Receipted",
-        description: `Repaired unit for ${c.material.materialId} receipted back into stores — Simulated goods receipt.`,
+        description: `Repaired unit for ${c.material.materialId} receipted back into stores (goods receipt).`,
         timestamp: c.receivedAt,
       })
     }
 
     if (c.declarationStatus === "Flagged") {
       events.push({
-        id: `i8-audit-${c.id}-duplicate`,
+        id: `i8-audit-${c.id}-flagged`,
         initiative: "initiative-8",
         entityId: c.id,
-        eventType: "Duplicate Warning Shown",
-        description: `Duplicate Guard flagged a new-unit request against ${c.material.materialId} while ${
+        eventType: "Declaration Flagged",
+        description: `${c.material.materialId} was assessed as not repairable but sent for repair under ${
           c.repairPO?.documentNumber ?? "its repair PO"
-        } was open.`,
+        } anyway.`,
         timestamp: c.poIssuedAt ?? c.raisedAt,
       })
     }
@@ -74,7 +74,7 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
         initiative: "initiative-8",
         entityId: d.id,
         eventType: "Declaration Completed",
-        description: `${d.material.materialId} declared "${d.condition}" by ${d.declaredBy ?? "—"} for ${d.pr.documentNumber} — Simulated, not written to SAP.`,
+        description: `${d.material.materialId} declared "${d.condition}" by ${d.declaredBy ?? "—"} for ${d.pr.documentNumber} — not posted to SAP.`,
         actor: d.declaredBy,
         timestamp: d.declaredAt,
       })

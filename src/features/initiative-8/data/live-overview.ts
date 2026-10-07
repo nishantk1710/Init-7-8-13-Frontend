@@ -111,10 +111,10 @@ export function quantityUnderRepair(chains: RepairChain[]): number {
 }
 
 /**
- * The duplicate-procurement count: UNJUSTIFIED_ACQUISITION exceptions.
+ * The unjustified-purchase count: UNJUSTIFIED_ACQUISITION exceptions.
  *
  * `undefined` — not 0 — when the backend does not raise that type at all. A
- * zero from a check that never ran would read as "no duplicates", which is the
+ * zero from a check that never ran would read as "no unjustified purchases", which is the
  * one answer this screen must never give by accident.
  */
 export function unjustifiedAcquisitions(

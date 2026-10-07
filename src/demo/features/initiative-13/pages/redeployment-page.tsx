@@ -12,7 +12,7 @@ export function RedeploymentPage() {
           description="Unused OAR stock found at other plants that could cover a requested material instead of buying new."
         />
         <AlertBanner tone="info" title="Advisory only">
-          Recommending a transfer or continuing procurement is a UI simulation — no automatic SAP
+          Recommending a transfer or continuing procurement is advisory — no automatic SAP
           stock transfer is executed from this page.
         </AlertBanner>
         <RedeploymentBoard candidates={REDEPLOYMENT_CANDIDATES} />

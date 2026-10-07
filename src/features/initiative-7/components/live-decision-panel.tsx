@@ -35,7 +35,12 @@ import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
  * is chosen here because it is the first step of both real routing chains
  * (criticality-tier and OAR/SOP 3.1.1), so a fresh recommendation is
  * immediately actionable rather than always showing "not your turn". */
-const DEMO_ACTOR_ID = "demo-end-user"
+const DEMO_ACTOR_ID = "end-user"
+
+/** History written before the ID lost its "demo-" prefix still reads cleanly. */
+function actorLabel(actorId: string): string {
+  return actorId.replace(/^demo-/, "")
+}
 const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
 
 /**
@@ -116,8 +121,7 @@ export function LiveDecisionActions({
 
       {pendingRole !== DEMO_ACTOR_ROLE && (
         <p className="text-[12px] text-muted-foreground">
-          This demo session acts as {DEMO_ACTOR_ROLE}, not {pendingRole} — no real login exists yet to act as the
-          role this recommendation is actually waiting on (see the note in this file).
+          Acting as {DEMO_ACTOR_ROLE} — this step is awaiting {pendingRole}.
         </p>
       )}
 
@@ -209,7 +213,7 @@ export function LiveDecisionHistory({ recommendationId, reloadKey }: { recommend
         <li key={`${entry.timestamp}-${index}`} className="py-2 first:pt-0 last:pb-0">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
             <span className={cn("text-[13px]", entry.action === "REJECT" ? "text-destructive" : "text-primary")}>
-              {entry.actor_id} ({entry.actor_role}) — {entry.action.replace(/_/g, " ").toLowerCase()}
+              {actorLabel(entry.actor_id)} ({entry.actor_role}) —{entry.action.replace(/_/g, " ").toLowerCase()}
             </span>
             <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
               {new Date(entry.timestamp).toLocaleString()}

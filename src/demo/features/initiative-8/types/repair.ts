@@ -25,7 +25,8 @@ export type ReceiptStatus =
 
 /**
  * Condition-to-repair declaration status — a mandatory workflow, tracked
- * separately from the advisory Duplicate Guard check.
+ * separately from the advisory duplicate check the assistant runs at
+ * reservation time.
  */
 export type DeclarationStatus = "Required" | "Pending" | "Completed" | "Flagged"
 
@@ -38,8 +39,7 @@ export type AgingBucket = "0-15" | "16-30" | "31-45" | "46-60" | "60+"
 
 /**
  * A single repairable material's active (or recently closed) repair chain —
- * the core entity behind the Repair Register / Repair Detail / Duplicate
- * Guard pages.
+ * the core entity behind the Repair Register and Repair Detail pages.
  */
 export interface RepairChain {
   id: string
@@ -86,4 +86,111 @@ export interface DeclarationItem {
   condition?: DeclarationCondition
   nextAction: string
   createdAt: string
+}
+
+/** How loudly an exception should read. */
+export type ExceptionSeverity = "info" | "warning" | "critical"
+
+/**
+ * One row of the Exception Queue — a finding one of the Initiative 8 checks
+ * raised: a repair line sent out with no condition declaration on record, or
+ * a new unit bought while a repair for the same material was still open.
+ *
+ * `type` is a plain string rather than a closed union, mirroring the live
+ * contract: a check added later must still render with a readable label.
+ */
+export interface RepairException {
+  id: string
+  type: string
+  severity: ExceptionSeverity
+  material: MaterialReference
+  plant: PlantReference
+  /** The repair line. For an unjustified acquisition, the repair that was
+   *  open when the new unit was bought. */
+  repairLine: SAPDocumentReference
+  /** The repair chain id, so the row can link into the register detail page. */
+  repairId?: string
+  /** The new-purchase line. Only unjustified acquisitions carry one. */
+  acquisitionLine?: SAPDocumentReference
+  title: string
+  detail: string
+  raisedAt: string
+  isOpenRepair: boolean
+  /** Raised before Spares Automation existed — a reason, not a violation. */
+  preAutomation: boolean
+}
+
+/**
+ * One PO line whose free text mentioned repair, shown as the evidence behind
+ * a coding candidate.
+ */
+export interface CodingCandidateLine {
+  purchasingDocument: string
+  item: string
+  plant: PlantReference
+  /** The text the verdict was reached on, so a cataloguer can check the call
+   *  without going back to SAP. */
+  shortText: string
+  matchedKeywords: string[]
+  raisedAt: string
+}
+
+/**
+ * An 80-series material carrying the identical text as a coding candidate —
+ * SAP's own counter-example, not a model's opinion.
+ */
+export interface CodingCandidateTwin {
+  materialId: string
+  sharedText: string
+}
+
+/**
+ * One material the coding screen judged (FR-2): its purchase-order free text
+ * talks about repair, but the material is not 80-series coded. Advisory only
+ * — nothing on this screen changes SAP.
+ */
+export interface CodingCandidate {
+  material: MaterialReference
+  /** MISCODED_REPAIRABLE, REPAIR_SERVICE, CONSUMABLE_FOR_REPAIR or UNCLEAR. */
+  verdict: string
+  /** high / medium / low, as the screen reported it. */
+  confidence: string
+  /** Why, in the screen's own words. */
+  reason: string
+  plants: string[]
+  lines: CodingCandidateLine[]
+  twins: CodingCandidateTwin[]
+  /** SAP itself carries the counter-example — the strongest evidence here,
+   *  and it owes nothing to the model. */
+  isCorroborated: boolean
+  /** MISCODED_REPAIRABLE or UNCLEAR — the ones a human should look at. */
+  isActionable: boolean
+  meetsConfidenceThreshold: boolean
+  screenedAt: string
+}
+
+/** Where a justification was captured. */
+export type JustificationSource = "ASSISTANT" | "EXCEPTION"
+
+/**
+ * One recorded reason for buying a new unit while a repairable one already
+ * existed (FR-7). The log is the denominator for benefit attribution: these
+ * are the cases where the assistant's advice was not taken.
+ */
+export interface JustificationEntry {
+  id: string
+  material: MaterialReference
+  plant: PlantReference
+  /** At reservation time, or weeks later when somebody chased the exception
+   *  — different kinds of evidence about the same decision. */
+  source: JustificationSource
+  reasonCategory: string
+  freeText: string
+  author: string
+  recordedAt: string
+  /** The acquisition that was justified. */
+  acquisitionLine: SAPDocumentReference
+  sessionId?: string
+  /** Set when this answers a row on the Exception Queue. */
+  exceptionId?: string
 }

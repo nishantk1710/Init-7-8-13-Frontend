@@ -39,10 +39,6 @@ export function LoadFailure({
     <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
       <p className="text-sm text-foreground">The {what} could not be loaded.</p>
       {message && <p className="mt-1 text-xs text-muted-foreground">{message}</p>}
-      <p className="mt-2 text-xs text-muted-foreground">
-        Nothing is shown in its place, so an outage is never mistaken for an
-        empty result. Reload the page to try again.
-      </p>
     </div>
   )
 }

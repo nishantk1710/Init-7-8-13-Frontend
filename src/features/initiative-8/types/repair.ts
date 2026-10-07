@@ -7,12 +7,18 @@ import type { MaterialReference, PlantReference, SAPDocumentReference } from "@/
  * never these.
  */
 
-/** Where a repair chain sits in its lifecycle. */
+/**
+ * Where a repair chain sits in its lifecycle.
+ *
+ * No "In Transit Return": it is not an FRS stage, and nothing in MSEG or EKBE
+ * tells "shipped back" apart from "still at the vendor". "PR Raised" is not
+ * emitted today -- the register is built from PO lines -- but FRS acceptance
+ * criterion 3 counts open repair PR lines too, so the stage stays.
+ */
 export type RepairStatus =
   | "PR Raised"
   | "PO Issued"
   | "At Vendor"
-  | "In Transit Return"
   | "Received"
   | "Closed"
 
@@ -24,15 +30,15 @@ export type ReceiptStatus =
   | "Received"
 
 /**
- * Condition-to-repair declaration status — a mandatory workflow, tracked
- * separately from the advisory Duplicate Guard check.
+ * Condition-to-repair declaration status (FR-4).
+ *
+ * `Flagged` means an attestation covers the line but did NOT find the part
+ * repairable, and it went for repair anyway. There is no "Pending": the FRS
+ * has no approval step, so an attestation is recorded or it is not.
  */
-export type DeclarationStatus = "Required" | "Pending" | "Completed" | "Flagged"
+export type DeclarationStatus = "Required" | "Completed" | "Flagged"
 
 export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "Scrap"
-
-/** How a procurement request originated. */
-export type DeclarationSource = "Manual" | "MRP-generated"
 
 /**
  * A label like `"0-15"` or `"60+"`.
@@ -87,8 +93,7 @@ export type LeadTimeStatus =
 
 /**
  * A single repairable material's active (or recently closed) repair chain —
- * the core entity behind the Repair Register / Repair Detail / Duplicate
- * Guard pages.
+ * the core entity behind the Repair Register and Repair Detail pages.
  */
 export interface RepairChain {
   id: string
@@ -191,13 +196,11 @@ export interface RepairChain {
   receivedAt?: string
 
   /**
-   * Optional: no valuation source is in Initiative 8's table set (MBEW was
-   * extracted for I07 and I13), so live data does not carry it. Sending 0
-   * would make every repair look infinitely worth doing.
+   * Net order price of the repair PO line (EKPO). Undefined when the line
+   * carries none — shown as unknown, never as R 0.00, which would read as a
+   * free repair.
    */
-  newUnitCost?: number
-
-  repairCost: number
+  repairCost?: number
 
   /**
    * Lead time to buy a NEW one — the number that makes waiting for a repair
@@ -224,7 +227,6 @@ export interface RepairChain {
    * every count and is flagged on screen rather than hidden.
    */
   poBlocked?: boolean
-  notes?: string
 }
 
 /** One PO line whose free text mentioned repair (W5.5 coding-candidate screen). */
@@ -318,7 +320,6 @@ export interface DeclarationItem {
   plant?: PlantReference
 
   requester: string
-  source: DeclarationSource
   hasActiveRepair: boolean
   relatedRepairId?: string
 

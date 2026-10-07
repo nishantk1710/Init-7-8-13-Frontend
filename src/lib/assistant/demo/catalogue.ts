@@ -35,8 +35,7 @@ export const DEMO_OAR: ApiMaterialMatch = {
 
 export const DEMO_MATERIALS: readonly ApiMaterialMatch[] = [DEMO_REPAIRABLE, DEMO_OAR]
 
-export const DEMO_SEARCH_NOTE =
-  "Demo: only the two scripted materials can be found. Nothing here reads SAP data."
+export const DEMO_SEARCH_NOTE = ""
 
 /** Number prefix (zeros ignored) or every word of the name, like the backend. */
 export function searchDemoMaterials(raw: string): MaterialSearchResponse {

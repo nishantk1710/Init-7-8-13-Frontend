@@ -5,6 +5,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Plus } from "lucide-react"
 
+// The one live import in the demo tree: the shared Data source toggle, the
+// only way back to live now that the demo strip is gone.
+import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@demo/components/shared/theme-toggle"
 import {
   CATEGORIES,
@@ -216,6 +219,7 @@ export function Sidebar() {
       </NavSection>
 
       <div className="mt-auto border-t border-border py-1">
+        <DataModeToggle />
         <ThemeToggle />
       </div>
     </aside>

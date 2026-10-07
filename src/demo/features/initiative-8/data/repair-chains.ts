@@ -6,8 +6,9 @@ import generatedRepairChains from "@demo/features/initiative-8/data/generated/re
 // remaining math throughout this module is anchored at 3 Sep 2026.
 //
 // RC-8001 is Scenario C from the master spec: low SOH, an open repair PO,
-// 2 units at the vendor, expected return soon — the default material on the
-// Duplicate Guard page.
+// 2 units at the vendor, expected return soon — the material the assistant's
+// reservation-time duplicate check fires on, and the one behind EX-8001 on
+// the Exception Queue.
 //
 // RC-8002 is the mandatory Initiative 7 integration entry for the real
 // shared-catalog material 500-14892 ("Seal Assy, Mech Type XR-200",
@@ -106,7 +107,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
       materialCode: "800-31090",
       description: "Hydraulic Cylinder Assy — Stacker Reclaimer",
     },
-    plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
+    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
     stockOnHand: 5,
     reorderPoint: 2,
     qtyUnderRepair: 0,
@@ -191,7 +192,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
       materialCode: "800-27340",
       description: "Vibrating Screen Motor — Screening Plant",
     },
-    plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
+    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
     stockOnHand: 2,
     reorderPoint: 2,
     qtyUnderRepair: 2,
@@ -256,3 +257,11 @@ export function getRepairChainByMaterialId(materialId: string): RepairChain | un
 }
 
 export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map((rc) => rc.vendor))).sort()
+
+/** Plants the register can filter by, taken from the rows themselves rather
+ *  than from `lib/shared-data/plants`, which still carries sites this module
+ *  has no repairs for. Same shape as `REPAIR_VENDORS`: an option list is only
+ *  useful if picking it can return something. */
+export const REPAIR_PLANTS = Array.from(
+  new Map(REPAIR_CHAINS.map((rc) => [rc.plant.plantId, rc.plant])).values(),
+).sort((a, b) => a.name.localeCompare(b.name))

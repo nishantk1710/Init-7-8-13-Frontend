@@ -17,13 +17,7 @@
  * to show, and every seeded row is stamped `DEMO_SEED` precisely so nobody
  * mistakes it for evidence that the gap is smaller than it is.
  *
- * ## Two fields that arrive empty on purpose
- *
- * `source` is null on every row. The SAP table that would say Manual vs
- * MRP-generated covers 521 of the 1,201 repair requisitions, and every one of
- * those reads "created from an order" — which is neither. Both labels are false
- * for every row we can see, so neither is sent, and the column renders as
- * unknown rather than picking one.
+ * ## A field that arrives as a code
  *
  * `requester` is a CODE, not a name. No person directory was delivered. It is
  * shown as a code, exactly the way an unnamed vendor is.
@@ -32,19 +26,12 @@
 import type {
   DeclarationCondition,
   DeclarationItem,
-  DeclarationStatus,
 } from "@/features/initiative-8/types/repair"
+import { DECLARATION_STATUSES } from "@/features/initiative-8/utils/status"
 import type { ApiDeclarationItem, ApiDeclarationMeta } from "@/lib/api/i8"
 import { formatApiDate, getDeclarations } from "@/lib/api/i8"
 
 const PAGE_SIZE = 500
-
-const STATUSES: readonly DeclarationStatus[] = [
-  "Required",
-  "Pending",
-  "Completed",
-  "Flagged",
-]
 
 const CONDITIONS: readonly DeclarationCondition[] = [
   "Repairable",
@@ -66,10 +53,10 @@ function oneOf<T extends string>(
 /**
  * One API row as the `DeclarationItem` the queue table already renders.
  *
- * The domain type requires `pr`, `requester` and `source`; the API can send
- * null for all three. Each is filled with an explicit unknown marker rather
- * than a plausible value — the table shows a dash, which is a true statement,
- * instead of a name or a provenance nobody recorded.
+ * The domain type requires `pr` and `requester`; the API can send null for
+ * both. Each is filled with an explicit unknown marker rather than a plausible
+ * value — the table shows a dash, which is a true statement, instead of a
+ * name or a document nobody recorded.
  */
 export function toDeclarationItem(row: ApiDeclarationItem): DeclarationItem {
   return {
@@ -93,13 +80,9 @@ export function toDeclarationItem(row: ApiDeclarationItem): DeclarationItem {
       ? { plantId: row.plant.plantId, name: row.plant.name }
       : undefined,
     requester: row.requester ?? UNKNOWN,
-    // Null on every row today. The domain type does not allow null, so the
-    // unknown marker stands in -- never "Manual", which would be a guess about
-    // how somebody bought something.
-    source: (row.source ?? UNKNOWN) as DeclarationItem["source"],
     hasActiveRepair: row.hasActiveRepair,
     relatedRepairId: row.relatedRepairId,
-    status: oneOf(row.status, STATUSES, "Required"),
+    status: oneOf(row.status, DECLARATION_STATUSES, "Required"),
     declaredBy: row.declaredBy ?? undefined,
     declaredAt: row.declaredAt ? formatApiDate(row.declaredAt.slice(0, 10)) : undefined,
     condition: row.condition

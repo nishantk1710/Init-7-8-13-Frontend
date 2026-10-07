@@ -10,7 +10,7 @@ export function AgingExceptionsPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Aging Exceptions"
-          description="OAR lines past their planned consumption date. Confirm, re-plan, or release each one — every action is a UI-only simulation, no live SAP write occurs."
+          description="OAR lines past their planned consumption date. Confirm, re-plan, or release each one — actions are recorded in the platform; nothing is written to SAP."
         />
         <AgingExceptionsBoard lines={exceptionLines} />
       </div>

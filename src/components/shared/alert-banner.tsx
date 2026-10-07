@@ -15,7 +15,7 @@ const TONE_CONFIG: Record<Tone, { icon: typeof Info; classes: string }> = {
 }
 
 /** Inline banner for advisory/blocking notices — e.g. Initiative 8's
- * Duplicate Guard warning, Initiative 13's overdue-consumption notice. */
+ * overdue-repair warning, Initiative 13's overdue-consumption notice. */
 export function AlertBanner({
   tone = "info",
   title,

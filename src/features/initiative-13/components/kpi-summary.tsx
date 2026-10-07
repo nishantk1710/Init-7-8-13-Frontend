@@ -34,7 +34,7 @@ export function KpiSummary({ summary }: { summary: I13Summary }) {
       </div>
       {summary.valuationIsMocked && (
         <p className="text-[11px] text-muted-foreground">
-          Valuation data backing these figures is currently mocked in the backend.
+          Valuation figures are indicative and not yet sourced from SAP.
         </p>
       )}
     </div>

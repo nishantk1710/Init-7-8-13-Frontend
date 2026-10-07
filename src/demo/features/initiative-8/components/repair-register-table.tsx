@@ -24,11 +24,14 @@ import {
   TableHeader,
   TableRow,
 } from "@demo/components/ui/table"
-import { REPAIR_CHAINS, REPAIR_VENDORS } from "@demo/features/initiative-8/data/repair-chains"
+import {
+  REPAIR_CHAINS,
+  REPAIR_PLANTS,
+  REPAIR_VENDORS,
+} from "@demo/features/initiative-8/data/repair-chains"
 import type { AgingBucket, DeclarationStatus, RepairStatus } from "@demo/features/initiative-8/types/repair"
 import { AGING_BUCKETS, DECLARATION_STATUS_TONE, RECEIPT_STATUS_TONE } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
-import { PLANTS } from "@demo/lib/shared-data/plants"
 
 const ALL = "all"
 
@@ -69,13 +72,13 @@ export function RepairRegisterTable() {
           <SelectTrigger className="h-9 w-full sm:w-44">
             <SelectValue placeholder="Plant">
               {(value: string) =>
-                value === ALL ? "All plants" : PLANTS.find((p) => p.plantId === value)?.name ?? value
+                value === ALL ? "All plants" : REPAIR_PLANTS.find((p) => p.plantId === value)?.name ?? value
               }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All plants</SelectItem>
-            {PLANTS.map((p) => (
+            {REPAIR_PLANTS.map((p) => (
               <SelectItem key={p.plantId} value={p.plantId}>
                 {p.name}
               </SelectItem>
