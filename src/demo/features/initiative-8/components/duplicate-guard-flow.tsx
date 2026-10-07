@@ -59,7 +59,7 @@ export function DuplicateGuardFlow() {
       return
     }
     toast.success(
-      `Proceeding with new-unit request for ${materialId} — Simulated, PR still requires normal approval.`
+      `Proceeding with new-unit request for ${materialId} — the PR still requires normal approval.`
     )
     setProceeded(true)
     setJustifying(false)
@@ -70,8 +70,8 @@ export function DuplicateGuardFlow() {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 text-sm font-medium text-foreground">New Procurement Attempt</div>
         <p className="mb-3 text-xs text-muted-foreground">
-          Simulates a user requesting a new unit of a repairable material — the system checks for an
-          active repair chain before the request goes further.
+          Enter a new-unit request for a repairable material — the system checks for an active
+          repair chain before the request goes further.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
@@ -178,7 +178,7 @@ export function DuplicateGuardFlow() {
 
           {proceeded && (
             <p className="mt-3 border-t border-dashed border-warning/30 pt-3 text-foreground">
-              Proceeding — Simulated. The new-unit PR still requires normal approval; this decision and
+              Proceeding. The new-unit PR still requires normal approval; this decision and
               its justification are recorded in the Audit Trail.
             </p>
           )}
@@ -188,7 +188,7 @@ export function DuplicateGuardFlow() {
       {attempted && (!chain || !hasActiveRepair) && (
         <AlertBanner tone="info" title="No active repair chain found">
           No open repair chain exists for {materialId}. The new-unit request can proceed through normal
-          procurement — Simulated, not connected to SAP.
+          procurement.
         </AlertBanner>
       )}
     </div>

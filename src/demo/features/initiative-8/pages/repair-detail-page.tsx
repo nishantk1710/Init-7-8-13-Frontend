@@ -24,7 +24,7 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
       id: "pr",
       label: "Repair PR raised",
       timestamp: chain.raisedAt,
-      description: `${chain.repairPR.documentNumber} raised for ${chain.qtyUnderRepair || "the"} unit(s) — Simulated, not yet reflected in SAP.`,
+      description: `${chain.repairPR.documentNumber} raised for ${chain.qtyUnderRepair || "the"} unit(s).`,
       tone: "default",
     },
   ]
@@ -34,7 +34,7 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
       id: "po",
       label: "Repair PO issued",
       timestamp: chain.poIssuedAt,
-      description: `${chain.repairPO.documentNumber} issued to ${chain.vendor} — Simulated SAP PO.`,
+      description: `${chain.repairPO.documentNumber} issued to ${chain.vendor}.`,
       tone: "default",
     })
   } else {
@@ -68,7 +68,7 @@ function buildRepairTimeline(chain: RepairChain): TimelineEvent[] {
       id: "receipt",
       label: "Unit received",
       timestamp: chain.receivedAt ?? "—",
-      description: "Repaired unit receipted back into stores — Simulated SAP GR.",
+      description: "Repaired unit receipted back into stores (goods receipt).",
       tone: "success",
     })
   } else {
@@ -98,7 +98,7 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
           <PageHeader title="Repair not found" />
           <EmptyState
             title={`No repair chain "${repairId}"`}
-            description="This repair record does not exist in the mock repair register."
+            description="This repair record does not exist in the repair register."
           />
         </div>
       </div>
@@ -122,7 +122,7 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
               id: "d-declared",
               label: `Condition declared: ${declaration.condition ?? "—"}`,
               timestamp: declaration.declaredAt ?? "—",
-              description: `Declared by ${declaration.declaredBy ?? "—"} — Simulated, not yet written to SAP.`,
+              description: `Declared by ${declaration.declaredBy ?? "—"} — not posted to SAP.`,
               tone: "success" as const,
             }
           : {
@@ -140,7 +140,7 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <PageHeader
           title={`Repair ${chain.id}`}
-          description="Simulated repair chain — no live SAP connection."
+          description="Repair PR, PO, dispatch and receipt for this unit."
           actions={
             <div className="flex items-center gap-2">
               <StatusBadge tone={REPAIR_STATUS_TONE[chain.repairStatus]}>

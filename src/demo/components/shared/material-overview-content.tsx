@@ -66,7 +66,7 @@ export function MaterialOverviewContent({ materialId }: { materialId: string }) 
   if (!material) {
     return (
       <p className="text-xs text-muted-foreground">
-        No catalog record for this material — it may be module-specific mock data not in the
+        No catalog record for this material — it may be module-specific data not in the
         shared catalog.
       </p>
     )

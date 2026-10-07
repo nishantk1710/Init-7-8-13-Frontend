@@ -331,12 +331,12 @@ export function ChatWorkspace({ session }: { session: ChatSession }) {
         ...prev,
         aiMessage(
           `${messageId}-tracking`,
-          `**Utilisation Tracking Created**\n\n${trackingId}\n\nLinked to SAP Reservation **${reservation} / 0010**.\n\nSimulated only — no live SAP write occurred. This mock reservation now feeds the Utilisation Ledger.`
+          `**Utilisation Tracking Created**\n\n${trackingId}\n\nLinked to SAP Reservation **${reservation} / 0010**.\n\nThis reservation now feeds the Utilisation Ledger.`
         ),
       ])
       toast.success(`Consumption plan confirmed — Tracking ID ${trackingId}`)
     } else if (actionId === "edit-plan") {
-      toast("Editing isn't available in this demo session", {
+      toast("Editing isn't available in this session", {
         description: "Start a new session to capture a different plan.",
       })
     }

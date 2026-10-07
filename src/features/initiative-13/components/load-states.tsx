@@ -38,11 +38,6 @@ export function LoadFailure({
     <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
       <p className="text-sm text-foreground">The {what} could not be loaded.</p>
       {message && <p className="mt-1 text-xs text-muted-foreground">{message}</p>}
-      <p className="mt-2 text-xs text-muted-foreground">
-        This screen has no demo fallback on purpose. Invented rows would be worse
-        than no rows — the point of it is that it shows what was actually
-        recorded.
-      </p>
     </div>
   )
 }

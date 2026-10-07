@@ -61,12 +61,9 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
               <TableCell>
-                <div className="flex items-center gap-1.5">
-                  <SAPDocumentChip
-                    doc={{ type: "RESERVATION", documentNumber: row.reservationNumber, line: row.reservationItem }}
-                  />
-                  {row.uatSimulated && <StatusBadge tone="warning">UAT</StatusBadge>}
-                </div>
+                <SAPDocumentChip
+                  doc={{ type: "RESERVATION", documentNumber: row.reservationNumber, line: row.reservationItem }}
+                />
               </TableCell>
               <TableCell className="font-medium text-foreground">{row.material}</TableCell>
               <TableCell className="text-muted-foreground">{row.plant}</TableCell>

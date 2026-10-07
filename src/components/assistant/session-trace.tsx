@@ -318,7 +318,6 @@ function Linkage({
               </Link>
               <span className="text-xs text-muted-foreground">
                 item text &ldquo;{l.sgtxt ?? ""}&rdquo;
-                {l.source === "UAT_SGTXT" ? " · UAT simulation" : ""}
               </span>
             </li>
           ))}

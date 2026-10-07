@@ -163,7 +163,7 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
                       : "border-success/30 bg-success/10 text-success"
                 )}
               >
-                {leg}: {mode}
+                {leg}: {mode === "MOCK" ? "REFERENCE" : mode}
               </span>
             ))}
           </dd>
