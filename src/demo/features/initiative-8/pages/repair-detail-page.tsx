@@ -179,7 +179,8 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
         {chain.declarationStatus === "Flagged" && (
           <AlertBanner tone="critical" title="Duplicate procurement flagged">
             A new-unit procurement request was raised against this material while its repair PO was
-            already open. Reconcile with the buyer before proceeding.
+            already open. Reconcile with the buyer before proceeding — the finding is on the
+            Exception Queue, and the reason, if one was given, is in the justification log.
           </AlertBanner>
         )}
         {isOverdue && (

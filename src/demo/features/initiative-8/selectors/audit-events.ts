@@ -59,7 +59,7 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
         initiative: "initiative-8",
         entityId: c.id,
         eventType: "Duplicate Warning Shown",
-        description: `Duplicate Guard flagged a new-unit request against ${c.material.materialId} while ${
+        description: `The Spares Assistant flagged a new-unit request against ${c.material.materialId} while ${
           c.repairPO?.documentNumber ?? "its repair PO"
         } was open.`,
         timestamp: c.poIssuedAt ?? c.raisedAt,
