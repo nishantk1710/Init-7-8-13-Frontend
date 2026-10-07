@@ -52,8 +52,6 @@ describe("formAnswer", () => {
       planned_quantity: "5",
       window_start: "2026-08-10",
       window_end: "2026-08-21",
-      cost_centre: "1300-MNT",
-      order_number: "4001234567",
     })
 
     expect(answer).toEqual({
@@ -61,8 +59,6 @@ describe("formAnswer", () => {
       planned_quantity: "5",
       window_start: "2026-08-10",
       window_end: "2026-08-21",
-      cost_centre: "1300-MNT",
-      order_number: "4001234567",
     })
   })
 
@@ -96,17 +92,17 @@ describe("formAnswer", () => {
   })
 
   it("drops an empty optional field rather than sending an empty string", () => {
-    // "The cost centre is the empty string" and "the requester did not know
-    // the cost centre" are different statements, and the form says out loud
-    // that blank means the second one.
+    // "The window starts on the empty string" and "the requester did not know
+    // when" are different statements, and the form says out loud that blank
+    // means the second one.
     const answer = formAnswer(PLAN_FIELDS, {
       purpose: "x",
       planned_quantity: "1",
-      cost_centre: "   ",
-      order_number: "",
+      window_start: "   ",
+      window_end: "",
     })
-    expect(answer).not.toHaveProperty("cost_centre")
-    expect(answer).not.toHaveProperty("order_number")
+    expect(answer).not.toHaveProperty("window_start")
+    expect(answer).not.toHaveProperty("window_end")
   })
 
   it("still sends an empty required field, so the server rejects it", () => {

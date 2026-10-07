@@ -384,8 +384,9 @@ function nextStep(
         plannedQuantity: quantity,
         windowStart: form.window_start,
         windowEnd: form.window_end,
-        costCentre: form.cost_centre,
-        orderNumber: form.order_number,
+        // The plan form no longer asks for these; the plan record keeps them.
+        costCentre: null,
+        orderNumber: null,
         status: "OPEN",
         reservationNumber: null,
         reservationItem: null,
