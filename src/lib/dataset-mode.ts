@@ -45,17 +45,15 @@
 //    getInitiative8Material360Signal("500-14892"), which resolves through the
 //    RC-8002 fixture. That material does not exist in the backend data.
 //
-// Initiative 8's four backed screens -- the register, the repair detail, the
-// declaration queue and the coding-candidate screen -- now read the backend
-// UNCONDITIONALLY. They no longer consult this flag and no longer import a
-// fixture, so for them the question is settled.
+// Every Initiative 8 screen -- the overview, the register, the repair detail,
+// the declaration and exception queues, the coding-candidate screen and the
+// justification log -- now reads the backend UNCONDITIONALLY. None consults
+// this flag or imports a fixture, so for them the question is settled.
 //
 // WHAT IS STILL FIXTURE-BACKED, AND WHY THIS FLAG STILL EXISTS
 //
-// Two I08 screens have no backend behind them at all: the Overview and the
-// Duplicate Guard. Duplicate Guard is FR-6 territory, which is not built. The
-// four cross-initiative selectors (summary, global actions, audit events, the
-// Material 360 adapter) are also still fixture-backed: they are SYNCHRONOUS
+// The four cross-initiative selectors (summary, global actions, audit events,
+// the Material 360 adapter) are still fixture-backed: they are SYNCHRONOUS
 // and are consumed by app-wide shared code -- lib/aggregation.ts, the global
 // chat intents, the material router, the Material 360 drawer -- which I07 and
 // I13 read too. Making those live is an async refactor across somebody else's

@@ -1,8 +1,8 @@
 import type { DeclarationItem } from "@/features/initiative-8/types/repair"
 
-// Deterministic mock data. The Declaration Queue is a separate, mandatory
-// workflow from the advisory Duplicate Guard check — these rows are never
-// merged with the RC-80xx repair chains, only cross-referenced via
+// Deterministic mock data, read only by the cross-initiative selectors (the
+// Declaration Queue itself reads the backend). These rows are never merged
+// with the RC-80xx repair chains, only cross-referenced via
 // `relatedRepairId` for navigation.
 //
 // D-90112 is Scenario D from the master spec: an MRP-generated PR that still
@@ -18,7 +18,6 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Conveyor Gearmotor — Overland Conveyor",
     },
     requester: "Riaan Kruger",
-    source: "Manual",
     hasActiveRepair: true,
     relatedRepairId: "RC-8005",
     status: "Required",
@@ -34,10 +33,9 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Slurry Pump Impeller Assembly",
     },
     requester: "Pieter Steyn",
-    source: "MRP-generated",
     hasActiveRepair: true,
     relatedRepairId: "RC-8006",
-    status: "Pending",
+    status: "Required",
     nextAction: "MRP auto-generated this PR without checking repair status — confirm condition before PO release.",
     createdAt: "1 Sep 2026",
   },
@@ -50,11 +48,10 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Crusher Liner Set — Primary Crusher",
     },
     requester: "Thabo Nkosi",
-    source: "Manual",
     hasActiveRepair: true,
     relatedRepairId: "RC-8003",
-    status: "Pending",
-    nextAction: "Awaiting maintenance engineer sign-off on condition.",
+    status: "Required",
+    nextAction: "Declare condition before this PR can be released.",
     createdAt: "29 Aug 2026",
   },
   {
@@ -66,7 +63,6 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Hydraulic Cylinder Assy — Stacker Reclaimer",
     },
     requester: "Sarah van Wyk",
-    source: "Manual",
     hasActiveRepair: false,
     relatedRepairId: "RC-8004",
     status: "Completed",
@@ -85,7 +81,6 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Control Valve Actuator — Flotation Circuit",
     },
     requester: "Amanda Petersen",
-    source: "Manual",
     hasActiveRepair: true,
     relatedRepairId: "RC-8008",
     status: "Flagged",
@@ -101,7 +96,6 @@ export const DECLARATIONS: DeclarationItem[] = [
       description: "Vibrating Screen Motor — Screening Plant",
     },
     requester: "Nomvula Dlamini",
-    source: "Manual",
     hasActiveRepair: true,
     relatedRepairId: "RC-8007",
     status: "Required",

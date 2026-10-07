@@ -10,11 +10,11 @@ import type { ApiDeclarationItem } from "@/lib/api/i8"
 /**
  * W5.4 — the declaration-queue adapter.
  *
- * The domain type requires `pr`, `requester` and `source`; the API can send
- * null for all three, for measured reasons. These tests pin that each one
- * becomes an explicit unknown rather than a plausible-looking value — a
- * fabricated PR number or an invented provenance on a real purchase is exactly
- * the class of mistake Initiative 8 exists to stop.
+ * The domain type requires `pr` and `requester`; the API can send null for
+ * both, for measured reasons. These tests pin that each one becomes an
+ * explicit unknown rather than a plausible-looking value — a fabricated PR
+ * number or an invented name on a real purchase is exactly the class of
+ * mistake Initiative 8 exists to stop.
  */
 
 function apiRow(overrides: Partial<ApiDeclarationItem> = {}): ApiDeclarationItem {
@@ -28,7 +28,6 @@ function apiRow(overrides: Partial<ApiDeclarationItem> = {}): ApiDeclarationItem
     },
     plant: { plantId: "1300", name: "Black Mountain" },
     requester: "10316",
-    source: null,
     hasActiveRepair: true,
     relatedRepairId: "4500001052-1310",
     status: "Required",
@@ -53,20 +52,20 @@ describe("toDeclarationItem", () => {
     })
   })
 
-  it("never renders source as Manual when the API does not know", () => {
-    // The SAP table that would decide covers 521 of 1,201 repair requisitions,
-    // and every one of those reads "created from an order" — neither Manual nor
-    // MRP-generated. Guessing either would invent a provenance for a purchase.
-    const row = toDeclarationItem(apiRow({ source: null }))
-    expect(row.source).not.toBe("Manual")
-    expect(row.source).not.toBe("MRP-generated")
-    expect(row.source).toBe("—")
+  it("passes the three statuses the backend emits straight through", () => {
+    for (const status of ["Required", "Completed", "Flagged"] as const) {
+      expect(toDeclarationItem(apiRow({ status })).status).toBe(status)
+    }
   })
 
-  it("passes a real source through when there is one", () => {
-    expect(toDeclarationItem(apiRow({ source: "MRP-generated" })).source).toBe(
-      "MRP-generated",
+  it("reads a status outside the FR-4 vocabulary as Required, never as Pending", () => {
+    // There is no approval step in the FRS, so no "submitted, awaiting
+    // sign-off" state. An unexpected value is treated as "no attestation on
+    // record" -- the state that gets chased -- rather than invented.
+    const row = toDeclarationItem(
+      apiRow({ status: "Pending" as unknown as ApiDeclarationItem["status"] }),
     )
+    expect(row.status).toBe("Required")
   })
 
   it("shows the requester code rather than inventing a name", () => {

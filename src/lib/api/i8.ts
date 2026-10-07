@@ -9,7 +9,7 @@
  * it. That last part is the guarantee that matters and it has not changed.
  *
  * Consumed by the overview, the register, the repair detail page, the
- * declaration queue, the exception queue and the Duplicate Guard. The Home
+ * declaration queue, the exception queue and the coding-candidate screen. The Home
  * page, the action centre, the audit log and the cross-initiative selectors
  * still read the scenario fixtures in every mode.
  *
@@ -104,7 +104,7 @@ export type ApiRepairChain = {
   receiptStatus: string
   overdueStatus: ApiOverdueStatus
   leadTimeStatus: ApiLeadTimeStatus
-  declarationStatus: "Required" | "Pending" | "Completed" | "Flagged"
+  declarationStatus: "Required" | "Completed" | "Flagged"
 
   daysOpen: number | null
   agingBucket: string | null
@@ -332,22 +332,13 @@ export type ApiDeclarationItem = {
    * was delivered. Populated on all 1,225 repair lines, 27 distinct values.
    */
   requester: string | null
-  /**
-   * **Null on every row, and that is the honest answer.**
-   *
-   * The SAP table that would decide Manual vs MRP-generated covers 521 of the
-   * 1,201 repair requisitions, and every one of those 521 reads "created from
-   * an order" — which is neither. Both labels are false for every row we can
-   * see and unknown for the rest, so neither is sent.
-   */
-  source: "Manual" | "MRP-generated" | null
   hasActiveRepair: boolean
   relatedRepairId: string
   /**
-   * "Pending" is never sent: it means "submitted, awaiting sign-off" and no
-   * such state exists — there is no approval workflow in SAP or in the backend.
+   * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
+   * has no approval step — an attestation is recorded or it is not.
    */
-  status: "Required" | "Pending" | "Completed" | "Flagged"
+  status: "Required" | "Completed" | "Flagged"
   declaredBy: string | null
   declaredAt: string | null
   condition: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
@@ -666,62 +657,6 @@ export function createAttestation(body: AttestationRequest): Promise<ApiAttestat
     method: "POST",
     body: JSON.stringify(body),
   })
-}
-
-// --- FR-6: does a repairable unit already exist? -----------------------------
-
-/** One open repair line the answer rests on. */
-export type ApiRepairableUnitEvidence = {
-  purchasingDocument: string
-  item: string
-  quantity: string
-  raisedAt: string | null
-  dueDate: string | null
-  /** Positive once past the promised date. Null when no date was agreed. */
-  daysOverdue: number | null
-  vendor: string | null
-  vendorName: string | null
-  status: string
-  /** Whether a dispatch movement is on record. Measured false on every open
-   *  repair in the extract — the PO exists, the shipment is not evidenced. */
-  dispatched: boolean
-}
-
-/** `GET /api/i8/repairable-unit` — the Duplicate Guard's question, answered. */
-export type ApiRepairableUnit = {
-  materialId: string
-  plant: string
-  /** False for anything outside the 80-series: there is nothing to look for. */
-  isRepairableMaterial: boolean
-  exists: boolean
-  sources: ("STOCK" | "ON_REPAIR_ORDER")[]
-  /** Null when there is no stock record at all — unknown, not zero. */
-  stockOnHand: string | null
-  stockIsUnknown: boolean
-  stockLocations: number
-  openRepairLines: number
-  quantityUnderRepair: string
-  soonestDueDate: string | null
-  overdueLines: number
-  /** One sentence, written by the backend to be shown as-is. */
-  headline: string
-  /** What the answer does NOT prove, in words meant for the requester. */
-  caveats: string[]
-  evidence: ApiRepairableUnitEvidence[]
-  referenceDate: string
-}
-
-/**
- * `GET /api/i8/repairable-unit?material=&plant=` — is there already a
- * repairable unit of this material at this plant, in stock or on a repair
- * order? FR-6, and advisory only: the answer informs a requester, it never
- * blocks one.
- */
-export function getRepairableUnit(query: {
-  material: string
-  plant: string
-}): Promise<ApiRepairableUnit> {
-  return apiFetch(`/i8/repairable-unit${queryString(query)}`)
 }
 
 // --- W5.5: coding candidates ------------------------------------------------

@@ -100,6 +100,20 @@ describe("toRepairChain", () => {
     expect(chain.qtyUnderRepair).toBe(1)
   })
 
+  it("keeps a missing repair cost as undefined, never as R 0.00", () => {
+    // A zero would render as a free repair. No price on the line is "not
+    // known", and the detail page says so.
+    const chain = toRepairChain(apiRow({ repairCost: null }))
+    expect(chain.repairCost).toBeUndefined()
+  })
+
+  it("does not accept In Transit Return, which is not an FRS stage", () => {
+    const chain = toRepairChain(
+      apiRow({ repairStatus: "In Transit Return" } as Partial<ApiRepairChain>),
+    )
+    expect(chain.repairStatus).toBe("PR Raised")
+  })
+
   it("keeps unknown stock as undefined, never as zero", () => {
     // Zero stock is what triggers a duplicate purchase. "We do not know" and
     // "there is none" must not render the same.
@@ -313,6 +327,19 @@ describe("registerRowsToCsv", () => {
     expect(cell("Blocked in SAP")).toBe("Yes")
     expect(cell("Lead-time status")).toBe("BEYOND_LEAD_TIME")
     expect(cell("Repair PO")).toBe("4500001052/1310")
+  })
+
+  it("flags a partial receipt in place of the old receipt-status column", () => {
+    // The only thing the receipt status said that the repair status does not.
+    expect(REGISTER_CSV_HEADERS).not.toContain("Receipt status")
+    const cell = (row: (string | number)[], header: string) =>
+      row[REGISTER_CSV_HEADERS.indexOf(header)]
+    const [partial, whole] = registerRowsToCsv([
+      toRepairChain(apiRow({ receiptStatus: "Partially Received" })),
+      toRepairChain(apiRow({ receiptStatus: "Received" })),
+    ])
+    expect(cell(partial, "Partially received")).toBe("Yes")
+    expect(cell(whole, "Partially received")).toBe("No")
   })
 })
 

@@ -4,7 +4,7 @@ import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 
 /**
  * Every Initiative 8 audit-worthy event for the global Audit Trail: repair
- * PR/PO lifecycle steps, duplicate-procurement warnings shown, and completed
+ * PR/PO lifecycle steps, flagged condition declarations, and completed
  * condition-to-repair declarations. All "Simulated" — no live SAP writes.
  */
 export function getInitiative8AuditEvents(): AuditEvent[] {
@@ -55,13 +55,13 @@ export function getInitiative8AuditEvents(): AuditEvent[] {
 
     if (c.declarationStatus === "Flagged") {
       events.push({
-        id: `i8-audit-${c.id}-duplicate`,
+        id: `i8-audit-${c.id}-flagged`,
         initiative: "initiative-8",
         entityId: c.id,
-        eventType: "Duplicate Warning Shown",
-        description: `Duplicate Guard flagged a new-unit request against ${c.material.materialId} while ${
+        eventType: "Declaration Flagged",
+        description: `${c.material.materialId} was assessed as not repairable but sent for repair under ${
           c.repairPO?.documentNumber ?? "its repair PO"
-        } was open.`,
+        } anyway — Simulated.`,
         timestamp: c.poIssuedAt ?? c.raisedAt,
       })
     }

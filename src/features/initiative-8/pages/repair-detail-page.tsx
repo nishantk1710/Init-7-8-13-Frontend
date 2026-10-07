@@ -10,10 +10,10 @@ import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   DECLARATION_STATUS_TONE,
-  RECEIPT_STATUS_TONE,
   REPAIR_STATUS_TONE,
   UNKNOWN,
   formatDaysRemaining,
+  isPartiallyReceived,
   isRepairOverdue,
   orUnknown,
   vendorLabel,
@@ -134,12 +134,6 @@ export function RepairDetailPage({
           </div>
         </div>
 
-        {chain.declarationStatus === "Flagged" && (
-          <AlertBanner tone="critical" title="Duplicate procurement flagged">
-            A new-unit procurement request was raised against this material while its repair PO was
-            already open. Reconcile with the buyer before proceeding.
-          </AlertBanner>
-        )}
         {isOverdue && (
           <AlertBanner tone="warning" title="Repair overdue">
             Expected return was {chain.expectedReturn ?? UNKNOWN} — {formatDaysRemaining(chain)}.
@@ -153,9 +147,9 @@ export function RepairDetailPage({
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <SAPDocumentChip doc={chain.repairPR} />
               {chain.repairPO && <SAPDocumentChip doc={chain.repairPO} />}
-              <StatusBadge tone={RECEIPT_STATUS_TONE[chain.receiptStatus]}>
-                {chain.receiptStatus}
-              </StatusBadge>
+              {isPartiallyReceived(chain) && (
+                <StatusBadge tone="warning">Partially received</StatusBadge>
+              )}
             </div>
             {/* The backend's timeline: it carries the evidence for every
                 stage, including the ones it cannot prove. */}
@@ -164,20 +158,18 @@ export function RepairDetailPage({
 
           <div className="flex flex-col gap-4">
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 text-sm font-medium text-foreground">Vendor & economics</div>
+              <div className="mb-3 text-sm font-medium text-foreground">Vendor, cost & timing</div>
               <dl className="grid grid-cols-2 gap-y-2 text-xs">
                 <dt className="text-muted-foreground">Vendor</dt>
                 <dd className="text-right text-foreground">{vendorLabel(chain)}</dd>
                 <dt className="text-muted-foreground">Days open</dt>
                 <dd className="text-right text-foreground">{chain.daysOpen}</dd>
-                <dt className="text-muted-foreground">New-unit cost</dt>
-                {/* No valuation source in Initiative 8's table set -- stated as
-                    unavailable rather than implied as zero. */}
-                <dd className="text-right text-foreground">
-                  {chain.newUnitCost === undefined ? "Not available" : formatZAR(chain.newUnitCost)}
-                </dd>
                 <dt className="text-muted-foreground">Repair cost</dt>
-                <dd className="text-right text-foreground">{formatZAR(chain.repairCost)}</dd>
+                {/* Unknown when the PO line carries no net price -- R 0.00 would
+                    read as a free repair. */}
+                <dd className="text-right text-foreground">
+                  {chain.repairCost === undefined ? UNKNOWN : formatZAR(chain.repairCost)}
+                </dd>
                 <dt className="text-muted-foreground">New-unit lead time</dt>
                 {/* Undefined on every Gamsberg line -- MARC covers plants 1300
                     and 1200 only. "— days" would read as a lead time of nothing,
@@ -190,11 +182,6 @@ export function RepairDetailPage({
                 <dt className="text-muted-foreground">Repair return time</dt>
                 <dd className="text-right text-foreground">{formatDaysRemaining(chain)}</dd>
               </dl>
-              {chain.notes && (
-                <p className="mt-3 border-t border-dashed border-border pt-2 text-[11px] text-muted-foreground italic">
-                  {chain.notes}
-                </p>
-              )}
             </div>
 
             {/* The backend's own answer, computed from the attestation table
@@ -209,8 +196,10 @@ export function RepairDetailPage({
               </StatusBadge>
               <p className="mt-2 text-xs text-muted-foreground">
                 {chain.declarationStatus === "Completed"
-                  ? "A recorded condition assessment covers this repair line."
-                  : "No recorded condition assessment covers this repair line. Until this platform there was nowhere to record one, so nearly every historical line reads Required — that is the finding, not a fault."}
+                  ? "A recorded condition assessment covers this repair line and found the part repairable."
+                  : chain.declarationStatus === "Flagged"
+                    ? "A recorded condition assessment covers this repair line but did not find the part repairable — it was sent for repair anyway. Confirm the decision with the attestor."
+                    : "No recorded condition assessment covers this repair line. Until this platform there was nowhere to record one, so nearly every historical line reads Required — that is the finding, not a fault."}
               </p>
             </div>
           </div>
