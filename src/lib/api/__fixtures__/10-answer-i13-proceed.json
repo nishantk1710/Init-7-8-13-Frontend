@@ -41,24 +41,6 @@
         "options": [],
         "helpText": null,
         "default": null
-      },
-      {
-        "name": "cost_centre",
-        "label": "Cost centre",
-        "type": "text",
-        "required": false,
-        "options": [],
-        "helpText": "Only if you know it.",
-        "default": null
-      },
-      {
-        "name": "order_number",
-        "label": "Work order",
-        "type": "text",
-        "required": false,
-        "options": [],
-        "helpText": null,
-        "default": null
       }
     ],
     "facts": {

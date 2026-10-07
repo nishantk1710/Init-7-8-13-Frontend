@@ -22,7 +22,7 @@ import type { ConsumptionPlan } from "@/lib/api/i13"
  * Consumption plans captured through the assistant — FR-4's record.
  *
  * Every row was stated by a person in a conversation: a purpose, a quantity,
- * a window, and where known a cost centre or order. Generated `REFERENCE_CSV`
+ * and a window. Generated `REFERENCE_CSV`
  * rows, where the backend is configured to read them, are not here, and that
  * separation is the whole value of the screen.
  *
@@ -55,7 +55,6 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             <TableHead>Purpose</TableHead>
             <TableHead className="text-right">Planned qty</TableHead>
             <TableHead>Window</TableHead>
-            <TableHead>Cost centre / order</TableHead>
             <TableHead>Reservation</TableHead>
             <TableHead>Session</TableHead>
             <TableHead>Captured</TableHead>
@@ -93,9 +92,6 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                     Not given
                   </span>
                 )}
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {plan.costCentre ?? plan.orderNumber ?? "—"}
               </TableCell>
               <TableCell>
                 {plan.reservationNumber ? (

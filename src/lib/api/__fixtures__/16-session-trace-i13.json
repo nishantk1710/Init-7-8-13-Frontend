@@ -70,9 +70,7 @@
         "purpose": "Replacing the seal on mill 3 gearbox during the August shutdown.",
         "planned_quantity": "5",
         "window_start": "2026-08-10",
-        "window_end": "2026-08-21",
-        "cost_centre": "1300-MNT",
-        "order_number": "4001234567"
+        "window_end": "2026-08-21"
       },
       "actor": "MILLERJ",
       "answeredAt": "2026-07-31T09:16:03Z"

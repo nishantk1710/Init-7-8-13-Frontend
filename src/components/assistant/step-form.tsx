@@ -211,9 +211,7 @@ function FieldRow({
         {field.label}
         {/* Marking the optional ones rather than the required ones: on the plan
             form most fields are required, so "where known" is the unusual case
-            worth pointing at. Cost centre and work order are optional because
-            the FRS says "where known" — a required one gets guessed, and a
-            guessed cost centre on an audit record is worse than a blank. */}
+            worth pointing at. */}
         {!field.required && (
           <span className="text-[11px] font-normal text-muted-foreground">
             optional
