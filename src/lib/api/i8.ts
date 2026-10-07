@@ -311,6 +311,11 @@ export type ApiSnapshot = {
   referenceDate: string
   builtAt: string
   buildSeconds: number
+  /** When the SAP tables behind this snapshot were last loaded. Distinct from
+   *  `builtAt`, which is when we last read them — the gap between the two is
+   *  how stale the screen is. Optional: a backend that predates the field
+   *  sends nothing, and the caller must say less rather than guess. */
+  sourceLoadedAt?: string | null
   repairRegister: ApiRegisterMeta
   universe: ApiUniverseMeta
   /** The configuration actually in force, echoed back so a surprising number

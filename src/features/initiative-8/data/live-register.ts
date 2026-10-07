@@ -50,6 +50,7 @@ import {
 } from "@/features/initiative-8/utils/status"
 import type { ApiRepairChain, ApiRegisterMeta } from "@/lib/api/i8"
 import { formatApiDate, getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
+import { formatApiDateTime } from "@/lib/api/format"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /** How many rows to pull. The register is 1,225 lines; the table filters them
@@ -242,17 +243,31 @@ export function buildRegisterOptions(chains: RepairChain[]): RegisterOptions {
  * in: a register that silently dropped the lines deleted in SAP would disagree
  * with an EKPO row count and nobody could say why. Each extra clause appears
  * only when the backend serves its count.
+ *
+ * **It does not name the source, and that is deliberate.** This line used to
+ * begin "N repair lines from the July extract", in static text, while the
+ * backend sent no provenance at all. When a CSV full pull replaced every raw
+ * table underneath, the caption went on crediting the July extract — the one
+ * sentence on the page a reader would use to tell the two apart was the one
+ * sentence that could not know. The frontend may report how fresh the data is,
+ * from `sourceLoadedAt`; it may not assert where the data came from.
  */
-export function registerDescription(meta: ApiRegisterMeta, referenceDate: string): string {
+export function registerDescription(
+  meta: ApiRegisterMeta,
+  referenceDate: string,
+  sourceLoadedAt?: string | null
+): string {
   let text =
-    `${meta.totalLines.toLocaleString()} repair lines from the ` +
-    `July extract — ${meta.openLines.toLocaleString()} still open, ` +
-    `as at ${referenceDate}.`
+    `${meta.totalLines.toLocaleString()} repair lines — ` +
+    `${meta.openLines.toLocaleString()} still open, as at ${referenceDate}.`
   if (meta.excludedDeletedLines) {
     text += ` ${meta.excludedDeletedLines.toLocaleString()} lines deleted in SAP are excluded.`
   }
   if (meta.blockedLines) {
     text += ` ${meta.blockedLines.toLocaleString()} blocked in SAP are included and flagged.`
+  }
+  if (sourceLoadedAt) {
+    text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`
   }
   return text
 }
@@ -267,6 +282,11 @@ export type LiveRegister = RegisterOptions & {
   agingBands: string[]
   meta: ApiRegisterMeta
   referenceDate: string
+  /** When the SAP tables behind the register were last loaded, from the same
+   *  best-effort snapshot fetch as `agingBands`. Null when that fetch failed
+   *  or the backend does not serve it — the caption then says nothing about
+   *  freshness rather than inventing a source. */
+  sourceLoadedAt: string | null
 }
 
 /**
@@ -301,6 +321,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
   // Best-effort: the register itself is the primary fetch, and a snapshot
   // failure should not take the whole page down over a chart's axis labels.
   let agingBands: string[] = DEFAULT_AGING_BUCKETS
+  let sourceLoadedAt: string | null = null
   try {
     const snapshot = await getSnapshot()
     const parsed = String(snapshot.rules.agingBands ?? "")
@@ -308,8 +329,10 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
       .map((band) => band.trim())
       .filter(Boolean)
     if (parsed.length > 0) agingBands = parsed
+    sourceLoadedAt = snapshot.sourceLoadedAt ?? null
   } catch {
-    // Keep the default silently -- this is presentation, not data integrity.
+    // Keep the defaults silently -- this is presentation, not data integrity.
+    // The caption drops its freshness clause rather than guessing at one.
   }
 
   return {
@@ -318,5 +341,6 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     agingBands,
     meta: meta!,
     referenceDate,
+    sourceLoadedAt,
   }
 }

@@ -19,6 +19,7 @@ import {
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
+import { formatApiDateTime } from "@/lib/api/format"
 import { formatCount } from "@/lib/utils"
 
 const DESCRIPTION =
@@ -79,7 +80,18 @@ export async function RefurbishableSparesOverviewPage() {
   const unknownStockRows = universe?.stockByPlant.unknownRows ?? 0
 
   return (
-    <Shell description={`${DESCRIPTION} Live from the July extract, as at ${register.referenceDate}.`}>
+    <Shell
+      description={
+        // No source named here either -- see `registerDescription`. The page
+        // knows when the figures are measured as of; it has no way to know
+        // which SAP load produced them, and said "the July extract" for weeks
+        // after that stopped being true.
+        `${DESCRIPTION} As at ${register.referenceDate}.` +
+        (register.sourceLoadedAt
+          ? ` SAP data loaded ${formatApiDateTime(register.sourceLoadedAt)}.`
+          : "")
+      }
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KPIStatCard
           label="Repairable materials monitored"
