@@ -1,10 +1,14 @@
+import Link from "next/link"
 import { connection } from "next/server"
+import type { ReactNode } from "react"
+import { ArrowRight, ChevronDown, Clock3 } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { PageHeader } from "@/components/shared/page-header"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
-import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
+import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
 import { ExceptionStatusPanel } from "@/features/initiative-13/components/exception-status-panel"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
@@ -24,61 +28,51 @@ import { ValidationPanel } from "@/features/initiative-13/components/validation-
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
 import {
   attachCriticalImpactIndicator,
-  countByField,
   filterNonMovers,
 } from "@/features/initiative-13/utils/dashboard-transforms"
 import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
-import { formatCount } from "@/lib/utils"
-
-const AGING_BAND_LABELS: Record<string, string> = {
-  FAST: "Fast-moving",
-  SLOW: "Slow-moving",
-  NON_MOVING: "Non-moving",
-}
+import {
+  EXCEPTION_STATUS_LABEL,
+  EXCEPTION_STATUS_ORDER,
+  EXCEPTION_STATUS_TONE,
+  orderedCounts,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_ORDER,
+  PLAN_STATUS_TONE,
+} from "@/features/initiative-13/utils/status-labels"
+import type { AcquiredVsPlanStatus, ActExceptionStatus, WatchMetric } from "@/lib/api/i13"
+import { formatApiDateTime } from "@/lib/api/format"
+import { buttonVariants } from "@/components/ui/button"
+import { cn, formatCount } from "@/lib/utils"
 
 /**
  * W6.7 — the Utilisation Dashboard (FR-10), and the module's landing page at
  * `/oar-utilization`.
  *
- * It absorbed the old Overview, which carried nothing this page lacked except
- * three hand-written charts (unutilised value by department, NM/SM inflow,
- * redeployment avoidance). Those were dropped rather than moved: the FRS does
- * not ask for them and there is no valuation source behind them (MBEW is not
- * required, FRS §7.3).
+ * ## Layout
  *
- * One consolidated view: KPIs, aging distribution, non-mover drilldown,
- * acquired-versus-plan, exception status, reclassification candidates, captured
- * consumption plans, the justification log and validation.
+ * Overview first, detail on demand. The top of the page answers "how is OAR
+ * stock moving, and what needs a person?" — the movement split, the four
+ * actionable counts (each linking to its screen), plan coverage and exception
+ * status. Every FR-10 drilldown (non-movers, acquired-vs-plan, exceptions,
+ * reclassification, captured plans, justifications, validation) is still here,
+ * in one tabbed card below, instead of seven full-width tables stacked on one
+ * scroll. Provenance and row-cap notes live in a collapsed "About this data".
  *
- * ## What changed, and why it is not just tidying
+ * ## Data
  *
- * This was a `"use client"` page running **six** `useI13Query` hooks. They fired
- * after hydration, and re-fired on every debounced keystroke — including
- * `getI13AllJustifications`, which is two list calls plus up to thirty detail
- * fetches, from the browser. Now it is one server-side `Promise.allSettled`
- * before the HTML is sent.
- *
- * The consequence that matters is not the round trips. It is that
- * `router.refresh()` and `revalidatePath` now do something here: recording a
- * confirmation updates the exception panel, the justification log and the KPIs
- * together, because the server re-renders them. Against the old page a write
- * could not update anything, because every section's data lived in `useState`.
- *
- * ## Which sections are allowed to be missing
- *
- * The dashboard's one official dependency is W6.3 (WATCH). Reclassification
- * (W6.5), the ACT exception queue and justification log (W6.6), captured plans
- * (WS7) and validation all degrade independently — a 404 is reported as
- * "not available" rather than as an error, because a backend without those
- * wired up is a deployment fact with nothing to retry. See `live-dashboard.ts`.
+ * One server-side `Promise.allSettled` before the HTML is sent (see
+ * `live-dashboard.ts`), so `router.refresh()` after a confirmation updates
+ * every section together. WATCH (W6.3) is the one official dependency; every
+ * other section degrades on its own, a 404 reading as "not available" rather
+ * than as an error.
  *
  * ## The transforms this page performs
  *
  * Grouping, joining and filtering fields the backend already computed —
- * `utils/dashboard-transforms.ts` — and never a business rule. No aging band is
- * reclassified here, no months of cover recalculated, no candidacy re-decided.
- * If it were, this screen and the WATCH screen would disagree about the same
- * material in front of a user.
+ * `utils/dashboard-transforms.ts` and `utils/status-labels.ts` — and never a
+ * business rule. No aging band is reclassified here, no months of cover
+ * recalculated, no candidacy re-decided.
  */
 export async function UtilisationDashboardPage({
   searchParams,
@@ -96,13 +90,6 @@ export async function UtilisationDashboardPage({
 
   const { watch } = dashboard
 
-  const agingDistribution = watch
-    ? countByField(watch.rows, (row) => row.agingBand).map((entry) => ({
-        ...entry,
-        bucket: AGING_BAND_LABELS[entry.bucket] ?? entry.bucket,
-      }))
-    : []
-
   const nonMoverRows = watch
     ? attachCriticalImpactIndicator(
         filterNonMovers(watch.rows),
@@ -112,18 +99,56 @@ export async function UtilisationDashboardPage({
       )
     : []
 
+  const planSegments = watch
+    ? orderedCounts(watch.rows, (r) => r.acquiredVsPlanStatus, PLAN_STATUS_ORDER).map(
+        ({ key, count }) => ({
+          key,
+          count,
+          label: PLAN_STATUS_LABEL[key as AcquiredVsPlanStatus] ?? key,
+          tone: PLAN_STATUS_TONE[key as AcquiredVsPlanStatus] ?? "neutral",
+        })
+      )
+    : []
+
+  const exceptionSegments =
+    dashboard.exceptions.status === "ready"
+      ? orderedCounts(dashboard.exceptions.data.rows, (r) => r.status, EXCEPTION_STATUS_ORDER).map(
+          ({ key, count }) => ({
+            key,
+            count,
+            label: EXCEPTION_STATUS_LABEL[key as ActExceptionStatus] ?? key,
+            tone: EXCEPTION_STATUS_TONE[key as ActExceptionStatus] ?? "neutral",
+          })
+        )
+      : []
+
   const capturedPlanCount =
     dashboard.plans.status === "ready" ? dashboard.plans.data.count : null
   const referencePlanCount =
     dashboard.summary.status === "ready" ? dashboard.summary.data.referencePlanCount : null
 
+  const unroutedExceptions =
+    dashboard.exceptions.status === "ready"
+      ? dashboard.exceptions.data.count - dashboard.exceptions.data.ownedCount
+      : 0
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <PageHeader
           title="OAR Utilization"
-          description="End-to-end tracking of OAR spares from reservation through utilization — KPIs, aging, non-mover drilldown, acquired-vs-plan, exceptions, reclassification candidates, captured plans, justifications and validation in one view (FR-10)."
-          actions={<CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />}
+          description="How OAR spares move from reservation to issue — what is idle, what is off plan, and what needs a follow-up."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 text-xs text-muted-foreground">
+                <Clock3 className="size-3.5" />
+                {watch?.calculatedAt
+                  ? `Data as of ${formatApiDateTime(watch.calculatedAt)}`
+                  : "Computation time not recorded"}
+              </span>
+              {watch && <NonMoverExport rows={watch.rows} />}
+            </div>
+          }
         />
 
         <I13UrlFilters
@@ -132,59 +157,29 @@ export async function UtilisationDashboardPage({
           agingBands={watch?.agingBandOptions}
         />
 
-        {/* KPIs */}
         {dashboard.summary.status === "ready" ? (
-          <KpiSummary summary={dashboard.summary.data} />
+          <KpiSummary
+            summary={dashboard.summary.data}
+            inView={watch ? <InViewFacts rows={watch.rows} total={watch.total ?? watch.count} /> : undefined}
+          />
         ) : (
           <SectionFallback section={dashboard.summary} what="utilisation summary" />
         )}
 
-        <PlanProvenanceNote
-          capturedCount={capturedPlanCount}
-          referenceCount={referencePlanCount}
-        />
-
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <ChartCard
-            title="Aging distribution"
-            subtitle="Backend-computed aging band (FAST/SLOW/NON_MOVING) — never reclassified in the browser"
+            title="Plan coverage"
+            subtitle="Received quantity against the consumption plan, per position"
             span={6}
           >
             {watch ? (
-              <AgingBucketsChart data={agingDistribution} />
-            ) : (
-              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
-            )}
-          </ChartCard>
-
-          <ChartCard
-            title="Acquired vs. plan"
-            subtitle="Backend-computed acquired-vs-plan status and variance"
-            span={6}
-          >
-            {watch ? (
-              <AcquiredVsPlanPanel rows={watch.rows} />
-            ) : (
-              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
-            )}
-          </ChartCard>
-
-          <ChartCard
-            title="Non-mover drilldown"
-            subtitle="NON_MOVING positions by plant and critical-impact indicator (joined from W6.5, when available)"
-            span={12}
-            footnote={
-              dashboard.reclassification.status === "unavailable"
-                ? "Critical-impact indicator unavailable — reclassification candidates (W6.5) could not be loaded, so this column shows Unknown for every row."
-                : undefined
-            }
-          >
-            {watch ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-end">
-                  <NonMoverExport rows={watch.rows} />
-                </div>
-                <NonMoverTable rows={nonMoverRows} />
+              <div className="flex h-full flex-col gap-4">
+                <DistributionBar segments={planSegments} label="Positions by acquired-vs-plan status" />
+                <PlanProvenanceNote
+                  capturedCount={capturedPlanCount}
+                  referenceCount={referencePlanCount}
+                  className="mt-auto"
+                />
               </div>
             ) : (
               <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
@@ -193,99 +188,273 @@ export async function UtilisationDashboardPage({
 
           <ChartCard
             title="Exception status"
-            subtitle="W6.6 ACT exception queue — read-only here; confirmations are recorded on the Exceptions screen"
-            span={12}
-            footnote={
-              dashboard.exceptions.status === "ready" &&
-              dashboard.exceptions.data.count > dashboard.exceptions.data.ownedCount
-                ? `${formatCount(
-                    dashboard.exceptions.data.count - dashboard.exceptions.data.ownedCount
-                  )} of these have no resolved requester, so they have never been routed and cannot escalate.`
-                : undefined
-            }
+            subtitle="Where each follow-up sits in the confirmation workflow"
+            span={6}
           >
             {dashboard.exceptions.status === "ready" ? (
-              <ExceptionStatusPanel rows={dashboard.exceptions.data.rows} />
+              dashboard.exceptions.data.count === 0 ? (
+                <QuietState
+                  title="No exceptions in the queue"
+                  description="Nothing is waiting on a requester or escalated."
+                />
+              ) : (
+                <div className="flex h-full flex-col gap-4">
+                  <DistributionBar segments={exceptionSegments} label="Exceptions by status" />
+                  {unroutedExceptions > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatCount(unroutedExceptions)} have no resolved requester, so they
+                      have not been routed and cannot escalate.
+                    </p>
+                  )}
+                </div>
+              )
             ) : (
               <SectionFallback section={dashboard.exceptions} what="exceptions" />
             )}
-          </ChartCard>
-
-          <ChartCard
-            title="Captured consumption plans"
-            subtitle="FR-4 — plans stated by a person in the assistant, kept apart from any generated reference rows"
-            span={12}
-          >
-            {dashboard.plans.status === "ready" ? (
-              <div className="flex flex-col gap-2">
-                <PlansTable plans={dashboard.plans.data.rows.slice(0, 10)} />
-                {dashboard.plans.data.count > 10 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Showing 10 of {formatCount(dashboard.plans.data.count)} — the
-                    full list is on the Consumption plans screen.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <SectionFallback section={dashboard.plans} what="captured plans" />
-            )}
-          </ChartCard>
-
-          <ChartCard
-            title="Reclassification candidates"
-            subtitle="W6.5 advisory evidence — recommended for review, never an automatic conversion"
-            span={12}
-          >
-            {dashboard.reclassification.status === "ready" ? (
-              <>
-                <ReclassificationTable candidates={dashboard.reclassification.data.rows} />
-                <RowCapNote
-                  atLimit={dashboard.reclassification.data.atLimit}
-                  count={dashboard.reclassification.data.count}
-                  total={dashboard.reclassification.data.total}
-                  noun="candidate"
-                />
-              </>
-            ) : (
-              <SectionFallback
-                section={dashboard.reclassification}
-                what="reclassification candidates"
-              />
-            )}
-          </ChartCard>
-
-          <ChartCard
-            title="Justification log"
-            subtitle="Structured reasons from ACT confirmations and from the assistant at reservation time — audit view only"
-            span={12}
-            footnote="The ACT half is bounded to the most recent confirmed/resolved exceptions — there is no bulk confirmation-listing endpoint yet."
-          >
-            {dashboard.justifications.status === "ready" ? (
-              <JustificationLog entries={dashboard.justifications.data} />
-            ) : (
-              <SectionFallback section={dashboard.justifications} what="justification log" />
-            )}
-          </ChartCard>
-
-          <ChartCard
-            title="Validation"
-            subtitle="Reconciliation against ZMM065 and the 30-Day GR Report, read by the backend from its own database — all tolerance math runs there"
-            span={12}
-          >
-            {dashboard.validation.status === "ready" ? (
-              <ValidationPanel result={dashboard.validation.data} />
-            ) : (
-              <SectionFallback section={dashboard.validation} what="validation data" />
-            )}
+            <div className="mt-4 flex justify-end">
+              <Link
+                href="/oar-utilization/aging-exceptions"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+              >
+                Open exceptions queue
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
           </ChartCard>
         </div>
 
-        {watch && (
-          <RowCapNote atLimit={watch.atLimit} count={watch.count} total={watch.total} noun="WATCH position" />
-        )}
+        <section className="rounded-xl border border-border bg-card">
+          <Tabs defaultValue="non-movers" className="gap-0">
+            <div className="flex flex-col gap-3 border-b border-border px-4 pt-4 sm:px-5">
+              <div>
+                <h2 className="text-sm font-medium text-foreground">Details</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Position-level drilldowns for the current filters
+                </p>
+              </div>
+              <div className="-mx-1 overflow-x-auto px-1 pb-2">
+                <TabsList variant="line" className="h-9">
+                  <DetailTab value="non-movers" label="Non-movers" count={watch ? nonMoverRows.length : null} />
+                  <DetailTab value="plan" label="Acquired vs plan" count={watch?.rows.length ?? null} />
+                  <DetailTab value="exceptions" label="Exceptions" count={sectionCount(dashboard.exceptions, (d) => d.count)} />
+                  <DetailTab value="reclassification" label="Reclassification" count={sectionCount(dashboard.reclassification, (d) => d.rows.filter((r) => r.candidateFlag).length)} />
+                  <DetailTab value="plans" label="Captured plans" count={sectionCount(dashboard.plans, (d) => d.count)} />
+                  <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
+                  <DetailTab value="validation" label="Validation" count={null} />
+                </TabsList>
+              </div>
+            </div>
 
-        <DataSourcePanel />
+            <div className="p-4 sm:p-5">
+              <TabsContent value="non-movers">
+                {watch ? (
+                  <div className="flex flex-col gap-3">
+                    {dashboard.reclassification.status === "unavailable" && (
+                      <p className="text-xs text-muted-foreground">
+                        Critical impact shows Unknown for every row — reclassification data is not
+                        available from this backend.
+                      </p>
+                    )}
+                    <NonMoverTable rows={nonMoverRows} />
+                  </div>
+                ) : (
+                  <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+                )}
+              </TabsContent>
+
+              <TabsContent value="plan">
+                {watch ? (
+                  <AcquiredVsPlanPanel rows={watch.rows} />
+                ) : (
+                  <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+                )}
+              </TabsContent>
+
+              <TabsContent value="exceptions">
+                {dashboard.exceptions.status === "ready" ? (
+                  <ExceptionStatusPanel rows={dashboard.exceptions.data.rows} />
+                ) : (
+                  <SectionFallback section={dashboard.exceptions} what="exceptions" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="reclassification">
+                {dashboard.reclassification.status === "ready" ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Advisory only — recommended for review, never converted automatically.
+                    </p>
+                    <ReclassificationTable candidates={dashboard.reclassification.data.rows} />
+                    <RowCapNote
+                      atLimit={dashboard.reclassification.data.atLimit}
+                      count={dashboard.reclassification.data.count}
+                      total={dashboard.reclassification.data.total}
+                      noun="candidate"
+                    />
+                  </div>
+                ) : (
+                  <SectionFallback
+                    section={dashboard.reclassification}
+                    what="reclassification candidates"
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value="plans">
+                {dashboard.plans.status === "ready" ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Plans stated by requesters in the assistant, kept apart from generated
+                      reference plans.
+                    </p>
+                    <PlansTable plans={dashboard.plans.data.rows.slice(0, 10)} />
+                    {dashboard.plans.data.count > 10 && (
+                      <Link
+                        href="/oar-utilization/plans"
+                        className="self-end text-xs font-medium text-primary hover:underline"
+                      >
+                        Showing 10 of {formatCount(dashboard.plans.data.count)} — view all plans
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <SectionFallback section={dashboard.plans} what="captured plans" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="justifications">
+                {dashboard.justifications.status === "ready" ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Reasons given when exceptions were confirmed and when reservations were
+                      made in the assistant. Covers the most recent confirmations only.
+                    </p>
+                    <JustificationLog entries={dashboard.justifications.data} />
+                  </div>
+                ) : (
+                  <SectionFallback section={dashboard.justifications} what="justification log" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="validation">
+                {dashboard.validation.status === "ready" ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Reconciliation against ZMM065 and the 30-Day GR Report, computed by the
+                      backend.
+                    </p>
+                    <ValidationPanel result={dashboard.validation.data} />
+                  </div>
+                ) : (
+                  <SectionFallback section={dashboard.validation} what="validation data" />
+                )}
+              </TabsContent>
+            </div>
+          </Tabs>
+        </section>
+
+        <details className="group rounded-xl border border-border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
+            About this data
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
+            <CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />
+            {watch && (
+              <RowCapNote
+                atLimit={watch.atLimit}
+                count={watch.count}
+                total={watch.total}
+                noun="WATCH position"
+              />
+            )}
+            {dashboard.summary.status === "ready" && dashboard.summary.data.valuationIsMocked && (
+              <p className="text-[11px] text-muted-foreground">
+                Valuation data behind these figures is currently mocked in the backend.
+              </p>
+            )}
+            <DataSourcePanel />
+          </div>
+        </details>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Three plain aggregates of the filtered WATCH rows — a max, a sum and a count
+ * of fields the backend computed. Nothing is reclassified.
+ */
+function InViewFacts({ rows, total }: { rows: WatchMetric[]; total: number }) {
+  const nonMoving = rows.filter((r) => r.agingBand === "NON_MOVING")
+  const longestIdle = rows.reduce<number | null>(
+    (max, r) =>
+      r.daysSinceLastMovement !== null && (max === null || r.daysSinceLastMovement > max)
+        ? r.daysSinceLastMovement
+        : max,
+    null
+  )
+  const idleUnits = nonMoving.reduce((sum, r) => sum + (r.stockOnHand ?? 0), 0)
+  const noIssues = rows.filter((r) => r.consumptionCount12m === 0).length
+
+  const facts = [
+    { label: "Positions in view", value: formatCount(total) },
+    {
+      label: "Longest idle",
+      value: longestIdle === null ? "—" : `${(longestIdle / 365).toFixed(1)} yrs`,
+    },
+    { label: "Idle units on hand", value: formatCount(idleUnits) },
+    { label: "No issues in 12 months", value: formatCount(noIssues) },
+  ]
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        For the current filters
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+        {facts.map((f) => (
+          <div key={f.label} className="flex flex-col gap-0.5">
+            <dt className="text-xs text-muted-foreground">{f.label}</dt>
+            <dd className="text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function DetailTab({
+  value,
+  label,
+  count,
+}: {
+  value: string
+  label: string
+  count: number | null
+}) {
+  return (
+    <TabsTrigger value={value} className="flex-none px-2.5">
+      {label}
+      {count !== null && (
+        <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {formatCount(count)}
+        </span>
+      )}
+    </TabsTrigger>
+  )
+}
+
+function sectionCount<T>(section: Section<T>, count: (data: T) => number): number | null {
+  return section.status === "ready" ? count(section.data) : null
+}
+
+/** A calm "nothing to do" — smaller than `EmptyState`, which is sized for a page. */
+function QuietState({ title, description }: { title: string; description?: ReactNode }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg bg-muted/40 px-4 py-8 text-center">
+      <div className="text-sm font-medium text-foreground">{title}</div>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
     </div>
   )
 }
