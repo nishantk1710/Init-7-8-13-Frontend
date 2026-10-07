@@ -31,8 +31,8 @@ const DemoPlans = dynamic(() =>
  * ## The number this page exists to show
  *
  * How many plans are **real**. The acquired-versus-plan engine on the dashboard
- * is genuine, but 742 of the plans behind it came from a generator with invented
- * `SESS-000001` references. The backend keeps the two apart internally
+ * is genuine, but where I13_REFERENCE_PLANS_ENABLED is on, plans behind it also
+ * come from a generator with invented `SESS-000001` references. The backend keeps the two apart internally
  * (`PlanSource.CAPTURED` versus `REFERENCE_CSV`) and this endpoint serves only
  * the captured ones — so the row count here is the answer to "how much of that
  * dashboard is standing on real data?".
@@ -82,9 +82,9 @@ export async function ConsumptionPlansPage({
         />
 
         <AlertBanner tone="info" title="These are the real plans">
-          Only plans captured through the assistant appear here. The 742
-          generated reference rows that most acquired-versus-plan figures still
-          rest on are deliberately kept out — a list that blended them would make
+          Only plans captured through the assistant appear here. Generated
+          reference rows, wherever the backend is configured to count them, are
+          deliberately kept out — a list that blended them would make
           it impossible to tell at a glance which is which, which is the single
           most important thing to know before working the exception queue.
         </AlertBanner>

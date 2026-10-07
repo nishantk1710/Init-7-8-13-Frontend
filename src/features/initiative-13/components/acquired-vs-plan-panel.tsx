@@ -1,6 +1,5 @@
 "use client"
 
-import { useMemo } from "react"
 import { Download } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
@@ -14,36 +13,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AgingBucketsChart } from "@/features/initiative-13/components/aging-buckets-chart"
 import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
 import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
-import type { AcquiredVsPlanStatus, WatchMetric } from "@/lib/api/i13"
-import { acquiredVsPlanRowsToCsv, countByField } from "@/features/initiative-13/utils/dashboard-transforms"
+import type { WatchMetric } from "@/lib/api/i13"
+import { acquiredVsPlanRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
+import {
+  badgeTone,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_TONE,
+} from "@/features/initiative-13/utils/status-labels"
 import { downloadCsv, formatCount } from "@/lib/utils"
-
-const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
-  NO_PLAN: "No plan",
-  BELOW_PLAN: "Below plan",
-  ON_PLAN: "Aligned",
-  ABOVE_PLAN: "Above plan",
-}
-
-const PLAN_TONE: Record<AcquiredVsPlanStatus, "default" | "success" | "warning" | "danger"> = {
-  NO_PLAN: "default",
-  BELOW_PLAN: "warning",
-  ON_PLAN: "success",
-  ABOVE_PLAN: "danger",
-}
 
 /** Acquired vs. Plan (§9): backend-computed `acquired_vs_plan_status` and
  * variance, rendered as-is — no tolerance/comparison rule is recreated
  * here. */
 export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
   const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(rows)
-  const distribution = useMemo(
-    () => countByField(rows, (r) => r.acquiredVsPlanStatus).map((d) => ({ ...d, bucket: PLAN_LABEL[d.bucket as AcquiredVsPlanStatus] ?? d.bucket })),
-    [rows]
-  )
 
   function exportCsv() {
     downloadCsv(
@@ -59,9 +44,8 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <AgingBucketsChart data={distribution} />
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} position(s)</p>
+        <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} position{rows.length === 1 ? "" : "s"}</p>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="size-3.5" />
           Export CSV
@@ -110,7 +94,9 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
                   )}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge tone={PLAN_TONE[r.acquiredVsPlanStatus]}>{PLAN_LABEL[r.acquiredVsPlanStatus]}</StatusBadge>
+                  <StatusBadge tone={badgeTone(PLAN_STATUS_TONE[r.acquiredVsPlanStatus])}>
+                    {PLAN_STATUS_LABEL[r.acquiredVsPlanStatus]}
+                  </StatusBadge>
                 </TableCell>
               </TableRow>
             ))}

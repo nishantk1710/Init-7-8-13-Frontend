@@ -1,5 +1,6 @@
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
+import { formatApiDateTime } from "@/lib/api/format"
 import { formatCount } from "@/lib/utils"
 
 /**
@@ -121,36 +122,81 @@ export function CalculatedAtNote({ calculatedAt }: { calculatedAt: string | null
   }
   return (
     <span className="text-[11px] text-muted-foreground">
-      Figures computed {new Date(calculatedAt).toLocaleString()} from the latest
-      SAP extract — refreshed automatically when it is reloaded
+      Figures computed {formatApiDateTime(calculatedAt)} from the latest SAP
+      extract — refreshed automatically when it is reloaded
     </span>
   )
 }
 
 /**
- * The standing caveat about acquired-vs-plan.
+ * Where the plans behind acquired-vs-plan came from.
  *
- * The engine is real; most of its input is not. 742 consumption plans came from
- * a generator with invented `SESS-000001` references, and until somebody
- * captures one through the assistant every plan behind these numbers is
- * fabricated. The backend distinguishes them internally (`PlanSource.CAPTURED`
- * vs `REFERENCE_CSV`) but does not serve the field, so this cannot be marked per
- * row — see ask O-9. A standing note is the honest alternative to silence.
+ * The engine is real; its input may not be. Where the backend's
+ * I13_REFERENCE_PLANS_ENABLED is on, generated plans with invented
+ * `SESS-000001` references count alongside the captured ones, and this says how
+ * many (`referenceCount`, from the summary). Where it is off -- production --
+ * every plan is captured, and with none captured yet that is the thing to say:
+ * plan breaches read 0 and every reservation is a no-plan exception because
+ * there are no plans, not because the figures are wrong. `null` means a backend
+ * that predates the count, so no number is claimed at all.
  */
-export function PlanProvenanceNote({ capturedCount }: { capturedCount: number | null }) {
+export function PlanProvenanceNote({
+  capturedCount,
+  referenceCount,
+  className,
+}: {
+  capturedCount: number | null
+  referenceCount: number | null
+  className?: string
+}) {
+  if (referenceCount === null) {
+    return (
+      <AlertBanner className={className} tone="info" title="Where the plans behind these figures come from">
+        Acquired-versus-plan counts plans captured through the assistant, plus
+        any generated reference plans the backend is configured to read.
+        <CapturedSoFar count={capturedCount} />
+      </AlertBanner>
+    )
+  }
+
+  if (referenceCount > 0) {
+    return (
+      <AlertBanner className={className} tone="warning" title="Some plans behind these figures are reference data">
+        The acquired-versus-plan engine is real; not all of its input is.{" "}
+        <strong>{formatCount(referenceCount)}</strong> consumption plan
+        {referenceCount === 1 ? " came" : "s came"} from a generator, with
+        invented session references.
+        <CapturedSoFar count={capturedCount} />
+      </AlertBanner>
+    )
+  }
+
+  if (capturedCount === 0) {
+    return (
+      <AlertBanner className={className} tone="info" title="No consumption plans exist yet">
+        No plan has been captured through the assistant, and no generated plans
+        are loaded. Until requesters capture plans, plan breaches read 0 and
+        every OAR reservation counts as a no-plan exception.
+      </AlertBanner>
+    )
+  }
+
   return (
-    <AlertBanner tone="info" title="Most plans behind these figures are reference data">
-      The acquired-versus-plan engine is real; most of its input is not. 742
-      consumption plans came from a generator, with invented session references.
-      {capturedCount !== null && (
-        <>
-          {" "}
-          <strong>{formatCount(capturedCount)}</strong> plan
-          {capturedCount === 1 ? " has" : "s have"} been captured through the
-          assistant so far — those are the real ones, and they are listed on the
-          captured-plans section below.
-        </>
-      )}
+    <AlertBanner className={className} tone="info" title="Every plan behind these figures is real">
+      No generated reference plans are loaded.
+      <CapturedSoFar count={capturedCount} />
     </AlertBanner>
+  )
+}
+
+function CapturedSoFar({ count }: { count: number | null }) {
+  if (count === null) return null
+  return (
+    <>
+      {" "}
+      <strong>{formatCount(count)}</strong> plan
+      {count === 1 ? " has" : "s have"} been captured through the assistant so far
+      {count > 0 && " — see the Captured plans tab below"}.
+    </>
   )
 }

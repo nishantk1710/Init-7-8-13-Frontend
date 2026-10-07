@@ -298,8 +298,8 @@ export type LivePlans = Capped<ConsumptionPlan> & {
 /**
  * Consumption plans captured through the assistant — FR-4's evidence.
  *
- * Every row here was stated by a person in a conversation. The 742
- * `REFERENCE_CSV` rows that most acquired-vs-plan figures still rest on are
+ * Every row here was stated by a person in a conversation. Generated
+ * `REFERENCE_CSV` rows, where the backend is configured to read them, are
  * **not** in this list, by design: the backend keeps them apart, and the whole
  * value of this screen is being able to say which is which.
  */
