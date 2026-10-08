@@ -858,21 +858,35 @@ export async function getI13Justifications(params?: {
  * `app/assistant/turns.py` write the shared table, and the ACT confirmation
  * route writes nowhere near it. So they concatenate without dedupe.
  *
- * Two requests in total: one per table.
+ * ## Only I13's kinds
+ *
+ * The shared table also holds I08's `NEW_ACQUISITION` (repairable spares)
+ * records, which do not belong on the OAR screens. The route filters on one
+ * `kind` at a time, so this asks once per I13 kind rather than fetching
+ * everything and dropping rows afterwards: with a 200-row limit, I08 rows
+ * could otherwise crowd I13's out of the page entirely.
  */
+export const I13_JUSTIFICATION_KINDS = ["QUANTITY_OVERRIDE", "PLAN_BREACH", "NO_PLAN"] as const
+
 export async function getI13AllJustifications(params?: {
   plant?: string
   material?: string
 }): Promise<UnifiedJustification[]> {
-  const [platform, act] = await Promise.all([
-    listJustifications({
-      plant: params?.plant || undefined,
-      material: params?.material || undefined,
-      limit: 200,
-    }),
+  const [act, ...platform] = await Promise.all([
     getI13Justifications(params),
+    ...I13_JUSTIFICATION_KINDS.map((kind) =>
+      listJustifications({
+        kind,
+        plant: params?.plant || undefined,
+        material: params?.material || undefined,
+        limit: 200,
+      })
+    ),
   ])
-  return mergeJustifications(platform.items, act)
+  return mergeJustifications(
+    platform.flatMap((list) => list.items),
+    act
+  )
 }
 
 /** Pure, unit-testable half of `getI13Justifications` — no network. */
