@@ -42,7 +42,6 @@ import {
   getI13ReservationLedgerList,
   getI13Summary,
   getI13UsagePatterns,
-  getI13Validation,
   type ActException,
   type ConsumptionPlan,
   type GrniEntry,
@@ -51,7 +50,6 @@ import {
   type ReservationLedgerRow,
   type UsagePattern,
   type UtilisationLedgerEntry,
-  type ValidationResult,
   type WatchMetric,
 } from "@/lib/api/i13"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
@@ -315,11 +313,6 @@ export async function loadLivePlans(filters: LedgerFilters = {}): Promise<LivePl
 /** The KPI counts, scoped to the same plant/material as the rest of the dashboard. */
 export function loadLiveSummary(scope: { plant?: string; material?: string } = {}): Promise<I13Summary> {
   return getI13Summary({ plant: scope.plant || undefined, material: scope.material || undefined })
-}
-
-/** FR-6 reconciliation; the backend reads both reports itself. */
-export function loadLiveValidation(): Promise<ValidationResult> {
-  return getI13Validation()
 }
 
 export type LiveGrni = Capped<GrniEntry> & {

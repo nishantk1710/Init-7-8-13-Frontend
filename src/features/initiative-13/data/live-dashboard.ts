@@ -1,7 +1,7 @@
 /**
  * The Utilisation Dashboard's whole data layer — W6.7, FR-10.
  *
- * One server-side fetch for seven sections, where there used to be six client
+ * One server-side fetch for six sections, where there used to be six client
  * hooks firing after hydration and re-firing on every debounced keystroke.
  *
  * ## Where `useI13OptionalQuery`'s semantics went
@@ -26,7 +26,6 @@ import { ApiError } from "@/lib/api/client"
 import {
   getI13AllJustifications,
   type I13Summary,
-  type ValidationResult,
 } from "@/lib/api/i13"
 import type { UnifiedJustification } from "@/lib/assistant/justifications"
 import {
@@ -34,7 +33,6 @@ import {
   loadLivePlans,
   loadLiveReclassification,
   loadLiveSummary,
-  loadLiveValidation,
   loadLiveWatch,
   type LiveActExceptions,
   type LivePlans,
@@ -89,7 +87,6 @@ export type LiveDashboard = {
   exceptions: Section<LiveActExceptions>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
-  validation: Section<ValidationResult>
 }
 
 export async function loadLiveDashboard(
@@ -97,9 +94,9 @@ export async function loadLiveDashboard(
 ): Promise<LiveDashboard> {
   const scope = { plant: filters.plant, material: filters.material }
 
-  // All seven in flight together. Sequentially this would be seven round trips
+  // All six in flight together. Sequentially this would be six round trips
   // deep on a screen whose whole job is to be glanced at.
-  const [watchResult, summary, reclassification, exceptions, justifications, plans, validation] =
+  const [watchResult, summary, reclassification, exceptions, justifications, plans] =
     await Promise.all([
       loadLiveWatch(filters).then(
         (data) => ({ ok: true as const, data }),
@@ -113,7 +110,6 @@ export async function loadLiveDashboard(
       section(loadLiveActExceptions(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope)),
-      section(loadLiveValidation()),
     ])
 
   return {
@@ -124,6 +120,5 @@ export async function loadLiveDashboard(
     exceptions,
     justifications,
     plans,
-    validation,
   }
 }

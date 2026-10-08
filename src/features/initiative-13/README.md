@@ -75,9 +75,6 @@ by the global shell) calls into for OAR routing precedence.
 | `/oar-utilization/ledger` | `pages/ledger-page.tsx` | Every OAR reservation line with its document chain, expandable |
 | `/oar-utilization/aging-exceptions` | `pages/aging-exceptions-page.tsx` | **The FR-9 ACT queue.** Owner, routing state, escalation, session link, and a confirmation that is really recorded |
 | `/oar-utilization/watch` | `pages/watch-page.tsx` | FR-1/FR-6, in three tabs held in `?view=`: **Metrics** (default, the persisted W6.3 mart), **30-Day GR-Not-Issued** (`grni`, per reservation line) and **Usage Pattern** (`usage`, monthly net issues). Only the active tab is fetched |
-| `/oar-utilization/plans` | `pages/plans-page.tsx` | **FR-4.** Consumption plans captured through the assistant — the real ones, kept apart from the 742 generated rows |
-| `/oar-utilization/reclassification` | `pages/reclassification-page.tsx` | **FR-8.** SOP evidence for a stocked-material review, advisory only |
-| `/oar-utilization/validation` | `pages/validation-page.tsx` | Reconciliation against ZMM065 and the 30-Day GR Report |
 
 The reservation-time assistant (FR-2, FR-3) is not an I13 nav item. It is
 shared with Initiative 8 at `/assistant` and has its own sidebar section.
@@ -90,6 +87,9 @@ shared with Initiative 8 at `/assistant` and has its own sidebar section.
 | `/oar-utilization/gr-not-issued` | `/oar-utilization/watch?view=grni` |
 | `/oar-utilization/usage-patterns` | `/oar-utilization/watch?view=usage` |
 | `/oar-utilization/redeployment` | `/oar-utilization/aging-exceptions` |
+| `/oar-utilization/plans` | `/oar-utilization?tab=plans` (captured plans are a Dashboard tab; plant and material are kept) |
+| `/oar-utilization/reclassification` | `/oar-utilization` (reclassification belongs to Initiative 7) |
+| `/oar-utilization/validation` | `/oar-utilization` (validation belongs to Initiative 7) |
 
 The first three keep the query they arrived with (`utils/redirects.ts`), so a
 shared filtered link still lands filtered.
@@ -192,11 +192,11 @@ that shared file.
    material on chat session `SPR-2847`, the hero demo session) is included
    in the OAR set, so the OAR branch is visibly demonstrable on an existing
    session, not just on Initiative 13's own scenario data.
-2. **Reclassification → Initiative 7.** The "Review in Initiative 7" action
-   on the Reclassification page is a plain `<Link href="/inventory-optimization/recommendations?reviewMaterial=<materialId>">`
-   — a mock integration event via URL navigation, never an import of an
-   Initiative 7 component. `500-31005` is always present in
-   `RECLASSIFICATION_CANDIDATES` so this link has a live target.
+2. **Reclassification → Initiative 7.** Reclassification and validation are
+   Initiative 7's, so this module no longer has screens for them. The only
+   thing I13 still reads from the reclassification feed is the criticality
+   behind the non-movers' Critical impact column. The scenario fixture
+   `RECLASSIFICATION_CANDIDATES` remains for the Home and Approvals sample data.
 3. **Zero cross-initiative imports.** This module never imports from
    `@/features/initiative-7/**` or `@/features/initiative-8/**`, and is
    never imported by them.
