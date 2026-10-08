@@ -42,11 +42,9 @@ export function choiceAnswer(value: string): Record<string, unknown> {
  * The answer payload for a form step.
  *
  * Trims, then **drops empty optional fields entirely** rather than sending
- * `""`. An empty string is a value, and "the cost centre is the empty string"
- * is a different statement from "the requester did not know the cost centre" —
- * the plan form says so out loud ("leave blank if you genuinely do not know
- * yet"). Only one of those is true, and it is not the one an empty string
- * records.
+ * `""`. An empty string is a value, and "this field is the empty string" is a
+ * different statement from "the requester left it blank". Only one of those is
+ * true, and it is not the one an empty string records.
  *
  * A required field that is empty is still sent, so the server's own validator
  * is the one that rejects it and the UI never has to duplicate that rule.

@@ -17,7 +17,7 @@
       },
       {
         "name": "planned_quantity",
-        "label": "How many you plan to use",
+        "label": "How many should be procured",
         "type": "number",
         "required": true,
         "options": [],
@@ -28,16 +28,16 @@
         "name": "window_start",
         "label": "Expected to be used from",
         "type": "date",
-        "required": false,
+        "required": true,
         "options": [],
-        "helpText": "Leave blank if you genuinely do not know yet.",
+        "helpText": null,
         "default": null
       },
       {
         "name": "window_end",
         "label": "...and by",
         "type": "date",
-        "required": false,
+        "required": true,
         "options": [],
         "helpText": null,
         "default": null

@@ -255,13 +255,13 @@ describe("form steps", () => {
     expect(typeof quantity.default).toBe("string")
   })
 
-  it("marks the optional plan fields optional", () => {
+  it("marks every plan field required, the usage window included", () => {
+    // Without a window end a plan can never breach, so the dates are not
+    // optional.
     const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
-    const optional = ["window_start", "window_end"]
-    for (const name of optional) {
-      expect(step.fields.find((f) => f.name === name)!.required).toBe(false)
+    for (const name of ["purpose", "planned_quantity", "window_start", "window_end"]) {
+      expect(step.fields.find((f) => f.name === name)!.required).toBe(true)
     }
-    expect(step.fields.find((f) => f.name === "purpose")!.required).toBe(true)
   })
 
   it("does not ask for cost centre or work order", () => {

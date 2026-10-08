@@ -152,7 +152,7 @@ describe("the demo script", () => {
     const { run } = open(DEMO_OAR)
     const { response } = answerDemoRun(run!, { choice: "proceed" }, NOW)
     const quantity = response.step.fields.find((f) => f.name === "planned_quantity")
-    expect(quantity?.label).toBe("How many you plan to procure")
+    expect(quantity?.label).toBe("How many should be procured")
   })
 
   it("refuses an inverted plan window and a non-positive quantity", () => {
