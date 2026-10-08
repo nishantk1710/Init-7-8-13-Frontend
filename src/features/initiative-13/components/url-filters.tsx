@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,7 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
+import {
+  AGING_BAND_LABEL,
+  AGING_BAND_ORDER,
+  EXCEPTION_STATUS_LABEL,
+  EXCEPTION_STATUS_ORDER,
+  EXCEPTION_TYPE_LABEL,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_ORDER,
+} from "@/features/initiative-13/utils/status-labels"
 import { cn } from "@/lib/utils"
 
 const ALL = "all"
@@ -58,9 +69,11 @@ export function I13UrlFilters({
     | "type"
     | "status"
   )[]
-  /** Bands present in the data. Falls back to the SOP three when empty. */
+  /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
-  /** Plants present in the data — a list beats typing a code you have to know. */
+  /** Plants seen in the data. Added to the OAR plants, never instead of them:
+   * the data is already filtered, so on its own it would list only the plant
+   * currently selected. */
   plants?: string[]
   exceptionTypes?: string[]
   exceptionStatuses?: string[]
@@ -78,26 +91,30 @@ export function I13UrlFilters({
     })
   }
 
+  const activeCount = fields.filter((field) => searchParams.get(field)).length
+
+  /** Only the parameters this bar owns — `?view=grni` and the like stay. */
+  function clearAll() {
+    push(Object.fromEntries(fields.map((field) => [field, undefined])))
+  }
+
+  const selectedPlant = searchParams.get("plant")
+
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <FilterBar className="flex-1">
-        {fields.includes("plant") &&
-          (plants && plants.length > 0 ? (
-            <UrlSelect
-              label="All plants"
-              width="sm:w-40"
-              value={searchParams.get("plant") ?? ""}
-              options={plants.map((p) => ({ value: p, label: `Plant ${p}` }))}
-              onChange={(value) => push({ plant: value })}
-            />
-          ) : (
-            <DebouncedInput
-              placeholder="Plant (1300 or 1500)"
-              value={searchParams.get("plant") ?? ""}
-              onCommit={(value) => push({ plant: value })}
-              className="sm:w-40"
-            />
-          ))}
+        {fields.includes("plant") && (
+          <UrlSelect
+            label="All plants"
+            width="sm:w-40"
+            value={selectedPlant ?? ""}
+            options={filterOptions(OAR_PLANTS, plants, selectedPlant).map((p) => ({
+              value: p,
+              label: `Plant ${p}`,
+            }))}
+            onChange={(value) => push({ plant: value })}
+          />
+        )}
 
         {fields.includes("material") && (
           <DebouncedInput
@@ -113,8 +130,8 @@ export function I13UrlFilters({
             label="All aging bands"
             width="sm:w-40"
             value={searchParams.get("agingBand") ?? ""}
-            options={(agingBands?.length ? agingBands : ["FAST", "SLOW", "NON_MOVING"]).map(
-              (band) => ({ value: band, label: AGING_LABEL[band] ?? band })
+            options={filterOptions(AGING_BAND_ORDER, agingBands, searchParams.get("agingBand")).map(
+              (band) => ({ value: band, label: labelFor(AGING_BAND_LABEL, band) })
             )}
             onChange={(value) => push({ agingBand: value })}
           />
@@ -125,7 +142,11 @@ export function I13UrlFilters({
             label="All plan statuses"
             width="sm:w-44"
             value={searchParams.get("acquiredVsPlanStatus") ?? ""}
-            options={Object.entries(PLAN_LABEL).map(([value, label]) => ({ value, label }))}
+            options={filterOptions(
+              PLAN_STATUS_ORDER,
+              [],
+              searchParams.get("acquiredVsPlanStatus")
+            ).map((value) => ({ value, label: labelFor(PLAN_STATUS_LABEL, value) }))}
             onChange={(value) => push({ acquiredVsPlanStatus: value })}
           />
         )}
@@ -135,10 +156,11 @@ export function I13UrlFilters({
             label="All exception types"
             width="sm:w-48"
             value={searchParams.get("type") ?? ""}
-            options={(exceptionTypes?.length
-              ? exceptionTypes
-              : ["PLAN_BREACH", "NO_PLAN", "NO_PLAN_GRNI", "QUANTITY_OVERRIDE"]
-            ).map((t) => ({ value: t, label: EXCEPTION_TYPE_LABEL[t] ?? t }))}
+            options={filterOptions(
+              Object.keys(EXCEPTION_TYPE_LABEL),
+              exceptionTypes,
+              searchParams.get("type")
+            ).map((t) => ({ value: t, label: labelFor(EXCEPTION_TYPE_LABEL, t) }))}
             onChange={(value) => push({ type: value })}
           />
         )}
@@ -148,13 +170,16 @@ export function I13UrlFilters({
             label="All statuses"
             width="sm:w-48"
             value={searchParams.get("status") ?? ""}
-            options={(exceptionStatuses?.length
-              ? exceptionStatuses
-              : ["OPEN", "AWAITING_REQUESTER", "CONFIRMED", "ESCALATED", "RESOLVED"]
-            ).map((s) => ({ value: s, label: EXCEPTION_STATUS_LABEL[s] ?? s }))}
+            options={filterOptions(
+              EXCEPTION_STATUS_ORDER,
+              exceptionStatuses,
+              searchParams.get("status")
+            ).map((st) => ({ value: st, label: labelFor(EXCEPTION_STATUS_LABEL, st) }))}
             onChange={(value) => push({ status: value })}
           />
         )}
+
+        <ClearFiltersButton activeCount={activeCount} onClear={clearAll} />
       </FilterBar>
 
       {/* Sized and reserved whether or not it is spinning, so the filter row
@@ -171,32 +196,8 @@ export function I13UrlFilters({
   )
 }
 
-const AGING_LABEL: Record<string, string> = {
-  FAST: "Fast-moving",
-  SLOW: "Slow-moving",
-  NON_MOVING: "Non-moving",
-}
-
-const PLAN_LABEL: Record<string, string> = {
-  NO_PLAN: "No plan",
-  BELOW_PLAN: "Below plan",
-  ON_PLAN: "Aligned",
-  ABOVE_PLAN: "Above plan",
-}
-
-const EXCEPTION_TYPE_LABEL: Record<string, string> = {
-  PLAN_BREACH: "Plan breach",
-  NO_PLAN: "No plan",
-  NO_PLAN_GRNI: "No plan + 30-day GRNI",
-  QUANTITY_OVERRIDE: "Quantity override",
-}
-
-const EXCEPTION_STATUS_LABEL: Record<string, string> = {
-  OPEN: "Open — not routed",
-  AWAITING_REQUESTER: "Awaiting requester",
-  CONFIRMED: "Confirmed",
-  ESCALATED: "Escalated to HOD",
-  RESOLVED: "Resolved",
+function labelFor(labels: Record<string, string>, value: string): string {
+  return labels[value] ?? value
 }
 
 function UrlSelect({
@@ -214,27 +215,59 @@ function UrlSelect({
 }) {
   const labels = Object.fromEntries(options.map((o) => [o.value, o.label]))
   return (
-    <Select
-      value={value || ALL}
-      onValueChange={(v) => {
-        const next = v ?? ALL
-        onChange(next === ALL ? "" : next)
-      }}
+    <div className={cn("relative w-full", width)}>
+      <Select
+        value={value || ALL}
+        onValueChange={(v) => {
+          const next = v ?? ALL
+          onChange(next === ALL ? "" : next)
+        }}
+      >
+        <SelectTrigger className={cn("h-9 w-full", value && "pr-12")}>
+          <SelectValue placeholder={label}>
+            {(v: string) => (v === ALL ? label : labels[v] ?? v)}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>{label}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {/* A sibling of the trigger, not inside it: a button nested in the
+          trigger's button would open the list instead of clearing. */}
+      {value && (
+        <ClearOne label={labels[value] ?? value} onClear={() => onChange("")} className="right-7" />
+      )}
+    </div>
+  )
+}
+
+function ClearOne({
+  label,
+  onClear,
+  className,
+}: {
+  label: string
+  onClear: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      aria-label={`Clear filter: ${label}`}
+      title="Clear this filter"
+      className={cn(
+        "absolute top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+        className
+      )}
     >
-      <SelectTrigger className={cn("h-9 w-full", width)}>
-        <SelectValue placeholder={label}>
-          {(v: string) => (v === ALL ? label : labels[v] ?? v)}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{label}</SelectItem>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      <X className="size-3.5" />
+    </button>
   )
 }
 
@@ -281,11 +314,24 @@ function DebouncedInput({
   }, [draft])
 
   return (
-    <Input
-      placeholder={placeholder}
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      className={cn("h-9", className)}
-    />
+    <div className={cn("relative w-full", className)}>
+      <Input
+        placeholder={placeholder}
+        aria-label={placeholder}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        className={cn("h-9 w-full", draft && "pr-8")}
+      />
+      {draft && (
+        <ClearOne
+          label={draft}
+          onClear={() => {
+            setDraft("")
+            onCommit("")
+          }}
+          className="right-2"
+        />
+      )}
+    </div>
   )
 }

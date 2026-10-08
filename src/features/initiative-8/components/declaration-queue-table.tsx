@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -226,6 +227,7 @@ export function DeclarationQueueTable({
             ))}
           </SelectContent>
         </Select>
+        <ClearFiltersButton activeCount={status === ALL ? 0 : 1} onClear={() => setStatus(ALL)} />
       </FilterBar>
 
       {filtered.length === 0 ? (

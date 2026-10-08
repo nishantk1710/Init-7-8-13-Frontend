@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ChevronRight, Download } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -179,6 +180,10 @@ export function RepairRegisterTable({
           allLabel="All aging"
           options={agingBands.map((b) => ({ value: b, label: `${b} days` }))}
           className="sm:w-40"
+        />
+        <ClearFiltersButton
+          activeCount={Object.values(filters).filter((v) => v !== ALL).length}
+          onClear={() => setFilters(NO_REGISTER_FILTERS)}
         />
 
         <div className="flex items-center gap-3 sm:ml-auto">
