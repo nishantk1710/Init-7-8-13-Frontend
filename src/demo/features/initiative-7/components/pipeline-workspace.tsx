@@ -58,7 +58,7 @@ export function PipelineWorkspace() {
     () =>
       RECOMMENDATIONS.map((rec) => {
         const state = stateFor(rec.id)
-        const role = pendingRole(rec.id)
+        const role = pendingRole(rec)
         const days = state.submittedOn ? waitingDays(state.submittedOn) : 0
         const stageLabel = !state.submitted
           ? "Not submitted"

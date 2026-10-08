@@ -10,9 +10,14 @@ const ROWS: { key: keyof StockParameters; label: string }[] = [
 ]
 
 /**
- * One current -> recommended stat box. Colour tracks the direction of the
- * change, not whether it's "good": down releases working capital, up buys
- * risk cover, and both are legitimate outcomes.
+ * One recommended-value stat box. The recommended figure is the headline —
+ * it is the number an approver is being asked to accept — with the current
+ * SAP value kept beneath it as "was N" context rather than as a "N → M"
+ * arrow, which read as if both numbers carried equal weight.
+ *
+ * Colour tracks the direction of the change, not whether it's "good": down
+ * releases working capital, up buys risk cover, and both are legitimate
+ * outcomes.
  */
 function ParameterStatBox({
   label,
@@ -34,16 +39,19 @@ function ParameterStatBox({
       <div className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-        {current} → {recommended}
-      </div>
+      <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{recommended}</div>
       {delta === 0 ? (
-        <div className="mt-0.5 text-[11px] text-muted-foreground">no change</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">
+          unchanged from current {current}
+        </div>
       ) : (
-        <div className={cn("mt-0.5 flex items-center gap-0.5 text-[11px] font-medium", tone)}>
-          <DeltaIcon className="size-3 shrink-0" />
-          {Math.abs(delta)} ({pct > 0 ? "+" : ""}
-          {pct}%)
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px]">
+          <span className="text-muted-foreground tabular-nums">was {current}</span>
+          <span className={cn("flex items-center gap-0.5 font-medium", tone)}>
+            <DeltaIcon className="size-3 shrink-0" />
+            {Math.abs(delta)} ({pct > 0 ? "+" : ""}
+            {pct}%)
+          </span>
         </div>
       )}
     </div>

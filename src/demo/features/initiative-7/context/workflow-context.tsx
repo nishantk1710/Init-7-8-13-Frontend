@@ -6,15 +6,23 @@ import { toast } from "sonner"
 import type { AuditEvent } from "@demo/lib/domain/contracts"
 import { USERS } from "@demo/lib/shared-data/users"
 import { formatTime12h } from "@demo/lib/utils"
-import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@demo/features/initiative-7/data/approval-chain"
+import {
+  APPROVAL_ROLES,
+  chainApproverName,
+  rolesForRecommendation,
+} from "@demo/features/initiative-7/data/approval-chain"
 import { workflowStepTimestamp } from "@demo/features/initiative-7/data/audit-log"
 import { RECOMMENDATIONS } from "@demo/features/initiative-7/data/recommendations"
 import type { Recommendation } from "@demo/features/initiative-7/types/inventory"
-import { datasetDateLabel, REFERENCE_DATE_LABEL } from "@demo/features/initiative-7/utils/inventory-calc"
+import { datasetDateLabel, todayLabel } from "@demo/features/initiative-7/utils/inventory-calc"
 
-/** Live actions are stamped on the dataset's "today" with the real clock time. */
+/**
+ * Live actions are stamped with the real clock, not the dataset's frozen
+ * "today": during a demo, something just submitted must read as submitted now.
+ * Authored rows keep their dataset dates — only what the viewer does is live.
+ */
 function liveTimestamp(): string {
-  return `${REFERENCE_DATE_LABEL} · ${formatTime12h(new Date())}`
+  return `${todayLabel()} · ${formatTime12h(new Date())}`
 }
 
 export const CHAIN_LENGTH = APPROVAL_ROLES.length
@@ -80,18 +88,19 @@ export function seedState(rec: Recommendation): WorkflowRecordState {
       timestamp: rec.generatedAt,
     })
   }
+  const chain = rolesForRecommendation(Boolean(rec.oarConversion))
   for (let i = 0; i < doneCount; i++) {
-    const role = APPROVAL_ROLES[i]
+    const role = chain[i]
     history.push({
-      actor: approverName(role),
+      actor: chainApproverName(role) ?? role,
       action: `approved as ${role}`,
       timestamp: workflowStepTimestamp(rec, i),
     })
   }
   if (rejectedIndex !== -1) {
-    const role = APPROVAL_ROLES[rejectedIndex]
+    const role = chain[rejectedIndex]
     history.push({
-      actor: approverName(role),
+      actor: chainApproverName(role) ?? role,
       action: `rejected as ${role}`,
       timestamp: workflowStepTimestamp(rec, rejectedIndex),
       comment: rec.workflow[rejectedIndex]?.meta,
@@ -149,7 +158,8 @@ export function liveDecisionEvents(rec: Recommendation, state: WorkflowRecordSta
 interface WorkflowContextValue {
   states: Record<string, WorkflowRecordState>
   stateFor: (recommendationId: string) => WorkflowRecordState
-  pendingRole: (recommendationId: string) => ApprovalRole | null
+  /** The role currently deciding — OAR materials run their own chain. */
+  pendingRole: (rec: Recommendation) => string | null
   sendForApproval: (rec: Recommendation) => void
   approve: (rec: Recommendation, comment?: string) => void
   adjust: (rec: Recommendation, comment?: string) => void
@@ -189,10 +199,10 @@ export function InventoryWorkflowProvider({ children }: { children: ReactNode })
   )
 
   const pendingRole = useCallback(
-    (id: string): ApprovalRole | null => {
-      const state = states[id] ?? FALLBACK
+    (rec: Recommendation): string | null => {
+      const state = states[rec.id] ?? FALLBACK
       if (!state.submitted || state.outcome === "rejected" || state.stepIndex >= CHAIN_LENGTH) return null
-      return APPROVAL_ROLES[state.stepIndex]
+      return rolesForRecommendation(Boolean(rec.oarConversion))[state.stepIndex] ?? null
     },
     [states]
   )
@@ -208,7 +218,7 @@ export function InventoryWorkflowProvider({ children }: { children: ReactNode })
               submitted: true,
               stepIndex: 0,
               outcome: null,
-              submittedOn: REFERENCE_DATE_LABEL,
+              submittedOn: todayLabel(),
               requestedBy: requester,
               history: [
                 ...prev.history,
@@ -216,8 +226,10 @@ export function InventoryWorkflowProvider({ children }: { children: ReactNode })
               ],
             }
       )
+      const firstRole = rolesForRecommendation(Boolean(rec.oarConversion))[0]
+      const firstApprover = chainApproverName(firstRole)
       toast.success(`Sent for approval — ${rec.material.description}`, {
-        description: `Now with ${APPROVAL_ROLES[0]} (${approverName(APPROVAL_ROLES[0])}) in the approval queue.`,
+        description: `Now with ${firstRole}${firstApprover ? ` (${firstApprover})` : ""} in the approval queue.`,
       })
     },
     [patch]
@@ -227,8 +239,8 @@ export function InventoryWorkflowProvider({ children }: { children: ReactNode })
     (rec: Recommendation, outcome: ApprovalOutcome, comment?: string) => {
       const state = states[rec.id] ?? FALLBACK
       if (!state.submitted || state.stepIndex >= CHAIN_LENGTH || state.outcome === "rejected") return
-      const role = APPROVAL_ROLES[state.stepIndex]
-      const actor = approverName(role)
+      const role = rolesForRecommendation(Boolean(rec.oarConversion))[state.stepIndex]
+      const actor = chainApproverName(role) ?? role
       const action =
         outcome === "approved"
           ? `approved as ${role}`

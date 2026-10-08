@@ -114,6 +114,37 @@ export interface OarColdStartGuidance {
   note: string
 }
 
+/** Whether an OAR material has earned a standing Min-Max reorder point. */
+export type OarConversionEligibility = "ELIGIBLE" | "NOT_ELIGIBLE" | "NEEDS_REVIEW"
+
+/** What tipped an OAR material into Min-Max eligibility (FRS SOP 3.1.1). */
+export type OarConversionTrigger =
+  | "CONSUMPTION_FREQUENCY"
+  | "PRODUCTION_IMPACT"
+  | "I13_HOD_APPROVED_REQUEST"
+  | "NONE"
+
+/**
+ * Mock OAR → Min-Max conversion verdict, mirroring the live module's
+ * `OarConversionInfo` so the demo tells the same story with the same words.
+ * Present only on recommendations whose material is OAR-managed; the demo
+ * never re-derives OAR scope here — `features/initiative-13/selectors/
+ * oar-lookup.ts` remains the single place that decides what is OAR.
+ */
+export interface OarConversionInfo {
+  conversionEligibility: OarConversionEligibility
+  conversionTrigger: OarConversionTrigger
+  /** Distinct consumption events in the trailing 12 months. */
+  consumptionCount12m: number
+  /** Events needed before consumption alone justifies conversion. */
+  consumptionCountThreshold: number
+  demandClass: DemandPattern
+  /** Whether Initiative 13's HOD has already approved a standing request. */
+  i13HodApproved: boolean
+  /** Plain-language reason, shown to an approver verbatim. */
+  conversionDetail: string
+}
+
 export interface Recommendation {
   id: string
   material: MaterialReference
@@ -139,6 +170,8 @@ export interface Recommendation {
   championChallenger: ChampionChallenger
   workflow: WorkflowStep[]
   oarColdStart?: OarColdStartGuidance
+  /** Set only for OAR-managed materials — see OarConversionInfo. */
+  oarConversion?: OarConversionInfo
   generatedAt: string
   scenarioNote?: string
 }
