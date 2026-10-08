@@ -2,7 +2,7 @@
 // consumption patterns frequent/predictable enough to warrant review as a
 // stocked material by Initiative 7. `500-31005` is mandatory here (Scenario
 // I) so the "Review in Initiative 7" link has a real recommendation to land
-// on — see `pages/reclassification-page.tsx`.
+// on -- Reclassification itself now belongs to Initiative 7.
 
 import type { ReclassificationCandidate } from "@/features/initiative-13/types/oar"
 import { materialRef } from "@/features/initiative-13/data/materials"

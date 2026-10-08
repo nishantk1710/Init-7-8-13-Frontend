@@ -34,6 +34,7 @@ export type I13SearchParams = {
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
   session?: string
+  tab?: string
 }
 
 /** Next hands `searchParams` as a promise of possibly-repeated values. */
@@ -62,6 +63,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     status: single(raw.status),
     view: single(raw.view),
     session: single(raw.session),
+    tab: single(raw.tab),
   }
 }
 

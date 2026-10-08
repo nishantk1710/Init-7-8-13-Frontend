@@ -24,7 +24,7 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
     }
     const landed: Destination[] =
       routing.flow === "i13"
-        ? [{ href: `/oar-utilization/plans?${scope}`, label: "Consumption plans", what: "the plan you just gave, if you gave one" }]
+        ? [{ href: `/oar-utilization?tab=plans&${scope}`, label: "Consumption plans", what: "the plan you just gave, if you gave one" }]
         : routing.flow === "i08"
           ? [{ href: "/repairable-spares/justifications", label: "Justifications", what: "the new-acquisition reason, if you recorded one" }]
           : []
@@ -33,7 +33,7 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
   if (routing.flow === "i13") {
     return [
       {
-        href: `/oar-utilization/plans?${scope}`,
+        href: `/oar-utilization?tab=plans&${scope}`,
         label: "Consumption plans",
         what: "the plan you just gave, if you gave one",
       },

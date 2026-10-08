@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
@@ -22,9 +23,7 @@ import {
 import { NonMoverExport } from "@/features/initiative-13/components/non-mover-export"
 import { NonMoverTable } from "@/features/initiative-13/components/non-mover-table"
 import { PlansTable } from "@/features/initiative-13/components/plans-table"
-import { ReclassificationTable } from "@/features/initiative-13/components/reclassification-table"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
-import { ValidationPanel } from "@/features/initiative-13/components/validation-panel"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
 import {
   attachCriticalImpactIndicator,
@@ -41,9 +40,18 @@ import {
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
 import type { AcquiredVsPlanStatus, ActExceptionStatus } from "@/lib/api/i13"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { formatApiDateTime } from "@/lib/api/format"
 import { buttonVariants } from "@/components/ui/button"
 import { cn, formatCount } from "@/lib/utils"
+
+/** Demo mode only: the plans captured in this browser's demo sessions. */
+const DemoPlans = dynamic(() =>
+  import("@/components/assistant/demo/demo-records").then((m) => m.DemoPlans)
+)
+
+/** The Details tabs, in display order. `?tab=` opens one directly. */
+const DETAIL_TABS = ["non-movers", "plan", "exceptions", "plans", "justifications"] as const
 
 /**
  * W6.7 — the Utilisation Dashboard (FR-10), and the module's landing page at
@@ -53,9 +61,11 @@ import { cn, formatCount } from "@/lib/utils"
  *
  * Overview first, detail on demand: the KPI cards, then plan coverage and
  * exception status. Every FR-10 drilldown (non-movers, acquired-vs-plan, exceptions,
- * reclassification, captured plans, justifications, validation) is still here,
- * in one tabbed card below, instead of seven full-width tables stacked on one
- * scroll. Provenance and row-cap notes live in a collapsed "About this data".
+ * captured plans, justifications) is here, in one tabbed card below, instead of
+ * full-width tables stacked on one scroll. Captured plans live only here -- there
+ * is no separate plans screen; `?tab=plans` opens that tab. Reclassification and
+ * validation belong to Initiative 7 and are not shown; the reclassification
+ * feed is still read, solely for the non-movers' Critical impact column. Provenance and row-cap notes live in a collapsed "About this data".
  *
  * ## Data
  *
@@ -87,6 +97,7 @@ export async function UtilisationDashboardPage({
   })
 
   const { watch } = dashboard
+  const initialTab = DETAIL_TABS.find((t) => t === searchParams.tab) ?? "non-movers"
 
   const nonMoverRows = watch
     ? attachCriticalImpactIndicator(
@@ -223,7 +234,7 @@ export async function UtilisationDashboardPage({
         </div>
 
         <section className="rounded-xl border border-border bg-card">
-          <Tabs defaultValue="non-movers" className="gap-0">
+          <Tabs defaultValue={initialTab} className="gap-0">
             <div className="flex flex-col gap-3 border-b border-border px-4 pt-4 sm:px-5">
               <div>
                 <h2 className="text-sm font-medium text-foreground">Details</h2>
@@ -236,10 +247,8 @@ export async function UtilisationDashboardPage({
                   <DetailTab value="non-movers" label="Non-movers" count={watch ? nonMoverRows.length : null} />
                   <DetailTab value="plan" label="Acquired vs plan" count={watch?.rows.length ?? null} />
                   <DetailTab value="exceptions" label="Exceptions" count={sectionCount(dashboard.exceptions, (d) => d.count)} />
-                  <DetailTab value="reclassification" label="Reclassification" count={sectionCount(dashboard.reclassification, (d) => d.rows.filter((r) => r.candidateFlag).length)} />
                   <DetailTab value="plans" label="Captured plans" count={sectionCount(dashboard.plans, (d) => d.count)} />
                   <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
-                  <DetailTab value="validation" label="Validation" count={null} />
                 </TabsList>
               </div>
             </div>
@@ -250,7 +259,7 @@ export async function UtilisationDashboardPage({
                   <div className="flex flex-col gap-3">
                     {dashboard.reclassification.status === "unavailable" && (
                       <p className="text-xs text-muted-foreground">
-                        Critical impact shows Unknown for every row — reclassification data is not
+                        Critical impact shows Unknown for every row — criticality (ZMM065) is not
                         available from this backend.
                       </p>
                     )}
@@ -277,44 +286,25 @@ export async function UtilisationDashboardPage({
                 )}
               </TabsContent>
 
-              <TabsContent value="reclassification">
-                {dashboard.reclassification.status === "ready" ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      Advisory only — recommended for review, never converted automatically.
-                    </p>
-                    <ReclassificationTable candidates={dashboard.reclassification.data.rows} />
-                    <RowCapNote
-                      atLimit={dashboard.reclassification.data.atLimit}
-                      count={dashboard.reclassification.data.count}
-                      total={dashboard.reclassification.data.total}
-                      noun="candidate"
-                    />
-                  </div>
-                ) : (
-                  <SectionFallback
-                    section={dashboard.reclassification}
-                    what="reclassification candidates"
-                  />
-                )}
-              </TabsContent>
-
               <TabsContent value="plans">
-                {dashboard.plans.status === "ready" ? (
+                {ASSISTANT_DEMO ? (
+                  <DemoPlans
+                    material={searchParams.material || undefined}
+                    plant={searchParams.plant || undefined}
+                  />
+                ) : dashboard.plans.status === "ready" ? (
                   <div className="flex flex-col gap-2">
                     <p className="text-xs text-muted-foreground">
                       Plans stated by requesters in the assistant, kept apart from generated
                       reference plans.
                     </p>
-                    <PlansTable plans={dashboard.plans.data.rows.slice(0, 10)} />
-                    {dashboard.plans.data.count > 10 && (
-                      <Link
-                        href="/oar-utilization/plans"
-                        className="self-end text-xs font-medium text-primary hover:underline"
-                      >
-                        Showing 10 of {formatCount(dashboard.plans.data.count)} — view all plans
-                      </Link>
-                    )}
+                    <PlansTable plans={dashboard.plans.data.rows} />
+                    <RowCapNote
+                      atLimit={dashboard.plans.data.atLimit}
+                      count={dashboard.plans.data.count}
+                      total={dashboard.plans.data.total}
+                      noun="captured plan"
+                    />
                   </div>
                 ) : (
                   <SectionFallback section={dashboard.plans} what="captured plans" />
@@ -335,19 +325,6 @@ export async function UtilisationDashboardPage({
                 )}
               </TabsContent>
 
-              <TabsContent value="validation">
-                {dashboard.validation.status === "ready" ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      Reconciliation against ZMM065 and the 30-Day GR Report, computed by the
-                      backend.
-                    </p>
-                    <ValidationPanel result={dashboard.validation.data} />
-                  </div>
-                ) : (
-                  <SectionFallback section={dashboard.validation} what="validation data" />
-                )}
-              </TabsContent>
             </div>
           </Tabs>
         </section>

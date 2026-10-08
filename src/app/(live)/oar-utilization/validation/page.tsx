@@ -1,11 +1,9 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { ValidationPage } from "@/features/initiative-13/pages/validation-page"
-
-export const metadata: Metadata = {
-  title: "Validation — OAR Utilization — Spares AI",
-}
-
+/**
+ * Validation belongs to Initiative 7, not to OAR Utilization, so the screen was
+ * removed from this module. An old link lands on the Dashboard.
+ */
 export default function Page() {
-  return <ValidationPage />
+  permanentRedirect("/oar-utilization")
 }
