@@ -13,7 +13,7 @@ import {
 } from "recharts"
 
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
-import { AGING_BUCKETS } from "@demo/features/initiative-8/utils/status"
+import { AGING_BUCKETS, isOpenRepair } from "@demo/features/initiative-8/utils/status"
 import { formatCount } from "@demo/lib/utils"
 
 const BUCKET_COLORS = [
@@ -37,7 +37,8 @@ function AgingTooltip({ active, payload }: TooltipContentProps) {
 }
 
 export function RepairAgingChart({ chains }: { chains: RepairChain[] }) {
-  const open = chains.filter((c) => c.repairStatus !== "Closed")
+  // Still out, so the bars add up to the "open repair lines" figure beside them.
+  const open = chains.filter(isOpenRepair)
   const data = AGING_BUCKETS.map((bucket) => ({
     bucket,
     count: open.filter((c) => c.agingBucket === bucket).length,

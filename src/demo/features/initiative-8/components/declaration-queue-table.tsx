@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { ClearFiltersButton } from "@demo/components/shared/clear-filters-button"
 import { FilterBar } from "@demo/components/shared/filter-bar"
 import { MaterialIdentity } from "@demo/components/shared/material-identity"
 import { SAPDocumentChip } from "@demo/components/shared/sap-document-chip"
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@demo/components/ui/dialog"
+import { Input } from "@demo/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -31,15 +33,22 @@ import {
   TableHeader,
   TableRow,
 } from "@demo/components/ui/table"
-import { DECLARATIONS } from "@demo/features/initiative-8/data/declarations"
+import { DECLARATIONS, FAULT_CATEGORIES } from "@demo/features/initiative-8/data/declarations"
+import { REFERENCE_DATE } from "@demo/features/initiative-8/data/repair-chains"
 import type { DeclarationCondition, DeclarationItem, DeclarationStatus } from "@demo/features/initiative-8/types/repair"
-import { DECLARATION_STATUS_TONE } from "@demo/features/initiative-8/utils/status"
+import { DECLARATION_STATUSES, DECLARATION_STATUS_TONE } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
 
 const ALL = "all"
-const STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
 const CONDITIONS: DeclarationCondition[] = ["Repairable", "Beyond Economical Repair", "Scrap"]
-const TODAY = "3 Sep 2026"
+
+/** The quantity field as a positive number, or undefined so the button can say no. */
+function parseQuantity(input: string): number | undefined {
+  const trimmed = input.trim()
+  if (trimmed === "") return undefined
+  const value = Number(trimmed)
+  return Number.isFinite(value) && value > 0 ? value : undefined
+}
 
 export function DeclarationQueueTable() {
   const { openMaterial360 } = useMaterial360()
@@ -47,6 +56,11 @@ export function DeclarationQueueTable() {
   const [status, setStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [condition, setCondition] = useState<DeclarationCondition>("Repairable")
+  const [description, setDescription] = useState("")
+  const [faultCategory, setFaultCategory] = useState(FAULT_CATEGORIES[0])
+  const [quantity, setQuantity] = useState("1")
+  const [serialNumber, setSerialNumber] = useState("")
+  const parsedQuantity = parseQuantity(quantity)
 
   const filtered = useMemo(
     () => rows.filter((r) => status === ALL || r.status === status),
@@ -55,9 +69,13 @@ export function DeclarationQueueTable() {
 
   const activeRow = rows.find((r) => r.id === dialogFor) ?? null
 
-  function openDialog(id: string) {
+  function openDialog(row: DeclarationItem) {
     setCondition("Repairable")
-    setDialogFor(id)
+    setDescription("")
+    setFaultCategory(FAULT_CATEGORIES[0])
+    setQuantity(String(row.quantityUnderRepair ?? 1))
+    setSerialNumber("")
+    setDialogFor(row.id)
   }
 
   function confirmDeclaration() {
@@ -70,7 +88,7 @@ export function DeclarationQueueTable() {
               status: "Completed" as const,
               condition,
               declaredBy: "You",
-              declaredAt: TODAY,
+              declaredAt: REFERENCE_DATE,
               nextAction:
                 condition === "Repairable"
                   ? "None — condition declared, PR may proceed."
@@ -96,13 +114,14 @@ export function DeclarationQueueTable() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All declaration statuses</SelectItem>
-            {STATUSES.map((s) => (
+            {DECLARATION_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <ClearFiltersButton activeCount={status === ALL ? 0 : 1} onClear={() => setStatus(ALL)} />
       </FilterBar>
 
       {filtered.length === 0 ? (
@@ -117,7 +136,6 @@ export function DeclarationQueueTable() {
                 <TableHead>PR</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Requester</TableHead>
-                <TableHead>Source</TableHead>
                 <TableHead>Active Repair?</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead>Declared By</TableHead>
@@ -136,11 +154,6 @@ export function DeclarationQueueTable() {
                     <MaterialIdentity material={r.material} onOpen={openMaterial360} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{r.requester}</TableCell>
-                  <TableCell>
-                    <StatusBadge tone={r.source === "MRP-generated" ? "warning" : "default"}>
-                      {r.source}
-                    </StatusBadge>
-                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {r.hasActiveRepair ? "Yes" : "No"}
                   </TableCell>
@@ -154,7 +167,7 @@ export function DeclarationQueueTable() {
                   </TableCell>
                   <TableCell>
                     {r.status !== "Completed" ? (
-                      <Button size="xs" variant="outline" onClick={() => openDialog(r.id)}>
+                      <Button size="xs" variant="outline" onClick={() => openDialog(r)}>
                         Declare condition
                       </Button>
                     ) : (
@@ -193,11 +206,90 @@ export function DeclarationQueueTable() {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground" htmlFor="fault-category">
+              Fault category
+            </label>
+            <Select value={faultCategory} onValueChange={(v) => setFaultCategory(v ?? "")}>
+              <SelectTrigger id="fault-category" className="h-9 w-full">
+                <SelectValue placeholder="Select a fault category" />
+              </SelectTrigger>
+              <SelectContent>
+                {FAULT_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c.replace(/_/g, " ").toLowerCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground" htmlFor="condition-description">
+              Condition description
+            </label>
+            <textarea
+              id="condition-description"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is wrong with it, and what did you measure?"
+              className="w-full rounded-md border border-border bg-background p-2 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Required. This is the part a human reads — it is recorded as an
+              audit record and cannot be edited afterwards, only superseded.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground" htmlFor="attestation-quantity">
+                Quantity
+              </label>
+              <Input
+                id="attestation-quantity"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                aria-invalid={parsedQuantity === undefined}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {parsedQuantity === undefined
+                  ? "Must be greater than 0."
+                  : activeRow?.quantityUnderRepair !== undefined
+                    ? `${activeRow.quantityUnderRepair} under repair on this line.`
+                    : "Units assessed."}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground" htmlFor="attestation-serial">
+                Serial number <span className="italic">(optional)</span>
+              </label>
+              <Input
+                id="attestation-serial"
+                value={serialNumber}
+                onChange={(e) => setSerialNumber(e.target.value)}
+                placeholder="As stamped on the unit"
+              />
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogFor(null)}>
               Cancel
             </Button>
-            <Button onClick={confirmDeclaration}>Confirm declaration</Button>
+            <Button
+              onClick={confirmDeclaration}
+              disabled={
+                description.trim() === "" || faultCategory === "" || parsedQuantity === undefined
+              }
+            >
+              Confirm declaration
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

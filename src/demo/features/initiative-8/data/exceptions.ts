@@ -1,3 +1,5 @@
+import { JUSTIFICATIONS } from "@demo/features/initiative-8/data/justifications"
+import { REPAIR_CHAINS } from "@demo/features/initiative-8/data/repair-chains"
 import type { RepairException } from "@demo/features/initiative-8/types/repair"
 
 /**
@@ -157,3 +159,18 @@ export const EXCEPTIONS: RepairException[] = [
     preAutomation: true,
   },
 ]
+
+/**
+ * What the two checks looked at, so a small count reads as a small count and
+ * not as a check that never ran. Every acquisition checked is either justified
+ * (`data/justifications.ts`) or raised here as unjustified.
+ */
+export const EXCEPTION_CHECKS = {
+  linesChecked: REPAIR_CHAINS.length,
+  attestationWindowDays: 14,
+  acquisitionsChecked:
+    JUSTIFICATIONS.length + EXCEPTIONS.filter((e) => e.type === "UNJUSTIFIED_ACQUISITION").length,
+  justificationWindowDays: 14,
+  attestationCutoverDate: "15 Jul 2026",
+  justificationCutoverDate: "1 Jul 2026",
+}
