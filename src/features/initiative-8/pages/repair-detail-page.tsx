@@ -114,8 +114,8 @@ export function RepairDetailPage({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Reorder point</div>
-              {/* Undefined for every Gamsberg material: the MARC extract covers
-                  plants 1300 and 1200 only. Showing 0 would read as "never
+              {/* Undefined for every Gamsberg material: the July MARC extract
+                  has rows for plant 1300 only. Showing 0 would read as "never
                   reorder", which is worse than showing nothing. */}
               <div className="text-lg font-semibold text-foreground">
                 {orUnknown(chain.reorderPoint)}

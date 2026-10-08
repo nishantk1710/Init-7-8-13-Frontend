@@ -112,8 +112,8 @@ export interface RepairChain {
 
   /**
    * Optional, and undefined far more often than you would expect: the MARC
-   * extract covers plants 1300 and 1200 only, so **every Gamsberg material
-   * has no reorder point at all**. Rendering a missing one as 0 would read as
+   * extract has rows for plant 1300 only, so **every Gamsberg material has
+   * no reorder point at all**. Rendering a missing one as 0 would read as
    * "never reorder this", which is a worse answer than "unknown".
    */
   reorderPoint?: number
@@ -156,9 +156,29 @@ export interface RepairChain {
    */
   leadTimeStatus?: LeadTimeStatus
 
-  /** Days since the repair PR was raised. */
+  /**
+   * How long this repair has been out: whole days from the repair PO line's
+   * creation date (`EKPO.ERDAT`, falling back to the PO header's `EKKO.AEDAT`)
+   * to the receipt, or to the reference date while the unit is still away. Not
+   * measured from the PR, despite the column's name.
+   *
+   * Stops at the receipt, so a closed line reads its turnaround rather than
+   * how old the record is — otherwise a July-2026 extract read with an
+   * unpinned `I8_REFERENCE_DATE` shows a long-closed line in the hundreds.
+   * The backend serves the same number as `daysElapsed`, and `agingBucket` is
+   * the band this falls in.
+   */
   daysOpen: number
   agingBucket: AgingBucket
+
+  /**
+   * The repair's actual duration: raised to received, or raised to the
+   * reference date while the unit is still out. The same clock as `daysOpen`.
+   *
+   * This is what `leadTimeStatus` and `daysOverLeadTime` are computed from.
+   * Optional because the mock-data path does not produce it.
+   */
+  daysElapsed?: number
 
   /**
    * The planned delivery time this line is measured against, in calendar days.
@@ -207,7 +227,7 @@ export interface RepairChain {
    * worth it.
    *
    * Optional, and undefined on **357 of the 1,225 repair lines**: it comes from
-   * the MARC planning extract, which covers plants 1300 and 1200 only, so every
+   * the MARC planning extract, which has rows for plant 1300 only, so every
    * Gamsberg line has none. Exactly the same gap as `reorderPoint`, measured on
    * exactly the same rows.
    *

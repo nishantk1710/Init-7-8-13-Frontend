@@ -141,7 +141,10 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // and a row can be ON_TIME and BEYOND_LEAD_TIME at the same time.
     leadTimeStatus: row.leadTimeStatus,
 
+    // Both stop at the receipt. daysElapsed is what the lead-time verdict is
+    // measured on; daysOpen is the same clock, served for the column.
     daysOpen: row.daysOpen ?? 0,
+    daysElapsed: orUndefined(row.daysElapsed),
     // Not a closed-set oneOf(): the bands are backend configuration
     // (I8_AGING_BAND_BOUNDARIES) and can change without a frontend deploy, so
     // any non-empty string from the API is trusted as-is.
@@ -162,8 +165,8 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // Undefined when the repair line carries no net price -- never 0, which
     // would render as R 0.00 and read as a free repair.
     repairCost: toNumber(row.repairCost),
-    // Undefined on 357 of 1,225 — every Gamsberg line, since MARC covers
-    // plants 1300 and 1200 only.
+    // Undefined on 357 of 1,225 — every Gamsberg line, since the July MARC
+    // extract has rows for plant 1300 only.
     newUnitLeadTimeDays: orUndefined(row.newUnitLeadTimeDays),
 
     // Same MARC gap, same 357 lines: no planned delivery time means no

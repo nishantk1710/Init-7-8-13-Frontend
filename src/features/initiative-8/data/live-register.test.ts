@@ -128,7 +128,7 @@ describe("toRepairChain", () => {
   })
 
   it("keeps a missing new-unit lead time undefined rather than 0", () => {
-    // MARC covers plants 1300 and 1200 only. A 0 would read as "a new one
+    // The July MARC extract has rows for plant 1300 only. A 0 would read as "a new one
     // arrives immediately", the strongest possible case against repairing.
     const chain = toRepairChain(apiRow({ newUnitLeadTimeDays: null }))
     expect(chain.newUnitLeadTimeDays).toBeUndefined()
@@ -325,8 +325,19 @@ describe("registerRowsToCsv", () => {
     const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
     expect(cell("Overdue status")).toBe("Overdue")
     expect(cell("Blocked in SAP")).toBe("Yes")
-    expect(cell("Lead-time status")).toBe("BEYOND_LEAD_TIME")
+    // The label the screen shows, matching the overdue column beside it --
+    // not the raw enum.
+    expect(cell("Lead-time status")).toBe("Beyond")
     expect(cell("Repair PO")).toBe("4500001052/1310")
+  })
+
+  it("exports no lead-time verdict where there is no benchmark", () => {
+    // An empty cell, never "NO_LEAD_TIME": a spreadsheet filter would otherwise
+    // group every unmaintained material in with the real verdicts, and every
+    // Gamsberg line lands here.
+    const [row] = registerRowsToCsv([toRepairChain(apiRow({ leadTimeStatus: "NO_LEAD_TIME" }))])
+    const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+    expect(cell("Lead-time status")).toBe("")
   })
 
   it("flags a partial receipt in place of the old receipt-status column", () => {

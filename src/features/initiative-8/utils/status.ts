@@ -2,6 +2,7 @@ import type {
   AgingBucket,
   DeclarationStatus,
   ExceptionSeverity,
+  LeadTimeStatus,
   OverdueStatus,
   ReceiptStatus,
   RepairChain,
@@ -75,6 +76,33 @@ export const OVERDUE_STATUS_TONE: Record<OverdueStatus, Tone> = {
   ON_TIME: "default",
   NO_DUE_DATE: "warning",
   RECEIVED: "success",
+}
+
+/**
+ * The lead-time states that carry an actual verdict.
+ *
+ * `NO_LEAD_TIME` is deliberately excluded. It is not a third verdict — it is
+ * the absence of one, and the register renders it as a muted placeholder
+ * rather than a badge for the same reason the criticality column does: a badge
+ * beside two real verdicts reads as a third, and "we were never told how long
+ * this takes" must not look like a finding of any kind.
+ */
+export type LeadTimeVerdict = Exclude<LeadTimeStatus, "NO_LEAD_TIME">
+
+export const LEAD_TIME_VERDICT_LABEL: Record<LeadTimeVerdict, string> = {
+  BEYOND_LEAD_TIME: "Beyond",
+  WITHIN_LEAD_TIME: "Within",
+}
+
+/**
+ * Verdict -> tone. "Beyond" is a warning and never a danger: the benchmark is
+ * `MARC.PLIFZ`, a planned delivery time for procuring the material, and a line
+ * past it has overrun a reference figure rather than broken a commitment
+ * anybody made. The promised date is the Due Date Status column's job.
+ */
+export const LEAD_TIME_VERDICT_TONE: Record<LeadTimeVerdict, Tone> = {
+  BEYOND_LEAD_TIME: "warning",
+  WITHIN_LEAD_TIME: "default",
 }
 
 /**
@@ -227,7 +255,7 @@ export function isBeyondLeadTime(chain: RepairChain): boolean {
  * True when there is no planned delivery time to judge this line against.
  *
  * Its own state, the same way `hasNoDueDate` is — and a populous one: MARC
- * covers plants 1300 and 1200 only, so all 357 Gamsberg lines land here. Render
+ * has rows for plant 1300 only, so all 357 Gamsberg lines land here. Render
  * it as "not known" and never as "within".
  */
 export function hasNoLeadTime(chain: RepairChain): boolean {

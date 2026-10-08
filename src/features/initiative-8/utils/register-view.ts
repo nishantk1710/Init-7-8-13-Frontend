@@ -1,5 +1,6 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
+  LEAD_TIME_VERDICT_LABEL,
   NO_CRITICALITY,
   OVERDUE_STATUS_LABEL,
   isPartiallyReceived,
@@ -82,6 +83,7 @@ export const REGISTER_CSV_HEADERS = [
   "Overdue status",
   "Expected return",
   "Days open",
+  "Days elapsed",
   "Aging band",
   "Lead-time status",
   "Planned lead time (days)",
@@ -117,8 +119,15 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
     OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
     c.expectedReturn ?? "",
     c.daysOpen,
+    c.daysElapsed ?? "",
     c.agingBucket,
-    c.leadTimeStatus ?? "",
+    // The label the screen shows, not the raw enum -- the same reason the
+    // overdue column above exports through OVERDUE_STATUS_LABEL. A line with no
+    // benchmark exports as an empty cell rather than "NO_LEAD_TIME", so a
+    // spreadsheet filter cannot group it with the verdicts.
+    c.leadTimeStatus && c.leadTimeStatus !== "NO_LEAD_TIME"
+      ? LEAD_TIME_VERDICT_LABEL[c.leadTimeStatus]
+      : "",
     c.leadTimeDays ?? "",
     c.daysOverLeadTime ?? "",
     c.declarationStatus,
