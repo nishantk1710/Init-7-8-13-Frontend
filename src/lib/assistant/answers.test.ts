@@ -23,6 +23,13 @@ import traceI13 from "@/lib/api/__fixtures__/16-session-trace-i13.json"
 const PLAN_FIELDS = (answerI13Proceed as unknown as { step: ApiStep }).step
   .fields
 
+/** One required and one optional field -- the plan form no longer has an
+ * optional one, so the optional-field rules are tested on their own. */
+const MIXED_FIELDS = (): ApiField[] => [
+  field({ name: "purpose", required: true }),
+  field({ name: "note", label: "Note", type: "text", required: false }),
+]
+
 function field(overrides: Partial<ApiField> = {}): ApiField {
   return {
     name: "purpose",
@@ -92,17 +99,10 @@ describe("formAnswer", () => {
   })
 
   it("drops an empty optional field rather than sending an empty string", () => {
-    // "The window starts on the empty string" and "the requester did not know
-    // when" are different statements, and the form says out loud that blank
-    // means the second one.
-    const answer = formAnswer(PLAN_FIELDS, {
-      purpose: "x",
-      planned_quantity: "1",
-      window_start: "   ",
-      window_end: "",
-    })
-    expect(answer).not.toHaveProperty("window_start")
-    expect(answer).not.toHaveProperty("window_end")
+    // "The note is the empty string" and "there is no note" are different
+    // statements; blank means the second one.
+    const answer = formAnswer(MIXED_FIELDS(), { purpose: "x", note: "   " })
+    expect(answer).not.toHaveProperty("note")
   })
 
   it("still sends an empty required field, so the server rejects it", () => {
@@ -141,17 +141,14 @@ describe("missingRequired", () => {
     const missing = missingRequired(PLAN_FIELDS, {
       purpose: "",
       planned_quantity: "",
+      window_start: "",
+      window_end: "",
     })
-    expect(missing).toEqual(["purpose", "planned_quantity"])
+    expect(missing).toEqual(["purpose", "planned_quantity", "window_start", "window_end"])
   })
 
   it("ignores blank optional fields", () => {
-    const missing = missingRequired(PLAN_FIELDS, {
-      purpose: "x",
-      planned_quantity: "1",
-      cost_centre: "",
-      window_start: "",
-    })
+    const missing = missingRequired(MIXED_FIELDS(), { purpose: "x", note: "" })
     expect(missing).toEqual([])
   })
 
@@ -210,7 +207,7 @@ describe("step helpers", () => {
 
   it("falls back to the field name when there is no label", () => {
     expect(fieldLabel(PLAN_FIELDS, "planned_quantity")).toBe(
-      "How many you plan to use"
+      "How many should be procured"
     )
     expect(fieldLabel(PLAN_FIELDS, "nope")).toBe("nope")
   })

@@ -71,8 +71,7 @@ export type ApiField = {
   /** Populated only for `select`. Built from backend configuration, not an enum. */
   options: ApiChoice[]
   /**
-   * Real instruction, not decoration — "leave blank if you genuinely do not know
-   * yet" changes what gets captured. Render it.
+   * Real instruction, not decoration — it changes what gets captured. Render it.
    */
   helpText: string | null
   /** Pre-fill. A quantity default arrives as a string. */

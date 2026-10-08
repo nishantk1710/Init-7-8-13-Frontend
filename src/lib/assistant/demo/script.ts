@@ -112,16 +112,6 @@ function stepOf(fixture: unknown, sessionId: string): ApiStep {
   return withSessionId((fixture as { step: ApiStep }).step, sessionId)
 }
 
-/** The plan form asks how many will be procured; the fixture says "use". */
-function withProcuredLabel(step: ApiStep): ApiStep {
-  return {
-    ...step,
-    fields: step.fields.map((field) =>
-      field.name === "planned_quantity" ? { ...field, label: "How many you plan to procure" } : field
-    ),
-  }
-}
-
 /** Swap the fixture's planned quantity (5) for the one the presenter typed. */
 function withPlannedQuantity(step: ApiStep, quantity: string): ApiStep {
   const swap = (text: string) =>
@@ -369,7 +359,7 @@ function nextStep(
         step:
           choice === "not_needed"
             ? stepOf(i13NotNeededFixture, id)
-            : withProcuredLabel(stepOf(i13ProceedFixture, id)),
+            : stepOf(i13ProceedFixture, id),
         changes: {},
       }
     }

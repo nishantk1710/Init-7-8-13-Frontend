@@ -229,8 +229,8 @@ function FieldRow({
         onChange={onChange}
       />
 
-      {/* Help text is instruction, not decoration: "leave blank if you
-          genuinely do not know yet" changes what gets captured. */}
+      {/* Help text is instruction, not decoration: it changes what gets
+          captured. */}
       {field.helpText && (
         <p id={helpId} className="text-[11px] text-muted-foreground">
           {field.helpText}
