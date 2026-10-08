@@ -108,7 +108,7 @@ export async function loadLiveDashboard(
           message: error instanceof Error ? error.message : String(error),
         })
       ),
-      section(loadLiveSummary()),
+      section(loadLiveSummary(scope)),
       section(loadLiveReclassification(scope, { allPositions: true })),
       section(loadLiveActExceptions(scope)),
       section(getI13AllJustifications(scope)),
