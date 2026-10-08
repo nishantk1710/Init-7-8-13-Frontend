@@ -312,8 +312,9 @@ export async function loadLivePlans(filters: LedgerFilters = {}): Promise<LivePl
   return { ...cap(rows), plantOptions: plantsOf(rows) }
 }
 
-export function loadLiveSummary(): Promise<I13Summary> {
-  return getI13Summary()
+/** The KPI counts, scoped to the same plant/material as the rest of the dashboard. */
+export function loadLiveSummary(scope: { plant?: string; material?: string } = {}): Promise<I13Summary> {
+  return getI13Summary({ plant: scope.plant || undefined, material: scope.material || undefined })
 }
 
 /** FR-6 reconciliation; the backend reads both reports itself. */

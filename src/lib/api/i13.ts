@@ -433,8 +433,13 @@ function toSummary(raw: RawRecord): I13Summary {
 
 // --- Endpoints ------------------------------------------------------------
 
-export function getI13Summary(): Promise<I13Summary> {
-  return apiFetch<RawRecord>("/i13/summary").then(toSummary)
+/**
+ * `GET /i13/summary`. With a plant and/or material, every count is narrowed to
+ * that scope; without, it is both in-scope plants combined.
+ */
+export function getI13Summary(params?: { plant?: string; material?: string }): Promise<I13Summary> {
+  const query = buildQuery({ plant: params?.plant, material: params?.material })
+  return apiFetch<RawRecord>(`/i13/summary${query}`).then(toSummary)
 }
 
 export function getI13DataSources(): Promise<DataSourceStatus[]> {

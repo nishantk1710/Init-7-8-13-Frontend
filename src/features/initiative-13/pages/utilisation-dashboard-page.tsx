@@ -156,7 +156,11 @@ export async function UtilisationDashboardPage({
         />
 
         {dashboard.summary.status === "ready" ? (
-          <KpiSummary summary={dashboard.summary.data} />
+          <KpiSummary
+            summary={dashboard.summary.data}
+            plant={searchParams.plant}
+            material={searchParams.material}
+          />
         ) : (
           <SectionFallback section={dashboard.summary} what="utilisation summary" />
         )}
