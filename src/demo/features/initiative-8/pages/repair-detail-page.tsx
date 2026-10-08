@@ -7,13 +7,14 @@ import { PageHeader } from "@demo/components/shared/page-header"
 import { SAPDocumentChip } from "@demo/components/shared/sap-document-chip"
 import { StatusBadge } from "@demo/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@demo/components/shared/timeline"
-import { DECLARATIONS } from "@demo/features/initiative-8/data/declarations"
 import { getRepairChainById } from "@demo/features/initiative-8/data/repair-chains"
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import {
   DECLARATION_STATUS_TONE,
-  RECEIPT_STATUS_TONE,
   REPAIR_STATUS_TONE,
+  formatDaysRemaining,
+  isPartiallyReceived,
+  isRepairOverdue,
 } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
 import { formatZAR } from "@demo/lib/utils"
@@ -105,35 +106,7 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
     )
   }
 
-  const declaration = DECLARATIONS.find((d) => d.relatedRepairId === chain.id)
-  const isOverdue = chain.repairStatus !== "Closed" && chain.daysRemainingInRepair < 0
-
-  const declarationTimeline: TimelineEvent[] = declaration
-    ? [
-        {
-          id: "d-created",
-          label: `Procurement PR raised — ${declaration.source}`,
-          timestamp: declaration.createdAt,
-          description: `${declaration.pr.documentNumber} · Requested by ${declaration.requester}`,
-          tone: "default",
-        },
-        declaration.status === "Completed"
-          ? {
-              id: "d-declared",
-              label: `Condition declared: ${declaration.condition ?? "—"}`,
-              timestamp: declaration.declaredAt ?? "—",
-              description: `Declared by ${declaration.declaredBy ?? "—"} — not posted to SAP.`,
-              tone: "success" as const,
-            }
-          : {
-              id: "d-pending",
-              label: `Declaration ${declaration.status.toLowerCase()}`,
-              timestamp: "Outstanding",
-              description: declaration.nextAction,
-              tone: declaration.status === "Flagged" ? ("danger" as const) : ("warning" as const),
-            },
-      ]
-    : []
+  const isOverdue = isRepairOverdue(chain)
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -176,17 +149,10 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
           </div>
         </div>
 
-        {chain.declarationStatus === "Flagged" && (
-          <AlertBanner tone="critical" title="Duplicate procurement flagged">
-            A new-unit procurement request was raised against this material while its repair PO was
-            already open. Reconcile with the buyer before proceeding — the finding is on the
-            Exception Queue, and the reason, if one was given, is in the justification log.
-          </AlertBanner>
-        )}
         {isOverdue && (
           <AlertBanner tone="warning" title="Repair overdue">
-            Expected return was {chain.expectedReturn} — {Math.abs(chain.daysRemainingInRepair)} day(s)
-            past due. Follow up with {chain.vendor}.
+            Expected return was {chain.expectedReturn} — {formatDaysRemaining(chain)}.
+            Follow up with {chain.vendor}.
           </AlertBanner>
         )}
 
@@ -196,50 +162,42 @@ export function RepairDetailPage({ repairId }: { repairId: string }) {
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <SAPDocumentChip doc={chain.repairPR} />
               {chain.repairPO && <SAPDocumentChip doc={chain.repairPO} />}
-              <StatusBadge tone={RECEIPT_STATUS_TONE[chain.receiptStatus]}>
-                {chain.receiptStatus}
-              </StatusBadge>
+              {isPartiallyReceived(chain) && (
+                <StatusBadge tone="warning">Partially received</StatusBadge>
+              )}
             </div>
             <Timeline events={buildRepairTimeline(chain)} />
           </div>
 
           <div className="flex flex-col gap-4">
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 text-sm font-medium text-foreground">Vendor & economics</div>
+              <div className="mb-3 text-sm font-medium text-foreground">Vendor, cost & timing</div>
               <dl className="grid grid-cols-2 gap-y-2 text-xs">
                 <dt className="text-muted-foreground">Vendor</dt>
                 <dd className="text-right text-foreground">{chain.vendor}</dd>
                 <dt className="text-muted-foreground">Days open</dt>
                 <dd className="text-right text-foreground">{chain.daysOpen}</dd>
-                <dt className="text-muted-foreground">New-unit cost</dt>
-                <dd className="text-right text-foreground">{formatZAR(chain.newUnitCost)}</dd>
                 <dt className="text-muted-foreground">Repair cost</dt>
                 <dd className="text-right text-foreground">{formatZAR(chain.repairCost)}</dd>
                 <dt className="text-muted-foreground">New-unit lead time</dt>
                 <dd className="text-right text-foreground">{chain.newUnitLeadTimeDays} days</dd>
                 <dt className="text-muted-foreground">Repair return time</dt>
-                <dd className="text-right text-foreground">
-                  {chain.daysRemainingInRepair >= 0
-                    ? `${chain.daysRemainingInRepair} days remaining`
-                    : `${Math.abs(chain.daysRemainingInRepair)} days overdue`}
-                </dd>
+                <dd className="text-right text-foreground">{formatDaysRemaining(chain)}</dd>
               </dl>
-              {chain.notes && (
-                <p className="mt-3 border-t border-dashed border-border pt-2 text-[11px] text-muted-foreground italic">
-                  {chain.notes}
-                </p>
-              )}
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 text-sm font-medium text-foreground">Declaration history</div>
-              {declaration ? (
-                <Timeline events={declarationTimeline} />
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  No condition-to-repair declaration on file for this repair chain.
-                </p>
-              )}
+              <div className="mb-3 text-sm font-medium text-foreground">Condition declaration</div>
+              <StatusBadge tone={DECLARATION_STATUS_TONE[chain.declarationStatus]}>
+                {chain.declarationStatus}
+              </StatusBadge>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {chain.declarationStatus === "Completed"
+                  ? "A recorded condition assessment covers this repair line and found the part repairable."
+                  : chain.declarationStatus === "Flagged"
+                    ? "A recorded condition assessment covers this repair line but did not find the part repairable — it was sent for repair anyway. Confirm the decision with the attestor."
+                    : "No recorded condition assessment covers this repair line yet. Declare its condition on the Declaration Queue."}
+              </p>
             </div>
           </div>
         </div>

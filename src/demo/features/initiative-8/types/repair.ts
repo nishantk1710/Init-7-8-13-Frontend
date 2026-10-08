@@ -7,12 +7,11 @@ import type { MaterialReference, PlantReference, SAPDocumentReference } from "@d
  * never these.
  */
 
-/** Where a repair chain sits in its lifecycle. */
+/** Where a repair chain sits in its lifecycle. The same stages as live. */
 export type RepairStatus =
   | "PR Raised"
   | "PO Issued"
   | "At Vendor"
-  | "In Transit Return"
   | "Received"
   | "Closed"
 
@@ -24,18 +23,24 @@ export type ReceiptStatus =
   | "Received"
 
 /**
- * Condition-to-repair declaration status — a mandatory workflow, tracked
- * separately from the advisory duplicate check the assistant runs at
- * reservation time.
+ * Condition-to-repair declaration status. `Flagged` means a declaration covers
+ * the line but did not find the part repairable, and it went for repair anyway.
  */
-export type DeclarationStatus = "Required" | "Pending" | "Completed" | "Flagged"
+export type DeclarationStatus = "Required" | "Completed" | "Flagged"
 
 export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "Scrap"
 
-/** How a procurement request originated. */
-export type DeclarationSource = "Manual" | "MRP-generated"
-
 export type AgingBucket = "0-15" | "16-30" | "31-45" | "46-60" | "60+"
+
+/** Where a repair line stands against its promised return date. */
+export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+
+/**
+ * Where a repair line stands against the material's planned delivery time — a
+ * second signal, independent of `OverdueStatus`. `NO_LEAD_TIME` means there is
+ * no benchmark to compare against, not that the line is fine.
+ */
+export type LeadTimeStatus = "WITHIN_LEAD_TIME" | "BEYOND_LEAD_TIME" | "NO_LEAD_TIME"
 
 /**
  * A single repairable material's active (or recently closed) repair chain —
@@ -55,9 +60,20 @@ export interface RepairChain {
   repairStatus: RepairStatus
   receiptStatus: ReceiptStatus
   declarationStatus: DeclarationStatus
-  /** Days since the repair PR was raised. */
+  /** Raised to received, or to today while out -- a closed line stops at its receipt. */
   daysOpen: number
   agingBucket: AgingBucket
+  /** NORMAL, OBSOLETE, CRITICAL, IMPACT or INSURANCE. Undefined is "not recorded". */
+  criticality?: string
+  /** The repair's actual duration: raised to received, or to today while out. */
+  daysElapsed?: number
+  /** Planned delivery time the line is measured against. Undefined when none is maintained. */
+  leadTimeDays?: number
+  leadTimeStatus?: LeadTimeStatus
+  /** Days past the planned delivery time; negative while still inside it. */
+  daysOverLeadTime?: number
+  /** The repair PO line is blocked in SAP — still counted, flagged on screen. */
+  poBlocked?: boolean
   raisedAt: string
   poIssuedAt?: string
   sentToVendorAt?: string
@@ -77,9 +93,10 @@ export interface DeclarationItem {
   pr: SAPDocumentReference
   material: MaterialReference
   requester: string
-  source: DeclarationSource
   hasActiveRepair: boolean
   relatedRepairId?: string
+  /** Units still out on the related repair line — the form's default quantity. */
+  quantityUnderRepair?: number
   status: DeclarationStatus
   declaredBy?: string
   declaredAt?: string

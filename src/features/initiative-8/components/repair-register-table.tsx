@@ -39,11 +39,14 @@ import {
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
   DEFAULT_AGING_BUCKETS,
+  LEAD_TIME_VERDICT_LABEL,
+  LEAD_TIME_VERDICT_TONE,
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
   OVERDUE_STATUS_TONE,
   REPAIR_STATUS_TONE,
   UNKNOWN,
+  type LeadTimeVerdict,
   hasNoLeadTime,
   isBeyondLeadTime,
   isPartiallyReceived,
@@ -225,6 +228,7 @@ export function RepairRegisterTable({
                 <TableHead>Expected Return</TableHead>
                 <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
+                <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead />
               </TableRow>
@@ -234,6 +238,11 @@ export function RepairRegisterTable({
                 const overdue = overdueStatusOf(c)
                 const beyondLeadTime = isBeyondLeadTime(c)
                 const noLeadTime = hasNoLeadTime(c)
+                // Only reached when noLeadTime is false, so the absent third
+                // state never has to be represented as a verdict.
+                const verdict: LeadTimeVerdict = beyondLeadTime
+                  ? "BEYOND_LEAD_TIME"
+                  : "WITHIN_LEAD_TIME"
                 return (
                   <TableRow key={c.id}>
                     <TableCell>
@@ -262,8 +271,8 @@ export function RepairRegisterTable({
                     <TableCell className="text-right text-foreground">
                       {orUnknown(c.stockOnHand)}
                     </TableCell>
-                    {/* Undefined for every Gamsberg material -- MARC covers plants
-                        1300 and 1200 only. A dash, never a 0. */}
+                    {/* Undefined for every Gamsberg material -- the July MARC
+                        extract has rows for plant 1300 only. A dash, never a 0. */}
                     <TableCell className="text-right text-muted-foreground">
                       {orUnknown(c.reorderPoint)}
                     </TableCell>
@@ -310,34 +319,48 @@ export function RepairRegisterTable({
                         {OVERDUE_STATUS_LABEL[overdue]}
                       </StatusBadge>
                     </TableCell>
-                    {/* The lead-time highlight. Days open stays the number on
-                        show -- the ruling was to keep the aging and mark it when
-                        it runs past the material's planned delivery time, not to
-                        replace it with a verdict. The cell says by how much and
-                        against what, because "90" in red is an accusation
-                        without evidence. With no planned time to measure
-                        against, the number is muted and says so: "not known"
-                        must not read the same as "within". */}
-                    <TableCell
-                      className={cn(
-                        "text-right",
-                        beyondLeadTime
-                          ? "font-medium text-warning"
-                          : noLeadTime
-                            ? "text-muted-foreground"
-                            : "text-foreground"
-                      )}
-                      title={
-                        beyondLeadTime
-                          ? `${c.daysOverLeadTime} days past the ${c.leadTimeDays}-day planned delivery time for this material`
-                          : noLeadTime
-                            ? "No planned delivery time is maintained for this material at this plant, so there is nothing to measure against"
-                            : `Within the ${c.leadTimeDays}-day planned delivery time for this material`
-                      }
-                    >
-                      {c.daysOpen}
-                      {noLeadTime && (
-                        <span className="block text-[10px] italic">no lead time</span>
+                    {/* Plain number, no verdict -- the lead-time mark has its
+                        own column. Days open runs from the PO line date to the
+                        receipt, or to the reference date while the unit is
+                        still out, so a closed line reads its turnaround and
+                        never a "200" beside a "within the 21-day planned time"
+                        verdict. */}
+                    <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
+                    {/* The lead-time verdict: a second, independent signal, not
+                        a fallback for Due Date Status -- see LeadTimeStatus.
+                        A badge where there is a verdict, a muted dash where
+                        there is none. NO_LEAD_TIME is the absence of a
+                        benchmark (no MARC.PLIFZ for this material at this
+                        plant, which is every Gamsberg line) and gets the same
+                        treatment as an unrated criticality above, because a
+                        third badge beside two verdicts reads as a third
+                        verdict. */}
+                    <TableCell>
+                      {noLeadTime ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="No planned delivery time (MARC.PLIFZ) is maintained for this material at this plant, so there is nothing to measure against"
+                        >
+                          {UNKNOWN}
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <StatusBadge tone={LEAD_TIME_VERDICT_TONE[verdict]}>
+                            {LEAD_TIME_VERDICT_LABEL[verdict]}
+                          </StatusBadge>
+                          {/* The evidence, because "Beyond" on its own is a
+                              verdict without a number. Cites days elapsed
+                              rather than days open: that is what the check
+                              ran on. */}
+                          <span
+                            className="text-[10px] text-muted-foreground"
+                            title={`${c.daysElapsed ?? UNKNOWN} days elapsed (PO line raised to ${c.receivedAt ? "receipt" : "the reference date"}) against a ${c.leadTimeDays}-day planned delivery time`}
+                          >
+                            {beyondLeadTime
+                              ? `+${c.daysOverLeadTime}d over ${c.leadTimeDays}d`
+                              : `${c.leadTimeDays}d planned`}
+                          </span>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>

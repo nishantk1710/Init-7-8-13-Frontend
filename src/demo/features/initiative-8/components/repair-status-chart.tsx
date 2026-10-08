@@ -13,22 +13,13 @@ import {
 } from "recharts"
 
 import type { RepairChain, RepairStatus } from "@demo/features/initiative-8/types/repair"
+import { REPAIR_STATUS_ORDER } from "@demo/features/initiative-8/utils/status"
 import { formatCount } from "@demo/lib/utils"
-
-const STATUS_ORDER: RepairStatus[] = [
-  "PR Raised",
-  "PO Issued",
-  "At Vendor",
-  "In Transit Return",
-  "Received",
-  "Closed",
-]
 
 const STATUS_COLORS: Record<RepairStatus, string> = {
   "PR Raised": "var(--chart-4)",
   "PO Issued": "var(--chart-1)",
   "At Vendor": "var(--chart-2)",
-  "In Transit Return": "var(--chart-5)",
   Received: "var(--chart-3)",
   Closed: "var(--muted-foreground)",
 }
@@ -48,7 +39,7 @@ function StatusTooltip({ active, payload }: TooltipContentProps) {
 }
 
 export function RepairStatusChart({ chains }: { chains: RepairChain[] }) {
-  const data = STATUS_ORDER.map((status) => ({
+  const data = REPAIR_STATUS_ORDER.map((status) => ({
     status,
     count: chains.filter((c) => c.repairStatus === status).length,
   })).filter((d) => d.count > 0)

@@ -1,9 +1,10 @@
-import type { RepairChain } from "@demo/features/initiative-8/types/repair"
+import type { RepairChain, RepairStatus } from "@demo/features/initiative-8/types/repair"
+import { NO_CRITICALITY, REPAIR_STATUS_ORDER } from "@demo/features/initiative-8/utils/status"
 import { USING_GENERATED_DATA } from "@demo/lib/dataset-mode"
 import generatedRepairChains from "@demo/features/initiative-8/data/generated/repair-chains.json"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
-// remaining math throughout this module is anchored at 3 Sep 2026.
+// remaining math throughout this module is anchored at REFERENCE_DATE.
 //
 // RC-8001 is Scenario C from the master spec: low SOH, an open repair PO,
 // 2 units at the vendor, expected return soon — the material the assistant's
@@ -13,6 +14,8 @@ import generatedRepairChains from "@demo/features/initiative-8/data/generated/re
 // RC-8002 is the mandatory Initiative 7 integration entry for the real
 // shared-catalog material 500-14892 ("Seal Assy, Mech Type XR-200",
 // Flowserve) — read directly by `selectors/material-360-adapter.ts`.
+
+export const REFERENCE_DATE = "3 Sep 2026"
 
 const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
   {
@@ -34,6 +37,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     declarationStatus: "Completed",
     daysOpen: 37,
     agingBucket: "31-45",
+    criticality: "CRITICAL",
+    leadTimeDays: 30,
     raisedAt: "28 Jul 2026",
     poIssuedAt: "1 Aug 2026",
     sentToVendorAt: "5 Aug 2026",
@@ -63,6 +68,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     declarationStatus: "Completed",
     daysOpen: 18,
     agingBucket: "16-30",
+    criticality: "NORMAL",
+    leadTimeDays: 21,
     raisedAt: "16 Aug 2026",
     poIssuedAt: "18 Aug 2026",
     sentToVendorAt: "20 Aug 2026",
@@ -89,9 +96,11 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     vendor: "Metso Outotec Workshop",
     repairStatus: "PO Issued",
     receiptStatus: "Not Yet Shipped",
-    declarationStatus: "Pending",
+    declarationStatus: "Required",
     daysOpen: 5,
     agingBucket: "0-15",
+    criticality: "IMPACT",
+    leadTimeDays: 28,
     raisedAt: "29 Aug 2026",
     poIssuedAt: "30 Aug 2026",
     expectedReturn: "20 Sep 2026",
@@ -119,6 +128,9 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     declarationStatus: "Completed",
     daysOpen: 54,
     agingBucket: "46-60",
+    criticality: "NORMAL",
+    daysElapsed: 54,
+    leadTimeDays: 45,
     raisedAt: "2 Jul 2026",
     poIssuedAt: "4 Jul 2026",
     sentToVendorAt: "6 Jul 2026",
@@ -148,6 +160,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     declarationStatus: "Required",
     daysOpen: 3,
     agingBucket: "0-15",
+    criticality: "CRITICAL",
     raisedAt: "31 Aug 2026",
     expectedReturn: "28 Sep 2026",
     daysRemainingInRepair: 25,
@@ -172,9 +185,11 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     vendor: "Bosch Rexroth Service Hub",
     repairStatus: "At Vendor",
     receiptStatus: "Awaiting Receipt",
-    declarationStatus: "Pending",
+    declarationStatus: "Required",
     daysOpen: 58,
     agingBucket: "46-60",
+    criticality: "IMPACT",
+    leadTimeDays: 35,
     raisedAt: "7 Jul 2026",
     poIssuedAt: "9 Jul 2026",
     sentToVendorAt: "12 Jul 2026",
@@ -199,11 +214,12 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPR: { type: "PR", documentNumber: "PR-81007" },
     repairPO: { type: "PO", documentNumber: "PO-81007" },
     vendor: "Metso Outotec Workshop",
-    repairStatus: "In Transit Return",
+    repairStatus: "At Vendor",
     receiptStatus: "Partially Received",
     declarationStatus: "Required",
     daysOpen: 40,
     agingBucket: "31-45",
+    leadTimeDays: 42,
     raisedAt: "25 Jul 2026",
     poIssuedAt: "27 Jul 2026",
     sentToVendorAt: "29 Jul 2026",
@@ -232,6 +248,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     declarationStatus: "Flagged",
     daysOpen: 12,
     agingBucket: "0-15",
+    criticality: "INSURANCE",
     raisedAt: "22 Aug 2026",
     poIssuedAt: "24 Aug 2026",
     expectedReturn: "25 Sep 2026",
@@ -243,10 +260,27 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
   },
 ]
 
+/** The lead-time verdict, from days elapsed against the planned delivery time. */
+function withLeadTime(chain: RepairChain): RepairChain {
+  const daysElapsed = chain.daysElapsed ?? chain.daysOpen
+  if (chain.leadTimeDays === undefined) {
+    return { ...chain, daysElapsed, leadTimeStatus: "NO_LEAD_TIME" }
+  }
+  const daysOverLeadTime = daysElapsed - chain.leadTimeDays
+  return {
+    ...chain,
+    daysElapsed,
+    daysOverLeadTime,
+    leadTimeStatus: daysOverLeadTime > 0 ? "BEYOND_LEAD_TIME" : "WITHIN_LEAD_TIME",
+  }
+}
+
 /** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const REPAIR_CHAINS: RepairChain[] = USING_GENERATED_DATA
-  ? (generatedRepairChains as unknown as RepairChain[])
-  : SCENARIO_REPAIR_CHAINS
+export const REPAIR_CHAINS: RepairChain[] = (
+  USING_GENERATED_DATA
+    ? (generatedRepairChains as unknown as RepairChain[])
+    : SCENARIO_REPAIR_CHAINS
+).map(withLeadTime)
 
 export function getRepairChainById(id: string): RepairChain | undefined {
   return REPAIR_CHAINS.find((rc) => rc.id === id)
@@ -265,3 +299,16 @@ export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map((rc) => rc.ve
 export const REPAIR_PLANTS = Array.from(
   new Map(REPAIR_CHAINS.map((rc) => [rc.plant.plantId, rc.plant])).values(),
 ).sort((a, b) => a.name.localeCompare(b.name))
+
+/** The repair statuses that occur in the rows, in lifecycle order. */
+export const REPAIR_STATUS_OPTIONS: RepairStatus[] = REPAIR_STATUS_ORDER.filter((s) =>
+  REPAIR_CHAINS.some((rc) => rc.repairStatus === s),
+)
+
+const CRITICALITY_ORDER = ["CRITICAL", "IMPACT", "INSURANCE", "NORMAL", "OBSOLETE"]
+
+/** Ratings present, most severe first, then "Not recorded" when any line is unrated. */
+export const CRITICALITY_OPTIONS: string[] = [
+  ...CRITICALITY_ORDER.filter((c) => REPAIR_CHAINS.some((rc) => rc.criticality === c)),
+  ...(REPAIR_CHAINS.some((rc) => !rc.criticality) ? [NO_CRITICALITY] : []),
+]

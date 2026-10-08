@@ -7,7 +7,7 @@ export function CodingCandidatesPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Coding Candidates"
-          description="Materials whose purchase-order free text talks about repair but are not 80-series coded. Advisory only — nothing here changes SAP."
+          description="Materials whose purchase-order free text talks about repair but are not 80-series coded (FR-2). Advisory only — nothing here changes SAP."
         />
         <CodingCandidatesTable />
       </div>

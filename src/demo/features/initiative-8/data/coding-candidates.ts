@@ -19,6 +19,9 @@ import type { CodingCandidate } from "@demo/features/initiative-8/types/repair"
  * `REPAIR_SERVICE` (a service line, not a part) and `CONSUMABLE_FOR_REPAIR`
  * (a part consumed during a repair) are both correctly coded today.
  */
+/** Who screened the fixtures — the banner's "Screened by …" line. */
+export const CODING_SCREEN = { provider: "foundry", model: "gpt-4o" }
+
 export const CODING_CANDIDATES: CodingCandidate[] = [
   {
     material: {

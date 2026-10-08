@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Download } from "lucide-react"
 
+import { ClearFiltersButton } from "@demo/components/shared/clear-filters-button"
 import { FilterBar } from "@demo/components/shared/filter-bar"
 import { MaterialIdentity } from "@demo/components/shared/material-identity"
 import { SAPDocumentChip } from "@demo/components/shared/sap-document-chip"
@@ -169,6 +170,15 @@ export function ExceptionQueueTable() {
             <SelectItem value="open">Open repairs only</SelectItem>
           </SelectContent>
         </Select>
+
+        <ClearFiltersButton
+          activeCount={(type !== ALL ? 1 : 0) + (plant !== ALL ? 1 : 0) + (openOnly ? 1 : 0)}
+          onClear={() => {
+            setType(ALL)
+            setPlant(ALL)
+            setOpenOnly(false)
+          }}
+        />
 
         <div className="flex items-center gap-3 sm:ml-auto">
           <span className="text-xs text-muted-foreground">

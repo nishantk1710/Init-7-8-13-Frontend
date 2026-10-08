@@ -26,12 +26,20 @@ function PlantTooltip({ active, payload, label }: TooltipContentProps) {
   )
 }
 
+/** Stock on hand by plant, once per material and plant — a material with three
+ *  repairs must not have its stock counted three times. */
 export function RepairableStockByPlantChart({ chains }: { chains: RepairChain[] }) {
+  const seen = new Set<string>()
   const byPlant = new Map<string, number>()
   for (const c of chains) {
+    const key = `${c.material.materialId}|${c.plant.plantId}`
+    if (seen.has(key)) continue
+    seen.add(key)
     byPlant.set(c.plant.name, (byPlant.get(c.plant.name) ?? 0) + c.stockOnHand)
   }
-  const data = Array.from(byPlant.entries()).map(([plant, stock]) => ({ plant, stock }))
+  const data = Array.from(byPlant.entries())
+    .map(([plant, stock]) => ({ plant, stock }))
+    .sort((a, b) => a.plant.localeCompare(b.plant))
 
   return (
     <div className="h-[260px] w-full">

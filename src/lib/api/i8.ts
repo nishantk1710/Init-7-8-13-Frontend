@@ -106,7 +106,10 @@ export type ApiRepairChain = {
   leadTimeStatus: ApiLeadTimeStatus
   declarationStatus: "Required" | "Completed" | "Flagged"
 
+  /** Raised to received, or raised to today while still out — the same number
+   * as `daysElapsed`. A closed line shows its turnaround, not the record's age. */
   daysOpen: number | null
+  /** The band `daysOpen` falls in. */
   agingBucket: string | null
 
   /**
@@ -117,8 +120,8 @@ export type ApiRepairChain = {
   leadTimeDays: number | null
   /**
    * Raised to received, or raised to today while still out. What
-   * `leadTimeStatus` is measured on — unlike `daysOpen`, it stops when the unit
-   * comes back, so a repair that finished on time does not drift into breach.
+   * `leadTimeStatus` is measured on — it stops when the unit comes back, so a
+   * repair that finished on time does not drift into breach.
    */
   daysElapsed: number | null
   /**

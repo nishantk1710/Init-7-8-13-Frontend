@@ -1,21 +1,12 @@
-import type { RepairChain } from "@/features/initiative-8/types/repair"
+import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import {
   LEAD_TIME_VERDICT_LABEL,
   NO_CRITICALITY,
   OVERDUE_STATUS_LABEL,
   isPartiallyReceived,
   overdueStatusOf,
-  vendorLabel,
-} from "@/features/initiative-8/utils/status"
-import type { SAPDocumentReference } from "@/lib/domain/contracts"
-
-/**
- * The register's filtering and export, as plain functions over `RepairChain[]`.
- *
- * Pulled out of the table component so the rules are testable without React,
- * and so the CSV and the screen can never disagree about which rows a filter
- * matches: the export is built from exactly the array the table renders.
- */
+} from "@demo/features/initiative-8/utils/status"
+import type { SAPDocumentReference } from "@demo/lib/domain/contracts"
 
 /** The "no filter" value every register dropdown uses. */
 export const ALL = "all"
@@ -42,11 +33,10 @@ export const NO_REGISTER_FILTERS: RegisterFilters = {
   aging: ALL,
 }
 
-/** The rows matching every active filter. Client side, over the full register. */
 export function filterRegister(chains: RepairChain[], filters: RegisterFilters): RepairChain[] {
   return chains.filter((c) => {
     if (filters.plant !== ALL && c.plant.plantId !== filters.plant) return false
-    if (filters.vendor !== ALL && vendorLabel(c) !== filters.vendor) return false
+    if (filters.vendor !== ALL && c.vendor !== filters.vendor) return false
     if (filters.repairStatus !== ALL && c.repairStatus !== filters.repairStatus) return false
     if (filters.overdue !== ALL && overdueStatusOf(c) !== filters.overdue) return false
     if (filters.criticality !== ALL && (c.criticality ?? NO_CRITICALITY) !== filters.criticality) {
@@ -92,14 +82,7 @@ export const REGISTER_CSV_HEADERS = [
   "Raised",
 ]
 
-/**
- * One CSV row per chain handed in — already filtered by the caller, so the file
- * is the view it came from and not the whole register.
- *
- * Unknown values are empty cells, never 0: a CSV cell is read without the
- * column's caveats beside it, and an exported 0 asserts "none" where the
- * source only said "not recorded".
- */
+/** One CSV row per chain handed in — already filtered, so the file is the view. */
 export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] {
   return chains.map((c) => [
     c.id,
@@ -107,24 +90,20 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
     c.material.description,
     `${c.plant.plantId} ${c.plant.name}`,
     c.criticality ?? "",
-    c.stockOnHand ?? "",
-    c.reorderPoint ?? "",
+    c.stockOnHand,
+    c.reorderPoint,
     documentLabel(c.repairPR),
     documentLabel(c.repairPO),
     c.poBlocked ? "Yes" : "No",
-    vendorLabel(c),
+    c.vendor,
     c.qtyUnderRepair,
     c.repairStatus,
     isPartiallyReceived(c) ? "Yes" : "No",
     OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
-    c.expectedReturn ?? "",
+    c.expectedReturn,
     c.daysOpen,
     c.daysElapsed ?? "",
     c.agingBucket,
-    // The label the screen shows, not the raw enum -- the same reason the
-    // overdue column above exports through OVERDUE_STATUS_LABEL. A line with no
-    // benchmark exports as an empty cell rather than "NO_LEAD_TIME", so a
-    // spreadsheet filter cannot group it with the verdicts.
     c.leadTimeStatus && c.leadTimeStatus !== "NO_LEAD_TIME"
       ? LEAD_TIME_VERDICT_LABEL[c.leadTimeStatus]
       : "",

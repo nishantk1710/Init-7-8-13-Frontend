@@ -11,7 +11,6 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import { formatCount } from "@demo/lib/utils"
 
 function VendorTooltip({ active, payload, label }: TooltipContentProps) {
@@ -20,22 +19,16 @@ function VendorTooltip({ active, payload, label }: TooltipContentProps) {
   if (!point || typeof point.value !== "number") return null
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <div className="text-sm font-semibold text-foreground">{formatCount(point.value)} chains</div>
+      <div className="text-sm font-semibold text-foreground">
+        {formatCount(point.value)} open repair lines
+      </div>
       <div className="mt-0.5 text-muted-foreground">{label}</div>
     </div>
   )
 }
 
-export function RepairsByVendorChart({ chains }: { chains: RepairChain[] }) {
-  const byVendor = new Map<string, number>()
-  for (const c of chains) {
-    if (c.repairStatus === "Closed") continue
-    byVendor.set(c.vendor, (byVendor.get(c.vendor) ?? 0) + 1)
-  }
-  const data = Array.from(byVendor.entries())
-    .map(([vendor, count]) => ({ vendor, count }))
-    .sort((a, b) => b.count - a.count)
-
+/** Open repair lines per vendor. The counting lives with the caller; this only draws. */
+export function RepairsByVendorChart({ data }: { data: { vendor: string; count: number }[] }) {
   return (
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">

@@ -15,7 +15,7 @@ export function getInitiative8Summary(): InitiativeSummary {
   const flaggedCount = DECLARATIONS.filter((d) => d.status === "Flagged").length
   const overdueCount = activeChains.filter((c) => c.daysRemainingInRepair < 0).length
   const pendingDeclarations = DECLARATIONS.filter(
-    (d) => d.status === "Required" || d.status === "Pending"
+    (d) => d.status === "Required" || d.status === "Flagged"
   ).length
   // Lines raised before Spares Automation existed are excluded: nobody could
   // have recorded anything against them, so counting them here would put work

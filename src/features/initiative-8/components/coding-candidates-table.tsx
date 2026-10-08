@@ -130,21 +130,22 @@ export function CodingCandidatesTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          {isUnscreened ? (
-            <>
-              Keyword pass only — every verdict reads <strong>UNSCREENED</strong> until the
-              language model runs. Roughly 40 materials, about 4 minutes against live gpt-4o.
-            </>
-          ) : (
-            <>
-              Screened by <strong>{meta?.provider}</strong>
-              {meta?.model ? ` (${meta.model})` : ""}. {meta?.corroborated ?? 0} candidate
-              {meta?.corroborated === 1 ? "" : "s"} corroborated by an 80-series twin.
-            </>
-          )}
-        </div>
+      {/* Before a screen has run there is nothing to report, so the button
+          stands alone; after one, what it found sits beside it. */}
+      <div
+        className={
+          isUnscreened
+            ? "flex justify-end"
+            : "flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between"
+        }
+      >
+        {!isUnscreened && (
+          <div className="text-sm text-muted-foreground">
+            Screened by <strong>{meta?.provider}</strong>
+            {meta?.model ? ` (${meta.model})` : ""}. {meta?.corroborated ?? 0} candidate
+            {meta?.corroborated === 1 ? "" : "s"} corroborated by an 80-series twin.
+          </div>
+        )}
         <Button size="sm" onClick={() => void runScreen()} disabled={screening}>
           {screening ? "Screening… (~4 min)" : "Run AI screen"}
         </Button>
