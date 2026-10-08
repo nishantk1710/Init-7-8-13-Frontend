@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -216,6 +217,19 @@ export function CodingCandidatesTable({
             <SelectItem value="yes">Meets confidence threshold</SelectItem>
           </SelectContent>
         </Select>
+
+        <ClearFiltersButton
+          activeCount={
+            [verdict !== ALL, actionableOnly, corroboratedOnly, meetsThresholdOnly].filter(Boolean)
+              .length
+          }
+          onClear={() => {
+            setVerdict(ALL)
+            setActionableOnly(false)
+            setCorroboratedOnly(false)
+            setMeetsThresholdOnly(false)
+          }}
+        />
       </FilterBar>
 
       {filtered.length === 0 ? (
