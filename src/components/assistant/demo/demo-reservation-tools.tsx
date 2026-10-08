@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FlaskConical } from "lucide-react"
+import { Link2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { removeReservations, simulateReservation } from "@/lib/assistant/demo"
@@ -39,25 +39,23 @@ export function DemoReservationTools({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-dashed border-warning/50 bg-warning/5 p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
-        <FlaskConical className="size-4 text-warning" aria-hidden />
-        <p className="text-sm font-medium text-foreground">Demo: stand in for SAP</p>
+        <Link2 className="size-4 text-primary" aria-hidden />
+        <p className="text-sm font-medium text-foreground">Link SAP reservation</p>
       </div>
       <p className="text-xs text-muted-foreground">
         In SAP the requester types <span className="font-mono">{sessionId}</span>{" "}into the
-        reservation&rsquo;s item text (SGTXT) and the next extract carries it here. In the demo
-        this button does that, in this browser only.
+        reservation&rsquo;s item text (SGTXT), and the next extract links the reservation to this
+        session.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           disabled={busy || linked !== null}
-          onClick={() =>
-            act(() => simulateReservation(sessionId), "Simulated reservation created and linked.")
-          }
+          onClick={() => act(() => simulateReservation(sessionId), "Reservation created and linked.")}
         >
-          Simulate SAP reservation
+          Link reservation
         </Button>
         {linked ? (
           <>

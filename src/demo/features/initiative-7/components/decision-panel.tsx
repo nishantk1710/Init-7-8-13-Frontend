@@ -56,8 +56,8 @@ export function DecisionActions({ recommendation }: { recommendation: Recommenda
         </StatusBadge>
         <span className="text-[11px] text-muted-foreground">
           {state.outcome === "rejected"
-            ? "Current SAP parameters retained — no update simulated."
-            : "Chain complete — ready for the simulated SAP parameter update."}
+            ? "Current SAP parameters retained."
+            : "Chain complete — parameter change approved."}
         </span>
       </div>
     )
@@ -69,7 +69,7 @@ export function DecisionActions({ recommendation }: { recommendation: Recommenda
         Step {state.stepIndex + 1} of {CHAIN_LENGTH} — awaiting{" "}
         <span className="font-medium text-foreground">{role}</span>
         {(role === DEMO_ROLE || chainApproverName(role)) && (
-          <span> ({role === DEMO_ROLE ? `Demo ${role}` : chainApproverName(role)})</span>
+          <span> ({role === DEMO_ROLE ? "you" : chainApproverName(role)})</span>
         )}
       </div>
 

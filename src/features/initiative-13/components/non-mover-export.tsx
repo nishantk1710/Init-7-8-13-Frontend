@@ -47,7 +47,7 @@ export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
       }
     >
       <Download className="size-3.5" />
-      Export full utilisation set
+      Export all positions
     </Button>
   )
 }

@@ -1,9 +1,12 @@
 import type { DeclarationItem } from "@demo/features/initiative-8/types/repair"
 
-// Deterministic mock data. The Declaration Queue is a separate, mandatory
-// workflow from the advisory Duplicate Guard check — these rows are never
-// merged with the RC-80xx repair chains, only cross-referenced via
-// `relatedRepairId` for navigation.
+// Deterministic mock data. The Declaration Queue is the mandatory workflow,
+// separate from the advisory duplicate check the Spares Assistant runs at
+// reservation time — these rows are never merged with the RC-80xx repair
+// chains, only cross-referenced via `relatedRepairId` for navigation.
+//
+// A line released with no completed declaration is what the Exception Queue's
+// MISSING_ATTESTATION rows are counting.
 //
 // D-90112 is Scenario D from the master spec: an MRP-generated PR that still
 // needs declaration follow-up.

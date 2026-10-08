@@ -14,31 +14,40 @@ export const REPAIR_STATUS_TONE: Record<RepairStatus, Tone> = {
   "PR Raised": "default",
   "PO Issued": "default",
   "At Vendor": "warning",
-  "In Transit Return": "warning",
   Received: "success",
   Closed: "success",
 }
 
-export const RECEIPT_STATUS_TONE: Record<ReceiptStatus, Tone> = {
-  "Not Yet Shipped": "default",
-  "Awaiting Receipt": "warning",
-  "Partially Received": "warning",
-  Received: "success",
+/**
+ * True when some, but not all, of the line has come back.
+ *
+ * The one thing the receipt status says that the repair status does not —
+ * the other three values map one-to-one onto PO Issued, At Vendor and
+ * Received — so it is shown as a mark on the repair status rather than as a
+ * second status column.
+ */
+export function isPartiallyReceived(chain: { receiptStatus: ReceiptStatus }): boolean {
+  return chain.receiptStatus === "Partially Received"
 }
 
 export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Required: "warning",
-  Pending: "default",
   Completed: "success",
   Flagged: "danger",
 }
+
+/** The declaration statuses, in the order the filters offer them. */
+export const DECLARATION_STATUSES: readonly DeclarationStatus[] = [
+  "Required",
+  "Completed",
+  "Flagged",
+]
 
 /** The lifecycle order, for sorting status options that come from the data. */
 export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
   "PR Raised",
   "PO Issued",
   "At Vendor",
-  "In Transit Return",
   "Received",
   "Closed",
 ]

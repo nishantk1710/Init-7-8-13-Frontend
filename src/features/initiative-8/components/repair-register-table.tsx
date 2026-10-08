@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ChevronRight, Download } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -24,11 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type {
-  DeclarationStatus,
-  RepairChain,
-  RepairStatus,
-} from "@/features/initiative-8/types/repair"
+import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
 import {
   ALL,
   NO_REGISTER_FILTERS,
@@ -39,24 +36,23 @@ import {
 } from "@/features/initiative-8/utils/register-view"
 import {
   CRITICALITY_TONE,
+  DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
   DEFAULT_AGING_BUCKETS,
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
   OVERDUE_STATUS_TONE,
-  RECEIPT_STATUS_TONE,
   REPAIR_STATUS_TONE,
   UNKNOWN,
   hasNoLeadTime,
   isBeyondLeadTime,
+  isPartiallyReceived,
   orUnknown,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, downloadCsv, formatCount } from "@/lib/utils"
-
-const DECLARATION_STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
 
 /** A plant the filter can offer. Structurally `PlantReference`, but the live
  *  plants come from the data rather than from `lib/shared-data/plants`, whose
@@ -185,6 +181,10 @@ export function RepairRegisterTable({
           options={agingBands.map((b) => ({ value: b, label: `${b} days` }))}
           className="sm:w-40"
         />
+        <ClearFiltersButton
+          activeCount={Object.values(filters).filter((v) => v !== ALL).length}
+          onClear={() => setFilters(NO_REGISTER_FILTERS)}
+        />
 
         <div className="flex items-center gap-3 sm:ml-auto">
           <span className="text-xs text-muted-foreground">
@@ -225,7 +225,6 @@ export function RepairRegisterTable({
                 <TableHead>Expected Return</TableHead>
                 <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
-                <TableHead>Receipt Status</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead />
               </TableRow>
@@ -295,6 +294,13 @@ export function RepairRegisterTable({
                       <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
                         {c.repairStatus}
                       </StatusBadge>
+                      {/* The one thing the old receipt-status column said that
+                          this one does not. */}
+                      {isPartiallyReceived(c) && (
+                        <span className="block text-[10px] italic text-warning">
+                          partially received
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.expectedReturn ?? UNKNOWN}
@@ -333,11 +339,6 @@ export function RepairRegisterTable({
                       {noLeadTime && (
                         <span className="block text-[10px] italic">no lead time</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tone={RECEIPT_STATUS_TONE[c.receiptStatus]}>
-                        {c.receiptStatus}
-                      </StatusBadge>
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>

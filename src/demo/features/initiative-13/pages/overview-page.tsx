@@ -98,7 +98,7 @@ export function OARUtilizationOverviewPage() {
             title="Redeployment / purchase avoidance"
             subtitle="Estimated repurchase value avoided by redeploying unused stock"
             span={12}
-            footnote="Advisory estimates only — no automatic SAP stock transfer is simulated."
+            footnote="Advisory estimates only — no SAP stock transfer is created."
           >
             <RedeploymentAvoidanceChart data={REDEPLOYMENT_AVOIDANCE} />
           </ChartCard>

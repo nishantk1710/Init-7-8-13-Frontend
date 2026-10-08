@@ -49,7 +49,7 @@ import i13JustifiedFixture from "@/lib/api/__fixtures__/14-answer-i13-quantity-j
 import i13TraceFixture from "@/lib/api/__fixtures__/16-session-trace-i13.json"
 import i08TraceFixture from "@/lib/api/__fixtures__/17-session-trace-i08.json"
 
-import { DEMO_OAR, DEMO_REPAIRABLE, demoMaterial } from "@/lib/assistant/demo/catalogue"
+import { demoMaterial } from "@/lib/assistant/demo/catalogue"
 import { demoIdFrom } from "@/lib/assistant/demo/ids"
 
 /** The IDs the fixtures were generated with. Never shown in a demo. */
@@ -112,6 +112,16 @@ function stepOf(fixture: unknown, sessionId: string): ApiStep {
   return withSessionId((fixture as { step: ApiStep }).step, sessionId)
 }
 
+/** The plan form asks how many will be procured; the fixture says "use". */
+function withProcuredLabel(step: ApiStep): ApiStep {
+  return {
+    ...step,
+    fields: step.fields.map((field) =>
+      field.name === "planned_quantity" ? { ...field, label: "How many you plan to procure" } : field
+    ),
+  }
+}
+
 /** Swap the fixture's planned quantity (5) for the one the presenter typed. */
 function withPlannedQuantity(step: ApiStep, quantity: string): ApiStep {
   const swap = (text: string) =>
@@ -166,10 +176,7 @@ export function startDemoRun(
           materialScope: "EXCLUDED",
           mrpType: null,
           alsoMatched: null,
-          reason:
-            `${body.materialId.trim()} at plant ${body.plant.trim()} is not one of the two demo ` +
-            `materials. In demo mode the assistant runs only the scripted repairable ` +
-            `(${DEMO_REPAIRABLE.materialId}) and OAR (${DEMO_OAR.materialId}) sessions.`,
+          reason: `Material ${body.materialId.trim()} was not found at plant ${body.plant.trim()}.`,
         },
         sessionId: null,
         expiresAt: null,
@@ -191,7 +198,8 @@ export function startDemoRun(
     plant: material.plant,
     department: body.department?.trim() || null,
     requestedFor: body.requestedFor?.trim() || null,
-    requester: body.requestedFor?.trim() || "DEMO",
+    // The fixtures' own requester, so a blank "requested for" still reads as a person.
+    requester: body.requestedFor?.trim() || "MILLERJ",
     origin: body.origin ?? "PLATFORM",
     issuedAt: now,
     expiresAt: addMs(now, SESSION_WINDOW_MS),
@@ -217,7 +225,7 @@ export function startDemoRun(
 // --- answering ---------------------------------------------------------------
 
 function refuse(detail: string): never {
-  throw new ApiError(`POST demo turn failed with 422`, 422, undefined, detail)
+  throw new ApiError(`POST turn failed with 422`, 422, undefined, detail)
 }
 
 function cleanChoice(step: ApiStep, answer: Record<string, unknown>): string {
@@ -358,7 +366,10 @@ function nextStep(
       const choice = cleanChoice(step, answer)
       return {
         recorded: { choice },
-        step: stepOf(choice === "not_needed" ? i13NotNeededFixture : i13ProceedFixture, id),
+        step:
+          choice === "not_needed"
+            ? stepOf(i13NotNeededFixture, id)
+            : withProcuredLabel(stepOf(i13ProceedFixture, id)),
         changes: {},
       }
     }
@@ -373,8 +384,9 @@ function nextStep(
         plannedQuantity: quantity,
         windowStart: form.window_start,
         windowEnd: form.window_end,
-        costCentre: form.cost_centre,
-        orderNumber: form.order_number,
+        // The plan form no longer asks for these; the plan record keeps them.
+        costCentre: null,
+        orderNumber: null,
         status: "OPEN",
         reservationNumber: null,
         reservationItem: null,
@@ -434,7 +446,7 @@ function nextStep(
             "be reopened -- start a new session if the decision has changed."
         )
       }
-      refuse(`${step.id} is not part of the demo script.`)
+      refuse(`${step.id} cannot be answered in this session.`)
   }
 }
 

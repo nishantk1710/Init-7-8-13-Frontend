@@ -9,8 +9,8 @@ import {
 
 /**
  * Every open Initiative 8 item for the global Action Center: flagged
- * duplicate-procurement declarations, mandatory declarations still
- * outstanding, and overdue repair chains.
+ * condition declarations (assessed as not repairable, repaired anyway),
+ * mandatory declarations still outstanding, and overdue repair chains.
  */
 export function getInitiative8GlobalActions(): GlobalAction[] {
   const actions: GlobalAction[] = []
@@ -20,7 +20,7 @@ export function getInitiative8GlobalActions(): GlobalAction[] {
       actions.push({
         id: `i8-decl-flagged-${d.id}`,
         initiative: "initiative-8",
-        title: `Duplicate procurement flagged — ${d.material.materialId} (${d.pr.documentNumber})`,
+        title: `Condition declaration flagged — ${d.material.materialId} (${d.pr.documentNumber})`,
         severity: "critical",
         entityId: d.id,
         materialId: d.material.materialId,

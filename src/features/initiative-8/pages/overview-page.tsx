@@ -19,10 +19,11 @@ import {
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
+import { formatApiDateTime } from "@/lib/api/format"
 import { formatCount } from "@/lib/utils"
 
 const DESCRIPTION =
-  "Repair-chain visibility and duplicate-procurement guarding for repairable spares."
+  "Repair register, condition attestation and reservation-time compliance for 80-series spares."
 
 /** Shown on a tile whose source could not be read — never a 0. */
 const NOT_LOADED = "Could not be loaded"
@@ -75,11 +76,22 @@ export async function RefurbishableSparesOverviewPage() {
   const { register, universe, declarations, exceptions } = live
   const meta = register.meta
   const vendors = openLinesByVendor(register.chains)
-  const duplicates = exceptions ? unjustifiedAcquisitions(exceptions) : undefined
+  const unjustified = exceptions ? unjustifiedAcquisitions(exceptions) : undefined
   const unknownStockRows = universe?.stockByPlant.unknownRows ?? 0
 
   return (
-    <Shell description={`${DESCRIPTION} Live from the July extract, as at ${register.referenceDate}.`}>
+    <Shell
+      description={
+        // No source named here either -- see `registerDescription`. The page
+        // knows when the figures are measured as of; it has no way to know
+        // which SAP load produced them, and said "the July extract" for weeks
+        // after that stopped being true.
+        `${DESCRIPTION} As at ${register.referenceDate}.` +
+        (register.sourceLoadedAt
+          ? ` SAP data loaded ${formatApiDateTime(register.sourceLoadedAt)}.`
+          : "")
+      }
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KPIStatCard
           label="Repairable materials monitored"
@@ -104,14 +116,14 @@ export async function RefurbishableSparesOverviewPage() {
             same part was open, with no justification on record. A dash, not
             a 0, when the backend does not run that check. */}
         <KPIStatCard
-          label="Duplicate procurement alerts"
-          value={duplicates === undefined ? UNKNOWN : formatCount(duplicates)}
-          trend={duplicates ? "down" : "flat"}
-          trendLabel={duplicates ? "Unjustified" : undefined}
+          label="Unjustified new purchases"
+          value={unjustified === undefined ? UNKNOWN : formatCount(unjustified)}
+          trend={unjustified ? "down" : "flat"}
+          trendLabel={unjustified ? "Unjustified" : undefined}
           hint={
             !exceptions
               ? NOT_LOADED
-              : duplicates === undefined
+              : unjustified === undefined
                 ? "check not running on this backend yet"
                 : "new units bought while a repair was open"
           }

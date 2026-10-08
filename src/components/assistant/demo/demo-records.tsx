@@ -21,16 +21,7 @@ import { fromAssistant } from "@/lib/assistant/justifications"
 function Loading({ what }: { what: string }) {
   return (
     <p className="text-sm text-muted-foreground" role="status">
-      Loading demo {what}…
-    </p>
-  )
-}
-
-function DemoNote() {
-  return (
-    <p className="text-[11px] text-muted-foreground">
-      Demo records from sessions run in this browser, plus the two every demo starts with.
-      Nothing here was recorded by the platform.
+      Loading {what}…
     </p>
   )
 }
@@ -54,12 +45,7 @@ export function DemoJustifications({
     [runs, kinds]
   )
   if (runs === null) return <Loading what="justifications" />
-  return (
-    <>
-      <JustificationLog entries={entries} csvFilename={csvFilename} />
-      <DemoNote />
-    </>
-  )
+  return <JustificationLog entries={entries} csvFilename={csvFilename} />
 }
 
 /** Consumption plans captured in demo conversations. */
@@ -74,10 +60,5 @@ export function DemoPlans({ material, plant }: { material?: string; plant?: stri
     [runs, material, plant]
   )
   if (runs === null) return <Loading what="consumption plans" />
-  return (
-    <>
-      <PlansTable plans={plans} />
-      <DemoNote />
-    </>
-  )
+  return <PlansTable plans={plans} />
 }

@@ -205,15 +205,13 @@ function PlanCard({ plan }: { plan: ApiPlan }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
       <p className="text-sm text-foreground">{plan.purpose}</p>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
         <Field label="Planned quantity" value={plan.plannedQuantity} />
         <Field
           label="Expected use"
           value={formatWindow(plan.windowStart, plan.windowEnd)}
           nullNote="no window given"
         />
-        <Field label="Cost centre" value={plan.costCentre} nullNote="not known" />
-        <Field label="Work order" value={plan.orderNumber} nullNote="not known" />
       </dl>
       <p className="text-[11px] text-muted-foreground">
         {plan.status} · captured by {plan.capturedBy} ·{" "}
@@ -318,7 +316,6 @@ function Linkage({
               </Link>
               <span className="text-xs text-muted-foreground">
                 item text &ldquo;{l.sgtxt ?? ""}&rdquo;
-                {l.source === "UAT_SGTXT" ? " · UAT simulation" : ""}
               </span>
             </li>
           ))}

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Download } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -42,6 +43,8 @@ import { downloadCsv, formatCount } from "@/lib/utils"
 
 const ALL = "all"
 
+const NO_EXCEPTION_FILTERS: ExceptionFilters = { type: ALL, plant: ALL, openOnly: false }
+
 export type ExceptionQueueTableProps = {
   /** Rows to render — always from the backend. An empty array is a real
    *  answer; a failure is reported through `loadError`. */
@@ -67,11 +70,9 @@ export function ExceptionQueueTable({
   loadError = null,
 }: ExceptionQueueTableProps = {}) {
   const { openMaterial360 } = useMaterial360()
-  const [filters, setFilters] = useState<ExceptionFilters>({
-    type: ALL,
-    plant: ALL,
-    openOnly: false,
-  })
+  const [filters, setFilters] = useState<ExceptionFilters>(NO_EXCEPTION_FILTERS)
+  const activeFilterCount =
+    (filters.type !== ALL ? 1 : 0) + (filters.plant !== ALL ? 1 : 0) + (filters.openOnly ? 1 : 0)
 
   const plantOptions = useMemo(() => exceptionPlantOptions(items), [items])
   const filtered = useMemo(() => filterExceptions(items, filters), [items, filters])
@@ -163,6 +164,11 @@ export function ExceptionQueueTable({
             <SelectItem value="open">Open repairs only</SelectItem>
           </SelectContent>
         </Select>
+
+        <ClearFiltersButton
+          activeCount={activeFilterCount}
+          onClear={() => setFilters(NO_EXCEPTION_FILTERS)}
+        />
 
         <div className="flex items-center gap-3 sm:ml-auto">
           <span className="text-xs text-muted-foreground">

@@ -4,9 +4,7 @@ import { useState } from "react"
 import { Check, Copy } from "lucide-react"
 import { toast } from "sonner"
 
-import { DemoChip } from "@/components/assistant/demo/demo-chip"
 import { Button } from "@/components/ui/button"
-import { isDemoSessionId } from "@/lib/assistant/demo/ids"
 import { cn } from "@/lib/utils"
 
 /**
@@ -52,16 +50,13 @@ export function SessionReference({
   className?: string
 }) {
   const [copied, setCopied] = useState(false)
-  const demo = isDemoSessionId(sessionId)
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(sessionId)
       setCopied(true)
       toast.success("Reference copied", {
-        description: demo
-          ? "Demo reference: do not type it into SAP. It will not link to anything."
-          : "Type it into the reservation's item text (SGTXT) in SAP.",
+        description: "Type it into the reservation's item text (SGTXT) in SAP.",
       })
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -85,11 +80,8 @@ export function SessionReference({
         <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
           Your session reference
         </span>
-        <span className="flex items-center gap-2">
-          <span className="font-mono text-lg font-semibold tracking-[0.15em] text-foreground">
-            {sessionId}
-          </span>
-          {demo && <DemoChip />}
+        <span className="font-mono text-lg font-semibold tracking-[0.15em] text-foreground">
+          {sessionId}
         </span>
         <span className="text-xs text-muted-foreground">
           Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to

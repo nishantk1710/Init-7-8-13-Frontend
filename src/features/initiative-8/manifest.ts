@@ -4,7 +4,7 @@ export const initiative8Manifest: InitiativeManifest = {
   id: "initiative-8",
   name: "Repairable Spares",
   description:
-    "Repair-chain visibility and duplicate-procurement guarding for repairable spares",
+    "Repair register, condition attestation and reservation-time compliance for 80-series spares",
   // The module's own overview page — also where Home's summary card "open"
   // link lands.
   href: "/repairable-spares",
@@ -17,11 +17,10 @@ export const initiative8Manifest: InitiativeManifest = {
         icon: "wrench",
         href: "/repairable-spares/repair-register",
       },
-      {
-        label: "Duplicate Guard",
-        icon: "copy",
-        href: "/repairable-spares/duplicate-guard",
-      },
+      // No standalone "is there already a unit?" page: FR-6 is a rule the
+      // Spares Assistant runs at reservation time (FR-5b), where the answer
+      // comes with a session id and a justification prompt. A separate lookup
+      // gave the same answer with neither.
       {
         label: "Declaration Queue",
         icon: "file-text",

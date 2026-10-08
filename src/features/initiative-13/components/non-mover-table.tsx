@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Download } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
@@ -19,6 +20,18 @@ import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-trans
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import { downloadCsv, formatCount } from "@/lib/utils"
 
+/** "4,716 days" alone is hard to read at a glance; the years say how stale. */
+function IdleFor({ days }: { days: number }) {
+  return (
+    <span className="tabular-nums">
+      {formatCount(days)} days
+      {days >= 365 && (
+        <span className="ml-1 text-muted-foreground">({(days / 365).toFixed(1)} yrs)</span>
+      )}
+    </span>
+  )
+}
+
 function CriticalBadge({ value }: { value: boolean | null }) {
   if (value === null) return <span className="text-muted-foreground">Unknown</span>
   return <StatusBadge tone={value ? "danger" : "default"}>{value ? "Yes" : "No"}</StatusBadge>
@@ -33,7 +46,16 @@ function CriticalBadge({ value }: { value: boolean | null }) {
  * and exports what it is given.
  */
 export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
-  const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(rows)
+  // Longest-idle first: the drilldown exists to find stock that has sat the
+  // longest. Unknown movement dates go last rather than reading as "fresh".
+  const sorted = useMemo(
+    () =>
+      [...rows].sort(
+        (a, b) => (b.daysSinceLastMovement ?? -1) - (a.daysSinceLastMovement ?? -1)
+      ),
+    [rows]
+  )
+  const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(sorted)
 
   function exportCsv() {
     downloadCsv(
@@ -46,8 +68,8 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        title="No non-moving positions for the selected filters."
-        description="No OAR material+plant position is currently classified NON_MOVING for this plant/material/critical-impact combination."
+        title="No non-moving positions"
+        description="No OAR position is classified non-moving for the current filters."
       />
     )
   }
@@ -55,7 +77,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} non-moving position(s)</p>
+        <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} non-moving position{rows.length === 1 ? "" : "s"}, longest idle first</p>
         <Button size="sm" variant="outline" onClick={exportCsv}>
           <Download className="size-3.5" />
           Export CSV
@@ -67,7 +89,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
             <TableRow>
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Days since movement</TableHead>
+              <TableHead className="text-right">Idle for</TableHead>
               <TableHead className="text-right">Stock on hand</TableHead>
               <TableHead className="text-right">Consumption (12m)</TableHead>
               <TableHead>Critical impact</TableHead>
@@ -79,7 +101,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
                 <TableCell className="font-medium text-foreground">{row.material}</TableCell>
                 <TableCell className="text-muted-foreground">{row.plant}</TableCell>
                 <TableCell className="text-right text-foreground">
-                  {row.daysSinceLastMovement !== null ? `${row.daysSinceLastMovement}d` : "—"}
+                  {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : "—"}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
                   {row.stockOnHand !== null ? formatCount(row.stockOnHand) : "—"}

@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react"
 
 import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { EmptyState } from "@/components/shared/empty-state"
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -163,7 +164,7 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
                       : "border-success/30 bg-success/10 text-success"
                 )}
               >
-                {leg}: {mode}
+                {leg}: {mode === "MOCK" ? "REFERENCE" : mode}
               </span>
             ))}
           </dd>
@@ -260,6 +261,17 @@ export function UtilizationLedgerTable({
             ))}
           </SelectContent>
         </Select>
+        <ClearFiltersButton
+          activeCount={
+            [procurementFilter, utilisationFilter, linkageFilter].filter((f) => f !== ALL_FILTER)
+              .length
+          }
+          onClear={() => {
+            setProcurementFilter(ALL_FILTER)
+            setUtilisationFilter(ALL_FILTER)
+            setLinkageFilter(ALL_FILTER)
+          }}
+        />
       </FilterBar>
 
       {filtered.length === 0 ? (

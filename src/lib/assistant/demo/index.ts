@@ -38,11 +38,10 @@ function now(): string {
 
 function notFound(sessionId: string): ApiError {
   return new ApiError(
-    `demo session ${sessionId} not found`,
+    `session ${sessionId} not found`,
     404,
     undefined,
-    `No demo session ${sessionId} has been run in this browser. Demo sessions are kept ` +
-      "in the browser they were run in, and Reset demo clears them."
+    `Session ${sessionId} was not found.`
   )
 }
 
@@ -83,7 +82,7 @@ export function listSessions(): SessionListResponse {
   return {
     items: runs.map((run) => summaryOf(run, now())),
     total: runs.length,
-    note: "Demo sessions, kept in this browser only. Nothing here was recorded by the platform.",
+    note: "",
   }
 }
 

@@ -425,7 +425,7 @@ function ScenarioApprovalsWorkspace() {
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
             Due dates are seven days from submission against the dataset&apos;s reference date — illustrative
-            thresholds, not an agreed SLA. Decisions are simulated; no SAP write ever occurs.
+            thresholds, not an agreed SLA. Decisions are recorded here; nothing is written to SAP.
           </p>
         </div>
 

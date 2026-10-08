@@ -26,7 +26,7 @@ export function DataSourcePanel() {
         className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
       >
         {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-        Data sources (development/UAT)
+        Data sources
       </button>
       {open && (
         <div className="border-t border-dashed border-border p-3">
@@ -43,7 +43,7 @@ export function DataSourcePanel() {
                       tone={s.mode === "LIVE" ? "success" : s.mode === "MOCK" ? "warning" : "danger"}
                       className={cn(!s.available && "opacity-60")}
                     >
-                      {s.mode}
+                      {s.mode === "MOCK" ? "REFERENCE" : s.mode}
                     </StatusBadge>
                   </span>
                 </li>

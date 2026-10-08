@@ -59,7 +59,7 @@ export async function DeclarationQueuePage() {
   if (live === null) {
     return (
       <Shell
-        description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard."
+        description="Condition-to-repair declarations (FR-4) — mandatory before a unit goes for repair."
         items={[]}
         loadError={loadError}
       />

@@ -7,7 +7,7 @@ export function DeclarationQueuePage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Declaration Queue"
-          description="Condition-to-repair declarations — mandatory, and tracked separately from Duplicate Guard."
+          description="Condition-to-repair declarations — mandatory before a repair line is released. A line released without one is raised on the Exception Queue."
         />
         <DeclarationQueueTable />
       </div>

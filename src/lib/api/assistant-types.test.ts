@@ -256,14 +256,19 @@ describe("form steps", () => {
   })
 
   it("marks the optional plan fields optional", () => {
-    // "Where known" — never inferred, never required. A required cost centre
-    // would be filled with a guess.
     const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
-    const optional = ["window_start", "window_end", "cost_centre", "order_number"]
+    const optional = ["window_start", "window_end"]
     for (const name of optional) {
       expect(step.fields.find((f) => f.name === name)!.required).toBe(false)
     }
     expect(step.fields.find((f) => f.name === "purpose")!.required).toBe(true)
+  })
+
+  it("does not ask for cost centre or work order", () => {
+    const step = (conformsToWire<AnswerResponse>(answerI13Proceed)).step
+    const names = step.fields.map((f) => f.name)
+    expect(names).not.toContain("cost_centre")
+    expect(names).not.toContain("order_number")
   })
 
   it("builds the reason picker from configuration, with options attached", () => {

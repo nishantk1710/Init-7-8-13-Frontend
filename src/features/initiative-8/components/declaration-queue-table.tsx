@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -35,13 +36,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { parseAttestationQuantity } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationCondition, DeclarationItem, DeclarationStatus } from "@/features/initiative-8/types/repair"
-import { DECLARATION_STATUS_TONE } from "@/features/initiative-8/utils/status"
+import { DECLARATION_STATUSES, DECLARATION_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
 import { createAttestation } from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
-const STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
 const CONDITIONS: DeclarationCondition[] = ["Repairable", "Beyond Economical Repair", "Scrap"]
 
 /** The UI's condition wording -> the API's recommendation enum. */
@@ -220,13 +220,14 @@ export function DeclarationQueueTable({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All declaration statuses</SelectItem>
-            {STATUSES.map((s) => (
+            {DECLARATION_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <ClearFiltersButton activeCount={status === ALL ? 0 : 1} onClear={() => setStatus(ALL)} />
       </FilterBar>
 
       {filtered.length === 0 ? (
@@ -241,7 +242,6 @@ export function DeclarationQueueTable({
                 <TableHead>PR</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Requester</TableHead>
-                <TableHead>Source</TableHead>
                 <TableHead>Active Repair?</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead>Declared By</TableHead>
@@ -260,19 +260,6 @@ export function DeclarationQueueTable({
                     <MaterialIdentity material={r.material} onOpen={openMaterial360} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{r.requester}</TableCell>
-                  {/* Null on every live row: the SAP table that would decide
-                      Manual vs MRP-generated covers 521 of 1,201 repair
-                      requisitions and every one reads "created from an order",
-                      which is neither. Shown as unknown rather than guessed. */}
-                  <TableCell>
-                    {r.source === "Manual" || r.source === "MRP-generated" ? (
-                      <StatusBadge tone={r.source === "MRP-generated" ? "warning" : "default"}>
-                        {r.source}
-                      </StatusBadge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">{r.source}</span>
-                    )}
-                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {r.hasActiveRepair ? "Yes" : "No"}
                   </TableCell>
