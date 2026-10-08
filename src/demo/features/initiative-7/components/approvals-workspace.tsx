@@ -24,7 +24,11 @@ import {
 } from "@demo/components/ui/table"
 import { useMaterial360 } from "@demo/lib/material-360-context"
 import { cn, formatZAR } from "@demo/lib/utils"
-import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@demo/features/initiative-7/data/approval-chain"
+import {
+  chainApproverName,
+  rolesForRecommendation,
+  type ApprovalRole,
+} from "@demo/features/initiative-7/data/approval-chain"
 import { RECOMMENDATIONS } from "@demo/features/initiative-7/data/recommendations"
 import { useInventoryWorkflow } from "@demo/features/initiative-7/context/workflow-context"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@demo/features/initiative-7/types/inventory"
@@ -34,6 +38,7 @@ const ALL = "all"
 
 /** The persona this mockup is signed in as — drives "My queue". */
 export const DEMO_ROLE: ApprovalRole = "Engineering Manager"
+
 
 type OutcomeTab = "pending" | "approved" | "adjusted" | "rejected"
 type QueueTab = "mine" | "team" | "all"
@@ -92,6 +97,7 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
   }
 
   const state = stateFor(rec.id)
+  const chainRoles = rolesForRecommendation(Boolean(rec.oarConversion))
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
@@ -103,7 +109,7 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
       </div>
 
       <ol className="flex flex-col gap-3">
-        {APPROVAL_ROLES.map((role, index) => {
+        {chainRoles.map((role, index) => {
           const isDone = state.submitted && index < state.stepIndex
           const isCurrent = state.submitted && index === state.stepIndex && state.outcome !== "rejected"
           const isRejected = state.outcome === "rejected" && index === state.stepIndex
@@ -145,7 +151,7 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
                   )}
                 >
                   {meta}
-                  {(isDone || isCurrent) && ` · ${approverName(role)}`}
+                  {(isDone || isCurrent) && chainApproverName(role) && ` · ${chainApproverName(role)}`}
                 </div>
               </div>
             </li>
@@ -179,7 +185,7 @@ export function ApprovalsWorkspace() {
       RECOMMENDATIONS.map((rec) => ({
         rec,
         state: stateFor(rec.id),
-        role: pendingRole(rec.id),
+        role: pendingRole(rec),
       })).filter((row) => row.state.submitted),
     [stateFor, pendingRole]
   )

@@ -80,6 +80,17 @@ export const REFERENCE_DATE = new Date(2026, 8, 3)
 
 export const REFERENCE_DATE_LABEL = "3 Sept 2026"
 
+/**
+ * Today's real date in the dataset's own label format, e.g. "8 Oct 2026".
+ * Authored rows keep their fixed dataset dates so the seeded aging figures
+ * stay reproducible; an action the viewer takes during a demo is stamped with
+ * the actual clock, because "submitted today" reading as a date months ago is
+ * the one thing a live demo makes obviously wrong.
+ */
+export function todayLabel(now: Date = new Date()): string {
+  return `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
+}
+
 /** Parses the leading date out of a label like "18 Aug 2026 · 09:05 AM". */
 export function parseDatasetDate(label: string): Date | null {
   const match = /^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/.exec(label.trim())
@@ -96,11 +107,22 @@ export function datasetDateLabel(label: string): string {
   return `${parsed.getDate()} ${MONTHS[parsed.getMonth()]} ${parsed.getFullYear()}`
 }
 
+/**
+ * The "now" a row is measured against. Authored rows sit in the dataset's
+ * frozen timeline, but a row the viewer submits during a demo carries a real
+ * date that can be *after* that reference — measuring it against 3 Sept 2026
+ * would report a negative age. Taking the later of the two keeps the seeded
+ * figures fixed while letting a live submission age from the real clock.
+ */
+function measurementDate(submitted: Date): Date {
+  return submitted.getTime() > REFERENCE_DATE.getTime() ? submitted : REFERENCE_DATE
+}
+
 /** Whole days between a dataset date label and the reference date. */
 export function waitingDays(label: string): number {
   const parsed = parseDatasetDate(label)
   if (!parsed) return 0
-  const ms = REFERENCE_DATE.getTime() - parsed.getTime()
+  const ms = measurementDate(parsed).getTime() - parsed.getTime()
   return Math.max(0, Math.round(ms / 86_400_000))
 }
 
@@ -110,7 +132,7 @@ export function approvalDueLabel(submittedLabel: string): { label: string; overd
   const parsed = parseDatasetDate(submittedLabel)
   if (!parsed) return { label: "—", overdue: false }
   const due = new Date(parsed.getTime() + 7 * 86_400_000)
-  if (due.getTime() <= REFERENCE_DATE.getTime()) return { label: "Today", overdue: true }
+  if (due.getTime() <= measurementDate(parsed).getTime()) return { label: "Today", overdue: true }
   return {
     label: `${due.getDate()} ${MONTHS[due.getMonth()]} ${due.getFullYear()}`,
     overdue: false,

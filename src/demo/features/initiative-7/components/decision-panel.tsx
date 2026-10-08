@@ -6,7 +6,7 @@ import { CircleCheck, CircleX, Send, SlidersHorizontal } from "lucide-react"
 import { StatusBadge } from "@demo/components/shared/status-badge"
 import { Button } from "@demo/components/ui/button"
 import { cn } from "@demo/lib/utils"
-import { approverName } from "@demo/features/initiative-7/data/approval-chain"
+import { chainApproverName } from "@demo/features/initiative-7/data/approval-chain"
 import { CHAIN_LENGTH, useInventoryWorkflow } from "@demo/features/initiative-7/context/workflow-context"
 import { DEMO_ROLE } from "@demo/features/initiative-7/components/approvals-workspace"
 import type { Recommendation } from "@demo/features/initiative-7/types/inventory"
@@ -21,7 +21,7 @@ export function DecisionActions({ recommendation }: { recommendation: Recommenda
   const commentId = useId()
 
   const state = stateFor(recommendation.id)
-  const role = pendingRole(recommendation.id)
+  const role = pendingRole(recommendation)
   const canDecide = comment.trim().length > 0
 
   function act(action: (rec: Recommendation, comment?: string) => void) {
@@ -67,8 +67,10 @@ export function DecisionActions({ recommendation }: { recommendation: Recommenda
     <div className="flex flex-col gap-3">
       <div className="text-[13px] text-muted-foreground">
         Step {state.stepIndex + 1} of {CHAIN_LENGTH} — awaiting{" "}
-        <span className="font-medium text-foreground">{role}</span>{" "}
-        <span>({role === DEMO_ROLE ? "you" : approverName(role)})</span>
+        <span className="font-medium text-foreground">{role}</span>
+        {(role === DEMO_ROLE || chainApproverName(role)) && (
+          <span> ({role === DEMO_ROLE ? "you" : chainApproverName(role)})</span>
+        )}
       </div>
 
       <div>

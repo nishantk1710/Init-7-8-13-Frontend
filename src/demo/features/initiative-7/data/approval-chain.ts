@@ -15,6 +15,34 @@ export const APPROVAL_ROLES = [
 
 export type ApprovalRole = (typeof APPROVAL_ROLES)[number]
 
+/**
+ * The parallel 4-step chain an OAR material runs through instead of the
+ * standard one above: converting an OAR line to a standing Min-Max reorder
+ * point is a stocking-policy decision, so it starts with Inventory Control
+ * and ends at the Plant Head rather than starting with the End User.
+ *
+ * These are OAR-specific approval roles, not `SharedRole`s — the shared list
+ * backs the role switcher and a Record<SharedRole, ...> weight map, and
+ * widening it for four I07-only titles would ripple well past this module.
+ * Mock titles only; the real SAP role mapping is still to be confirmed.
+ */
+export const OAR_APPROVAL_ROLES = [
+  "Inventory Controller",
+  "Commercial Head",
+  "Engineering Head",
+  "Plant Head",
+] as const
+
+export type OarApprovalRole = (typeof OAR_APPROVAL_ROLES)[number]
+
+/**
+ * The chain that applies to one recommendation. OAR materials carry
+ * `oarConversion`; everything else runs the standard chain.
+ */
+export function rolesForRecommendation(isOar: boolean): readonly string[] {
+  return isOar ? OAR_APPROVAL_ROLES : APPROVAL_ROLES
+}
+
 export const APPROVAL_STEP_IDS = [
   "end-user",
   "engineering-manager",
@@ -26,6 +54,15 @@ export type ApprovalStepId = (typeof APPROVAL_STEP_IDS)[number]
 
 export function approverName(role: ApprovalRole): string {
   return USERS.find((u) => u.role === role)?.name ?? role
+}
+
+/**
+ * Name for any chain role, standard or OAR. The OAR titles have no named
+ * person in the shared USERS list, so this returns null rather than echoing
+ * the role back as if it were someone's name.
+ */
+export function chainApproverName(role: string): string | null {
+  return USERS.find((u) => u.role === role)?.name ?? null
 }
 
 export function approvalStepLabel(role: ApprovalRole): string {
