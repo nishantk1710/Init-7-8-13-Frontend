@@ -37,8 +37,10 @@
  */
 
 import type {
+  DeclarationCondition,
   ReceiptStatus,
   RepairChain,
+  RepairJustification,
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
 import {
@@ -48,7 +50,7 @@ import {
   REPAIR_STATUS_ORDER,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import type { ApiRepairChain, ApiRegisterMeta } from "@/lib/api/i8"
+import type { ApiRepairChain, ApiRegisterMeta, ApiRepairJustification } from "@/lib/api/i8"
 import { formatApiDate, getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
 import { formatApiDateTime } from "@/lib/api/format"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
@@ -62,6 +64,12 @@ const RECEIPT_STATUSES: readonly ReceiptStatus[] = [
   "Awaiting Receipt",
   "Partially Received",
   "Received",
+]
+
+const CONDITIONS: readonly DeclarationCondition[] = [
+  "Repairable",
+  "Beyond Economical Repair",
+  "Scrap",
 ]
 
 /**
@@ -95,6 +103,33 @@ function document_(
     type: reference.type as SAPDocumentReference["type"],
     documentNumber: reference.documentNumber,
     line: orUndefined(reference.line),
+  }
+}
+
+/**
+ * The line's Justification cell. Every display value the backend leaves null
+ * stays undefined: a justification with no author is "not recorded", never a
+ * blank name.
+ */
+export function toRepairJustification(
+  value: ApiRepairJustification,
+): RepairJustification {
+  return {
+    status: value.status === "MISSING" ? "MISSING" : "RECORDED",
+    entries: value.entries.map((entry) => ({
+      id: orUndefined(entry.id),
+      reasonCategory: orUndefined(entry.reasonCategory),
+      freeText: orUndefined(entry.freeText),
+      author: orUndefined(entry.author),
+      recordedAt: entry.recordedAt ? formatApiDateTime(entry.recordedAt) : undefined,
+      sessionId: orUndefined(entry.sessionId),
+    })),
+    unjustifiedPurchases: value.unjustifiedPurchases.map((purchase) => ({
+      exceptionId: purchase.exceptionId,
+      purchase: document_(purchase.purchase) ?? { type: "PO", documentNumber: "—" },
+      raisedAt: purchase.raisedAt ? formatApiDate(purchase.raisedAt) : undefined,
+      preAutomation: purchase.preAutomation,
+    })),
   }
 }
 
@@ -180,6 +215,19 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     criticality: orUndefined(row.criticality),
     // A blocked PO line is still a live repair: kept, and flagged on screen.
     poBlocked: row.poBlocked ?? false,
+
+    // What the Declaration Queue used to show per row. The attestation is a
+    // full timestamp; the register shows its date, the way the queue did.
+    declaredBy: orUndefined(row.declaredBy),
+    declaredAt: row.declaredAt ? formatApiDate(row.declaredAt.slice(0, 10)) : undefined,
+    // An unrecognised condition reads as not recorded, never as Repairable --
+    // that fallback would be the one answer that makes a Flagged line look fine.
+    condition: CONDITIONS.includes(row.condition as DeclarationCondition)
+      ? (row.condition as DeclarationCondition)
+      : undefined,
+    declarationNextAction: orUndefined(row.nextAction),
+    requester: orUndefined(row.requester),
+    justification: row.justification ? toRepairJustification(row.justification) : undefined,
   }
 }
 

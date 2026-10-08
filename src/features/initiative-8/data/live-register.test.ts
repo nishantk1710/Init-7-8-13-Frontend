@@ -16,10 +16,11 @@ import {
   NO_CRITICALITY,
   isOpenRepair,
   isRepairOverdue,
+  justificationCellOf,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import type { ApiRegisterMeta, ApiRepairChain } from "@/lib/api/i8"
+import type { ApiRegisterMeta, ApiRepairChain, ApiRepairJustification } from "@/lib/api/i8"
 
 /**
  * W5.4 — the adapter between the API and the domain type.
@@ -300,6 +301,99 @@ describe("filterRegister", () => {
   })
 })
 
+describe("toRepairChain: what the Declaration Queue and Justifications screens showed", () => {
+  // Folded into the register on 08-Oct-2026, so it travels on the line.
+  const recorded: ApiRepairJustification = {
+    status: "RECORDED",
+    entries: [
+      {
+        id: "J-1",
+        reasonCategory: "URGENT_BREAKDOWN",
+        freeText: "Line down.",
+        author: "T. Mokoena",
+        recordedAt: "2026-10-08T09:30:00Z",
+        sessionId: "S-1",
+      },
+    ],
+    unjustifiedPurchases: [],
+  }
+
+  it("carries who declared, when, the condition, the next action and the requester", () => {
+    const chain = toRepairChain(
+      apiRow({
+        declarationStatus: "Flagged",
+        declaredBy: "R. Kruger",
+        declaredAt: "2026-09-12T09:30:00Z",
+        condition: "Scrap",
+        nextAction: "Assessed as Scrap but sent for repair anyway.",
+        requester: "TMOKOENA",
+      }),
+    )
+    expect(chain.declaredBy).toBe("R. Kruger")
+    // A display date, not the ISO timestamp.
+    expect(chain.declaredAt).toContain("2026")
+    expect(chain.declaredAt).not.toContain("T")
+    expect(chain.condition).toBe("Scrap")
+    expect(chain.declarationNextAction).toBe("Assessed as Scrap but sent for repair anyway.")
+    expect(chain.requester).toBe("TMOKOENA")
+  })
+
+  it("reads an unrecognised condition as not recorded, never as Repairable", () => {
+    const chain = toRepairChain(
+      apiRow({ condition: "Mostly fine" } as unknown as Partial<ApiRepairChain>),
+    )
+    expect(chain.condition).toBeUndefined()
+  })
+
+  it("leaves everything undefined when no attestation or justification exists", () => {
+    // Also what an older backend, which sends none of these fields, produces.
+    const chain = toRepairChain(apiRow())
+    expect(chain.declaredBy).toBeUndefined()
+    expect(chain.declaredAt).toBeUndefined()
+    expect(chain.condition).toBeUndefined()
+    expect(chain.justification).toBeUndefined()
+    expect(justificationCellOf(chain)).toBe("NONE")
+  })
+
+  it("carries a recorded justification, newest first, with its session", () => {
+    const chain = toRepairChain(apiRow({ justification: recorded }))
+    expect(justificationCellOf(chain)).toBe("RECORDED")
+    const [entry] = chain.justification!.entries
+    expect(entry.reasonCategory).toBe("URGENT_BREAKDOWN")
+    expect(entry.sessionId).toBe("S-1")
+    expect(entry.recordedAt).toContain("2026")
+  })
+
+  it("reads a purchase with no reason as Missing, and one nobody was asked about as Not asked", () => {
+    const purchase = {
+      exceptionId: "EX-UNJUSTIFIED_ACQUISITION-4100100001-10",
+      purchase: { type: "PO" as const, documentNumber: "4100100001", line: "10" },
+      raisedAt: "2026-05-10",
+      preAutomation: false,
+    }
+    const missing = toRepairChain(
+      apiRow({
+        justification: { status: "MISSING", entries: [], unjustifiedPurchases: [purchase] },
+      }),
+    )
+    expect(justificationCellOf(missing)).toBe("MISSING")
+    expect(missing.justification!.unjustifiedPurchases[0].purchase.documentNumber).toBe(
+      "4100100001",
+    )
+
+    const notAsked = toRepairChain(
+      apiRow({
+        justification: {
+          status: "MISSING",
+          entries: [],
+          unjustifiedPurchases: [{ ...purchase, preAutomation: true }],
+        },
+      }),
+    )
+    expect(justificationCellOf(notAsked)).toBe("NOT_ASKED")
+  })
+})
+
 describe("registerRowsToCsv", () => {
   it("writes one row per filtered chain — all of them, not a page", () => {
     const chains = Array.from({ length: 120 }, (_, i) => toRepairChain(apiRow({ id: `line-${i}` })))
@@ -338,6 +432,36 @@ describe("registerRowsToCsv", () => {
     const [row] = registerRowsToCsv([toRepairChain(apiRow({ leadTimeStatus: "NO_LEAD_TIME" }))])
     const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
     expect(cell("Lead-time status")).toBe("")
+  })
+
+  it("follows the screen: status first, declaration and justification next, reference columns last", () => {
+    const at = (header: string) => REGISTER_CSV_HEADERS.indexOf(header)
+    expect(at("Repair status")).toBeLessThan(at("Declaration status"))
+    expect(at("Declaration status")).toBeLessThan(at("Justification"))
+    for (const reference of ["Criticality", "Stock on hand", "Reorder point", "Repair PR", "Repair PO"]) {
+      expect(at(reference)).toBeGreaterThan(at("Justification"))
+    }
+  })
+
+  it("exports who declared and the justification, empty when there is none", () => {
+    const cell = (row: (string | number)[], header: string) =>
+      row[REGISTER_CSV_HEADERS.indexOf(header)]
+    const [declared, bare] = registerRowsToCsv([
+      toRepairChain(
+        apiRow({
+          declarationStatus: "Completed",
+          declaredBy: "R. Kruger",
+          declaredAt: "2026-09-12T09:30:00Z",
+          justification: { status: "RECORDED", entries: [], unjustifiedPurchases: [] },
+        }),
+      ),
+      toRepairChain(apiRow()),
+    ])
+    expect(cell(declared, "Declared by")).toBe("R. Kruger")
+    expect(cell(declared, "Justification")).toBe("Recorded")
+    // A dash is screen punctuation; in a spreadsheet it is a value.
+    expect(cell(bare, "Declared by")).toBe("")
+    expect(cell(bare, "Justification")).toBe("")
   })
 
   it("flags a partial receipt in place of the old receipt-status column", () => {

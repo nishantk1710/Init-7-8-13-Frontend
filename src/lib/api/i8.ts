@@ -8,8 +8,9 @@
  * writes to SAP** — the platform reads SAP and records its own findings beside
  * it. That last part is the guarantee that matters and it has not changed.
  *
- * Consumed by the overview, the register, the repair detail page, the
- * declaration queue, the exception queue and the coding-candidate screen. The Home
+ * Consumed by the overview (which also reads the exception check's counts), the
+ * register, the repair detail page (which holds the attestation form) and the
+ * coding-candidate screen. The Home
  * page, the action centre, the audit log and the cross-initiative selectors
  * still read the scenario fixtures in every mode.
  *
@@ -175,6 +176,52 @@ export type ApiRepairChain = {
    * the register leaves out; see `ApiRegisterMeta.excludedDeletedLines`.
    */
   poBlocked?: boolean
+
+  // The Declaration Queue and Justifications screens, folded into the register
+  // on 08-Oct-2026: what they showed per line now travels on the line. Optional
+  // only until every backend in use serves them.
+
+  /** The attestor. Null when no attestation covers the line. */
+  declaredBy?: string | null
+  /** ISO timestamp of the attestation. */
+  declaredAt?: string | null
+  condition?: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
+  /** What a person should do about this line's declaration, as a sentence. */
+  nextAction?: string | null
+  /** EKPO.AFNAM — a CODE, not a name. No person directory was delivered. */
+  requester?: string | null
+  /** Null when no reason was recorded while the line was out AND no new
+   *  purchase overlapped it without one. */
+  justification?: ApiRepairJustification | null
+}
+
+/** One NEW_ACQUISITION justification recorded while a repair line was out. */
+export type ApiRepairJustificationEntry = {
+  id: string | null
+  reasonCategory: string | null
+  freeText: string | null
+  author: string | null
+  /** ISO timestamp. */
+  recordedAt: string | null
+  sessionId: string | null
+}
+
+/** A new unit bought while the line was out, with no reason on record — the
+ *  `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
+export type ApiUnjustifiedPurchase = {
+  exceptionId: string
+  purchase: ApiSAPDocumentReference
+  raisedAt: string | null
+  /** Bought before the justification control existed — nobody was asked. */
+  preAutomation: boolean
+}
+
+export type ApiRepairJustification = {
+  /** MISSING whenever any overlapping purchase has no reason, even if another
+   *  one does — that is the one somebody has to act on. */
+  status: "RECORDED" | "MISSING"
+  entries: ApiRepairJustificationEntry[]
+  unjustifiedPurchases: ApiUnjustifiedPurchase[]
 }
 
 export type ApiRegisterMeta = {

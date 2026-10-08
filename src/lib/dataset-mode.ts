@@ -46,8 +46,8 @@
 //    RC-8002 fixture. That material does not exist in the backend data.
 //
 // Every Initiative 8 screen -- the overview, the register, the repair detail,
-// the declaration and exception queues, the coding-candidate screen and the
-// justification log -- now reads the backend UNCONDITIONALLY. None consults
+// the coding-candidate screen and the justification log -- now reads the
+// backend UNCONDITIONALLY. None consults
 // this flag or imports a fixture, so for them the question is settled.
 //
 // WHAT IS STILL FIXTURE-BACKED, AND WHY THIS FLAG STILL EXISTS

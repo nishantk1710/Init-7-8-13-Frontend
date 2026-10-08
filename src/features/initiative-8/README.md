@@ -16,14 +16,43 @@ file is the page.
 | Route | Page | FRS | Reads |
 |---|---|---|---|
 | `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-10 | register, universe, declaration and exception meta (`data/live-overview.ts`) |
-| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-9, FR-10 | `GET /api/i8/register`, `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
-| `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`) |
-| `/repairable-spares/declarations` | `pages/declarations-page.tsx` | FR-4 | `GET /api/i8/declarations`, `GET`/`POST /api/i8/attestations` (`data/live-declarations.ts`) |
-| `/repairable-spares/exceptions` | `pages/exception-queue-page.tsx` | FR-7, FR-8, FR-11 | `GET /api/i8/exceptions` (`data/live-exceptions.ts`) |
+| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
+| `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4, FR-7 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); the attestation form (`components/declare-condition-button.tsx`, `GET`/`POST /api/i8/attestations`) |
 | `/repairable-spares/coding-candidates` | `pages/coding-candidates-page.tsx` | FR-2 | `GET /api/i8/coding-candidates` (`data/live-coding-candidates.ts`) |
 | `/repairable-spares/justifications` | route file itself | FR-7 | `GET /api/justifications?kind=NEW_ACQUISITION`, rendered with Initiative 13's `JustificationLog` |
 
-The navigation for these seven lives in `manifest.ts`.
+The navigation for these five lives in `manifest.ts`.
+
+### The register is where a repair line is worked
+
+Since 08-Oct-2026 (`docs/Initiative_08_Register_Consolidation_08Oct.md` in
+the workspace):
+
+- **Clicking a row opens the repair.** There is no View button. The material
+  name opens the repair too, not the Material 360 drawer; Material 360 is on
+  the detail page.
+- **Columns run from what a repair is doing to reference data.** Criticality,
+  SOH, ROP, Repair PR and Repair PO are last. "Blocked in SAP" sits under
+  Repair Status so it stays on screen. The CSV follows the same order.
+- **No Declaration Queue.** It was the register's own lines with other
+  columns. Each line shows its declaration status and who declared it; the
+  condition, requester, next action and the **Declare condition** form are on
+  the detail page. `/repairable-spares/declarations` redirects to the register.
+- **Justifications on the line, and on their own screen.** Each line shows
+  its justification (Recorded, Missing, Not asked, or a dash), with the full
+  reason on the detail page. The Justifications screen keeps the whole log,
+  because most reasons belong to no repair line: FR-5 asks for one when a unit
+  is on the shelf, or removed and not yet sent for repair.
+- **No Exception Queue.** Declaration and justification are treated as
+  mandatory, so the queue screen was removed. The checks still run on the
+  backend: they decide the register's Missing justification value, and the
+  Overview's Unjustified new purchases tile counts them through
+  `GET /api/i8/exceptions`.
+  Each line shows its own findings in the register (Declaration Status
+  Required, Justification Missing, Due Date Status Overdue).
+  `/repairable-spares/exceptions` redirects to the register. The FRS still
+  names an exception queue (FR-8, FR-9, FR-11); that gap is recorded in the
+  consolidation doc.
 
 ### What is deliberately not here
 
@@ -58,13 +87,15 @@ FRS does not require them:
   lead-time helpers, and `isPartiallyReceived`.
 - `utils/register-view.ts` holds the register filters and CSV export. The
   CSV is built from exactly the rows on screen.
+- `utils/attestation.ts` holds the attestation form's rules (conditions,
+  recommendation mapping, quantity parsing).
 - `lib/api/i8.ts` (outside this folder) is the typed client and wire
   shapes.
 
 ## What still reads fixtures
 
 `data/repair-chains.ts` (RC-80xx) and `data/declarations.ts` (D-90xxx) are
-hand-written scenario rows. None of the seven screens read them. They feed
+hand-written scenario rows. None of the five screens read them. They feed
 the four **synchronous** cross-initiative selectors:
 
 | Selector | Read by |
@@ -84,5 +115,5 @@ not. It waits on agreement with the Initiative 7 owner (discard review
 
 ## Tests
 
-`npm test` runs the adapter and helper tests: `data/*.test.ts` and
-`utils/status.test.ts`.
+`npm test` runs the adapter and helper tests: `data/*.test.ts`,
+`utils/status.test.ts` and `utils/attestation.test.ts`.

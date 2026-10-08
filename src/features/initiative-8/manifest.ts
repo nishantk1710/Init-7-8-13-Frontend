@@ -21,25 +21,28 @@ export const initiative8Manifest: InitiativeManifest = {
       // Spares Assistant runs at reservation time (FR-5b), where the answer
       // comes with a session id and a justification prompt. A separate lookup
       // gave the same answer with neither.
-      {
-        label: "Declaration Queue",
-        icon: "file-text",
-        href: "/repairable-spares/declarations",
-      },
-      // Every finding the I08 checks raise: missing attestations, and new
-      // units bought while a repair was open with no justification recorded.
-      {
-        label: "Exception Queue",
-        icon: "alert-triangle",
-        href: "/repairable-spares/exceptions",
-      },
+      //
+      //
+      // No Declaration Queue (08-Oct-2026): it was the register's own lines
+      // with other columns. Each line's declaration shows in the register and
+      // the form is on the repair detail page.
+      //
+      // No Exception Queue either (08-Oct-2026): declaration and justification
+      // are treated as mandatory. The checks still run on the backend, and each
+      // line shows its findings in the register (Declaration Status Required,
+      // Justification Missing, Due Date Status Overdue).
+      //
+      // Both old URLs redirect to the register.
       {
         label: "Coding Candidates",
         icon: "search",
         href: "/repairable-spares/coding-candidates",
       },
       // FR-7's half of the record: why somebody bought new while a repairable
-      // unit already existed. Initiative 08 had no screen for this at all.
+      // unit already existed. Each repair line also shows its own in the
+      // register, but most reasons belong to no line -- FR-5 asks for one when
+      // a unit is on the shelf or removed and not yet sent for repair -- so the
+      // full log keeps its own screen.
       {
         label: "Justifications",
         icon: "clipboard-check",

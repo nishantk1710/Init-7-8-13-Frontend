@@ -1,7 +1,7 @@
 import type { DeclarationItem } from "@/features/initiative-8/types/repair"
 
 // Deterministic mock data, read only by the cross-initiative selectors (the
-// Declaration Queue itself reads the backend). These rows are never merged
+// register reads each line's declaration from the backend). These rows are never merged
 // with the RC-80xx repair chains, only cross-referenced via
 // `relatedRepairId` for navigation.
 //

@@ -24,7 +24,8 @@ export function getInitiative8GlobalActions(): GlobalAction[] {
         severity: "critical",
         entityId: d.id,
         materialId: d.material.materialId,
-        href: "/repairable-spares/declarations",
+        // The register: the Declaration Queue was folded into it (08-Oct-2026).
+        href: "/repairable-spares/repair-register",
         createdAt: d.createdAt,
       })
     } else if (d.status === "Required") {
@@ -35,7 +36,8 @@ export function getInitiative8GlobalActions(): GlobalAction[] {
         severity: "warning",
         entityId: d.id,
         materialId: d.material.materialId,
-        href: "/repairable-spares/declarations",
+        // The register: the Declaration Queue was folded into it (08-Oct-2026).
+        href: "/repairable-spares/repair-register",
         createdAt: d.createdAt,
       })
     }

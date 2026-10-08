@@ -1,15 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ChevronRight, Download } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { Download } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -39,6 +40,9 @@ import {
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
   DEFAULT_AGING_BUCKETS,
+  JUSTIFICATION_CELL_LABEL,
+  JUSTIFICATION_CELL_NOTE,
+  JUSTIFICATION_CELL_TONE,
   LEAD_TIME_VERDICT_LABEL,
   LEAD_TIME_VERDICT_TONE,
   OVERDUE_STATUSES,
@@ -50,11 +54,11 @@ import {
   hasNoLeadTime,
   isBeyondLeadTime,
   isPartiallyReceived,
+  justificationCellOf,
   orUnknown,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, downloadCsv, formatCount } from "@/lib/utils"
 
 /** A plant the filter can offer. Structurally `PlantReference`, but the live
@@ -89,6 +93,26 @@ export type RepairRegisterTableProps = {
   loadError?: string | null
 }
 
+/** The repair detail page for one register line. */
+export function repairHref(chain: Pick<RepairChain, "id">): string {
+  return `/repairable-spares/repair-register/${chain.id}`
+}
+
+/**
+ * The register: one row per repair PO line, and the one place to work on it.
+ *
+ * Since 08-Oct-2026 it also carries what the Declaration Queue and the
+ * Justifications screen showed (who declared and when, and whether a new
+ * purchase while the repair was out has a reason), and **the whole row opens
+ * the repair** — there is no View button. The material name opens it too,
+ * rather than the Material 360 drawer: two click targets in one row that go to
+ * different places is how people land somewhere they did not mean to. Material
+ * 360 is one click away on the detail page.
+ *
+ * Columns run from what a repair is doing now, through its declaration and
+ * justification, to the reference columns (criticality, stock, SAP documents)
+ * people read least.
+ */
 export function RepairRegisterTable({
   chains = [],
   plantOptions = [],
@@ -98,7 +122,7 @@ export function RepairRegisterTable({
   agingBands = DEFAULT_AGING_BUCKETS,
   loadError = null,
 }: RepairRegisterTableProps = {}) {
-  const { openMaterial360 } = useMaterial360()
+  const router = useRouter()
   const [filters, setFilters] = useState<RegisterFilters>(NO_REGISTER_FILTERS)
 
   function setFilter(key: keyof RegisterFilters) {
@@ -114,6 +138,32 @@ export function RepairRegisterTable({
     // Every row the filters match, not a page of them -- and nothing the
     // filters exclude. The file is the view it came from.
     downloadCsv("i08-repair-register.csv", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
+  }
+
+  /**
+   * A click anywhere on the row opens the repair.
+   *
+   * Clicks on the material link are left to the link, which already handles
+   * them -- including ctrl/cmd-click and middle-click into a new tab, which a
+   * row handler alone would lose. A click that ends a text selection is not a
+   * request to navigate.
+   */
+  function openFromRow(event: MouseEvent<HTMLTableRowElement>, href: string) {
+    // Only the primary and middle buttons; a right-click opens the menu.
+    if (event.button !== 0 && event.button !== 1) return
+    if ((event.target as HTMLElement).closest("a")) return
+    if (window.getSelection()?.toString()) return
+    if (event.metaKey || event.ctrlKey || event.button === 1) {
+      window.open(href, "_blank", "noopener")
+      return
+    }
+    router.push(href)
+  }
+
+  function openFromKeyboard(event: KeyboardEvent<HTMLTableRowElement>, href: string) {
+    if (event.target !== event.currentTarget || event.key !== "Enter") return
+    event.preventDefault()
+    router.push(href)
   }
 
   if (loadError) {
@@ -163,6 +213,8 @@ export function RepairRegisterTable({
           options={OVERDUE_STATUSES.map((s) => ({ value: s, label: OVERDUE_STATUS_LABEL[s] }))}
           className="sm:w-44"
         />
+        {/* The criticality column sits at the far end now, but FR-10 asks for
+            the register to be filterable by criticality, so the filter stays. */}
         <FilterSelect
           value={filters.criticality}
           onChange={setFilter("criticality")}
@@ -217,11 +269,6 @@ export function RepairRegisterTable({
                 <TableHead>Material</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead>Criticality</TableHead>
-                <TableHead className="text-right">SOH</TableHead>
-                <TableHead className="text-right">ROP</TableHead>
-                <TableHead>Repair PR</TableHead>
-                <TableHead>Repair PO</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead className="text-right">Qty Under Repair</TableHead>
                 <TableHead>Repair Status</TableHead>
@@ -230,11 +277,17 @@ export function RepairRegisterTable({
                 <TableHead className="text-right">Days Open</TableHead>
                 <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
-                <TableHead />
+                <TableHead>Justification</TableHead>
+                <TableHead>Criticality</TableHead>
+                <TableHead className="text-right">SOH</TableHead>
+                <TableHead className="text-right">ROP</TableHead>
+                <TableHead>Repair PR</TableHead>
+                <TableHead>Repair PO</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => {
+                const href = repairHref(c)
                 const overdue = overdueStatusOf(c)
                 const beyondLeadTime = isBeyondLeadTime(c)
                 const noLeadTime = hasNoLeadTime(c)
@@ -243,73 +296,54 @@ export function RepairRegisterTable({
                 const verdict: LeadTimeVerdict = beyondLeadTime
                   ? "BEYOND_LEAD_TIME"
                   : "WITHIN_LEAD_TIME"
+                const justification = justificationCellOf(c)
                 return (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    tabIndex={0}
+                    aria-label={`Open repair ${c.id}`}
+                    onClick={(event) => openFromRow(event, href)}
+                    onAuxClick={(event) => openFromRow(event, href)}
+                    onKeyDown={(event) => openFromKeyboard(event, href)}
+                    className="cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
                     <TableCell>
-                      <MaterialIdentity material={c.material} onOpen={openMaterial360} />
+                      {/* A real link, so ctrl-click, middle-click and "copy
+                          link" all work; the row forwards its clicks here. */}
+                      <Link href={href} className="block hover:underline" tabIndex={-1}>
+                        <MaterialIdentity material={c.material} />
+                      </Link>
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate text-muted-foreground">
                       {c.material.description}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
-                    {/* Unrated is "not recorded", never NORMAL -- a dash, with
-                        the reason on hover. */}
-                    <TableCell>
-                      {c.criticality ? (
-                        <StatusBadge tone={CRITICALITY_TONE[c.criticality] ?? "default"}>
-                          {c.criticality}
-                        </StatusBadge>
-                      ) : (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title="No criticality rating is recorded for this material in ZMM065"
-                        >
-                          {UNKNOWN}
-                        </span>
-                      )}
+                    <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                      {vendorLabel(c)}
                     </TableCell>
-                    <TableCell className="text-right text-foreground">
-                      {orUnknown(c.stockOnHand)}
-                    </TableCell>
-                    {/* Undefined for every Gamsberg material -- the July MARC
-                        extract has rows for plant 1300 only. A dash, never a 0. */}
-                    <TableCell className="text-right text-muted-foreground">
-                      {orUnknown(c.reorderPoint)}
-                    </TableCell>
-                    <TableCell>
-                      <SAPDocumentChip doc={c.repairPR} />
-                    </TableCell>
+                    <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
                     <TableCell>
                       <div className="flex flex-col items-start gap-1">
-                        {c.repairPO ? (
-                          <SAPDocumentChip doc={c.repairPO} />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Not yet raised</span>
+                        <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
+                          {c.repairStatus}
+                        </StatusBadge>
+                        {/* The one thing the old receipt-status column said that
+                            this one does not. */}
+                        {isPartiallyReceived(c) && (
+                          <span className="text-[10px] italic text-warning">
+                            partially received
+                          </span>
                         )}
-                        {/* Blocked, not deleted: still a live line and still
-                            counted, so it is flagged here rather than hidden. */}
+                        {/* Moved here from under the Repair PO, which is now the
+                            last column: a blocked line must stay on screen.
+                            Blocked, not deleted -- still a live line and still
+                            counted, so it is flagged rather than hidden. */}
                         {c.poBlocked && (
                           <StatusBadge tone="danger" className="h-4 px-1.5 text-[10px]">
                             Blocked in SAP
                           </StatusBadge>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="max-w-[160px] truncate text-muted-foreground">
-                      {vendorLabel(c)}
-                    </TableCell>
-                    <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
-                    <TableCell>
-                      <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
-                        {c.repairStatus}
-                      </StatusBadge>
-                      {/* The one thing the old receipt-status column said that
-                          this one does not. */}
-                      {isPartiallyReceived(c) && (
-                        <span className="block text-[10px] italic text-warning">
-                          partially received
-                        </span>
-                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.expectedReturn ?? UNKNOWN}
@@ -332,9 +366,8 @@ export function RepairRegisterTable({
                         there is none. NO_LEAD_TIME is the absence of a
                         benchmark (no MARC.PLIFZ for this material at this
                         plant, which is every Gamsberg line) and gets the same
-                        treatment as an unrated criticality above, because a
-                        third badge beside two verdicts reads as a third
-                        verdict. */}
+                        treatment as an unrated criticality, because a third
+                        badge beside two verdicts reads as a third verdict. */}
                     <TableCell>
                       {noLeadTime ? (
                         <span
@@ -363,19 +396,82 @@ export function RepairRegisterTable({
                         </div>
                       )}
                     </TableCell>
+                    {/* Who declared and when, under the status -- what the
+                        Declaration Queue showed in two columns of its own. The
+                        condition, the next action and the form are on the
+                        detail page. */}
                     <TableCell>
-                      <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
-                        {c.declarationStatus}
-                      </StatusBadge>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
+                          {c.declarationStatus}
+                        </StatusBadge>
+                        {c.declaredBy && (
+                          <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                            {c.declaredBy}
+                            {c.declaredAt && ` · ${c.declaredAt}`}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    {/* FR-7 on this line. The full reason, who recorded it and
+                        the session are on the detail page. */}
+                    <TableCell>
+                      {justification === "NONE" ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title={JUSTIFICATION_CELL_NOTE.NONE}
+                        >
+                          {JUSTIFICATION_CELL_LABEL.NONE}
+                        </span>
+                      ) : (
+                        <div
+                          className="flex flex-col items-start gap-0.5"
+                          title={JUSTIFICATION_CELL_NOTE[justification]}
+                        >
+                          <StatusBadge tone={JUSTIFICATION_CELL_TONE[justification]}>
+                            {JUSTIFICATION_CELL_LABEL[justification]}
+                          </StatusBadge>
+                          <span className="max-w-[160px] truncate text-[10px] text-muted-foreground">
+                            {justification === "RECORDED"
+                              ? reasonLabel(c.justification?.entries[0]?.reasonCategory)
+                              : purchasesLabel(c.justification?.unjustifiedPurchases.length ?? 0)}
+                          </span>
+                        </div>
+                      )}
+                    </TableCell>
+                    {/* Unrated is "not recorded", never NORMAL -- a dash, with
+                        the reason on hover. */}
+                    <TableCell>
+                      {c.criticality ? (
+                        <StatusBadge tone={CRITICALITY_TONE[c.criticality] ?? "default"}>
+                          {c.criticality}
+                        </StatusBadge>
+                      ) : (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="No criticality rating is recorded for this material in ZMM065"
+                        >
+                          {UNKNOWN}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground">
+                      {orUnknown(c.stockOnHand)}
+                    </TableCell>
+                    {/* Undefined for every Gamsberg material -- the July MARC
+                        extract has rows for plant 1300 only. A dash, never a 0. */}
+                    <TableCell className="text-right text-muted-foreground">
+                      {orUnknown(c.reorderPoint)}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/repairable-spares/repair-register/${c.id}`}
-                        className={buttonVariants({ variant: "ghost", size: "xs" })}
-                      >
-                        View
-                        <ChevronRight className="size-3.5" />
-                      </Link>
+                      <SAPDocumentChip doc={c.repairPR} />
+                    </TableCell>
+                    <TableCell>
+                      {c.repairPO ? (
+                        <SAPDocumentChip doc={c.repairPO} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not yet raised</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
@@ -386,6 +482,15 @@ export function RepairRegisterTable({
       )}
     </div>
   )
+}
+
+/** A reason category as words: `URGENT_BREAKDOWN` -> "urgent breakdown". */
+function reasonLabel(category: string | undefined): string {
+  return category ? category.replace(/_/g, " ").toLowerCase() : "reason recorded"
+}
+
+function purchasesLabel(count: number): string {
+  return count === 1 ? "1 new unit bought" : `${count} new units bought`
 }
 
 /** One register dropdown: an "all" choice followed by the given options. */

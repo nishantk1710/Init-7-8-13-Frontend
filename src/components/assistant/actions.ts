@@ -18,6 +18,8 @@ export async function revalidateAfterConversation(flow: string): Promise<void> {
     revalidatePath("/oar-utilization", "layout")
   }
   if (flow === "i08") {
-    revalidatePath("/repairable-spares/justifications")
+    // The Justifications screen, and the register, where each repair line
+    // shows its own (08-Oct-2026).
+    revalidatePath("/repairable-spares", "layout")
   }
 }
