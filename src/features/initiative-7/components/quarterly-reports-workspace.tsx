@@ -22,9 +22,7 @@ import Link from "next/link"
 import {
   AlertTriangle,
   Boxes,
-  CircleCheck,
   Clock,
-  Download,
   FileBarChart,
   Loader2,
   RefreshCw,
@@ -54,7 +52,7 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
-import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
 import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
 import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
@@ -264,8 +262,6 @@ export function QuarterlyReportsWorkspace() {
   const { data: report, loading, error, status, refetch, generate, generating, generationError } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
-  const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const [pdfState, setPdfState] = useState<"idle" | "preparing">("idle")
   const [pdfError, setPdfError] = useState<string | null>(null)
   // Set when the user asks to print; cleared once the dialog has been
@@ -296,27 +292,6 @@ export function QuarterlyReportsWorkspace() {
       )
     } finally {
       setGeneratingLatest(false)
-    }
-  }
-
-  async function handleDownload() {
-    if (!selectedQuarter) return
-    setDownloadState("preparing")
-    setDownloadError(null)
-    try {
-      const { blobUrl, filename } = await fetchQuarterlyReportExportBlob(selectedQuarter)
-      const a = document.createElement("a")
-      a.href = blobUrl
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(blobUrl)
-      setDownloadState("ready")
-      setTimeout(() => setDownloadState((s) => (s === "ready" ? "idle" : s)), 2000)
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Export failed.")
-      setDownloadState("error")
     }
   }
 
@@ -522,36 +497,8 @@ export function QuarterlyReportsWorkspace() {
                 )}
                 {pdfState === "preparing" ? "Preparing PDF…" : "Download PDF"}
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDownload}
-                disabled={!report || downloadState === "preparing"}
-                className={cn(
-                  downloadState === "ready" && "border-success text-success",
-                  downloadState === "error" && "border-destructive text-destructive",
-                )}
-              >
-                {downloadState === "preparing" && <Loader2 className="size-3.5 animate-spin" />}
-                {downloadState === "ready" && <CircleCheck className="size-3.5" />}
-                {downloadState === "error" && <AlertTriangle className="size-3.5" />}
-                {downloadState === "idle" && <Download className="size-3.5" />}
-                {downloadState === "preparing"
-                  ? "Preparing…"
-                  : downloadState === "ready"
-                    ? "Download started"
-                    : downloadState === "error"
-                      ? "Export failed — retry"
-                      : "Download detail Excel"}
-              </Button>
             </div>
           </div>
-
-          {downloadError && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {downloadError}
-            </div>
-          )}
 
           {pdfError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -823,6 +770,7 @@ export function QuarterlyReportsWorkspace() {
               materials={pdfMaterials ?? []}
               materialsTotal={pdfMaterialsTotal}
               chartSampleSize={CHART_SAMPLE_SIZE}
+              chartRecommendations={chartRecommendations ?? []}
             />
           </div>,
           document.body,
@@ -832,7 +780,7 @@ export function QuarterlyReportsWorkspace() {
 }
 
 /** A manual "Generate" trigger, in the same pending/idle visual language as
- * the report view's own Download button (see handleDownload/downloadState
+ * the report view's own Download PDF button (see handleDownloadPdf/pdfState
  * above) -- spinner while in flight, disabled for the duration so a double
  * click cannot submit two concurrent generations (harmless either way, since
  * the backend upserts by quarter, but a disabled button during the ~40-50s

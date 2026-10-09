@@ -40,6 +40,9 @@
 // "we did not measure this" must not read as "this is zero".
 
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
+import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
+import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
+import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { formatCount } from "@/lib/utils"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import type {
@@ -184,6 +187,9 @@ export interface ReportPrintViewProps {
   materialsTotal: number
   /** Rows backing the on-screen charts, for the disclosed sample size. */
   chartSampleSize: number
+  /** The same rows the on-screen charts are drawn from, so the PDF's charts
+   * and the screen's cannot disagree. */
+  chartRecommendations?: Recommendation[]
 }
 
 export function ReportPrintView({
@@ -191,6 +197,7 @@ export function ReportPrintView({
   materials,
   materialsTotal,
   chartSampleSize,
+  chartRecommendations = [],
 }: ReportPrintViewProps) {
   const meta = report.metadata
   const generatedAt = new Date(meta.generated_at)
@@ -489,6 +496,37 @@ export function ReportPrintView({
           ])}
         />
       </Section>
+
+      {/* --- 12a. Charts, as shown on screen ---------------------------- */}
+      {chartRecommendations.length > 0 && (
+        <section className="print-section print-charts">
+          <h2 className="print-section-title">
+            <span className="print-section-number">12a.</span> Charts
+          </h2>
+          <p className="print-section-subtitle">
+            The same charts shown on the Quarterly Reports page, drawn from the same{" "}
+            {formatCount(chartSampleSize)}-row sample — not the full recommendation population.
+          </p>
+          <div className="print-section-body">
+            <div className="print-chart">
+              <h3 className="print-subheading">Stockout risk distribution</h3>
+              <InventoryHealthCard recommendations={chartRecommendations} />
+            </div>
+            <div className="print-chart">
+              <h3 className="print-subheading">Recommendation status</h3>
+              <p className="print-chart-caption">Where each change sits in the approval flow.</p>
+              <RecommendationStatusChart recommendations={chartRecommendations} />
+            </div>
+            <div className="print-chart">
+              <h3 className="print-subheading">Critical circuit exposure</h3>
+              <p className="print-chart-caption">
+                Recommendations per circuit, split by stockout-risk exposure.
+              </p>
+              <CircuitExposureChart recommendations={chartRecommendations} />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* --- 13. Approval ----------------------------------------------- */}
       <Section number={13} title="Approval">

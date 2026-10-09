@@ -24,8 +24,30 @@
  * typeset for paper.
  */
 
+/* ON SCREEN: laid out, measurable, but out of view.
+ *
+ * NOT `display: none`. Recharts sizes itself with ResponsiveContainer,
+ * which measures its parent -- and a `display: none` subtree has zero
+ * dimensions, so every chart would render at 0x0 and print blank. The
+ * print view is therefore given a real width off-screen, where the
+ * browser lays it out (and Recharts measures it) without the user ever
+ * seeing it.
+ *
+ * `position: fixed` keeps it out of the document flow so it cannot
+ * affect the page's own scroll height. */
+.print-portal {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 190mm;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+}
+
 .print-root {
-  display: none;
+  display: block;
+  background: #fff;
 }
 
 @media print {
@@ -45,8 +67,16 @@
     display: revert;
   }
 
+  /* Back into normal flow for printing -- the off-screen offsets above
+   * exist only so the charts can be measured while on screen. */
   .print-portal {
     display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    opacity: 1 !important;
+    z-index: auto !important;
   }
 
   .print-root {
@@ -282,6 +312,94 @@
     padding-left: 6pt;
     break-after: avoid;
     break-inside: avoid;
+  }
+
+  /* --- Charts -------------------------------------------------------- */
+  /*
+   * The charts are the SAME Recharts components the page renders, not
+   * re-drawn for print. They emit inline SVG, so they stay vector in the
+   * PDF: sharp at any zoom, and real text rather than a rasterised
+   * screenshot.
+   *
+   * Recharts sizes itself from its parent, which is why the print view is
+   * laid out off-screen rather than `display: none` (see the top of this
+   * file) -- a zero-size parent prints a blank chart.
+   */
+  .print-chart {
+    /* A chart split across a page break is unreadable, and half a donut
+     * reads as a rendering fault rather than a page boundary. */
+    break-inside: avoid;
+    margin-bottom: 12pt;
+  }
+
+  .print-chart-caption {
+    font-size: 8.5pt;
+    color: #444;
+    margin: 0 0 4pt;
+    break-after: avoid;
+  }
+
+  /* Recharts draws its own fills from CSS custom properties. Those resolve
+   * fine, but the surrounding card chrome (borders, tinted backgrounds,
+   * hover affordances) is screen furniture -- flatten it so only the chart
+   * itself prints. */
+  .print-chart .rounded-xl,
+  .print-chart .rounded-lg,
+  .print-chart .border {
+    border: none !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  /* Tooltips are pointer-only and must never appear in a printed page. */
+  .print-chart .recharts-tooltip-wrapper {
+    display: none !important;
+  }
+
+  /* Chart legends are Tailwind flex rows (`flex items-center gap-2`), and
+   * Tailwind's utilities are not in scope for this stylesheet -- without
+   * these the label and its figure print flush against each other
+   * ("Critical0 (0.0%)", "Approved15"), exactly as the first chart proof
+   * rendered. Restore the row and put real space between the two. */
+  .print-chart .flex {
+    display: flex;
+  }
+
+  .print-chart .flex-col {
+    flex-direction: column;
+  }
+
+  .print-chart .items-center {
+    align-items: center;
+  }
+
+  .print-chart .justify-between {
+    justify-content: space-between;
+  }
+
+  .print-chart .gap-2,
+  .print-chart .gap-3,
+  .print-chart .gap-4 {
+    gap: 6pt;
+  }
+
+  /* The legend's value sits in its own span straight after the label; give
+   * it unambiguous separation rather than relying on a utility class. */
+  .print-chart .shrink-0.tabular-nums,
+  .print-chart .tabular-nums {
+    padding-left: 5pt;
+    white-space: nowrap;
+  }
+
+  /* Keep the colored legend dots -- they are the only thing tying a legend
+   * row to its slice, unlike the status dots elsewhere which are noise. */
+  .print-chart .recharts-wrapper + * .rounded-full,
+  .print-chart .size-2\.5 {
+    display: inline-block !important;
+  }
+
+  .print-chart .recharts-surface {
+    overflow: visible;
   }
 
   .print-footer-note {
