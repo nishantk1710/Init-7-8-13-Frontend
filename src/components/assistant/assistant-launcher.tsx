@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 
+import { AiOrb } from "@/components/assistant/ai-visuals"
 import { AssistantWorkspace } from "@/components/assistant/assistant-workspace"
 import {
   AssessmentUnavailableNotice,
@@ -175,11 +176,7 @@ export function AssistantLauncher({
   }, [materialId, plant, department, requestedFor, origin])
 
   if (state.status === "opening") {
-    return (
-      <p className="text-sm text-muted-foreground" role="status">
-        Checking {materialId} at plant {plant}…
-      </p>
-    )
+    return <OpeningSkeleton materialId={materialId} plant={plant} />
   }
 
   if (state.status === "unavailable") {
@@ -214,5 +211,41 @@ export function AssistantLauncher({
         step: response.step,
       }}
     />
+  )
+}
+
+/**
+ * While the session opens: the assistant "thinking", over a shimmering outline
+ * of the assessment that is about to arrive. Announced once as a status.
+ */
+function OpeningSkeleton({ materialId, plant }: { materialId: string; plant: string }) {
+  return (
+    <div className="ai-scope flex flex-col gap-5" role="status">
+      <div className="ai-skeleton animate-ai-shimmer h-20 rounded-2xl" aria-hidden />
+      <div className="flex gap-3">
+        <AiOrb thinking className="hidden sm:inline-flex" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+          <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <span aria-hidden className="flex items-center gap-1">
+              {[0, 1, 2].map((dot) => (
+                <span
+                  key={dot}
+                  className="ai-gradient animate-ai-typing size-1.5 rounded-full"
+                  style={{ animationDelay: `${dot * 160}ms` }}
+                />
+              ))}
+            </span>
+            Checking <span className="font-mono">{materialId}</span> at plant {plant}…
+          </p>
+          <div aria-hidden className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[0, 1, 2, 3].map((tile) => (
+              <div key={tile} className="ai-skeleton animate-ai-shimmer h-16 rounded-xl" />
+            ))}
+          </div>
+          <div aria-hidden className="ai-skeleton animate-ai-shimmer h-3 w-3/4 rounded-full" />
+          <div aria-hidden className="ai-skeleton animate-ai-shimmer h-3 w-1/2 rounded-full" />
+        </div>
+      </div>
+    </div>
   )
 }
