@@ -42,6 +42,8 @@ import {
   getI13ReservationLedgerList,
   getI13Summary,
   getI13UsagePatterns,
+  getI13Validation,
+  getI13Zmm065Uploads,
   type ActException,
   type ConsumptionPlan,
   type GrniEntry,
@@ -50,7 +52,9 @@ import {
   type ReservationLedgerRow,
   type UsagePattern,
   type UtilisationLedgerEntry,
+  type ValidationResult,
   type WatchMetric,
+  type Zmm065Upload,
 } from "@/lib/api/i13"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
 
@@ -313,6 +317,19 @@ export async function loadLivePlans(filters: LedgerFilters = {}): Promise<LivePl
 /** The KPI counts, scoped to the same plant/material as the rest of the dashboard. */
 export function loadLiveSummary(scope: { plant?: string; material?: string } = {}): Promise<I13Summary> {
   return getI13Summary({ plant: scope.plant || undefined, material: scope.material || undefined })
+}
+
+/**
+ * FR-6 reconciliation against ZMM065; the backend reads the reports itself.
+ * `reportMonth` (`YYYY-MM`) picks one month's uploads, else each plant's latest.
+ */
+export function loadLiveValidation(reportMonth?: string): Promise<ValidationResult> {
+  return getI13Validation({ reportMonth: reportMonth || undefined })
+}
+
+/** Every ZMM065 monthly upload, newest month first. */
+export function loadLiveZmm065Uploads(): Promise<Zmm065Upload[]> {
+  return getI13Zmm065Uploads()
 }
 
 export type LiveGrni = Capped<GrniEntry> & {

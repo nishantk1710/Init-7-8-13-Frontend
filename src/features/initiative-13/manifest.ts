@@ -6,9 +6,8 @@ import type { InitiativeManifest } from "@/lib/domain/manifest"
  * Removed, not forgotten: Redeployment (FRS §3.2 / D10 defers the workflow;
  * cross-plant stock stays as visibility on Exceptions and in the assistant), and
  * the separate Overview, 30-Day GR-Not-Issued and Usage Pattern screens, which
- * are now the Dashboard and two WATCH tabs. Reclassification and Validation
- * belong to Initiative 7, not here; captured consumption plans are a Dashboard
- * tab rather than a screen of their own. Their old URLs redirect.
+ * are now the Dashboard and two WATCH tabs. Captured consumption plans are a
+ * Dashboard tab rather than a screen of their own. Their old URLs redirect.
  *
  * The reservation-time assistant (FR-2, FR-3) is not listed here: it is shared
  * with Initiative 8 and already has its own section at the top of the sidebar.
@@ -45,6 +44,18 @@ export const initiative13Manifest: InitiativeManifest = {
         label: "WATCH",
         icon: "eye",
         href: "/oar-utilization/watch",
+      },
+      // FR-8: SOP 3.1.1 reclassification evidence, advisory only.
+      {
+        label: "Reclassification",
+        icon: "sliders",
+        href: "/oar-utilization/reclassification",
+      },
+      // FR-6 / FR-10: reconciliation against VZI's monthly ZMM065 upload.
+      {
+        label: "Validation",
+        icon: "clipboard-check",
+        href: "/oar-utilization/validation",
       },
     ],
   },

@@ -63,9 +63,9 @@ const DemoPlans = dynamic(() =>
  * dashboard shows only their status summary (FR-10's "exception status") and
  * links to the Exceptions screen, which owns the queue -- the full list here
  * duplicated it. Captured plans live only here -- there
- * is no separate plans screen; `?tab=plans` opens that tab. Reclassification and
- * validation belong to Initiative 7 and are not shown; the reclassification
- * feed is still read, solely for the non-movers' Critical impact column. Provenance and row-cap notes live in a collapsed "About this data".
+ * is no separate plans screen; `?tab=plans` opens that tab. Reclassification
+ * and validation have their own screens; the reclassification feed is read
+ * here only for the non-movers' Critical impact column. Provenance and row-cap notes live in a collapsed "About this data".
  *
  * ## Data
  *

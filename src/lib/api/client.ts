@@ -211,7 +211,8 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
       ...init,
       signal,
       headers: {
-        "Content-Type": "application/json",
+        // A multipart body sets its own Content-Type, boundary included.
+        ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         [ACTOR_ID_HEADER]: currentActorId(),
         ...init?.headers,
       },
@@ -295,6 +296,14 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     method: "POST",
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+}
+
+/**
+ * POST a multipart form (a file upload) and read a JSON response. No retry,
+ * for the same reason as {@link apiPost}.
+ */
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  return apiFetch<T>(path, { method: "POST", body })
 }
 
 export type HealthResponse = {

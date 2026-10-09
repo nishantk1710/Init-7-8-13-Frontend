@@ -2,6 +2,7 @@ import {
   Activity,
   Boxes,
   Clock,
+  Layers,
   ListChecks,
   PackageX,
   TrendingUp,
@@ -15,8 +16,8 @@ import { formatCount } from "@/lib/utils"
 /**
  * Renders exactly the fields `I13SummaryResponse` returns (§6 of the W6.7
  * task: the FRS requires "utilisation KPIs" without locking the exact
- * card set) — no invented KPI is added here. `reclassificationCandidateCount`
- * is deliberately not shown: reclassification belongs to Initiative 7.
+ * card set) — no invented KPI is added here, and none of `I13Summary`'s
+ * fields are dropped.
  */
 export function KpiSummary({
   summary,
@@ -42,6 +43,7 @@ export function KpiSummary({
         <KPIStatCard label="GR not issued (30d)" value={formatCount(summary.grNotIssued30DayCount)} icon={<TriangleAlert className="size-3.5" />} />
         <KPIStatCard label="Plan breaches" value={formatCount(summary.planBreachCount)} icon={<Activity className="size-3.5" />} />
         <KPIStatCard label="No-plan exceptions" value={formatCount(summary.noPlanCount)} icon={<ListChecks className="size-3.5" />} />
+        <KPIStatCard label="Reclassification candidates" value={formatCount(summary.reclassificationCandidateCount)} icon={<Layers className="size-3.5" />} />
       </div>
       {summary.valuationIsMocked && (
         <p className="text-[11px] text-muted-foreground">

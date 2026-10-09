@@ -463,12 +463,52 @@ export interface Gr30DayValidation {
   unconfirmed: GrReceiptCheck[]
 }
 
+/** Where one plant's ZMM065 rows came from: a monthly upload, or the seeded July report. */
+export interface Zmm065Source {
+  plant: string
+  source: "UPLOAD" | "SEED"
+  rowCount: number
+  uploadId: number | null
+  reportMonth: string | null
+  reportDate: string | null
+  fileName: string | null
+  uploadedBy: string | null
+  uploadedAt: string | null
+}
+
+/** One ZMM065 monthly report uploaded by VZI. */
+export interface Zmm065Upload {
+  id: number
+  plant: string
+  /** First of the month, ISO date. */
+  reportMonth: string
+  reportDate: string | null
+  fileName: string
+  sheetName: string
+  rowCount: number
+  uploadedBy: string
+  uploadedAt: string
+  /** The upload validation reads for its plant when no month is chosen. */
+  isCurrent: boolean
+}
+
+export interface Zmm065UploadResult {
+  upload: Zmm065Upload
+  skippedOutOfScope: number
+  skippedBlank: number
+  replacedEarlier: boolean
+}
+
 export interface ValidationResult {
   tolerancePct: number
   results: ReconciliationSourceResult[]
   /** Null when the report is not loaded in the backend. */
   zmm065: Zmm065Validation | null
   gr30Day: Gr30DayValidation | null
+  /** The month asked for (first of month), or null for "latest per plant". */
+  zmm065ReportMonth: string | null
+  /** Per plant, which ZMM065 the reconciliation used. */
+  zmm065Sources: Zmm065Source[]
 }
 
 export interface I13Summary {

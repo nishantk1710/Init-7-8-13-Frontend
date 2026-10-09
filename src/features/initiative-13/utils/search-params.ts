@@ -35,6 +35,8 @@ export type I13SearchParams = {
   /** Ledger screen: only reservations whose item text names this session. */
   session?: string
   tab?: string
+  /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
+  month?: string
 }
 
 /** Next hands `searchParams` as a promise of possibly-repeated values. */
@@ -64,6 +66,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     view: single(raw.view),
     session: single(raw.session),
     tab: single(raw.tab),
+    month: single(raw.month),
   }
 }
 
