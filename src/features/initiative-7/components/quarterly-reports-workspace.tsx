@@ -7,10 +7,14 @@
 // severity, excess inventory, working-capital impact, a stockout-risk trend)
 // have no defined business rule anywhere in I07 (confirmed by a full
 // source-tree audit), and are rendered as explicit "not yet defined" states
-// via ManagementSummary, never approximated or fabricated. The original
-// 14-section technical deep-dive (data-quality/forecasting/OAR detail) is
-// kept below as "Full report detail" -- real, traceable data that remains
-// useful, just not what a management reader needs first.
+// via ManagementSummary, never approximated or fabricated.
+//
+// The "Full report detail" accordion (the original 14-section technical
+// deep-dive) and the Material criticality tier cards were removed on
+// request: the deep-dive duplicated detail a management reader does not
+// need first, and ZMM065 criticality is unpopulated for current quarters,
+// so the tier cards rendered five honest-but-misleading zeros. Both remain
+// available in the report JSON and the Excel export.
 
 import { useState } from "react"
 import Link from "next/link"
@@ -28,7 +32,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -42,7 +45,6 @@ import {
 import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
-import { DonutWithLegend, type DonutSlice } from "@/features/initiative-7/components/donut-with-legend"
 import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
 import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
@@ -55,8 +57,6 @@ import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/featu
 import { ApiError } from "@/lib/api/client"
 import type {
   ApiBaselineComparisonRow,
-  ApiForecastAccuracyMetric,
-  ApiPopulationCount,
   ApiUndefinedManagementMetric,
 } from "@/features/initiative-7/types/api"
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
@@ -82,50 +82,10 @@ function candidateQuarters(): string[] {
   }
   return out
 }
-
-const DEMAND_CLASS_COLOR: Record<string, string> = {
-  SMOOTH: "var(--chart-3)",
-  ERRATIC: "var(--chart-1)",
-  INTERMITTENT: "var(--chart-4)",
-  LUMPY: "var(--warning)",
-  UNCLASSIFIED: "var(--muted-foreground)",
-}
-
-const DEMAND_CLASS_LABEL: Record<string, string> = {
-  SMOOTH: "Smooth",
-  ERRATIC: "Erratic",
-  INTERMITTENT: "Intermittent",
-  LUMPY: "Lumpy",
-  UNCLASSIFIED: "Unclassified",
-}
-
-/** The 5 real ZMM065 tiers, most-severe first -- never collapsed into an
- * invented A/B/C 3-bucket grouping (no such grouping exists in policy or
- * code; see MaterialCriticalitySection's own docstring on the backend).
- * Card tint per tier uses only existing theme tokens (no new hex), following
- * the mockup's tinted-mini-card language: CRITICAL->destructive,
- * IMPACT->warning, INSURANCE->accent, NORMAL->muted (neutral), OBSOLETE->a
- * lighter muted -- five visually distinct tiers from four base tokens. */
-const CRITICALITY_TIER_ORDER = ["CRITICAL", "IMPACT", "INSURANCE", "NORMAL", "OBSOLETE"] as const
-const CRITICALITY_TIER_STYLE: Record<(typeof CRITICALITY_TIER_ORDER)[number], { card: string; text: string; sub: string }> = {
-  CRITICAL: { card: "bg-destructive/10 border-destructive/20", text: "text-destructive", sub: "text-destructive/70" },
-  IMPACT: { card: "bg-warning/15 border-warning/25", text: "text-warning", sub: "text-warning/70" },
-  INSURANCE: { card: "bg-accent border-accent-foreground/15", text: "text-accent-foreground", sub: "text-accent-foreground/70" },
-  NORMAL: { card: "bg-muted border-border", text: "text-foreground", sub: "text-muted-foreground" },
-  OBSOLETE: { card: "bg-muted/40 border-border/60", text: "text-muted-foreground", sub: "text-muted-foreground/80" },
-}
-const CRITICALITY_TIER_CAPTION: Record<(typeof CRITICALITY_TIER_ORDER)[number], string> = {
-  CRITICAL: "Line-stopping if unavailable",
-  IMPACT: "Some operational impact",
-  INSURANCE: "Held for insurance/cover",
-  NORMAL: "Standard replenishment",
-  OBSOLETE: "Marked for retirement",
-}
-
 /** Text-color-only treatment for the material table's Crit. column, keyed on
- * the app's mapped Criticality (not the raw ZMM065 tier) -- the same tone
- * mapping used for CRITICALITY_TIER_STYLE above, applied as plain colored
- * text rather than a tinted badge to match the reference table's style. */
+ * the app's mapped Criticality (not the raw ZMM065 tier), applied as plain
+ * colored text rather than a tinted badge to match the reference table's
+ * style. */
 const CRITICALITY_TIER_TEXT_COLOR: Record<Criticality, string> = {
   Critical: "text-destructive",
   High: "text-warning",
@@ -146,44 +106,6 @@ const RECOMMENDATION_STATUS_TEXT_COLOR: Record<string, string> = {
   Implemented: "text-success",
 }
 
-function titleCaseStatus(status: string): string {
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ")
-}
-
-/** A plain populated/missing count -- no AvailabilityStatus of its own
- * (unlike ForecastAccuracyMetric), so rendered directly rather than through
- * AvailabilityValue: a 0-populated count here is a real measured fact
- * (see PopulationCount's own docstring), not a missing-data placeholder. */
-function PopulationRow({ label, pop }: { label: string; pop: ApiPopulationCount }) {
-  const pct = formatDecimal(pop.percentage_populated, 1)
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums text-foreground">
-        {formatCount(pop.populated_count)} / {formatCount(pop.total_count)}
-        <span className="ml-1.5 text-muted-foreground">({pct ?? "0.0"}%)</span>
-      </span>
-    </div>
-  )
-}
-
-function AccuracyMetricRow({ label, metric, unit }: { label: string; metric: ApiForecastAccuracyMetric; unit?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <AvailabilityValue status={metric.status} value={formatDecimal(metric.value)} unit={unit} size="sm" />
-        <span className="text-[11px] text-muted-foreground">
-          ({formatCount(metric.populated_count)}/{formatCount(metric.total_count)})
-        </span>
-      </div>
-    </div>
-  )
-}
 
 /** One mockup KPI card for a metric with no defined business rule today --
  * always NOT_CONFIGURED, always shows the real backend-supplied reason, never
@@ -384,17 +306,6 @@ export function QuarterlyReportsWorkspace() {
     setMaterialsPage(1)
   }
 
-  const demandOrder = ["SMOOTH", "ERRATIC", "INTERMITTENT", "LUMPY", "UNCLASSIFIED"]
-  const demandByClass = new Map(report?.demand_classification.by_class.map((d) => [d.demand_class, d]) ?? [])
-  const demandSlices: DonutSlice[] = demandOrder
-    .filter((cls) => demandByClass.has(cls))
-    .map((cls) => {
-      const row = demandByClass.get(cls)!
-      return { label: DEMAND_CLASS_LABEL[cls] ?? cls, count: row.count, color: DEMAND_CLASS_COLOR[cls] ?? "var(--chart-2)" }
-    })
-
-  const criticalityByTier = new Map(report?.material_criticality.by_tier.map((row) => [row.criticality, row.count]) ?? [])
-
   // Real mean current/recommended/delta per metric, straight from Section
   // 12's baseline comparison -- the one place the report computes these
   // means (see StockPolicyRow's own docstring for why this section is
@@ -550,31 +461,6 @@ export function QuarterlyReportsWorkspace() {
                   footnoteTone="warning"
                 />
               </div>
-
-              {/* --- Material criticality ------------------------------------ */}
-              <ChartCard
-                title="Material criticality"
-                subtitle={
-                  report.material_criticality.populated_percentage !== null
-                    ? `In-scope materials by ZMM065 tier — criticality populated on ${formatDecimal(report.material_criticality.populated_percentage, 1)}% of rows this quarter.`
-                    : "In-scope materials by ZMM065 tier."
-                }
-              >
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {CRITICALITY_TIER_ORDER.map((tier) => {
-                    const style = CRITICALITY_TIER_STYLE[tier]
-                    return (
-                      <div key={tier} className={cn("rounded-lg border p-3", style.card)}>
-                        <div className={cn("text-[13px]", style.text)}>{tier}</div>
-                        <div className={cn("mt-1 text-xl font-semibold", style.text)}>
-                          {formatCount(criticalityByTier.get(tier) ?? 0)}
-                        </div>
-                        <div className={cn("mt-0.5 text-[11px]", style.sub)}>{CRITICALITY_TIER_CAPTION[tier]}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </ChartCard>
 
               {/* --- Everything below in one 12-col grid, matching main's
                   QuarterlyReportsDemoWorkspace layout/spans exactly. --- */}
@@ -766,301 +652,6 @@ export function QuarterlyReportsWorkspace() {
                 </ChartCard>
               </div>
 
-              {/* --- Full report detail (the original 14-section deep-dive) --- */}
-              <details className="rounded-xl border border-border bg-card">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">
-                  Full report detail
-                </summary>
-                <div className="flex flex-col gap-4 border-t border-border p-4">
-                  <ChartCard
-                    title="Executive Summary"
-                    subtitle={`${report.metadata.quarter} · ${report.metadata.period_start} to ${report.metadata.period_end} · generated ${new Date(report.metadata.generated_at).toLocaleString()} · v${report.metadata.report_version}`}
-                  >
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      <KPIStatCard label="Material-Plants in Scope" value={formatCount(report.executive_summary.total_material_plants)} />
-                      <KPIStatCard
-                        label="Demand-Classified"
-                        value={
-                          report.executive_summary.classified_percentage !== null
-                            ? `${formatDecimal(report.executive_summary.classified_percentage, 1)}%`
-                            : "—"
-                        }
-                        hint={report.executive_summary.classified_percentage === null ? "0 rows in scope" : undefined}
-                      />
-                      <KPIStatCard label="Total Recommendations" value={formatCount(report.executive_summary.total_recommendations)} />
-                      <KPIStatCard label="Ready for Review" value={formatCount(report.executive_summary.ready_for_review_count)} />
-                      <KPIStatCard label="Pending Approval" value={formatCount(report.executive_summary.pending_approval_count)} />
-                      <KPIStatCard label="Not Evaluable" value={formatCount(report.executive_summary.not_evaluable_count)} />
-                      <KPIStatCard label="OAR Materials" value={formatCount(report.executive_summary.oar_count)} />
-                      <KPIStatCard label="Approval Ledger Entries" value={formatCount(report.executive_summary.approval_ledger_entries)} />
-                    </div>
-                  </ChartCard>
-
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <ChartCard title="Scope & Data Quality" span={6}>
-                      <PopulationRow
-                        label="Classified"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.classified_count,
-                          missing_count: report.scope_and_data_quality.unclassified_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.classified_percentage,
-                        }}
-                      />
-                      <PopulationRow
-                        label="Criticality Populated"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.criticality_populated_count,
-                          missing_count:
-                            report.scope_and_data_quality.total_records - report.scope_and_data_quality.criticality_populated_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.criticality_populated_percentage,
-                        }}
-                      />
-                      <PopulationRow
-                        label="Lead Time Populated"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.lead_time_populated_count,
-                          missing_count:
-                            report.scope_and_data_quality.total_records - report.scope_and_data_quality.lead_time_populated_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.lead_time_populated_percentage,
-                        }}
-                      />
-                      <div className="mt-3">
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">History Status Breakdown</div>
-                        {report.scope_and_data_quality.history_status_breakdown.map((row) => (
-                          <div key={row.history_status} className="flex items-center justify-between py-1 text-sm">
-                            <span className="text-muted-foreground">{titleCaseStatus(row.history_status)}</span>
-                            <span className="tabular-nums text-foreground">{formatCount(row.count)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Demand Classification" subtitle={`${formatCount(report.demand_classification.total)} material-plants`} span={6}>
-                      {demandSlices.length > 0 ? (
-                        <DonutWithLegend slices={demandSlices} />
-                      ) : (
-                        <div className="text-sm text-muted-foreground">No demand-classified rows in scope.</div>
-                      )}
-                    </ChartCard>
-                  </div>
-
-                  <ChartCard title="Forecasting" subtitle={`${formatCount(report.forecasting.total_forecasts)} forecast rows`}>
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <AccuracyMetricRow label="Mean Absolute Error" metric={report.forecasting.mean_absolute_error} />
-                        <AccuracyMetricRow label="Pinball Loss" metric={report.forecasting.pinball_loss} />
-                        <AccuracyMetricRow label="Bias %" metric={report.forecasting.bias_percentage} unit="%" />
-                        <AccuracyMetricRow label="Fill Rate" metric={report.forecasting.fill_rate} />
-                        <AccuracyMetricRow label="Holding Cost" metric={report.forecasting.holding_cost} />
-                        <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-                          <span className="text-muted-foreground">MAPE</span>
-                          <AvailabilityValue status={report.forecasting.mape_status} size="sm" />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">Champion / Challenger</div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Champion</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.champion_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Challenger</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.challenger_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Baseline</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.baseline_count)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </ChartCard>
-
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <ChartCard title="Safety Stock" span={4}>
-                      <PopulationRow label="Current" pop={report.safety_stock.current} />
-                      <PopulationRow label="Recommended" pop={report.safety_stock.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.safety_stock.mean_delta) ?? "—"}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Service Level Policy</span>
-                        <AvailabilityValue status={report.safety_stock.service_level_status} size="sm" />
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Reorder Point" span={4}>
-                      <PopulationRow label="Current" pop={report.reorder_point.current} />
-                      <PopulationRow label="Recommended" pop={report.reorder_point.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.reorder_point.mean_delta) ?? "—"}</span>
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Max Stock" span={4}>
-                      <PopulationRow label="Current" pop={report.max_stock.current} />
-                      <PopulationRow label="Recommended" pop={report.max_stock.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.max_stock.mean_delta) ?? "—"}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Strategy Policy</span>
-                        <AvailabilityValue status={report.max_stock.strategy_policy_status} size="sm" />
-                      </div>
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        {formatCount(report.max_stock.strategy_production_resolved_count)} production-resolved of{" "}
-                        {formatCount(report.max_stock.strategy_labeled_count)} labeled (
-                        {formatCount(report.max_stock.strategy_unresolved_fixture_count)} unresolved fixtures)
-                      </div>
-                    </ChartCard>
-                  </div>
-
-                  <ChartCard title="OAR / Min-Max">
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — True</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_true_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — False</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_false_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — Unknown (null)</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_null_count)}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">Conversion Eligibility</div>
-                        {report.oar.conversion_eligibility_breakdown.map((row) => (
-                          <div key={row.conversion_eligibility ?? "null"} className="flex items-center justify-between py-1 text-sm">
-                            <span className="text-muted-foreground">{row.conversion_eligibility ?? "Not recorded"}</span>
-                            <span className="tabular-nums text-foreground">{formatCount(row.count)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard title="Approval">
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Ledger Entries</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.ledger_entry_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Distinct Recommendations</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.distinct_recommendations_in_approval)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Pending</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.pending_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Approved</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.approved_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Rejected</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.rejected_count)}</span>
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard
-                    title="Current / I11 Baseline vs I07 Recommendation"
-                    subtitle={`Baseline lead time source: ${report.baseline_comparison.baseline_lead_time_source}${
-                      report.baseline_comparison.i07_lead_time_source ? ` · I07 lead time source: ${report.baseline_comparison.i07_lead_time_source}` : ""
-                    }`}
-                  >
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead>
-                          <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                            <th className="py-1.5 pr-3 font-medium">Metric</th>
-                            <th className="py-1.5 pr-3 font-medium">Baseline</th>
-                            <th className="py-1.5 pr-3 font-medium">I07 Recommendation</th>
-                            <th className="py-1.5 pr-3 font-medium">Delta</th>
-                            <th className="py-1.5 pr-3 font-medium">Delta %</th>
-                            <th className="py-1.5 pr-3 font-medium">Both Available</th>
-                            <th className="py-1.5 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {report.baseline_comparison.rows.map((row) => (
-                            <tr key={row.metric} className="border-b border-border/60 last:border-0">
-                              <td className="py-1.5 pr-3 text-foreground">
-                                {row.metric}
-                                {row.self_referential && (
-                                  <span className="ml-1.5 text-[11px] text-warning">self-comparison</span>
-                                )}
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status === "AVAILABLE" && row.baseline_value === null ? "NOT_AVAILABLE" : row.availability_status}
-                                  value={formatDecimal(row.baseline_value)}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status === "AVAILABLE" && row.recommendation_value === null ? "NOT_AVAILABLE" : row.availability_status}
-                                  value={formatDecimal(row.recommendation_value)}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue status={row.availability_status} value={formatDecimal(row.delta)} size="sm" />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status}
-                                  value={formatDecimal(row.delta_percentage)}
-                                  unit={row.delta_percentage !== null ? "%" : undefined}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3 tabular-nums text-foreground">{formatCount(row.both_available_count)}</td>
-                              <td className="py-1.5">
-                                <StatusBadge tone={row.availability_status === "AVAILABLE" ? "success" : "warning"}>
-                                  {row.availability_status}
-                                </StatusBadge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {report.baseline_comparison.rows.some((r) => r.self_referential) && (
-                      <p className="mt-2 text-[11px] text-warning">
-                        Lead Time compares MARC-PLIFZ against itself — I07 has no separately-calculated lead time, so
-                        this row&apos;s delta is agreement by construction, not independent validation.
-                      </p>
-                    )}
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground sm:grid-cols-4">
-                      {report.baseline_comparison.rows.map((row) => (
-                        <div key={row.metric}>
-                          {row.metric}: {formatCount(row.baseline_missing_count)} baseline missing ·{" "}
-                          {formatCount(row.recommendation_missing_count)} rec. missing · {formatCount(row.not_evaluable_count)} not
-                          evaluable
-                        </div>
-                      ))}
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard title="Limitations & Dependencies">
-                    <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-                      {report.limitations.items.map((item, i) => (
-                        <li key={i}>{item}</li>
-                      ))}
-                    </ul>
-                  </ChartCard>
-                </div>
-              </details>
             </>
           )}
         </>
