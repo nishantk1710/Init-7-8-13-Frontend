@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
-import { ExceptionStatusPanel } from "@/features/initiative-13/components/exception-status-panel"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import {
@@ -29,6 +28,7 @@ import {
   attachCriticalImpactIndicator,
   filterNonMovers,
 } from "@/features/initiative-13/utils/dashboard-transforms"
+import { resolveDetailTab } from "@/features/initiative-13/utils/detail-tabs"
 import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   EXCEPTION_STATUS_LABEL,
@@ -50,9 +50,6 @@ const DemoPlans = dynamic(() =>
   import("@/components/assistant/demo/demo-records").then((m) => m.DemoPlans)
 )
 
-/** The Details tabs, in display order. `?tab=` opens one directly. */
-const DETAIL_TABS = ["non-movers", "plan", "exceptions", "plans", "justifications"] as const
-
 /**
  * W6.7 — the Utilisation Dashboard (FR-10), and the module's landing page at
  * `/oar-utilization`.
@@ -60,9 +57,12 @@ const DETAIL_TABS = ["non-movers", "plan", "exceptions", "plans", "justification
  * ## Layout
  *
  * Overview first, detail on demand: the KPI cards, then plan coverage and
- * exception status. Every FR-10 drilldown (non-movers, acquired-vs-plan, exceptions,
+ * exception status. Every FR-10 drilldown (non-movers, acquired-vs-plan,
  * captured plans, justifications) is here, in one tabbed card below, instead of
- * full-width tables stacked on one scroll. Captured plans live only here -- there
+ * full-width tables stacked on one scroll. Exceptions are the one exception: the
+ * dashboard shows only their status summary (FR-10's "exception status") and
+ * links to the Exceptions screen, which owns the queue -- the full list here
+ * duplicated it. Captured plans live only here -- there
  * is no separate plans screen; `?tab=plans` opens that tab. Reclassification and
  * validation belong to Initiative 7 and are not shown; the reclassification
  * feed is still read, solely for the non-movers' Critical impact column. Provenance and row-cap notes live in a collapsed "About this data".
@@ -97,7 +97,7 @@ export async function UtilisationDashboardPage({
   })
 
   const { watch } = dashboard
-  const initialTab = DETAIL_TABS.find((t) => t === searchParams.tab) ?? "non-movers"
+  const initialTab = resolveDetailTab(searchParams.tab)
 
   const nonMoverRows = watch
     ? attachCriticalImpactIndicator(
@@ -246,7 +246,6 @@ export async function UtilisationDashboardPage({
                 <TabsList variant="line" className="h-9">
                   <DetailTab value="non-movers" label="Non-movers" count={watch ? nonMoverRows.length : null} />
                   <DetailTab value="plan" label="Acquired vs plan" count={watch?.rows.length ?? null} />
-                  <DetailTab value="exceptions" label="Exceptions" count={sectionCount(dashboard.exceptions, (d) => d.count)} />
                   <DetailTab value="plans" label="Captured plans" count={sectionCount(dashboard.plans, (d) => d.count)} />
                   <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
                 </TabsList>
@@ -275,14 +274,6 @@ export async function UtilisationDashboardPage({
                   <AcquiredVsPlanPanel rows={watch.rows} />
                 ) : (
                   <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
-                )}
-              </TabsContent>
-
-              <TabsContent value="exceptions">
-                {dashboard.exceptions.status === "ready" ? (
-                  <ExceptionStatusPanel rows={dashboard.exceptions.data.rows} />
-                ) : (
-                  <SectionFallback section={dashboard.exceptions} what="exceptions" />
                 )}
               </TabsContent>
 

@@ -6,7 +6,7 @@
 // `pages/utilisation-dashboard-page.tsx` for how these compose with the API
 // client.
 
-import type { ActException, JustificationEntry, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { JustificationEntry, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
 
 /** Generic "count rows by a key" grouping, used for every distribution chart
  * on the dashboard (aging, acquired-vs-plan, exception status/type). */
@@ -94,20 +94,6 @@ export function acquiredVsPlanRowsToCsv(rows: WatchMetric[]): (string | number)[
     r.acquiredVsPlanVarianceQuantity ?? "",
     r.acquiredVsPlanVariancePercentage ?? "",
     r.acquiredVsPlanStatus,
-  ])
-}
-
-export function exceptionRowsToCsv(rows: ActException[]): (string | number)[][] {
-  return rows.map((r) => [
-    r.exceptionType,
-    r.material,
-    r.plant,
-    r.ownerRequesterId ?? "",
-    r.status,
-    r.detectedAt,
-    r.requesterDueAt ?? "",
-    r.escalatedAt ?? "",
-    r.routingStatus ?? "",
   ])
 }
 
