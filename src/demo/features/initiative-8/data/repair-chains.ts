@@ -35,6 +35,12 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairStatus: "At Vendor",
     receiptStatus: "Awaiting Receipt",
     declarationStatus: "Completed",
+    // Completed with no row in data/declarations.ts, so the attestation the
+    // status rests on is written here, for the register to show who and when.
+    declaredBy: "Sipho Mahlangu",
+    declaredAt: "29 Jul 2026",
+    condition: "Repairable",
+    requester: "Sipho Mahlangu",
     daysOpen: 37,
     agingBucket: "31-45",
     criticality: "CRITICAL",
@@ -66,6 +72,10 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairStatus: "At Vendor",
     receiptStatus: "Awaiting Receipt",
     declarationStatus: "Completed",
+    declaredBy: "Johan Botha",
+    declaredAt: "17 Aug 2026",
+    condition: "Repairable",
+    requester: "Johan Botha",
     daysOpen: 18,
     agingBucket: "16-30",
     criticality: "NORMAL",

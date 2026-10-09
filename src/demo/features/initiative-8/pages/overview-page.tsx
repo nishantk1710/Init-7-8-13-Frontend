@@ -5,6 +5,7 @@ import { ChartCard } from "@demo/components/shared/chart-card"
 import { KPIStatCard } from "@demo/components/shared/kpi-stat-card"
 import { PageHeader } from "@demo/components/shared/page-header"
 import { buttonVariants } from "@demo/components/ui/button"
+import { JustificationLog } from "@demo/features/initiative-8/components/justification-log"
 import { RepairAgingChart } from "@demo/features/initiative-8/components/repair-aging-chart"
 import { RepairableStockByPlantChart } from "@demo/features/initiative-8/components/repairable-stock-by-plant-chart"
 import { RepairStatusChart } from "@demo/features/initiative-8/components/repair-status-chart"
@@ -160,6 +161,26 @@ export function RefurbishableSparesOverviewPage() {
             <RepairableStockByPlantChart chains={REPAIR_CHAINS} />
           </ChartCard>
         </div>
+
+        {/* The justification log (FR-7, FR-10), which had a screen of its own
+            until 08-Oct-2026. Same section, same anchor as live. */}
+        <section
+          id="justifications"
+          aria-labelledby="justifications-heading"
+          className="flex scroll-mt-6 flex-col gap-3"
+        >
+          <div>
+            <h2 id="justifications-heading" className="text-base font-semibold text-foreground">
+              New-purchase justifications
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Why a new unit was bought while a repairable one already existed — captured at the
+              moment of the reservation (FR-7). A reason recorded while a repair was out also shows
+              on that line in the Repair Register.
+            </p>
+          </div>
+          <JustificationLog />
+        </section>
       </div>
     </div>
   )

@@ -1,9 +1,11 @@
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import {
+  JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
   NO_CRITICALITY,
   OVERDUE_STATUS_LABEL,
   isPartiallyReceived,
+  justificationCellOf,
   overdueStatusOf,
 } from "@demo/features/initiative-8/utils/status"
 import type { SAPDocumentReference } from "@demo/lib/domain/contracts"
@@ -55,23 +57,19 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
   return doc.line ? `${doc.documentNumber}/${doc.line}` : doc.documentNumber
 }
 
+/** The export's columns, in the order the screen shows them. Same as live. */
 export const REGISTER_CSV_HEADERS = [
   "Line",
   "Material",
   "Description",
   "Plant",
-  "Criticality",
-  "Stock on hand",
-  "Reorder point",
-  "Repair PR",
-  "Repair PO",
-  "Blocked in SAP",
   "Vendor",
   "Qty under repair",
   "Repair status",
   "Partially received",
-  "Overdue status",
+  "Blocked in SAP",
   "Expected return",
+  "Overdue status",
   "Days open",
   "Days elapsed",
   "Aging band",
@@ -79,37 +77,51 @@ export const REGISTER_CSV_HEADERS = [
   "Planned lead time (days)",
   "Days over lead time",
   "Declaration status",
+  "Declared by",
+  "Declared at",
+  "Justification",
+  "Criticality",
+  "Stock on hand",
+  "Reorder point",
+  "Repair PR",
+  "Repair PO",
   "Raised",
 ]
 
 /** One CSV row per chain handed in — already filtered, so the file is the view. */
 export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] {
-  return chains.map((c) => [
-    c.id,
-    c.material.materialCode,
-    c.material.description,
-    `${c.plant.plantId} ${c.plant.name}`,
-    c.criticality ?? "",
-    c.stockOnHand,
-    c.reorderPoint,
-    documentLabel(c.repairPR),
-    documentLabel(c.repairPO),
-    c.poBlocked ? "Yes" : "No",
-    c.vendor,
-    c.qtyUnderRepair,
-    c.repairStatus,
-    isPartiallyReceived(c) ? "Yes" : "No",
-    OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
-    c.expectedReturn,
-    c.daysOpen,
-    c.daysElapsed ?? "",
-    c.agingBucket,
-    c.leadTimeStatus && c.leadTimeStatus !== "NO_LEAD_TIME"
-      ? LEAD_TIME_VERDICT_LABEL[c.leadTimeStatus]
-      : "",
-    c.leadTimeDays ?? "",
-    c.daysOverLeadTime ?? "",
-    c.declarationStatus,
-    c.raisedAt,
-  ])
+  return chains.map((c) => {
+    const justification = justificationCellOf(c)
+    return [
+      c.id,
+      c.material.materialCode,
+      c.material.description,
+      `${c.plant.plantId} ${c.plant.name}`,
+      c.vendor,
+      c.qtyUnderRepair,
+      c.repairStatus,
+      isPartiallyReceived(c) ? "Yes" : "No",
+      c.poBlocked ? "Yes" : "No",
+      c.expectedReturn,
+      OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
+      c.daysOpen,
+      c.daysElapsed ?? "",
+      c.agingBucket,
+      c.leadTimeStatus && c.leadTimeStatus !== "NO_LEAD_TIME"
+        ? LEAD_TIME_VERDICT_LABEL[c.leadTimeStatus]
+        : "",
+      c.leadTimeDays ?? "",
+      c.daysOverLeadTime ?? "",
+      c.declarationStatus,
+      c.declaredBy ?? "",
+      c.declaredAt ?? "",
+      justification === "NONE" ? "" : JUSTIFICATION_CELL_LABEL[justification],
+      c.criticality ?? "",
+      c.stockOnHand,
+      c.reorderPoint,
+      documentLabel(c.repairPR),
+      documentLabel(c.repairPO),
+      c.raisedAt,
+    ]
+  })
 }

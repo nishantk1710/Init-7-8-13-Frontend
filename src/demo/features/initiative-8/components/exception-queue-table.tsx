@@ -40,9 +40,9 @@ const ALL = "all"
  * each.
  *
  * Read-only by design. Nothing here resolves or dismisses an exception: the
- * way to clear a missing attestation is to record one on the Declaration
- * Queue, and the list is recomputed from the underlying records rather than
- * ticked off.
+ * way to clear a missing attestation is to record one from the repair detail
+ * page each row links to, and the list is recomputed from the underlying
+ * records rather than ticked off.
  */
 export function ExceptionQueueTable() {
   const { openMaterial360 } = useMaterial360()

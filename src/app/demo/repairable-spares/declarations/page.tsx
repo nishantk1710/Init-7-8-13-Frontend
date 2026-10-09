@@ -1,11 +1,10 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { DeclarationQueuePage } from "@demo/features/initiative-8/pages/declarations-page"
-
-export const metadata: Metadata = {
-  title: "Declaration Queue — Repairable Spares — Spares AI",
-}
-
+/**
+ * The Declaration Queue was folded into the Repair Register on 08-Oct-2026,
+ * as in live. The public path, not /demo/...: the data-mode proxy rewrites it
+ * back into the Snapshot tree.
+ */
 export default function Page() {
-  return <DeclarationQueuePage />
+  redirect("/repairable-spares/repair-register")
 }

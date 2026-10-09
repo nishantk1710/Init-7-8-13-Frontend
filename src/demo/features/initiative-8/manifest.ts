@@ -22,11 +22,12 @@ export const initiative8Manifest: InitiativeManifest = {
       // arrives with a session id and a justification prompt. A separate
       // lookup screen gave the same answer with neither, so the record of it
       // now lives in the Exception Queue and the justification log instead.
-      {
-        label: "Declaration Queue",
-        icon: "file-text",
-        href: "/repairable-spares/declarations",
-      },
+      //
+      // No Declaration Queue or Justifications page either (08-Oct-2026), as
+      // in live: each line's declaration and justification show in the
+      // register, the declaration form is on the repair detail page, and the
+      // justification log is a section of the Overview. Both old URLs redirect.
+
       // Every finding the checks raise: missing declarations, and new units
       // bought while a repair was open with no justification recorded.
       {
@@ -38,13 +39,6 @@ export const initiative8Manifest: InitiativeManifest = {
         label: "Coding Candidates",
         icon: "search",
         href: "/repairable-spares/coding-candidates",
-      },
-      // The other half of the record: why somebody bought new while a
-      // repairable unit already existed.
-      {
-        label: "Justifications",
-        icon: "clipboard-check",
-        href: "/repairable-spares/justifications",
       },
     ],
   },

@@ -1,12 +1,9 @@
-import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
-import { ChevronRight } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
-import { buttonVariants } from "@/components/ui/button"
 import { RepairAgingChart } from "@/features/initiative-8/components/repair-aging-chart"
 import { RepairableStockByPlantChart } from "@/features/initiative-8/components/repairable-stock-by-plant-chart"
 import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
@@ -33,12 +30,16 @@ const NOT_LOADED = "Could not be loaded"
  *
  * Every tile and chart reads the backend: the register (counts from its meta,
  * charts from its rows), the repairable universe, and the declaration and
- * exception queues' meta. See `data/live-overview.ts` for which figure comes
+ * exception checks' meta. See `data/live-overview.ts` for which figure comes
  * from where. The eight hand-written fixture chains this page used to total up
  * are gone from it; nothing on screen is invented.
  *
  * The register is required; the other sources are best-effort, and a tile
  * whose source failed says so instead of showing a number.
+ *
+ * There is no exception-queue strip: the Exception Queue screen was removed on
+ * 08-Oct-2026. The exception check still runs; its result shows here as the
+ * Unjustified new purchases tile, and per line in the register.
  */
 export async function RefurbishableSparesOverviewPage() {
   // Not statically prerendered: every figure here moves as attestations and
@@ -140,30 +141,6 @@ export async function RefurbishableSparesOverviewPage() {
           trendLabel={meta.overdueLines > 0 ? "Past promised return" : undefined}
           hint={`${meta.overdueLines > 0 ? "· " : ""}${formatCount(meta.noDueDateLines)} with no due date`}
         />
-      </div>
-
-      {/* Total and actionable, always together: the first is the business
-          case, the second is the work. */}
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-muted-foreground">
-          {exceptions ? (
-            <>
-              Exception queue:{" "}
-              <strong className="text-foreground">{formatCount(exceptions.total)}</strong>{" "}
-              exceptions, <strong className="text-foreground">{formatCount(exceptions.actionable)}</strong>{" "}
-              actionable, {formatCount(exceptions.preAutomation)} raised before Spares Automation.
-            </>
-          ) : (
-            "The exception queue could not be loaded."
-          )}
-        </p>
-        <Link
-          href="/repairable-spares/exceptions"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          Open exception queue
-          <ChevronRight className="size-3.5" />
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">

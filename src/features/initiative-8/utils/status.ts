@@ -1,7 +1,6 @@
 import type {
   AgingBucket,
   DeclarationStatus,
-  ExceptionSeverity,
   LeadTimeStatus,
   OverdueStatus,
   ReceiptStatus,
@@ -43,6 +42,49 @@ export const DECLARATION_STATUSES: readonly DeclarationStatus[] = [
   "Completed",
   "Flagged",
 ]
+
+/**
+ * What the register's Justification cell says.
+ *
+ * `NOT_ASKED` is a MISSING whose every unjustified purchase predates the
+ * justification control — the same pre-automation split the exception check
+ * makes, so a purchase nobody could have been asked about does not read as a
+ * miss. `NONE` is a line no reason and no new purchase ever touched.
+ */
+export type JustificationCell = "RECORDED" | "MISSING" | "NOT_ASKED" | "NONE"
+
+export function justificationCellOf(chain: Pick<RepairChain, "justification">): JustificationCell {
+  const value = chain.justification
+  if (!value) return "NONE"
+  if (value.status === "RECORDED") return "RECORDED"
+  return value.unjustifiedPurchases.length > 0 &&
+    value.unjustifiedPurchases.every((purchase) => purchase.preAutomation)
+    ? "NOT_ASKED"
+    : "MISSING"
+}
+
+export const JUSTIFICATION_CELL_LABEL: Record<JustificationCell, string> = {
+  RECORDED: "Recorded",
+  MISSING: "Missing",
+  NOT_ASKED: "Not asked",
+  NONE: "—",
+}
+
+export const JUSTIFICATION_CELL_TONE: Record<Exclude<JustificationCell, "NONE">, Tone> = {
+  RECORDED: "success",
+  MISSING: "warning",
+  NOT_ASKED: "default",
+}
+
+/** The hover text behind each cell — what it means, in a sentence. */
+export const JUSTIFICATION_CELL_NOTE: Record<JustificationCell, string> = {
+  RECORDED: "A reason for buying new was recorded while this repair was out.",
+  MISSING:
+    "A new unit was bought while this repair was out, and no reason was recorded.",
+  NOT_ASKED:
+    "A new unit was bought while this repair was out, before the justification control existed — nobody was asked.",
+  NONE: "No new unit was bought, and no reason recorded, while this repair was out.",
+}
 
 /** The lifecycle order, for sorting status options that come from the data. */
 export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
@@ -120,29 +162,6 @@ export const CRITICALITY_TONE: Record<string, Tone> = {
 
 /** Filter/CSV label for a line with no criticality rating on record. */
 export const NO_CRITICALITY = "Not recorded"
-
-export const EXCEPTION_SEVERITY_TONE: Record<ExceptionSeverity, Tone> = {
-  critical: "danger",
-  warning: "warning",
-  info: "default",
-}
-
-const EXCEPTION_TYPE_LABEL: Record<string, string> = {
-  MISSING_ATTESTATION: "Missing attestation",
-  UNJUSTIFIED_ACQUISITION: "Unjustified acquisition",
-}
-
-/**
- * A readable label for an exception type — including one this build has never
- * heard of, which is humanised from its code ("SOME_NEW_CHECK" -> "Some new
- * check") rather than shown raw or dropped.
- */
-export function exceptionTypeLabel(type: string): string {
-  const known = EXCEPTION_TYPE_LABEL[type]
-  if (known) return known
-  const words = type.replace(/_/g, " ").trim().toLowerCase()
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : UNKNOWN
-}
 
 /**
  * The bands rendered before either side could read them from configuration.

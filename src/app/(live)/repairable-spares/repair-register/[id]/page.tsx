@@ -3,6 +3,7 @@ import { connection } from "next/server"
 
 import { loadLiveRepairDetail } from "@/features/initiative-8/data/live-repair-detail"
 import { RepairDetailPage } from "@/features/initiative-8/pages/repair-detail-page"
+import { getAttestations } from "@/lib/api/i8"
 
 export async function generateMetadata({
   params,
@@ -34,10 +35,20 @@ export default async function Page({
   await connection()
 
   // The try/catch wraps ONLY the fetch, never the render.
+  //
+  // The fault-category list is fetched alongside, for the attestation form
+  // that moved here from the Declaration Queue. Best-effort: a failure costs
+  // the form its list (it then says so and cannot submit), not the page.
   let detail: Awaited<ReturnType<typeof loadLiveRepairDetail>> = null
+  let faultCategories: string[] = []
   let loadError: string | null = null
   try {
-    detail = await loadLiveRepairDetail(id)
+    const [line, attestations] = await Promise.all([
+      loadLiveRepairDetail(id),
+      getAttestations().catch(() => null),
+    ])
+    detail = line
+    faultCategories = attestations?.faultCategories ?? []
   } catch (error) {
     // A failed request -- the backend down, a timeout, a 500 -- and it must say
     // so rather than masquerading as "not found".
@@ -51,5 +62,11 @@ export default async function Page({
   // null means the backend answered and said there is no such repair line.
   // Passing no detail gives the "repair not found" empty state, which is the
   // right answer -- not an error.
-  return <RepairDetailPage repairId={id} detail={detail ?? undefined} />
+  return (
+    <RepairDetailPage
+      repairId={id}
+      detail={detail ?? undefined}
+      faultCategories={faultCategories}
+    />
+  )
 }

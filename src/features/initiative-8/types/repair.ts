@@ -247,6 +247,71 @@ export interface RepairChain {
    * every count and is flagged on screen rather than hidden.
    */
   poBlocked?: boolean
+
+  // --- The declaration, in full ------------------------------------------
+  // The Declaration Queue screen was folded into the register on 08-Oct-2026;
+  // what it showed per row now travels on the line. All undefined when no
+  // attestation covers the line.
+
+  /** Who recorded the attestation. */
+  declaredBy?: string
+  /** When, as a display date. */
+  declaredAt?: string
+  /** What the attestation concluded. */
+  condition?: DeclarationCondition
+  /** What a person should do about this line's declaration, in a sentence. */
+  declarationNextAction?: string
+  /** EKPO.AFNAM — a requisitioner CODE, not a name. */
+  requester?: string
+
+  /**
+   * FR-7 on this line. Undefined when no reason was recorded while it was out
+   * and no new purchase overlapped it without one — the Justifications screen
+   * was folded into the register on 08-Oct-2026.
+   */
+  justification?: RepairJustification
+}
+
+/**
+ * The register's Justification cell.
+ *
+ * A justification is recorded against a material, a plant and an assistant
+ * session — never against a repair line — so the backend attaches one to every
+ * line of that part that was out when it was recorded. Justifications recorded
+ * while a unit was merely on the shelf have no line to sit on; they appear
+ * only on the Justifications screen.
+ */
+export type JustificationStatus = "RECORDED" | "MISSING"
+
+/** One NEW_ACQUISITION justification recorded while the line was out. */
+export interface RepairJustificationEntry {
+  id?: string
+  reasonCategory?: string
+  freeText?: string
+  author?: string
+  /** Display date and time. */
+  recordedAt?: string
+  /** The assistant session it was recorded in. */
+  sessionId?: string
+}
+
+/** A new unit bought while the line was out, with no reason recorded. */
+export interface UnjustifiedPurchase {
+  /** The `UNJUSTIFIED_ACQUISITION` exception this is. */
+  exceptionId: string
+  purchase: SAPDocumentReference
+  raisedAt?: string
+  /** Bought before the justification control existed — nobody was asked. */
+  preAutomation: boolean
+}
+
+export interface RepairJustification {
+  /** MISSING whenever any overlapping purchase has no reason, even if another
+   *  one does: that is the one somebody has to act on. */
+  status: JustificationStatus
+  /** Newest first. */
+  entries: RepairJustificationEntry[]
+  unjustifiedPurchases: UnjustifiedPurchase[]
 }
 
 /** One PO line whose free text mentioned repair (W5.5 coding-candidate screen). */
@@ -319,7 +384,13 @@ export interface CodingCandidate {
   screenedAt?: string
 }
 
-/** One row in the mandatory Condition-to-Repair Declaration Queue. */
+/**
+ * One condition-to-repair declaration row.
+ *
+ * The Declaration Queue screen that rendered these is gone (folded into the
+ * register, 08-Oct-2026). The type stays for the scenario fixtures in
+ * `data/declarations.ts`, which still feed the cross-initiative selectors.
+ */
 export interface DeclarationItem {
   id: string
   pr: SAPDocumentReference
@@ -357,37 +428,3 @@ export interface DeclarationItem {
   createdAt: string
 }
 
-/** How loudly an exception should read. Served by the backend, never derived. */
-export type ExceptionSeverity = "info" | "warning" | "critical"
-
-/**
- * One row of the exception queue (`GET /api/i8/exceptions`).
- *
- * `type` is a plain string, not a closed union: `MISSING_ATTESTATION` and
- * `UNJUSTIFIED_ACQUISITION` are raised today, and a type added on the backend
- * later must still render — with a readable label and a neutral tone — rather
- * than falling through a `Record<Union, …>` lookup.
- */
-export interface RepairException {
-  id: string
-  type: string
-  severity: ExceptionSeverity
-  material: MaterialReference
-  /** Undefined when the backend names no plant — shown as unknown, not guessed. */
-  plant?: PlantReference
-  /** The repair line. For an unjustified acquisition, the repair that was open
-   *  when the new unit was bought. */
-  repairLine: SAPDocumentReference
-  /** `{EBELN}-{EBELP}` for the register detail route; undefined when the line
-   *  number is missing, so no link is built to a page that cannot resolve. */
-  repairId?: string
-  /** The new-purchase PO line. Only unjustified acquisitions carry one. */
-  acquisitionLine?: SAPDocumentReference
-  title: string
-  detail: string
-  /** Display date ("7 Apr 2025"), or undefined when the line has none. */
-  raisedAt?: string
-  isOpenRepair: boolean
-  /** Raised before Spares Automation existed — a reason, not a violation. */
-  preAutomation: boolean
-}

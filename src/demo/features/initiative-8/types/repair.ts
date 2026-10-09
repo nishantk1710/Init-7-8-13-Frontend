@@ -85,9 +85,56 @@ export interface RepairChain {
   repairCost: number
   newUnitLeadTimeDays: number
   notes?: string
+
+  // The declaration in full, and the justification -- what the Declaration
+  // Queue and Justifications screens showed, folded into the register on
+  // 08-Oct-2026. Same fields as live.
+
+  declaredBy?: string
+  declaredAt?: string
+  condition?: DeclarationCondition
+  /** What a person should do about this line's declaration, in a sentence. */
+  declarationNextAction?: string
+  requester?: string
+  /** Undefined when no reason was recorded while the line was out and no new
+   *  purchase overlapped it without one. */
+  justification?: RepairJustification
 }
 
-/** One row in the mandatory Condition-to-Repair Declaration Queue. */
+/** The register's Justification cell. Same shape as live. */
+export type JustificationStatus = "RECORDED" | "MISSING"
+
+/** One justification recorded while the line was out. */
+export interface RepairJustificationEntry {
+  id?: string
+  reasonCategory?: string
+  freeText?: string
+  author?: string
+  recordedAt?: string
+  sessionId?: string
+}
+
+/** A new unit bought while the line was out, with no reason recorded. */
+export interface UnjustifiedPurchase {
+  exceptionId: string
+  purchase: SAPDocumentReference
+  raisedAt?: string
+  /** Bought before the justification control existed — nobody was asked. */
+  preAutomation: boolean
+}
+
+export interface RepairJustification {
+  /** MISSING whenever any overlapping purchase has no reason. */
+  status: JustificationStatus
+  entries: RepairJustificationEntry[]
+  unjustifiedPurchases: UnjustifiedPurchase[]
+}
+
+/**
+ * One condition-to-repair declaration row. The Declaration Queue screen that
+ * rendered these was folded into the register (08-Oct-2026); the rows now
+ * reach the register through `data/register.ts`, joined on `relatedRepairId`.
+ */
 export interface DeclarationItem {
   id: string
   pr: SAPDocumentReference

@@ -1,10 +1,12 @@
 import { REPAIR_CHAINS } from "@demo/features/initiative-8/data/repair-chains"
 import type { DeclarationItem } from "@demo/features/initiative-8/types/repair"
 
-// Deterministic mock data. The Declaration Queue is the mandatory workflow,
-// separate from the advisory duplicate check the Spares Assistant runs at
-// reservation time — these rows are never merged with the RC-80xx repair
-// chains, only cross-referenced via `relatedRepairId` for navigation.
+// Deterministic mock data. The condition declaration is the mandatory
+// workflow, separate from the advisory duplicate check the Spares Assistant
+// runs at reservation time. There is no Declaration Queue screen any more
+// (folded into the register, 08-Oct-2026): `data/register.ts` joins these rows
+// onto their RC-80xx repair chains via `relatedRepairId`, so the register and
+// the detail page show who declared, when and the next action.
 //
 // A line released with no completed declaration is what the Exception Queue's
 // MISSING_ATTESTATION rows are counting.
@@ -88,7 +90,13 @@ const SCENARIO_DECLARATIONS: DeclarationItem[] = [
     hasActiveRepair: true,
     relatedRepairId: "RC-8008",
     status: "Flagged",
-    nextAction: "Discrepancy — a new-unit PR was raised while a repair PO is already open. Reconcile with buyer.",
+    // Flagged means the assessment did NOT find the part repairable and it
+    // went for repair anyway -- the backend's meaning, not the old mock's.
+    declaredBy: "Thabo Nkosi",
+    declaredAt: "24 Aug 2026",
+    condition: "Beyond Economical Repair",
+    nextAction:
+      "Assessed as Beyond Economical Repair but sent for repair anyway — confirm with Thabo Nkosi before the unit comes back.",
     createdAt: "23 Aug 2026",
   },
   {

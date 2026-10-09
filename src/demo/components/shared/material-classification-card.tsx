@@ -25,7 +25,10 @@ function quickActionsFor(materialId: string, route: ReturnType<typeof classifyMa
     case "initiative-8":
       return [
         { label: "View Repair Register", href: signalHref ?? "/repairable-spares/repair-register" },
-        { label: "Start Condition Declaration", href: "/repairable-spares/declarations" },
+        // The declaration form is on the repair detail page (the Declaration
+        // Queue was folded into the register, 08-Oct-2026), which is where the
+        // signal already points; the register when there is no signal.
+        { label: "Start Condition Declaration", href: signalHref ?? "/repairable-spares/repair-register" },
       ]
     case "initiative-7":
       return [

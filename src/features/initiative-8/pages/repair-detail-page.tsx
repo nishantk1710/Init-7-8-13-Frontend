@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
 import { MaterialIdentity } from "@/components/shared/material-identity"
@@ -7,17 +9,23 @@ import { PageHeader } from "@/components/shared/page-header"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
+import { DeclareConditionButton } from "@/features/initiative-8/components/declare-condition-button"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   DECLARATION_STATUS_TONE,
+  JUSTIFICATION_CELL_LABEL,
+  JUSTIFICATION_CELL_NOTE,
+  JUSTIFICATION_CELL_TONE,
   REPAIR_STATUS_TONE,
   UNKNOWN,
   formatDaysRemaining,
   isPartiallyReceived,
   isRepairOverdue,
+  justificationCellOf,
   orUnknown,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
+import { isPlaceholderActor } from "@/lib/api/actor"
 import { useMaterial360 } from "@/lib/material-360-context"
 import { formatZAR } from "@/lib/utils"
 
@@ -34,12 +42,19 @@ export type RepairDetailPageProps = {
   detail?: { chain: RepairChain; timeline: TimelineEvent[] }
   /** Set when the fetch failed. Rendered as a failure, never as "not found". */
   loadError?: string | null
+  /**
+   * The attestation form's fault categories, served by the API. Empty when
+   * that fetch failed: the form then says so rather than offering a list it
+   * made up.
+   */
+  faultCategories?: string[]
 }
 
 export function RepairDetailPage({
   repairId,
   detail,
   loadError = null,
+  faultCategories = [],
 }: RepairDetailPageProps) {
   const { openMaterial360 } = useMaterial360()
   const chain = detail?.chain
@@ -184,27 +199,135 @@ export function RepairDetailPage({
               </dl>
             </div>
 
-            {/* The backend's own answer, computed from the attestation table
-                against a material + plant + date-window match (W5.3). The
-                fixture declaration timeline that used to sit here was keyed to
-                the RC-80xx scenario ids and could only ever have attached a
-                fabricated audit trail to a real part. */}
+            {/* Computed from the attestation table against a material +
+                plant + date-window match (W5.3). Since 08-Oct-2026 this panel
+                is also where the condition is declared: the Declaration Queue
+                was the register's own lines with other columns, so it was
+                folded into the register and its form moved here, beside the
+                evidence. */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 text-sm font-medium text-foreground">Condition declaration</div>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="text-sm font-medium text-foreground">Condition declaration</div>
+                {chain.declarationStatus !== "Completed" && (
+                  <DeclareConditionButton chain={chain} faultCategories={faultCategories} />
+                )}
+              </div>
               <StatusBadge tone={DECLARATION_STATUS_TONE[chain.declarationStatus]}>
                 {chain.declarationStatus}
               </StatusBadge>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {chain.declarationStatus === "Completed"
-                  ? "A recorded condition assessment covers this repair line and found the part repairable."
-                  : chain.declarationStatus === "Flagged"
-                    ? "A recorded condition assessment covers this repair line but did not find the part repairable — it was sent for repair anyway. Confirm the decision with the attestor."
-                    : "No recorded condition assessment covers this repair line. Until this platform there was nowhere to record one, so nearly every historical line reads Required — that is the finding, not a fault."}
+              {chain.declaredBy && (
+                <dl className="mt-3 grid grid-cols-2 gap-y-2 text-xs">
+                  <dt className="text-muted-foreground">Declared by</dt>
+                  <dd className="text-right text-foreground">{chain.declaredBy}</dd>
+                  <dt className="text-muted-foreground">Declared on</dt>
+                  <dd className="text-right text-foreground">{chain.declaredAt ?? UNKNOWN}</dd>
+                  <dt className="text-muted-foreground">Condition</dt>
+                  <dd className="text-right text-foreground">{chain.condition ?? UNKNOWN}</dd>
+                </dl>
+              )}
+              <dl className="mt-2 grid grid-cols-2 gap-y-2 text-xs">
+                {/* A requisitioner CODE: no person directory was delivered. */}
+                <dt className="text-muted-foreground">Requester</dt>
+                <dd className="text-right text-foreground">{chain.requester ?? UNKNOWN}</dd>
+              </dl>
+              {/* The line's own next action when there is one, open or closed,
+                  flagged or not -- and the fixed note per status when not. */}
+              <p className="mt-3 text-xs text-muted-foreground">
+                {chain.declarationNextAction ??
+                  (chain.declarationStatus === "Completed"
+                    ? "A recorded condition assessment covers this repair line and found the part repairable."
+                    : chain.declarationStatus === "Flagged"
+                      ? "A recorded condition assessment covers this repair line but did not find the part repairable — it was sent for repair anyway. Confirm the decision with the attestor."
+                      : "No recorded condition assessment covers this repair line. Until this platform there was nowhere to record one, so nearly every historical line reads Required — that is the finding, not a fault.")}
               </p>
             </div>
+
+            <JustificationPanel chain={chain} />
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * FR-7 on this line: the reasons recorded for buying new while it was out, and
+ * the purchases made with none: this line's share of the Justifications screen.
+ */
+function JustificationPanel({ chain }: { chain: RepairChain }) {
+  const cell = justificationCellOf(chain)
+  const entries = chain.justification?.entries ?? []
+  const purchases = chain.justification?.unjustifiedPurchases ?? []
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 text-sm font-medium text-foreground">Justification</div>
+      {cell !== "NONE" && (
+        <StatusBadge tone={JUSTIFICATION_CELL_TONE[cell]}>{JUSTIFICATION_CELL_LABEL[cell]}</StatusBadge>
+      )}
+      <p className={cell === "NONE" ? "text-xs text-muted-foreground" : "mt-2 text-xs text-muted-foreground"}>
+        {JUSTIFICATION_CELL_NOTE[cell]}
+      </p>
+
+      {purchases.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {purchases.map((purchase) => (
+            <li key={purchase.exceptionId} className="flex flex-wrap items-center gap-2 text-xs">
+              <SAPDocumentChip doc={purchase.purchase} />
+              <span className="text-muted-foreground">
+                bought {purchase.raisedAt ?? "on an unknown date"}
+                {purchase.preAutomation ? ", before the control existed" : ", no reason recorded"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {entries.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-3">
+          {entries.map((entry, index) => (
+            <li key={entry.id ?? index} className="rounded-lg border border-border p-3">
+              <p className="text-xs font-medium text-foreground">
+                {entry.reasonCategory ? entry.reasonCategory.replace(/_/g, " ") : "Reason recorded"}
+              </p>
+              {/* The part a person actually reads. A category on its own
+                  records that a box was ticked. */}
+              {entry.freeText && (
+                <p className="mt-0.5 text-xs text-muted-foreground">{entry.freeText}</p>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Recorded by{" "}
+                <span className={entry.author && isPlaceholderActor(entry.author) ? "italic" : undefined}>
+                  {entry.author ?? UNKNOWN}
+                </span>
+                {entry.author && isPlaceholderActor(entry.author) && " (no sign-in — provisional)"}
+                {entry.recordedAt && ` · ${entry.recordedAt}`}
+                {entry.sessionId && (
+                  <>
+                    {" · "}
+                    <Link
+                      href={`/assistant/sessions/${encodeURIComponent(entry.sessionId)}`}
+                      className="text-primary hover:underline"
+                    >
+                      session {entry.sessionId}
+                    </Link>
+                  </>
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Why some reasons are not here: one recorded while a unit was on the
+          shelf, with nothing out for repair, has no line to sit on. */}
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        Reasons recorded while a unit was on the shelf, with nothing out for repair, are on the{" "}
+        <Link href="/repairable-spares/justifications" className="text-primary hover:underline">
+          Justifications
+        </Link>{" "}
+        screen.
+      </p>
     </div>
   )
 }
