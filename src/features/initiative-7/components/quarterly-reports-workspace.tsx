@@ -7,19 +7,22 @@
 // severity, excess inventory, working-capital impact, a stockout-risk trend)
 // have no defined business rule anywhere in I07 (confirmed by a full
 // source-tree audit), and are rendered as explicit "not yet defined" states
-// via ManagementSummary, never approximated or fabricated. The original
-// 14-section technical deep-dive (data-quality/forecasting/OAR detail) is
-// kept below as "Full report detail" -- real, traceable data that remains
-// useful, just not what a management reader needs first.
+// via ManagementSummary, never approximated or fabricated.
+//
+// The "Full report detail" accordion (the original 14-section technical
+// deep-dive) and the Material criticality tier cards were removed on
+// request: the deep-dive duplicated detail a management reader does not
+// need first, and ZMM065 criticality is unpopulated for current quarters,
+// so the tier cards rendered five honest-but-misleading zeros. Both remain
+// available in the report JSON and the Excel export.
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import {
   AlertTriangle,
   Boxes,
-  CircleCheck,
   Clock,
-  Download,
   FileBarChart,
   Loader2,
   RefreshCw,
@@ -28,7 +31,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -42,7 +44,6 @@ import {
 import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
-import { DonutWithLegend, type DonutSlice } from "@/features/initiative-7/components/donut-with-legend"
 import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
 import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
@@ -51,12 +52,12 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
-import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
+import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
 import type {
   ApiBaselineComparisonRow,
-  ApiForecastAccuracyMetric,
-  ApiPopulationCount,
   ApiUndefinedManagementMetric,
 } from "@/features/initiative-7/types/api"
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
@@ -82,50 +83,10 @@ function candidateQuarters(): string[] {
   }
   return out
 }
-
-const DEMAND_CLASS_COLOR: Record<string, string> = {
-  SMOOTH: "var(--chart-3)",
-  ERRATIC: "var(--chart-1)",
-  INTERMITTENT: "var(--chart-4)",
-  LUMPY: "var(--warning)",
-  UNCLASSIFIED: "var(--muted-foreground)",
-}
-
-const DEMAND_CLASS_LABEL: Record<string, string> = {
-  SMOOTH: "Smooth",
-  ERRATIC: "Erratic",
-  INTERMITTENT: "Intermittent",
-  LUMPY: "Lumpy",
-  UNCLASSIFIED: "Unclassified",
-}
-
-/** The 5 real ZMM065 tiers, most-severe first -- never collapsed into an
- * invented A/B/C 3-bucket grouping (no such grouping exists in policy or
- * code; see MaterialCriticalitySection's own docstring on the backend).
- * Card tint per tier uses only existing theme tokens (no new hex), following
- * the mockup's tinted-mini-card language: CRITICAL->destructive,
- * IMPACT->warning, INSURANCE->accent, NORMAL->muted (neutral), OBSOLETE->a
- * lighter muted -- five visually distinct tiers from four base tokens. */
-const CRITICALITY_TIER_ORDER = ["CRITICAL", "IMPACT", "INSURANCE", "NORMAL", "OBSOLETE"] as const
-const CRITICALITY_TIER_STYLE: Record<(typeof CRITICALITY_TIER_ORDER)[number], { card: string; text: string; sub: string }> = {
-  CRITICAL: { card: "bg-destructive/10 border-destructive/20", text: "text-destructive", sub: "text-destructive/70" },
-  IMPACT: { card: "bg-warning/15 border-warning/25", text: "text-warning", sub: "text-warning/70" },
-  INSURANCE: { card: "bg-accent border-accent-foreground/15", text: "text-accent-foreground", sub: "text-accent-foreground/70" },
-  NORMAL: { card: "bg-muted border-border", text: "text-foreground", sub: "text-muted-foreground" },
-  OBSOLETE: { card: "bg-muted/40 border-border/60", text: "text-muted-foreground", sub: "text-muted-foreground/80" },
-}
-const CRITICALITY_TIER_CAPTION: Record<(typeof CRITICALITY_TIER_ORDER)[number], string> = {
-  CRITICAL: "Line-stopping if unavailable",
-  IMPACT: "Some operational impact",
-  INSURANCE: "Held for insurance/cover",
-  NORMAL: "Standard replenishment",
-  OBSOLETE: "Marked for retirement",
-}
-
 /** Text-color-only treatment for the material table's Crit. column, keyed on
- * the app's mapped Criticality (not the raw ZMM065 tier) -- the same tone
- * mapping used for CRITICALITY_TIER_STYLE above, applied as plain colored
- * text rather than a tinted badge to match the reference table's style. */
+ * the app's mapped Criticality (not the raw ZMM065 tier), applied as plain
+ * colored text rather than a tinted badge to match the reference table's
+ * style. */
 const CRITICALITY_TIER_TEXT_COLOR: Record<Criticality, string> = {
   Critical: "text-destructive",
   High: "text-warning",
@@ -146,44 +107,6 @@ const RECOMMENDATION_STATUS_TEXT_COLOR: Record<string, string> = {
   Implemented: "text-success",
 }
 
-function titleCaseStatus(status: string): string {
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ")
-}
-
-/** A plain populated/missing count -- no AvailabilityStatus of its own
- * (unlike ForecastAccuracyMetric), so rendered directly rather than through
- * AvailabilityValue: a 0-populated count here is a real measured fact
- * (see PopulationCount's own docstring), not a missing-data placeholder. */
-function PopulationRow({ label, pop }: { label: string; pop: ApiPopulationCount }) {
-  const pct = formatDecimal(pop.percentage_populated, 1)
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums text-foreground">
-        {formatCount(pop.populated_count)} / {formatCount(pop.total_count)}
-        <span className="ml-1.5 text-muted-foreground">({pct ?? "0.0"}%)</span>
-      </span>
-    </div>
-  )
-}
-
-function AccuracyMetricRow({ label, metric, unit }: { label: string; metric: ApiForecastAccuracyMetric; unit?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <AvailabilityValue status={metric.status} value={formatDecimal(metric.value)} unit={unit} size="sm" />
-        <span className="text-[11px] text-muted-foreground">
-          ({formatCount(metric.populated_count)}/{formatCount(metric.total_count)})
-        </span>
-      </div>
-    </div>
-  )
-}
 
 /** One mockup KPI card for a metric with no defined business rule today --
  * always NOT_CONFIGURED, always shows the real backend-supplied reason, never
@@ -320,6 +243,16 @@ type GenerationTab = "landing" | "report"
 
 const MATERIALS_PAGE_SIZE = 5
 
+/** Rows the PDF's material table carries. The screen shows a 5-row preview;
+ * the PDF is the fuller record, but still a subset of ~113k and labelled as
+ * one -- it is not ranked by ROP change, because no such ranking exists in
+ * the backend (see recommendation-sort-contract.test.ts). */
+const PDF_MATERIALS_SIZE = 50
+
+/** Rows backing the on-screen charts. Printed verbatim in the PDF's
+ * disclosure so a sample is never implied to be the whole quarter. */
+const CHART_SAMPLE_SIZE = 200
+
 export function QuarterlyReportsWorkspace() {
   const quarters = candidateQuarters()
   const { data: existingReports, refetch: refetchReportsList } = useQuarterlyReports(50)
@@ -329,8 +262,13 @@ export function QuarterlyReportsWorkspace() {
   const { data: report, loading, error, status, refetch, generate, generating, generationError } =
     useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
-  const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
-  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [pdfState, setPdfState] = useState<"idle" | "preparing">("idle")
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  // Set when the user asks to print; cleared once the dialog has been
+  // opened. The effect below waits on it rather than printing inline, so
+  // the 50-row fetch and the print view's own render both land first.
+  const [printRequested, setPrintRequested] = useState(false)
+  const printTimer = useRef<number | null>(null)
 
   // "Generate latest closed quarter", from the landing grid -- no quarter is
   // selected yet at that point, so this cannot reuse useQuarterlyReport's own
@@ -357,25 +295,23 @@ export function QuarterlyReportsWorkspace() {
     }
   }
 
-  async function handleDownload() {
-    if (!selectedQuarter) return
-    setDownloadState("preparing")
-    setDownloadError(null)
-    try {
-      const { blobUrl, filename } = await fetchQuarterlyReportExportBlob(selectedQuarter)
-      const a = document.createElement("a")
-      a.href = blobUrl
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(blobUrl)
-      setDownloadState("ready")
-      setTimeout(() => setDownloadState((s) => (s === "ready" ? "idle" : s)), 2000)
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Export failed.")
-      setDownloadState("error")
-    }
+  /** Download PDF -- the complete management report, printed by the
+   * browser.
+   *
+   * This only *requests* a print. The actual window.print() happens in the
+   * effect below, once the PDF's own 50-row material fetch has resolved and
+   * React has committed the print view. Calling print() here would open the
+   * dialog against a half-populated DOM and produce a PDF with an empty
+   * material table -- the exact "blank section" failure this has to avoid.
+   *
+   * Re-entrancy: the button is disabled while pdfState is "preparing", and
+   * the effect clears the request before printing, so a double click cannot
+   * open two dialogs. */
+  function handleDownloadPdf() {
+    if (!report || pdfState === "preparing") return
+    setPdfError(null)
+    setPdfState("preparing")
+    setPrintRequested(true)
   }
 
   function openReport(quarter: string) {
@@ -383,17 +319,6 @@ export function QuarterlyReportsWorkspace() {
     setTab("report")
     setMaterialsPage(1)
   }
-
-  const demandOrder = ["SMOOTH", "ERRATIC", "INTERMITTENT", "LUMPY", "UNCLASSIFIED"]
-  const demandByClass = new Map(report?.demand_classification.by_class.map((d) => [d.demand_class, d]) ?? [])
-  const demandSlices: DonutSlice[] = demandOrder
-    .filter((cls) => demandByClass.has(cls))
-    .map((cls) => {
-      const row = demandByClass.get(cls)!
-      return { label: DEMAND_CLASS_LABEL[cls] ?? cls, count: row.count, color: DEMAND_CLASS_COLOR[cls] ?? "var(--chart-2)" }
-    })
-
-  const criticalityByTier = new Map(report?.material_criticality.by_tier.map((row) => [row.criticality, row.count]) ?? [])
 
   // Real mean current/recommended/delta per metric, straight from Section
   // 12's baseline comparison -- the one place the report computes these
@@ -407,13 +332,25 @@ export function QuarterlyReportsWorkspace() {
   // uses (not filtered to the report's own generated_from/generated_to --
   // most recommendation rows predate the reporting feature and were never
   // regenerated inside a specific quarter window, so a quarter-scoped fetch
-  // reads as empty even when real, live recommendations exist), sorted so
-  // the largest ROP changes surface first. Paged against the real backend
-  // (113k+ rows total) rather than fetched-then-sliced client-side.
+  // reads as empty even when real, live recommendations exist). Paged
+  // against the real backend (113k+ rows total) rather than
+  // fetched-then-sliced client-side.
+  //
+  // Sorted newest-first. This previously asked for "rop_delta_magnitude",
+  // which is NOT in the backend's sort whitelist
+  // (app/api/i7/recommendations.py::SORT_FIELDS -- generated_at, status,
+  // material, plant, demand_class, confidence). An unknown value is not
+  // ignored: the route raises 400 INVALID_SORT_FIELD, so this fetch failed
+  // outright and the table rendered its empty state on every load.
+  //
+  // There is no persisted ROP-delta column to sort on -- ranking by it would
+  // mean computing a delta across all 113k rows -- so this uses a real,
+  // indexed, whitelisted field instead of inventing a ranking. The heading
+  // says "recent", not "top", because that is what the data now is.
   const { data: materials, total: materialsTotal } = useLiveRecommendations(
     report
       ? {
-          sort: "rop_delta_magnitude",
+          sort: "generated_at",
           sortDesc: true,
           page: materialsPage,
           pageSize: MATERIALS_PAGE_SIZE,
@@ -428,6 +365,82 @@ export function QuarterlyReportsWorkspace() {
   const { data: chartRecommendations } = useLiveRecommendations(
     report ? { pageSize: 200 } : {},
   )
+
+  // The PDF's material table: 50 rows, fetched only once a print has been
+  // requested so an ordinary page view never pays for it. Same unscoped,
+  // newest-first fetch as the on-screen preview -- deliberately the same
+  // query, so the PDF cannot disagree with the screen about what the most
+  // recent recommendations are.
+  const { data: pdfMaterials, total: pdfMaterialsTotal, loading: pdfMaterialsLoading } =
+    useLiveRecommendations(
+      report && printRequested
+        ? { sort: "generated_at", sortDesc: true, page: 1, pageSize: PDF_MATERIALS_SIZE }
+        : {},
+    )
+
+  // Open the print dialog only when everything the PDF needs is on the page.
+  //
+  // Waits on: the report itself, the 50-row material fetch, and -- via
+  // document.fonts.ready -- webfont loading, because printing mid-swap
+  // reflows every table and can clip a column. The rAF pair after that
+  // yields until React has committed and the browser has painted, so the
+  // print view is in the DOM and laid out before the dialog snapshots it.
+  useEffect(() => {
+    if (!printRequested) return
+    if (!report) return
+    if (pdfMaterialsLoading) return
+
+    let cancelled = false
+
+    const fontsReady: Promise<unknown> =
+      typeof document !== "undefined" && "fonts" in document
+        ? (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready
+        : Promise.resolve()
+
+    fontsReady
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          }),
+      )
+      .then(() => {
+        if (cancelled) return
+        // Clear the request BEFORE print(): print() blocks on the modal
+        // dialog, and leaving the flag set would re-enter this effect.
+        setPrintRequested(false)
+        try {
+          window.print()
+        } catch (err) {
+          setPdfError(err instanceof Error ? err.message : "Could not open the print dialog.")
+        } finally {
+          setPdfState("idle")
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setPrintRequested(false)
+        setPdfState("idle")
+        setPdfError(err instanceof Error ? err.message : "Could not prepare the PDF.")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [printRequested, report, pdfMaterialsLoading])
+
+  // Guard against a stuck "Preparing…" if the dialog never opens.
+  useEffect(() => {
+    if (pdfState !== "preparing") return
+    printTimer.current = window.setTimeout(() => {
+      setPdfState("idle")
+      setPrintRequested(false)
+      setPdfError("Preparing the PDF timed out. Please try again.")
+    }, 30_000)
+    return () => {
+      if (printTimer.current !== null) window.clearTimeout(printTimer.current)
+    }
+  }, [pdfState])
 
   return (
     <div className="flex flex-col gap-4">
@@ -474,32 +487,22 @@ export function QuarterlyReportsWorkspace() {
               </Button>
               <Button
                 size="sm"
-                variant="outline"
-                onClick={handleDownload}
-                disabled={!report || downloadState === "preparing"}
-                className={cn(
-                  downloadState === "ready" && "border-success text-success",
-                  downloadState === "error" && "border-destructive text-destructive",
-                )}
+                onClick={handleDownloadPdf}
+                disabled={!report || pdfState === "preparing"}
               >
-                {downloadState === "preparing" && <Loader2 className="size-3.5 animate-spin" />}
-                {downloadState === "ready" && <CircleCheck className="size-3.5" />}
-                {downloadState === "error" && <AlertTriangle className="size-3.5" />}
-                {downloadState === "idle" && <Download className="size-3.5" />}
-                {downloadState === "preparing"
-                  ? "Preparing…"
-                  : downloadState === "ready"
-                    ? "Download started"
-                    : downloadState === "error"
-                      ? "Export failed — retry"
-                      : "Download detail Excel"}
+                {pdfState === "preparing" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <FileBarChart className="size-3.5" />
+                )}
+                {pdfState === "preparing" ? "Preparing PDF…" : "Download PDF"}
               </Button>
             </div>
           </div>
 
-          {downloadError && (
+          {pdfError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {downloadError}
+              {pdfError}
             </div>
           )}
 
@@ -550,31 +553,6 @@ export function QuarterlyReportsWorkspace() {
                   footnoteTone="warning"
                 />
               </div>
-
-              {/* --- Material criticality ------------------------------------ */}
-              <ChartCard
-                title="Material criticality"
-                subtitle={
-                  report.material_criticality.populated_percentage !== null
-                    ? `In-scope materials by ZMM065 tier — criticality populated on ${formatDecimal(report.material_criticality.populated_percentage, 1)}% of rows this quarter.`
-                    : "In-scope materials by ZMM065 tier."
-                }
-              >
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {CRITICALITY_TIER_ORDER.map((tier) => {
-                    const style = CRITICALITY_TIER_STYLE[tier]
-                    return (
-                      <div key={tier} className={cn("rounded-lg border p-3", style.card)}>
-                        <div className={cn("text-[13px]", style.text)}>{tier}</div>
-                        <div className={cn("mt-1 text-xl font-semibold", style.text)}>
-                          {formatCount(criticalityByTier.get(tier) ?? 0)}
-                        </div>
-                        <div className={cn("mt-0.5 text-[11px]", style.sub)}>{CRITICALITY_TIER_CAPTION[tier]}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </ChartCard>
 
               {/* --- Everything below in one 12-col grid, matching main's
                   QuarterlyReportsDemoWorkspace layout/spans exactly. --- */}
@@ -640,8 +618,8 @@ export function QuarterlyReportsWorkspace() {
                 </ChartCard>
 
                 <ChartCard
-                  title="Materials — top reorder changes"
-                  subtitle="Full list in the Excel export."
+                  title="Materials — most recent recommendations"
+                  subtitle="Newest first. Not ranked by reorder-point change — no such ranking exists in the backend today."
                   span={12}
                 >
                   {materials && materials.length > 0 ? (
@@ -766,311 +744,43 @@ export function QuarterlyReportsWorkspace() {
                 </ChartCard>
               </div>
 
-              {/* --- Full report detail (the original 14-section deep-dive) --- */}
-              <details className="rounded-xl border border-border bg-card">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">
-                  Full report detail
-                </summary>
-                <div className="flex flex-col gap-4 border-t border-border p-4">
-                  <ChartCard
-                    title="Executive Summary"
-                    subtitle={`${report.metadata.quarter} · ${report.metadata.period_start} to ${report.metadata.period_end} · generated ${new Date(report.metadata.generated_at).toLocaleString()} · v${report.metadata.report_version}`}
-                  >
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      <KPIStatCard label="Material-Plants in Scope" value={formatCount(report.executive_summary.total_material_plants)} />
-                      <KPIStatCard
-                        label="Demand-Classified"
-                        value={
-                          report.executive_summary.classified_percentage !== null
-                            ? `${formatDecimal(report.executive_summary.classified_percentage, 1)}%`
-                            : "—"
-                        }
-                        hint={report.executive_summary.classified_percentage === null ? "0 rows in scope" : undefined}
-                      />
-                      <KPIStatCard label="Total Recommendations" value={formatCount(report.executive_summary.total_recommendations)} />
-                      <KPIStatCard label="Ready for Review" value={formatCount(report.executive_summary.ready_for_review_count)} />
-                      <KPIStatCard label="Pending Approval" value={formatCount(report.executive_summary.pending_approval_count)} />
-                      <KPIStatCard label="Not Evaluable" value={formatCount(report.executive_summary.not_evaluable_count)} />
-                      <KPIStatCard label="OAR Materials" value={formatCount(report.executive_summary.oar_count)} />
-                      <KPIStatCard label="Approval Ledger Entries" value={formatCount(report.executive_summary.approval_ledger_entries)} />
-                    </div>
-                  </ChartCard>
-
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <ChartCard title="Scope & Data Quality" span={6}>
-                      <PopulationRow
-                        label="Classified"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.classified_count,
-                          missing_count: report.scope_and_data_quality.unclassified_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.classified_percentage,
-                        }}
-                      />
-                      <PopulationRow
-                        label="Criticality Populated"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.criticality_populated_count,
-                          missing_count:
-                            report.scope_and_data_quality.total_records - report.scope_and_data_quality.criticality_populated_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.criticality_populated_percentage,
-                        }}
-                      />
-                      <PopulationRow
-                        label="Lead Time Populated"
-                        pop={{
-                          populated_count: report.scope_and_data_quality.lead_time_populated_count,
-                          missing_count:
-                            report.scope_and_data_quality.total_records - report.scope_and_data_quality.lead_time_populated_count,
-                          total_count: report.scope_and_data_quality.total_records,
-                          percentage_populated: report.scope_and_data_quality.lead_time_populated_percentage,
-                        }}
-                      />
-                      <div className="mt-3">
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">History Status Breakdown</div>
-                        {report.scope_and_data_quality.history_status_breakdown.map((row) => (
-                          <div key={row.history_status} className="flex items-center justify-between py-1 text-sm">
-                            <span className="text-muted-foreground">{titleCaseStatus(row.history_status)}</span>
-                            <span className="tabular-nums text-foreground">{formatCount(row.count)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Demand Classification" subtitle={`${formatCount(report.demand_classification.total)} material-plants`} span={6}>
-                      {demandSlices.length > 0 ? (
-                        <DonutWithLegend slices={demandSlices} />
-                      ) : (
-                        <div className="text-sm text-muted-foreground">No demand-classified rows in scope.</div>
-                      )}
-                    </ChartCard>
-                  </div>
-
-                  <ChartCard title="Forecasting" subtitle={`${formatCount(report.forecasting.total_forecasts)} forecast rows`}>
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <AccuracyMetricRow label="Mean Absolute Error" metric={report.forecasting.mean_absolute_error} />
-                        <AccuracyMetricRow label="Pinball Loss" metric={report.forecasting.pinball_loss} />
-                        <AccuracyMetricRow label="Bias %" metric={report.forecasting.bias_percentage} unit="%" />
-                        <AccuracyMetricRow label="Fill Rate" metric={report.forecasting.fill_rate} />
-                        <AccuracyMetricRow label="Holding Cost" metric={report.forecasting.holding_cost} />
-                        <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-0">
-                          <span className="text-muted-foreground">MAPE</span>
-                          <AvailabilityValue status={report.forecasting.mape_status} size="sm" />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">Champion / Challenger</div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Champion</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.champion_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Challenger</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.challenger_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Baseline</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.forecasting.champion_challenger.baseline_count)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </ChartCard>
-
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <ChartCard title="Safety Stock" span={4}>
-                      <PopulationRow label="Current" pop={report.safety_stock.current} />
-                      <PopulationRow label="Recommended" pop={report.safety_stock.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.safety_stock.mean_delta) ?? "—"}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Service Level Policy</span>
-                        <AvailabilityValue status={report.safety_stock.service_level_status} size="sm" />
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Reorder Point" span={4}>
-                      <PopulationRow label="Current" pop={report.reorder_point.current} />
-                      <PopulationRow label="Recommended" pop={report.reorder_point.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.reorder_point.mean_delta) ?? "—"}</span>
-                      </div>
-                    </ChartCard>
-
-                    <ChartCard title="Max Stock" span={4}>
-                      <PopulationRow label="Current" pop={report.max_stock.current} />
-                      <PopulationRow label="Recommended" pop={report.max_stock.recommended} />
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Mean Delta</span>
-                        <span className="tabular-nums text-foreground">{formatDecimal(report.max_stock.mean_delta) ?? "—"}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Strategy Policy</span>
-                        <AvailabilityValue status={report.max_stock.strategy_policy_status} size="sm" />
-                      </div>
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        {formatCount(report.max_stock.strategy_production_resolved_count)} production-resolved of{" "}
-                        {formatCount(report.max_stock.strategy_labeled_count)} labeled (
-                        {formatCount(report.max_stock.strategy_unresolved_fixture_count)} unresolved fixtures)
-                      </div>
-                    </ChartCard>
-                  </div>
-
-                  <ChartCard title="OAR / Min-Max">
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — True</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_true_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — False</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_false_count)}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 text-sm">
-                          <span className="text-muted-foreground">Is OAR — Unknown (null)</span>
-                          <span className="tabular-nums text-foreground">{formatCount(report.oar.is_oar_null_count)}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1.5 text-xs font-medium text-muted-foreground">Conversion Eligibility</div>
-                        {report.oar.conversion_eligibility_breakdown.map((row) => (
-                          <div key={row.conversion_eligibility ?? "null"} className="flex items-center justify-between py-1 text-sm">
-                            <span className="text-muted-foreground">{row.conversion_eligibility ?? "Not recorded"}</span>
-                            <span className="tabular-nums text-foreground">{formatCount(row.count)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard title="Approval">
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Ledger Entries</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.ledger_entry_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Distinct Recommendations</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.distinct_recommendations_in_approval)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Pending</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.pending_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Approved</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.approved_count)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-muted-foreground">Rejected</span>
-                      <span className="tabular-nums text-foreground">{formatCount(report.approval.rejected_count)}</span>
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard
-                    title="Current / I11 Baseline vs I07 Recommendation"
-                    subtitle={`Baseline lead time source: ${report.baseline_comparison.baseline_lead_time_source}${
-                      report.baseline_comparison.i07_lead_time_source ? ` · I07 lead time source: ${report.baseline_comparison.i07_lead_time_source}` : ""
-                    }`}
-                  >
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead>
-                          <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                            <th className="py-1.5 pr-3 font-medium">Metric</th>
-                            <th className="py-1.5 pr-3 font-medium">Baseline</th>
-                            <th className="py-1.5 pr-3 font-medium">I07 Recommendation</th>
-                            <th className="py-1.5 pr-3 font-medium">Delta</th>
-                            <th className="py-1.5 pr-3 font-medium">Delta %</th>
-                            <th className="py-1.5 pr-3 font-medium">Both Available</th>
-                            <th className="py-1.5 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {report.baseline_comparison.rows.map((row) => (
-                            <tr key={row.metric} className="border-b border-border/60 last:border-0">
-                              <td className="py-1.5 pr-3 text-foreground">
-                                {row.metric}
-                                {row.self_referential && (
-                                  <span className="ml-1.5 text-[11px] text-warning">self-comparison</span>
-                                )}
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status === "AVAILABLE" && row.baseline_value === null ? "NOT_AVAILABLE" : row.availability_status}
-                                  value={formatDecimal(row.baseline_value)}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status === "AVAILABLE" && row.recommendation_value === null ? "NOT_AVAILABLE" : row.availability_status}
-                                  value={formatDecimal(row.recommendation_value)}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue status={row.availability_status} value={formatDecimal(row.delta)} size="sm" />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <AvailabilityValue
-                                  status={row.availability_status}
-                                  value={formatDecimal(row.delta_percentage)}
-                                  unit={row.delta_percentage !== null ? "%" : undefined}
-                                  size="sm"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3 tabular-nums text-foreground">{formatCount(row.both_available_count)}</td>
-                              <td className="py-1.5">
-                                <StatusBadge tone={row.availability_status === "AVAILABLE" ? "success" : "warning"}>
-                                  {row.availability_status}
-                                </StatusBadge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {report.baseline_comparison.rows.some((r) => r.self_referential) && (
-                      <p className="mt-2 text-[11px] text-warning">
-                        Lead Time compares MARC-PLIFZ against itself — I07 has no separately-calculated lead time, so
-                        this row&apos;s delta is agreement by construction, not independent validation.
-                      </p>
-                    )}
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground sm:grid-cols-4">
-                      {report.baseline_comparison.rows.map((row) => (
-                        <div key={row.metric}>
-                          {row.metric}: {formatCount(row.baseline_missing_count)} baseline missing ·{" "}
-                          {formatCount(row.recommendation_missing_count)} rec. missing · {formatCount(row.not_evaluable_count)} not
-                          evaluable
-                        </div>
-                      ))}
-                    </div>
-                  </ChartCard>
-
-                  <ChartCard title="Limitations & Dependencies">
-                    <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-                      {report.limitations.items.map((item, i) => (
-                        <li key={i}>{item}</li>
-                      ))}
-                    </ul>
-                  </ChartCard>
-                </div>
-              </details>
             </>
           )}
         </>
       )}
+
+      {/* The print view is portalled to <body> because the print stylesheet
+        * hides `body > *` and re-shows only `.print-portal`. Rendered inside
+        * the app's own tree it would be hidden along with its ancestors.
+        *
+        * Mounted only once a print has been requested: it is a second, full
+        * render of every section, and an ordinary page view should not pay
+        * for it. By the time print() fires (the effect above) this has been
+        * committed and painted. */}
+      {/* printRequested can only be true after a click, so this never
+        * evaluates during SSR; the typeof check documents that rather than
+        * relying on it. */}
+      {printRequested &&
+        report &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="print-portal">
+            <ReportPrintView
+              report={report}
+              materials={pdfMaterials ?? []}
+              materialsTotal={pdfMaterialsTotal}
+              chartSampleSize={CHART_SAMPLE_SIZE}
+              chartRecommendations={chartRecommendations ?? []}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
 
 /** A manual "Generate" trigger, in the same pending/idle visual language as
- * the report view's own Download button (see handleDownload/downloadState
+ * the report view's own Download PDF button (see handleDownloadPdf/pdfState
  * above) -- spinner while in flight, disabled for the duration so a double
  * click cannot submit two concurrent generations (harmless either way, since
  * the backend upserts by quarter, but a disabled button during the ~40-50s
