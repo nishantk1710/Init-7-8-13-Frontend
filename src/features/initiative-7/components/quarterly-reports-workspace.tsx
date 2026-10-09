@@ -16,7 +16,8 @@
 // so the tier cards rendered five honest-but-misleading zeros. Both remain
 // available in the report JSON and the Excel export.
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -54,6 +55,8 @@ import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-a
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
 import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
+import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
 import type {
   ApiBaselineComparisonRow,
@@ -242,6 +245,16 @@ type GenerationTab = "landing" | "report"
 
 const MATERIALS_PAGE_SIZE = 5
 
+/** Rows the PDF's material table carries. The screen shows a 5-row preview;
+ * the PDF is the fuller record, but still a subset of ~113k and labelled as
+ * one -- it is not ranked by ROP change, because no such ranking exists in
+ * the backend (see recommendation-sort-contract.test.ts). */
+const PDF_MATERIALS_SIZE = 50
+
+/** Rows backing the on-screen charts. Printed verbatim in the PDF's
+ * disclosure so a sample is never implied to be the whole quarter. */
+const CHART_SAMPLE_SIZE = 200
+
 export function QuarterlyReportsWorkspace() {
   const quarters = candidateQuarters()
   const { data: existingReports, refetch: refetchReportsList } = useQuarterlyReports(50)
@@ -253,6 +266,13 @@ export function QuarterlyReportsWorkspace() {
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [downloadState, setDownloadState] = useState<"idle" | "preparing" | "ready" | "error">("idle")
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [pdfState, setPdfState] = useState<"idle" | "preparing">("idle")
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  // Set when the user asks to print; cleared once the dialog has been
+  // opened. The effect below waits on it rather than printing inline, so
+  // the 50-row fetch and the print view's own render both land first.
+  const [printRequested, setPrintRequested] = useState(false)
+  const printTimer = useRef<number | null>(null)
 
   // "Generate latest closed quarter", from the landing grid -- no quarter is
   // selected yet at that point, so this cannot reuse useQuarterlyReport's own
@@ -298,6 +318,25 @@ export function QuarterlyReportsWorkspace() {
       setDownloadError(err instanceof Error ? err.message : "Export failed.")
       setDownloadState("error")
     }
+  }
+
+  /** Download PDF -- the complete management report, printed by the
+   * browser.
+   *
+   * This only *requests* a print. The actual window.print() happens in the
+   * effect below, once the PDF's own 50-row material fetch has resolved and
+   * React has committed the print view. Calling print() here would open the
+   * dialog against a half-populated DOM and produce a PDF with an empty
+   * material table -- the exact "blank section" failure this has to avoid.
+   *
+   * Re-entrancy: the button is disabled while pdfState is "preparing", and
+   * the effect clears the request before printing, so a double click cannot
+   * open two dialogs. */
+  function handleDownloadPdf() {
+    if (!report || pdfState === "preparing") return
+    setPdfError(null)
+    setPdfState("preparing")
+    setPrintRequested(true)
   }
 
   function openReport(quarter: string) {
@@ -352,6 +391,82 @@ export function QuarterlyReportsWorkspace() {
     report ? { pageSize: 200 } : {},
   )
 
+  // The PDF's material table: 50 rows, fetched only once a print has been
+  // requested so an ordinary page view never pays for it. Same unscoped,
+  // newest-first fetch as the on-screen preview -- deliberately the same
+  // query, so the PDF cannot disagree with the screen about what the most
+  // recent recommendations are.
+  const { data: pdfMaterials, total: pdfMaterialsTotal, loading: pdfMaterialsLoading } =
+    useLiveRecommendations(
+      report && printRequested
+        ? { sort: "generated_at", sortDesc: true, page: 1, pageSize: PDF_MATERIALS_SIZE }
+        : {},
+    )
+
+  // Open the print dialog only when everything the PDF needs is on the page.
+  //
+  // Waits on: the report itself, the 50-row material fetch, and -- via
+  // document.fonts.ready -- webfont loading, because printing mid-swap
+  // reflows every table and can clip a column. The rAF pair after that
+  // yields until React has committed and the browser has painted, so the
+  // print view is in the DOM and laid out before the dialog snapshots it.
+  useEffect(() => {
+    if (!printRequested) return
+    if (!report) return
+    if (pdfMaterialsLoading) return
+
+    let cancelled = false
+
+    const fontsReady: Promise<unknown> =
+      typeof document !== "undefined" && "fonts" in document
+        ? (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready
+        : Promise.resolve()
+
+    fontsReady
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          }),
+      )
+      .then(() => {
+        if (cancelled) return
+        // Clear the request BEFORE print(): print() blocks on the modal
+        // dialog, and leaving the flag set would re-enter this effect.
+        setPrintRequested(false)
+        try {
+          window.print()
+        } catch (err) {
+          setPdfError(err instanceof Error ? err.message : "Could not open the print dialog.")
+        } finally {
+          setPdfState("idle")
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setPrintRequested(false)
+        setPdfState("idle")
+        setPdfError(err instanceof Error ? err.message : "Could not prepare the PDF.")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [printRequested, report, pdfMaterialsLoading])
+
+  // Guard against a stuck "Preparing…" if the dialog never opens.
+  useEffect(() => {
+    if (pdfState !== "preparing") return
+    printTimer.current = window.setTimeout(() => {
+      setPdfState("idle")
+      setPrintRequested(false)
+      setPdfError("Preparing the PDF timed out. Please try again.")
+    }, 30_000)
+    return () => {
+      if (printTimer.current !== null) window.clearTimeout(printTimer.current)
+    }
+  }, [pdfState])
+
   return (
     <div className="flex flex-col gap-4">
       {tab === "landing" && (
@@ -397,6 +512,18 @@ export function QuarterlyReportsWorkspace() {
               </Button>
               <Button
                 size="sm"
+                onClick={handleDownloadPdf}
+                disabled={!report || pdfState === "preparing"}
+              >
+                {pdfState === "preparing" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <FileBarChart className="size-3.5" />
+                )}
+                {pdfState === "preparing" ? "Preparing PDF…" : "Download PDF"}
+              </Button>
+              <Button
+                size="sm"
                 variant="outline"
                 onClick={handleDownload}
                 disabled={!report || downloadState === "preparing"}
@@ -423,6 +550,12 @@ export function QuarterlyReportsWorkspace() {
           {downloadError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {downloadError}
+            </div>
+          )}
+
+          {pdfError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {pdfError}
             </div>
           )}
 
@@ -668,6 +801,32 @@ export function QuarterlyReportsWorkspace() {
           )}
         </>
       )}
+
+      {/* The print view is portalled to <body> because the print stylesheet
+        * hides `body > *` and re-shows only `.print-portal`. Rendered inside
+        * the app's own tree it would be hidden along with its ancestors.
+        *
+        * Mounted only once a print has been requested: it is a second, full
+        * render of every section, and an ordinary page view should not pay
+        * for it. By the time print() fires (the effect above) this has been
+        * committed and painted. */}
+      {/* printRequested can only be true after a click, so this never
+        * evaluates during SSR; the typeof check documents that rather than
+        * relying on it. */}
+      {printRequested &&
+        report &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="print-portal">
+            <ReportPrintView
+              report={report}
+              materials={pdfMaterials ?? []}
+              materialsTotal={pdfMaterialsTotal}
+              chartSampleSize={CHART_SAMPLE_SIZE}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
