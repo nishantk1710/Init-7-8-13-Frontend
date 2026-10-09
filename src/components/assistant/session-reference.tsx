@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy } from "lucide-react"
+import { Check, Copy, Ticket } from "lucide-react"
 import { toast } from "sonner"
 
+import { AiIconBadge } from "@/components/assistant/ai-visuals"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -43,11 +44,14 @@ export function SessionReference({
   expiresAt,
   expired = false,
   className,
+  children,
 }: {
   sessionId: string
   expiresAt?: string | null
   expired?: boolean
   className?: string
+  /** Shown under the reference, inside the same bar (the progress strip). */
+  children?: React.ReactNode
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -72,48 +76,66 @@ export function SessionReference({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3",
+        "ai-glow animate-ai-message-in flex flex-col gap-3 rounded-2xl border border-ai-2/20 bg-card px-4 py-3",
         className
       )}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-          Your session reference
-        </span>
-        <span className="font-mono text-lg font-semibold tracking-[0.15em] text-foreground">
-          {sessionId}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
-          what you actually reserve.
-        </span>
-        {expiresAt && !expired && (
-          <span className="text-[11px] text-muted-foreground">
-            Recorded {formatExpiry(expiresAt)}
-          </span>
-        )}
-        {expired && (
-          /* Expiry is REPORTED and never ENFORCED. The reservation is already
-             in SAP and the platform cannot write back, so treating an expired
-             reference as non-compliant would raise an exception nobody could
-             ever clear. The wording has to say "still valid to quote" or a
-             planner will assume they have to start again. */
-          <span className="text-[11px] text-muted-foreground">
-            Past its {formatExpiry(expiresAt)} validity window. Still worth
-            quoting on the reservation — the advice is recorded either way, and
-            nothing is invalidated by the clock.
-          </span>
-        )}
-      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <AiIconBadge className="mt-0.5 hidden sm:inline-flex">
+            <Ticket className="size-4" />
+          </AiIconBadge>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+                Your session reference
+              </span>
+              <span className="ai-gradient-text font-mono text-xl font-bold tracking-[0.18em]">
+                {sessionId}
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
+              what you actually reserve.
+            </span>
+            {expiresAt && !expired && (
+              <span className="text-[11px] text-muted-foreground">
+                Recorded {formatExpiry(expiresAt)}
+              </span>
+            )}
+            {expired && (
+              /* Expiry is REPORTED and never ENFORCED. The reservation is already
+                 in SAP and the platform cannot write back, so treating an expired
+                 reference as non-compliant would raise an exception nobody could
+                 ever clear. The wording has to say "still valid to quote" or a
+                 planner will assume they have to start again. */
+              <span className="text-[11px] text-muted-foreground">
+                Past its {formatExpiry(expiresAt)} validity window. Still worth
+                quoting on the reservation — the advice is recorded either way, and
+                nothing is invalidated by the clock.
+              </span>
+            )}
+          </div>
+        </div>
 
-      <Button variant="outline" size="sm" onClick={copy}>
-        {copied ? (
-          <Check className="size-3.5" aria-hidden />
-        ) : (
-          <Copy className="size-3.5" aria-hidden />
-        )}
-        {copied ? "Copied" : "Copy"}
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={copy}
+          className={cn(
+            "shrink-0 gap-1.5 transition-all",
+            copied && "border-success/40 bg-success/10 text-success hover:bg-success/15"
+          )}
+        >
+          {copied ? (
+            <Check key="check" className="animate-ai-pop size-3.5" aria-hidden />
+          ) : (
+            <Copy key="copy" className="size-3.5" aria-hidden />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      {children && <div className="border-t border-border/60 pt-2.5">{children}</div>}
     </div>
   )
 }

@@ -2,15 +2,17 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil } from "lucide-react"
+import { ArrowRight, Loader2, Pencil, Sparkles } from "lucide-react"
 
 import {
   FlowBadge,
   MaterialSearch,
   type MaterialPick,
 } from "@/components/assistant/material-search"
+import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 /**
  * Open the assistant by hand, for a material and plant.
@@ -109,8 +111,9 @@ export function AssistantOpener({
   return (
     <form
       onSubmit={start}
-      className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4"
+      className="ai-glass ai-glow animate-ai-message-in flex flex-col gap-4 rounded-2xl p-5"
     >
+      <AiEyebrow>Start a session</AiEyebrow>
       <Labelled id="material" label="Material">
         {pick === null ? (
           <MaterialSearch id="material" defaultQuery={defaultMaterial} onPick={choose} />
@@ -169,10 +172,16 @@ export function AssistantOpener({
 
       {ready ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" size="sm" disabled={starting}>
+          <Button type="submit" disabled={starting} className={cn(AI_BUTTON, "h-9 gap-1.5 px-4")}>
+            {starting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-4" aria-hidden />
+            )}
             {starting ? "Starting…" : "Start session"}
+            {!starting && <ArrowRight className="size-4" aria-hidden />}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={changeMaterial} disabled={starting}>
+          <Button type="button" variant="outline" className="h-9" onClick={changeMaterial} disabled={starting}>
             Change material
           </Button>
           <span className="text-[11px] text-muted-foreground">
@@ -191,10 +200,11 @@ export function AssistantOpener({
 /** The chosen material, in place of the search box, with a way back. */
 function PickedMaterial({ pick, onChange }: { pick: MaterialPick; onChange: () => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+    <div className="animate-ai-pop relative flex flex-wrap items-center gap-x-3 gap-y-1.5 overflow-hidden rounded-xl border border-ai-2/30 bg-gradient-to-r from-ai-1/10 via-ai-2/5 to-transparent py-2.5 pr-3 pl-4 text-sm">
+      <span aria-hidden className="ai-gradient absolute inset-y-0 left-0 w-1" />
       {pick.kind === "match" ? (
         <>
-          <span className="font-mono text-foreground">{pick.match.materialId}</span>
+          <span className="font-mono font-semibold text-foreground">{pick.match.materialId}</span>
           <span className="min-w-0 flex-1 truncate text-foreground">
             {pick.match.description ?? (
               <span className="text-muted-foreground italic">No description</span>
