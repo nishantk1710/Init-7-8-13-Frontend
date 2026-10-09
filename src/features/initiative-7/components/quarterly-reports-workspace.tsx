@@ -318,13 +318,25 @@ export function QuarterlyReportsWorkspace() {
   // uses (not filtered to the report's own generated_from/generated_to --
   // most recommendation rows predate the reporting feature and were never
   // regenerated inside a specific quarter window, so a quarter-scoped fetch
-  // reads as empty even when real, live recommendations exist), sorted so
-  // the largest ROP changes surface first. Paged against the real backend
-  // (113k+ rows total) rather than fetched-then-sliced client-side.
+  // reads as empty even when real, live recommendations exist). Paged
+  // against the real backend (113k+ rows total) rather than
+  // fetched-then-sliced client-side.
+  //
+  // Sorted newest-first. This previously asked for "rop_delta_magnitude",
+  // which is NOT in the backend's sort whitelist
+  // (app/api/i7/recommendations.py::SORT_FIELDS -- generated_at, status,
+  // material, plant, demand_class, confidence). An unknown value is not
+  // ignored: the route raises 400 INVALID_SORT_FIELD, so this fetch failed
+  // outright and the table rendered its empty state on every load.
+  //
+  // There is no persisted ROP-delta column to sort on -- ranking by it would
+  // mean computing a delta across all 113k rows -- so this uses a real,
+  // indexed, whitelisted field instead of inventing a ranking. The heading
+  // says "recent", not "top", because that is what the data now is.
   const { data: materials, total: materialsTotal } = useLiveRecommendations(
     report
       ? {
-          sort: "rop_delta_magnitude",
+          sort: "generated_at",
           sortDesc: true,
           page: materialsPage,
           pageSize: MATERIALS_PAGE_SIZE,
@@ -526,8 +538,8 @@ export function QuarterlyReportsWorkspace() {
                 </ChartCard>
 
                 <ChartCard
-                  title="Materials — top reorder changes"
-                  subtitle="Full list in the Excel export."
+                  title="Materials — most recent recommendations"
+                  subtitle="Newest first. Not ranked by reorder-point change — no such ranking exists in the backend today."
                   span={12}
                 >
                   {materials && materials.length > 0 ? (
