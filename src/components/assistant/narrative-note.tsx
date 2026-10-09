@@ -34,11 +34,13 @@ export function NarrativeNote({ narrative }: { narrative: ApiNarrative | null })
 
   return (
     <aside
-      className="flex flex-col gap-1.5 rounded-xl border border-dashed border-border bg-muted/40 p-3"
+      className="ai-border-gradient animate-ai-message-in flex flex-col gap-1.5 rounded-2xl p-3.5 opacity-95"
       aria-label="AI-written summary"
     >
-      <p className="flex items-center gap-1.5 text-[11px] tracking-[0.3px] text-muted-foreground uppercase">
-        <Sparkles className="size-3" aria-hidden />
+      {/* Secondary on purpose (see above): a soft gradient edge marks it as
+          the model's wording without lifting it above the assessment card. */}
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.12em] text-ai-2 uppercase">
+        <Sparkles className="size-3 animate-pulse" aria-hidden />
         In short
       </p>
 

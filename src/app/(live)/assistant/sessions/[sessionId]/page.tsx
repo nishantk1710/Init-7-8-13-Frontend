@@ -7,7 +7,7 @@ import {
   BackToSessions,
   SessionTrace,
 } from "@/components/assistant/session-trace"
-import { PageHeader } from "@/components/shared/page-header"
+import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { getSession } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
@@ -57,7 +57,7 @@ export default async function AssistantSessionPage({
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="flex flex-col gap-5">
           <BackToSessions />
-          <PageHeader
+          <AssistantPageHeader
             title="Assistant session"
             description="What the assistant said, what the requester decided, and what was recorded."
           />
@@ -85,7 +85,7 @@ export default async function AssistantSessionPage({
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
         <BackToSessions />
-        <PageHeader
+        <AssistantPageHeader
           title="Assistant session"
           description="What the assistant said, what the requester decided, and what was recorded."
         />

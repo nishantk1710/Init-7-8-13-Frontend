@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { CircleAlert, Loader2, Minus, PenLine, Plus, Send } from "lucide-react"
 
+import { AI_BUTTON, AiIconBadge } from "@/components/assistant/ai-visuals"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -137,35 +139,76 @@ export function StepForm({
     <form
       onSubmit={submit}
       noValidate
-      className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4"
-    >
-      {step.fields.map((field) => (
-        <FieldRow
-          key={field.name}
-          field={field}
-          value={values[field.name] ?? ""}
-          error={errors[field.name]}
-          disabled={disabled}
-          onChange={(value) => set(field.name, value)}
-        />
-      ))}
-
-      {shownFormError && (
-        <p className="text-xs text-destructive" role="alert">
-          {shownFormError}
-        </p>
+      className={cn(
+        "animate-ai-message-in overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow",
+        disabled
+          ? "border-border"
+          : "border-ai-2/25 focus-within:shadow-lg focus-within:shadow-ai-2/10"
       )}
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <Button type="submit" size="sm" disabled={disabled}>
-          {submitting ? "Recording…" : "Record this"}
-        </Button>
-        {/* The platform never blocks. Saying so beside the button is the honest
-            framing: the reservation is the planner's to make, and what this
-            form does is record the reason, not withhold permission. */}
-        <span className="text-[11px] text-muted-foreground">
-          Nothing is blocked. This is recorded alongside your reservation.
+    >
+      <div className="flex items-center gap-2.5 border-b border-border bg-gradient-to-r from-ai-1/10 via-ai-2/5 to-ai-3/10 px-4 py-2.5">
+        <AiIconBadge className="size-7 rounded-lg">
+          <PenLine className="size-3.5" />
+        </AiIconBadge>
+        <span className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+          Your answer
         </span>
+      </div>
+
+      <div className="flex flex-col gap-4 p-4">
+        {/* Two columns so a pair of dates sits side by side; every other field
+            spans both. Order is still the server's. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {step.fields.map((field) => (
+            <FieldRow
+              key={field.name}
+              field={field}
+              value={values[field.name] ?? ""}
+              error={errors[field.name]}
+              disabled={disabled}
+              onChange={(value) => set(field.name, value)}
+              className={field.type === "date" ? undefined : "sm:col-span-2"}
+            />
+          ))}
+        </div>
+
+        {shownFormError && (
+          <p
+            className="animate-ai-pop flex items-start gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            role="alert"
+          >
+            <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {shownFormError}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button
+            type="submit"
+            disabled={disabled}
+            className={cn(AI_BUTTON, "relative h-9 gap-1.5 overflow-hidden px-4")}
+          >
+            {/* A light sweep across the button while it is waiting for input. */}
+            {!disabled && (
+              <span
+                aria-hidden
+                className="animate-ai-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.28)_50%,transparent_65%)] bg-[length:200%_100%]"
+              />
+            )}
+            {submitting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Send className="size-4" aria-hidden />
+            )}
+            {submitting ? "Recording…" : "Record this"}
+          </Button>
+          {/* The platform never blocks. Saying so beside the button is the honest
+              framing: the reservation is the planner's to make, and what this
+              form does is record the reason, not withhold permission. */}
+          <span className="text-[11px] text-muted-foreground">
+            Nothing is blocked. This is recorded alongside your reservation.
+          </span>
+        </div>
       </div>
     </form>
   )
@@ -190,12 +233,14 @@ function FieldRow({
   error,
   disabled,
   onChange,
+  className,
 }: {
   field: ApiField
   value: string
   error?: string
   disabled: boolean
   onChange: (value: string) => void
+  className?: string
 }) {
   const id = `field-${field.name}`
   const helpId = `${id}-help`
@@ -206,7 +251,7 @@ function FieldRow({
       .join(" ") || undefined
 
   return (
-    <div className="group/field flex flex-col gap-1.5" data-disabled={disabled}>
+    <div className={cn("group/field flex flex-col gap-1.5", className)} data-disabled={disabled}>
       <Label htmlFor={id}>
         {field.label}
         {/* Marking the optional ones rather than the required ones: on the plan
@@ -238,7 +283,12 @@ function FieldRow({
       )}
 
       {error && (
-        <p id={errorId} className="text-[11px] text-destructive" role="alert">
+        <p
+          id={errorId}
+          className="animate-ai-fade flex items-center gap-1 text-[11px] text-destructive"
+          role="alert"
+        >
+          <CircleAlert className="size-3" aria-hidden />
           {error}
         </p>
       )}
@@ -278,6 +328,7 @@ function FieldInput({
         {...shared}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        className={FOCUS_ACCENT}
       />
     )
   }
@@ -295,6 +346,7 @@ function FieldInput({
         className={cn(
           "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-base transition-colors outline-none",
           "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+          FOCUS_ACCENT,
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50",
           "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
           "md:text-sm dark:bg-input/30 dark:disabled:bg-input/80"
@@ -313,7 +365,7 @@ function FieldInput({
     )
   }
 
-  return (
+  const input = (
     <Input
       {...shared}
       // A quantity is typed as a number for the keypad, but it leaves this
@@ -328,6 +380,60 @@ function FieldInput({
       step={field.type === "number" ? "any" : undefined}
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      className={cn(FOCUS_ACCENT, field.type === "number" && "text-center tabular-nums")}
     />
+  )
+
+  if (field.type !== "number") return input
+
+  // Stepper buttons for whole numbers only. A decimal is left to the keyboard
+  // rather than nudged through float arithmetic (see the note above).
+  const whole = value === "" || /^\d+$/.test(value)
+  const current = value === "" ? 0 : Number(value)
+  return (
+    <div className="flex items-center gap-1.5">
+      <StepButton
+        label={`Decrease ${field.label}`}
+        disabled={disabled || !whole || current <= 0}
+        onClick={() => onChange(String(current - 1))}
+      >
+        <Minus className="size-3.5" />
+      </StepButton>
+      <div className="min-w-0 flex-1">{input}</div>
+      <StepButton
+        label={`Increase ${field.label}`}
+        disabled={disabled || !whole}
+        onClick={() => onChange(String(current + 1))}
+      >
+        <Plus className="size-3.5" />
+      </StepButton>
+    </div>
+  )
+}
+
+/** The assistant's accent on a focused field. */
+const FOCUS_ACCENT = "focus-visible:border-ai-2 focus-visible:ring-ai-2/20"
+
+function StepButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground transition-all hover:border-ai-2/40 hover:bg-ai-2/10 hover:text-ai-2 active:scale-90 disabled:pointer-events-none disabled:opacity-40"
+    >
+      {children}
+    </button>
   )
 }

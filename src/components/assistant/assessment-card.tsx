@@ -1,3 +1,19 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import {
+  ArrowDownToLine,
+  CalendarClock,
+  Gauge,
+  MapPin,
+  Package,
+  PackageCheck,
+  TrendingUp,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react"
+
+import { AiIconBadge } from "@/components/assistant/ai-visuals"
 import {
   factsCaveats,
   factsHeadline,
@@ -63,8 +79,9 @@ function I08Card({
       />
       {headline && <p className="text-sm text-foreground">{headline}</p>}
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat
+          icon={<PackageCheck />}
           label="On the shelf"
           // "0 in stock" and "no stock record for this plant" look identical
           // once rendered as a number, and only one of them means the shelf is
@@ -72,9 +89,10 @@ function I08Card({
           value={facts.stockIsUnknown ? null : facts.stockOnHand}
           nullNote="no stock record"
         />
-        <Stat label="Open repairs" value={facts.openRepairLines} />
-        <Stat label="Units in repair" value={facts.quantityUnderRepair} />
+        <Stat icon={<Wrench />} label="Open repairs" value={facts.openRepairLines} />
+        <Stat icon={<Package />} label="Units in repair" value={facts.quantityUnderRepair} />
         <Stat
+          icon={<CalendarClock />}
           label="Earliest due back"
           value={facts.soonestDueDate}
           // Once every open line is past its date, the date is a plan that has
@@ -113,15 +131,18 @@ function I08Card({
 function RepairLines({ repairs }: { repairs: I08Facts["openRepairs"] }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-        Open repair lines
-      </p>
-      <ul className="flex flex-col gap-1.5">
+      <SectionLabel>Open repair lines</SectionLabel>
+      <ul className="relative flex flex-col gap-1.5 pl-5">
+        <span
+          aria-hidden
+          className="absolute top-2 bottom-2 left-[7px] w-px bg-gradient-to-b from-ai-1/50 via-ai-2/40 to-transparent"
+        />
         {repairs.map((repair) => (
           <li
             key={`${repair.purchasingDocument}-${repair.item}`}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg border border-border px-2.5 py-2 text-xs"
+            className="relative flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl border border-border bg-background/60 px-3 py-2 text-xs"
           >
+            <TimelineDot overdue={repair.daysOverdue !== null && repair.daysOverdue > 0} />
             <span className="font-medium text-foreground">
               {repair.purchasingDocument}/{repair.item}
             </span>
@@ -136,7 +157,7 @@ function RepairLines({ repairs }: { repairs: I08Facts["openRepairs"] }) {
             </span>
             <span className="text-muted-foreground">{repair.status}</span>
             {repair.daysOverdue !== null && repair.daysOverdue > 0 && (
-              <span className="font-medium text-destructive">
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
                 {repair.daysOverdue} days overdue
               </span>
             )}
@@ -173,10 +194,11 @@ function I13Card({
       />
       {headline && <p className="text-sm text-foreground">{headline}</p>}
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        <Stat label="On the shelf" value={facts.stockOnHand} />
-        <Stat label="On order" value={facts.openPoQuantity} />
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat icon={<PackageCheck />} label="On the shelf" value={facts.stockOnHand} />
+        <Stat icon={<ArrowDownToLine />} label="On order" value={facts.openPoQuantity} />
         <Stat
+          icon={<Gauge />}
           label="Months of cover"
           value={facts.monthsOfCover}
           // When the figure could not be computed the reason is the useful
@@ -184,8 +206,10 @@ function I13Card({
           nullNote={facts.monthsOfCoverReason ?? "cannot be computed"}
         />
         <Stat
+          icon={<TrendingUp />}
           label="Moving class"
           value={facts.agingBand}
+          band={facts.agingBand}
           suffix={
             facts.daysSinceLastMovement === null
               ? undefined
@@ -203,15 +227,14 @@ function I13Card({
 
       {facts.crossPlantStock.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-            Held at other plants
-          </p>
+          <SectionLabel>Held at other plants</SectionLabel>
           <ul className="flex flex-wrap gap-1.5">
             {facts.crossPlantStock.map((stock) => (
               <li
                 key={stock.plant}
-                className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground"
+                className="animate-ai-pop inline-flex items-center gap-1 rounded-full border border-ai-2/25 bg-ai-2/5 px-2.5 py-1 text-xs text-foreground"
               >
+                <MapPin className="size-3 text-ai-2" aria-hidden />
                 {stock.stockOnHand} at {stock.plant}
               </li>
             ))}
@@ -233,7 +256,8 @@ function I13Card({
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="animate-ai-message-in relative flex flex-col gap-3.5 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <span aria-hidden className="ai-gradient absolute inset-x-0 top-0 h-1" />
       {children}
     </div>
   )
@@ -253,21 +277,27 @@ function Identity({
   scope?: string
 }) {
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span className="font-mono text-sm font-medium text-foreground">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <AiIconBadge className="size-8 rounded-lg">
+        <Package className="size-4" />
+      </AiIconBadge>
+      <span className="font-mono text-base font-semibold tracking-wide text-foreground">
         {code}
       </span>
       {description && (
         <span className="text-sm text-muted-foreground">{description}</span>
       )}
-      <span className="text-xs text-muted-foreground">plant {plant}</span>
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+        <MapPin className="size-3" aria-hidden />
+        plant {plant}
+      </span>
       {criticality && (
-        <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
           {criticality}
         </span>
       )}
       {scope && (
-        <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        <span className="ai-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
           {scope}
         </span>
       )}
@@ -275,34 +305,67 @@ function Identity({
   )
 }
 
+/** Colour for the backend's aging band. Display only — the band is the backend's. */
+const BAND_TONE: Record<string, string> = {
+  FAST: "bg-success/15 text-success",
+  SLOW: "bg-warning/15 text-warning",
+  NON_MOVING: "bg-destructive/10 text-destructive",
+}
+
 function Stat({
+  icon,
   label,
   value,
   suffix,
   nullNote,
+  band,
   tone = "default",
 }: {
+  icon?: React.ReactNode
   label: string
   value: string | number | null
   suffix?: string
   /** Shown in place of the value when it is null. Never rendered as "0". */
   nullNote?: string
+  /** An aging band value, rendered as a coloured chip instead of plain text. */
+  band?: string | null
   tone?: "default" | "warning"
 }) {
   const missing = value === null || value === undefined || value === ""
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] tracking-[0.3px] text-muted-foreground uppercase">
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded-xl border p-3 transition-colors",
+        tone === "warning" && !missing
+          ? "border-warning/30 bg-warning/5"
+          : "border-border/70 bg-muted/40"
+      )}
+    >
+      <dt className="flex items-center gap-1.5 text-[11px] tracking-[0.06em] text-muted-foreground uppercase [&_svg]:size-3.5 [&_svg]:text-ai-2">
+        {icon}
         {label}
       </dt>
       <dd
         className={cn(
-          "text-sm font-medium",
-          missing ? "text-muted-foreground" : "text-foreground",
-          tone === "warning" && !missing && "text-foreground"
+          missing
+            ? "text-sm font-medium text-muted-foreground"
+            : "text-xl font-semibold tracking-tight text-foreground tabular-nums"
         )}
       >
-        {missing ? (nullNote ?? "—") : value}
+        {missing ? (
+          (nullNote ?? "—")
+        ) : band ? (
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2 py-0.5 text-sm font-semibold",
+              BAND_TONE[band] ?? "bg-muted text-foreground"
+            )}
+          >
+            {value}
+          </span>
+        ) : (
+          <CountUp value={value} />
+        )}
       </dd>
       {suffix && (
         <span
@@ -328,14 +391,78 @@ function Flag({
   return (
     <p
       className={cn(
-        "rounded-lg border px-2.5 py-2 text-xs",
+        "animate-ai-pop flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs",
         tone === "warning" &&
           "border-destructive/30 bg-destructive/5 text-foreground"
       )}
     >
+      <span className="relative mt-0.5 flex size-4 shrink-0 items-center justify-center">
+        <span
+          aria-hidden
+          className="animate-ai-ping absolute inline-flex size-2 rounded-full bg-destructive/50"
+        />
+        <TriangleAlert className="relative size-4 text-destructive" aria-hidden />
+      </span>
+      <span>{children}</span>
+    </p>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
       {children}
     </p>
   )
+}
+
+function TimelineDot({ overdue }: { overdue: boolean }) {
+  return (
+    <span aria-hidden className="absolute top-3 -left-[17px] flex size-2.5">
+      {overdue && (
+        <span className="animate-ai-ping absolute inline-flex size-full rounded-full bg-destructive/60" />
+      )}
+      <span
+        className={cn(
+          "relative inline-flex size-2.5 rounded-full ring-2 ring-card",
+          overdue ? "bg-destructive" : "ai-gradient"
+        )}
+      />
+    </span>
+  )
+}
+
+/**
+ * A whole number that counts up from zero on first render.
+ *
+ * Only plain integers animate. Anything else — a decimal sent as a string, a
+ * date — is shown exactly as the backend sent it, because re-formatting a
+ * figure is how a number on screen stops matching the record.
+ */
+function CountUp({ value }: { value: string | number }) {
+  const text = String(value)
+  const target = /^\d{1,7}$/.test(text) ? Number(text) : null
+  const [shown, setShown] = useState(target === null ? text : "0")
+
+  useEffect(() => {
+    if (target === null) return
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    const start = performance.now()
+    const duration = reduce || target === 0 ? 0 : 700
+    let frame = 0
+    const tick = (now: number) => {
+      const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setShown(t === 1 ? text : String(Math.round(target * eased)))
+      if (t < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, text])
+
+  return <>{target === null ? text : shown}</>
 }
 
 /** Exported for the trace view, which renders the assessment exactly as served. */

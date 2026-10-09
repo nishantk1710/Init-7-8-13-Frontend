@@ -10,6 +10,7 @@ import {
 } from "@/components/assistant/step-renderer"
 import { revalidateAfterConversation } from "@/components/assistant/actions"
 import { ConversationOutcome } from "@/components/assistant/conversation-outcome"
+import { ConversationProgress } from "@/components/assistant/conversation-progress"
 import { NarrativeNote } from "@/components/assistant/narrative-note"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { postTurn, type ApiStep, type StartSessionResponse } from "@/lib/api/assistant"
@@ -146,7 +147,7 @@ export function AssistantWorkspace({
   )
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="ai-scope flex flex-col gap-5">
       {/* Shown from the moment the session is minted, not at the end. A
           planner who reads the advice and closes the tab has still had a
           session recorded, and "advice given, not acted on" is a thing both
@@ -159,8 +160,13 @@ export function AssistantWorkspace({
         // plan form has six fields) must not scroll the reference out of sight.
         // -top-6 cancels the container's p-6, so it pins flush to the edge and
         // nothing scrolls past above it.
-        className="sticky -top-6 z-10 shadow-sm"
-      />
+        className="sticky -top-6 z-10"
+      >
+        <ConversationProgress
+          stepId={latestStepId(transcript)}
+          finished={transcript.current === null}
+        />
+      </SessionReference>
 
       {/* Above the conversation and outside the feed, deliberately.
           Inside it, a screen reader would announce the phrasing as though it
@@ -222,11 +228,20 @@ export function AssistantWorkspace({
       {transcript.current === null && (
         <>
           <ConversationOutcome sessionId={start.sessionId} routing={start.routing} />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             It stays readable at its reference for as long as the record exists.
           </p>
         </>
       )}
     </div>
   )
+}
+
+/** The id of the most recent step the server sent, for the progress strip. */
+function latestStepId(transcript: Transcript): string | null {
+  for (let i = transcript.entries.length - 1; i >= 0; i--) {
+    const entry = transcript.entries[i]
+    if (entry.kind === "step") return entry.step.id
+  }
+  return null
 }
