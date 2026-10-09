@@ -1,5 +1,14 @@
 import Link from "next/link"
+import {
+  ArrowLeft,
+  Calculator,
+  ClipboardList,
+  Link2,
+  MessageSquareQuote,
+  UserRound,
+} from "lucide-react"
 
+import { AiEyebrow, AiIconBadge, AiOrb } from "@/components/assistant/ai-visuals"
 import {
   AssessmentCard,
   AssessmentCaveats,
@@ -40,7 +49,7 @@ import { cn } from "@/lib/utils"
  */
 export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="ai-scope flex flex-col gap-5">
       <SessionReference
         sessionId={trace.sessionId}
         expiresAt={trace.expiresAt}
@@ -62,8 +71,8 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
         {/* The narrative layer is off by default and its deviation from both
             FRSs is unsigned-off, so it is labelled wherever it does appear. */}
         {trace.narrative && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+          <div className="ai-border-gradient rounded-2xl p-4">
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-ai-2 uppercase">
               Generated narrative
             </p>
             <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
@@ -113,18 +122,19 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
 
 function Header({ trace }: { trace: SessionTraceResponse }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="animate-ai-message-in relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <span aria-hidden className="ai-gradient absolute inset-x-0 top-0 h-1" />
       <div className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={trace.outcome} />
-        <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground uppercase">
+        <span className="ai-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-white uppercase">
           {trace.flow}
         </span>
-        <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
           opened from {trace.origin === "BADI" ? "SAP" : "the platform"}
         </span>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Field label="Material" value={trace.materialId} mono />
         <Field label="Plant" value={trace.plant} mono />
         {/* Who the part was for, as typed by whoever ran the assistant. Not
@@ -173,26 +183,43 @@ function Turns({ turns }: { turns: ApiTurn[] }) {
   }
 
   return (
-    <ol className="flex flex-col gap-3">
-      {turns.map((turn) => (
+    <ol className="flex flex-col gap-4 rounded-2xl border border-border bg-muted/20 p-4">
+      {turns.map((turn, index) => (
         <li
           key={`${turn.sequence}-${turn.stepId}`}
-          className="flex flex-col gap-1.5 border-l-2 border-border pl-3"
+          className="animate-ai-message-in flex flex-col gap-2"
+          style={{ animationDelay: `${index * 60}ms` }}
         >
-          <p className="text-sm whitespace-pre-line text-foreground">
-            {turn.question}
-          </p>
+          <div className="flex gap-2.5">
+            <AiOrb size="sm" className="mt-0.5 hidden sm:inline-flex" />
+            <p className="w-fit max-w-[90%] rounded-2xl rounded-tl-md border border-border bg-card px-3.5 py-2.5 text-sm whitespace-pre-line text-foreground shadow-sm">
+              {turn.question}
+            </p>
+          </div>
           {turn.answer === null ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="pl-0 text-xs text-muted-foreground italic sm:pl-9">
               No answer — this was the closing message.
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Answered: </span>
-              {summariseAnswer(turn.answer)}
-            </p>
+            <div className="flex items-end justify-end gap-2">
+              <p className="ai-gradient max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-sm text-white shadow-sm shadow-ai-2/20">
+                <span className="font-semibold">Answered: </span>
+                {summariseAnswer(turn.answer)}
+              </p>
+              <span
+                aria-hidden
+                className="hidden size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border sm:inline-flex"
+              >
+                <UserRound className="size-3" />
+              </span>
+            </div>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p
+            className={cn(
+              "text-[11px] text-muted-foreground",
+              turn.answer === null ? "sm:pl-9" : "text-right sm:pr-8"
+            )}
+          >
             {turn.actor} · {formatInstant(turn.answeredAt)}
           </p>
         </li>
@@ -203,20 +230,25 @@ function Turns({ turns }: { turns: ApiTurn[] }) {
 
 function PlanCard({ plan }: { plan: ApiPlan }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-      <p className="text-sm text-foreground">{plan.purpose}</p>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-        <Field label="Planned quantity" value={plan.plannedQuantity} />
-        <Field
-          label="Expected use"
-          value={formatWindow(plan.windowStart, plan.windowEnd)}
-          nullNote="no window given"
-        />
-      </dl>
-      <p className="text-[11px] text-muted-foreground">
-        {plan.status} · captured by {plan.capturedBy} ·{" "}
-        {formatInstant(plan.capturedAt)}
-      </p>
+    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <AiIconBadge>
+        <ClipboardList className="size-4" />
+      </AiIconBadge>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <p className="text-sm font-medium text-foreground">{plan.purpose}</p>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+          <Field label="Planned quantity" value={plan.plannedQuantity} />
+          <Field
+            label="Expected use"
+            value={formatWindow(plan.windowStart, plan.windowEnd)}
+            nullNote="no window given"
+          />
+        </dl>
+        <p className="text-[11px] text-muted-foreground">
+          {plan.status} · captured by {plan.capturedBy} ·{" "}
+          {formatInstant(plan.capturedAt)}
+        </p>
+      </div>
     </div>
   )
 }
@@ -227,43 +259,48 @@ function SuggestionCard({
   suggestion: ApiQuantitySuggestion
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-      <p className="text-sm text-foreground">{suggestion.suggestionReason}</p>
+    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <AiIconBadge>
+        <Calculator className="size-4" />
+      </AiIconBadge>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <p className="text-sm font-medium text-foreground">{suggestion.suggestionReason}</p>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        <Field label="Asked for" value={suggestion.requestedQuantity} />
-        <Field
-          label="Suggested"
-          value={suggestion.suggestedQuantity}
-          // Null is NOT zero here: "we suggest nothing" and "we suggest none"
-          // are opposite instructions.
-          nullNote="no suggestion made"
-        />
-        <Field label="Recorded as" value={suggestion.acceptedQuantity} />
-        <Field
-          label="Months of cover"
-          value={suggestion.monthsOfCover}
-          nullNote="not computable"
-        />
-      </dl>
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Field label="Asked for" value={suggestion.requestedQuantity} />
+          <Field
+            label="Suggested"
+            value={suggestion.suggestedQuantity}
+            // Null is NOT zero here: "we suggest nothing" and "we suggest none"
+            // are opposite instructions.
+            nullNote="no suggestion made"
+          />
+          <Field label="Recorded as" value={suggestion.acceptedQuantity} />
+          <Field
+            label="Months of cover"
+            value={suggestion.monthsOfCover}
+            nullNote="not computable"
+          />
+        </dl>
 
-      {suggestion.isOverride && (
-        <p className="text-xs text-foreground">
-          The requester kept their own quantity.
+        {suggestion.isOverride && (
+          <p className="w-fit rounded-full bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning">
+            The requester kept their own quantity.
+          </p>
+        )}
+
+        {/* The three parameters behind the number are all ours and none is
+            confirmed by VZI, so they travel with every suggestion. A figure that
+            carries its own assumptions can be argued with; one that does not can
+            only be disbelieved. */}
+        <p className="text-[11px] text-muted-foreground">
+          Computed against a {suggestion.coverCeilingMonths}-month cover ceiling,
+          a {suggestion.lookbackMonths}-month look-back and a minimum of{" "}
+          {suggestion.minHistoryConsumptions} consumptions —{" "}
+          {suggestion.consumptionCount} found. All three are configuration and
+          none is confirmed by VZI yet.
         </p>
-      )}
-
-      {/* The three parameters behind the number are all ours and none is
-          confirmed by VZI, so they travel with every suggestion. A figure that
-          carries its own assumptions can be argued with; one that does not can
-          only be disbelieved. */}
-      <p className="text-[11px] text-muted-foreground">
-        Computed against a {suggestion.coverCeilingMonths}-month cover ceiling,
-        a {suggestion.lookbackMonths}-month look-back and a minimum of{" "}
-        {suggestion.minHistoryConsumptions} consumptions —{" "}
-        {suggestion.consumptionCount} found. All three are configuration and
-        none is confirmed by VZI yet.
-      </p>
+      </div>
     </div>
   )
 }
@@ -274,19 +311,26 @@ function JustificationCard({
   justification: ApiJustification
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
-          {justification.kind.replace(/_/g, " ").toLowerCase()}
-        </span>
-        <span className="text-sm font-medium text-foreground">
-          {justification.reasonCategory.replace(/_/g, " ")}
-        </span>
+    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <AiIconBadge>
+        <MessageSquareQuote className="size-4" />
+      </AiIconBadge>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-medium text-ai-2">
+            {justification.kind.replace(/_/g, " ").toLowerCase()}
+          </span>
+          <span className="text-sm font-medium text-foreground">
+            {justification.reasonCategory.replace(/_/g, " ")}
+          </span>
+        </div>
+        <blockquote className="border-l-2 border-ai-2/40 pl-3 text-sm text-foreground italic">
+          {justification.freeText}
+        </blockquote>
+        <p className="text-[11px] text-muted-foreground">
+          {justification.author} · {formatInstant(justification.recordedAt)}
+        </p>
       </div>
-      <p className="text-sm text-foreground">{justification.freeText}</p>
-      <p className="text-[11px] text-muted-foreground">
-        {justification.author} · {formatInstant(justification.recordedAt)}
-      </p>
     </div>
   )
 }
@@ -301,8 +345,11 @@ function Linkage({
   linked: ApiLinkedReservation[]
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border p-4">
-      <h2 className="text-sm font-medium text-foreground">Link to the reservation</h2>
+    <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-ai-2/30 bg-ai-2/[0.03] p-4">
+      <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Link2 className="size-4 text-ai-2" aria-hidden />
+        Link to the reservation
+      </h2>
       <p className="text-sm text-muted-foreground">{note}</p>
       {linked.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
@@ -345,8 +392,8 @@ function Section({
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-        {title}
+      <h2>
+        <AiEyebrow>{title}</AiEyebrow>
       </h2>
       {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
       {children}
@@ -367,8 +414,8 @@ function Field({
 }) {
   const missing = value === null || value === undefined || value === ""
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] tracking-[0.3px] text-muted-foreground uppercase">
+    <div className="flex flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
+      <dt className="text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
@@ -388,12 +435,12 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
   return (
     <span
       className={cn(
-        "rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
-        outcome === "COMPLETED" && "border-border text-foreground",
-        outcome === "OPEN" && "border-border text-muted-foreground",
+        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+        outcome === "COMPLETED" && "bg-success/15 text-success",
+        outcome === "OPEN" && "bg-ai-2/10 text-ai-2",
         // Abandoned is not a failure. Somebody read the advice and stopped,
-        // which is an outcome both FRSs count.
-        outcome === "ABANDONED" && "border-border text-muted-foreground"
+        // which is an outcome both FRSs count -- so neutral, never red.
+        outcome === "ABANDONED" && "bg-muted text-muted-foreground"
       )}
     >
       {outcome.toLowerCase()}
@@ -406,9 +453,10 @@ export function BackToSessions() {
   return (
     <Link
       href="/assistant/sessions"
-      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+      className="group inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-ai-2"
     >
-      ← All sessions
+      <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden />
+      All sessions
     </Link>
   )
 }

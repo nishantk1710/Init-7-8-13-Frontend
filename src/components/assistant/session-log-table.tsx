@@ -93,7 +93,7 @@ export function SessionLogTable({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="ai-scope flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-4">
         <FilterGroup
           label="Flow"
@@ -143,82 +143,96 @@ export function SessionLogTable({
           }
         />
       ) : (
-        <Table>
-          <caption className="sr-only">
-            Assistant sessions{flow === "all" ? "" : `, ${flow} flow only`}
-            {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
-          </caption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Reference</TableHead>
-              <TableHead>Flow</TableHead>
-              <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead>Requester</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Opened from</TableHead>
-              <TableHead>Turns</TableHead>
-              <TableHead>Outcome</TableHead>
-              <TableHead>Issued</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((session) => (
-              <TableRow key={session.sessionId}>
-                <TableCell>
-                  <Link
-                    href={`/assistant/sessions/${session.sessionId}`}
-                    className="font-mono text-xs underline-offset-4 hover:underline"
-                  >
-                    {session.sessionId}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-xs uppercase">
-                  {session.flow}
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {session.materialId}
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {session.plant}
-                </TableCell>
-                {/* Who the part was for. This column used to show
-                    `session.requester` -- who operated the assistant -- which
-                    with one coordinator running the site is the same value on
-                    every row, and a column that never varies is a column that
-                    tells a reader nothing. The operator is still recorded and
-                    still served on the trace; it is simply not worth a column
-                    here. */}
-                <TableCell
-                  className={cn(
-                    "text-xs",
-                    !session.requestedFor && "text-muted-foreground"
-                  )}
-                >
-                  {session.requestedFor ?? "not stated"}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-xs",
-                    !session.department && "text-muted-foreground"
-                  )}
-                >
-                  {session.department ?? "not stated"}
-                </TableCell>
-                <TableCell className="text-xs">
-                  {session.origin === "BADI" ? "SAP" : "platform"}
-                </TableCell>
-                <TableCell className="text-xs">{session.turns}</TableCell>
-                <TableCell className="text-xs lowercase">
-                  {session.outcome}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {formatDate(session.issuedAt)}
-                </TableCell>
+        <div className="animate-ai-message-in overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <Table>
+            <caption className="sr-only">
+              Assistant sessions{flow === "all" ? "" : `, ${flow} flow only`}
+              {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
+            </caption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Flow</TableHead>
+                <TableHead>Material</TableHead>
+                <TableHead>Plant</TableHead>
+                <TableHead>Requester</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Opened from</TableHead>
+                <TableHead>Turns</TableHead>
+                <TableHead>Outcome</TableHead>
+                <TableHead>Issued</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((session) => (
+                <TableRow key={session.sessionId} className="transition-colors hover:bg-ai-2/[0.04]">
+                  <TableCell>
+                    <Link
+                      href={`/assistant/sessions/${session.sessionId}`}
+                      className="ai-gradient-text font-mono text-xs font-semibold tracking-wider underline-offset-4 hover:underline"
+                    >
+                      {session.sessionId}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <span className="rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-semibold text-ai-2 uppercase">
+                      {session.flow}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {session.materialId}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {session.plant}
+                  </TableCell>
+                  {/* Who the part was for. This column used to show
+                      `session.requester` -- who operated the assistant -- which
+                      with one coordinator running the site is the same value on
+                      every row, and a column that never varies is a column that
+                      tells a reader nothing. The operator is still recorded and
+                      still served on the trace; it is simply not worth a column
+                      here. */}
+                  <TableCell
+                    className={cn(
+                      "text-xs",
+                      !session.requestedFor && "text-muted-foreground"
+                    )}
+                  >
+                    {session.requestedFor ?? "not stated"}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-xs",
+                      !session.department && "text-muted-foreground"
+                    )}
+                  >
+                    {session.department ?? "not stated"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {session.origin === "BADI" ? "SAP" : "platform"}
+                  </TableCell>
+                  <TableCell className="text-xs tabular-nums">{session.turns}</TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] font-semibold lowercase",
+                        session.outcome === "COMPLETED" && "bg-success/15 text-success",
+                        session.outcome === "OPEN" && "bg-ai-2/10 text-ai-2",
+                        // Abandoned is an outcome, not a failure: neutral.
+                        session.outcome === "ABANDONED" && "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {session.outcome}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatDate(session.issuedAt)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <div className="flex flex-col gap-1">
@@ -253,7 +267,11 @@ function FilterGroup({
       >
         {label}
       </span>
-      <div className="flex gap-1" role="group" aria-labelledby={`filter-${label}`}>
+      <div
+        className="flex gap-0.5 rounded-full bg-muted p-0.5"
+        role="group"
+        aria-labelledby={`filter-${label}`}
+      >
         {options.map((option) => (
           <button
             key={option.value}
@@ -261,11 +279,11 @@ function FilterGroup({
             onClick={() => onChange(option.value)}
             aria-pressed={value === option.value}
             className={cn(
-              "rounded-md border px-2 py-0.5 text-xs transition-colors",
-              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              "rounded-full px-2.5 py-1 text-xs font-medium transition-all",
+              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
               value === option.value
-                ? "border-border bg-secondary text-secondary-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted"
+                ? "ai-gradient text-white shadow-sm shadow-ai-2/30"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {option.label}

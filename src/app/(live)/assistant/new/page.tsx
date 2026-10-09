@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher"
-import { PageHeader } from "@/components/shared/page-header"
+import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { buttonVariants } from "@/components/ui/button"
 
 export const metadata: Metadata = {
@@ -61,7 +61,7 @@ export default async function NewAssistantSessionPage({
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="flex flex-col gap-5">
-          <PageHeader
+          <AssistantPageHeader
             title="Reservation assistant"
             description="Checks a material before you reserve it."
           />
@@ -100,7 +100,7 @@ export default async function NewAssistantSessionPage({
           reachable rather than clipped by the fixed-height shell in
           app/layout.tsx (`body` is `overflow-hidden`). */}
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
-        <PageHeader
+        <AssistantPageHeader
           title="Reservation assistant"
           description={`Checking ${materialId} at plant ${plant} before you reserve it.`}
         />

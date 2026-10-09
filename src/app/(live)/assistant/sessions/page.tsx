@@ -4,7 +4,7 @@ import Link from "next/link"
 import { connection } from "next/server"
 
 import { SessionLogTable } from "@/components/assistant/session-log-table"
-import { PageHeader } from "@/components/shared/page-header"
+import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import {
   CompliancePanel,
   type ComplianceCheck,
@@ -62,7 +62,7 @@ export default async function AssistantSessionsPage({
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="flex flex-col gap-5">
-          <PageHeader
+          <AssistantPageHeader
             title="Assistant sessions"
             description="Every time the assistant was opened, whether or not the advice was taken."
           />
@@ -137,7 +137,7 @@ export default async function AssistantSessionsPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
-        <PageHeader
+        <AssistantPageHeader
           title="Assistant sessions"
           description={
             material || plant

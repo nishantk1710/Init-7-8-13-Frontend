@@ -75,3 +75,31 @@ export function AiEyebrow({ children, className }: { children: ReactNode; classN
     </span>
   )
 }
+
+/**
+ * `PageHeader` for the assistant's screens: same props and layout, with the
+ * assistant's avatar and accent.
+ */
+export function AssistantPageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string
+  description?: string
+  actions?: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start gap-3">
+        <AiOrb size="md" className="mt-1" />
+        <div>
+          <AiEyebrow>Reservation assistant</AiEyebrow>
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  )
+}
