@@ -75,6 +75,8 @@ by the global shell) calls into for OAR routing precedence.
 | `/oar-utilization/ledger` | `pages/ledger-page.tsx` | Every OAR reservation line with its document chain, expandable |
 | `/oar-utilization/aging-exceptions` | `pages/aging-exceptions-page.tsx` | **The FR-9 ACT queue.** Owner, routing state, escalation, session link, and a confirmation that is really recorded |
 | `/oar-utilization/watch` | `pages/watch-page.tsx` | FR-1/FR-6, in three tabs held in `?view=`: **Metrics** (default, the persisted W6.3 mart), **30-Day GR-Not-Issued** (`grni`, per reservation line) and **Usage Pattern** (`usage`, monthly net issues). Only the active tab is fetched |
+| `/oar-utilization/reclassification` | `pages/reclassification-page.tsx` | **FR-8.** SOP 3.1.1 evidence for a stocked-material review, advisory only |
+| `/oar-utilization/validation` | `pages/validation-page.tsx` | **FR-6.** Aging reconciled against ZMM065, with VZI's monthly upload (`zmm065-upload-card.tsx`), a month picker (`?month=YYYY-MM`) and the upload history. The 30-Day GR Report is not shown |
 
 The reservation-time assistant (FR-2, FR-3) is not an I13 nav item. It is
 shared with Initiative 8 at `/assistant` and has its own sidebar section.
@@ -88,8 +90,6 @@ shared with Initiative 8 at `/assistant` and has its own sidebar section.
 | `/oar-utilization/usage-patterns` | `/oar-utilization/watch?view=usage` |
 | `/oar-utilization/redeployment` | `/oar-utilization/aging-exceptions` |
 | `/oar-utilization/plans` | `/oar-utilization?tab=plans` (captured plans are a Dashboard tab; plant and material are kept) |
-| `/oar-utilization/reclassification` | `/oar-utilization` (reclassification belongs to Initiative 7) |
-| `/oar-utilization/validation` | `/oar-utilization` (validation belongs to Initiative 7) |
 
 The first three keep the query they arrived with (`utils/redirects.ts`), so a
 shared filtered link still lands filtered.
@@ -192,10 +192,9 @@ that shared file.
    material on chat session `SPR-2847`, the hero demo session) is included
    in the OAR set, so the OAR branch is visibly demonstrable on an existing
    session, not just on Initiative 13's own scenario data.
-2. **Reclassification → Initiative 7.** Reclassification and validation are
-   Initiative 7's, so this module no longer has screens for them. The only
-   thing I13 still reads from the reclassification feed is the criticality
-   behind the non-movers' Critical impact column. The scenario fixture
+2. **Reclassification → Initiatives 7 and 11.** I13 publishes the SOP
+   evidence (FR-8) on its own Reclassification screen; the decision and the
+   conversion stay with VZI and Initiative 7. The scenario fixture
    `RECLASSIFICATION_CANDIDATES` remains for the Home and Approvals sample data.
 3. **Zero cross-initiative imports.** This module never imports from
    `@/features/initiative-7/**` or `@/features/initiative-8/**`, and is

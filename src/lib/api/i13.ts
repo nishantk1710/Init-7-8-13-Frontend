@@ -30,7 +30,7 @@
  */
 
 import { listJustifications } from "@/lib/api/assistant"
-import { apiFetch, apiFetchList, apiPost, type ApiList } from "@/lib/api/client"
+import { apiFetch, apiFetchList, apiPost, apiPostForm, type ApiList } from "@/lib/api/client"
 import { oneOf, toCount, toNumber } from "@/lib/api/format"
 import {
   ACQUIRED_VS_PLAN_STATUSES,
@@ -65,6 +65,9 @@ import {
   type Gr30DayValidation,
   type ValidationResult,
   type WatchMetric,
+  type Zmm065Source,
+  type Zmm065Upload,
+  type Zmm065UploadResult,
   type Zmm065Validation,
 } from "@/lib/api/i13-types"
 import {
@@ -362,6 +365,37 @@ function toValidationResult(raw: RawRecord): ValidationResult {
     })),
     zmm065: raw.zmm065 ? toZmm065Validation(raw.zmm065 as RawRecord) : null,
     gr30Day: raw.gr_30_day ? toGr30DayValidation(raw.gr_30_day as RawRecord) : null,
+    zmm065ReportMonth: (raw.zmm065_report_month as string | null) ?? null,
+    zmm065Sources: ((raw.zmm065_sources as RawRecord[] | undefined) ?? []).map(toZmm065Source),
+  }
+}
+
+function toZmm065Source(raw: RawRecord): Zmm065Source {
+  return {
+    plant: String(raw.plant ?? ""),
+    source: raw.source === "UPLOAD" ? "UPLOAD" : "SEED",
+    rowCount: toCount(raw.row_count as number),
+    uploadId: toNumber(raw.upload_id as number) ?? null,
+    reportMonth: (raw.report_month as string | null) ?? null,
+    reportDate: (raw.report_date as string | null) ?? null,
+    fileName: (raw.file_name as string | null) ?? null,
+    uploadedBy: (raw.uploaded_by as string | null) ?? null,
+    uploadedAt: (raw.uploaded_at as string | null) ?? null,
+  }
+}
+
+function toZmm065Upload(raw: RawRecord): Zmm065Upload {
+  return {
+    id: toCount(raw.id as number),
+    plant: String(raw.plant ?? ""),
+    reportMonth: String(raw.report_month ?? ""),
+    reportDate: (raw.report_date as string | null) ?? null,
+    fileName: String(raw.file_name ?? ""),
+    sheetName: String(raw.sheet_name ?? ""),
+    rowCount: toCount(raw.row_count as number),
+    uploadedBy: String(raw.uploaded_by ?? ""),
+    uploadedAt: String(raw.uploaded_at ?? ""),
+    isCurrent: Boolean(raw.is_current),
   }
 }
 
@@ -570,10 +604,32 @@ export function getI13ReclassificationList(params?: {
 
 /**
  * `GET /i13/validation` — FR-6 reconciliation. The backend reads ZMM065 and the
- * 30-Day GR Report from its own database; there is nothing to pass in.
+ * 30-Day GR Report from its own database. `reportMonth` (`YYYY-MM`) narrows
+ * ZMM065 to that month's uploads; without it each plant's latest upload is
+ * used, falling back to the seeded report.
  */
-export function getI13Validation(): Promise<ValidationResult> {
-  return apiFetch<RawRecord>("/i13/validation").then(toValidationResult)
+export function getI13Validation(params?: { reportMonth?: string }): Promise<ValidationResult> {
+  const query = buildQuery({ report_month: params?.reportMonth })
+  return apiFetch<RawRecord>(`/i13/validation${query}`).then(toValidationResult)
+}
+
+/** `GET /i13/validation/zmm065/uploads` — every monthly upload, newest month first. */
+export function getI13Zmm065Uploads(): Promise<Zmm065Upload[]> {
+  return apiFetch<RawRecord[]>("/i13/validation/zmm065/uploads").then((rows) => rows.map(toZmm065Upload))
+}
+
+/**
+ * `POST /i13/validation/zmm065/uploads` — one site's monthly ZMM065 report.
+ * `form` carries `file`, `report_month` (`YYYY-MM`) and optionally `replace`.
+ * 409 when that plant and month is already uploaded; 422 for an unusable file.
+ */
+export function uploadI13Zmm065(form: FormData): Promise<Zmm065UploadResult> {
+  return apiPostForm<RawRecord>("/i13/validation/zmm065/uploads", form).then((raw) => ({
+    upload: toZmm065Upload(raw.upload as RawRecord),
+    skippedOutOfScope: toCount(raw.skipped_out_of_scope as number),
+    skippedBlank: toCount(raw.skipped_blank as number),
+    replacedEarlier: Boolean(raw.replaced_earlier),
+  }))
 }
 
 // --- W6.4 consumption attribution -----------------------------------------

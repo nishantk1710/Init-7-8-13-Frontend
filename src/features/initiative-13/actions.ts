@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { ApiError } from "@/lib/api/client"
-import { runI13Detection, submitI13ActConfirmation } from "@/lib/api/i13"
+import { runI13Detection, submitI13ActConfirmation, uploadI13Zmm065 } from "@/lib/api/i13"
 
 /**
  * Initiative 13's write paths, as Server Actions.
@@ -119,6 +119,56 @@ export async function runDetectionAction(params?: {
     return {
       ok: false,
       message: error instanceof Error ? error.message : "Detection could not be run.",
+    }
+  }
+}
+
+/**
+ * Upload one site's monthly ZMM065 report (`POST /i13/validation/zmm065/uploads`),
+ * the reference FR-6 validation reconciles against.
+ *
+ * The plant is read from the file by the backend, never chosen here, so a BMM
+ * report cannot be filed as Gamsberg. A 409 means that plant and month is
+ * already uploaded: the message says so, and the form offers to replace it --
+ * which adds a newer upload and keeps the earlier one. A 422 names what is
+ * wrong with the file and is passed through verbatim.
+ */
+export async function uploadZmm065Action(formData: FormData): Promise<ActionResult & { conflict?: boolean }> {
+  const file = formData.get("file")
+  const reportMonth = String(formData.get("report_month") ?? "").trim()
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "Choose the ZMM065 workbook (.xlsx) to upload." }
+  }
+  if (!/^\d{4}-\d{2}$/.test(reportMonth)) {
+    return { ok: false, message: "Choose the month the report is for." }
+  }
+
+  const form = new FormData()
+  form.set("file", file, file.name)
+  form.set("report_month", reportMonth)
+  form.set("replace", formData.get("replace") === "true" ? "true" : "false")
+
+  try {
+    const result = await uploadI13Zmm065(form)
+    revalidatePath("/oar-utilization/validation")
+    const skipped = result.skippedOutOfScope
+      ? ` ${result.skippedOutOfScope} row(s) for plants outside 1300/1500 were skipped.`
+      : ""
+    return {
+      ok: true,
+      message:
+        `${result.upload.fileName}: ${result.upload.rowCount.toLocaleString()} rows for plant ` +
+        `${result.upload.plant} stored as the ${reportMonth} report` +
+        `${result.replacedEarlier ? ", replacing the earlier upload for that month (kept in history)" : ""}.` +
+        skipped,
+    }
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, message: error.detailText(), conflict: error.status === 409 }
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "The report could not be uploaded.",
     }
   }
 }

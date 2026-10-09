@@ -1,9 +1,19 @@
-import { permanentRedirect } from "next/navigation"
+import type { Metadata } from "next"
 
-/**
- * Validation belongs to Initiative 7, not to OAR Utilization, so the screen was
- * removed from this module. An old link lands on the Dashboard.
- */
-export default function Page() {
-  permanentRedirect("/oar-utilization")
+import { ValidationPage } from "@/features/initiative-13/pages/validation-page"
+import {
+  parseSearchParams,
+  type RawSearchParams,
+} from "@/features/initiative-13/utils/search-params"
+
+export const metadata: Metadata = {
+  title: "Validation — OAR Utilization — Spares AI",
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>
+}) {
+  return <ValidationPage searchParams={parseSearchParams(await searchParams)} />
 }
