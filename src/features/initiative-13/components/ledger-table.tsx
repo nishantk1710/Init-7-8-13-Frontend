@@ -25,12 +25,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  LEDGER_STAGE_SHORT,
-  LEDGER_STAGES,
-  ledgerStage,
-  ledgerStageLabel,
-} from "@/features/initiative-13/utils/ledger-stage"
 import type {
   ProcurementStatus,
   UtilisationLedgerEntry,
@@ -121,39 +115,6 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   ]
 
   return <Timeline events={events} />
-}
-
-/**
- * Reservation -> PR -> PO -> GR -> GI as five dots, filled up to the furthest
- * leg the line has reached, with that stage named underneath.
- */
-function StageTrack({ entry }: { entry: UtilisationLedgerEntry }) {
-  const stage = ledgerStage(entry)
-  const reached = stage === null ? -1 : LEDGER_STAGES.indexOf(stage)
-  const text = ledgerStageLabel(entry)
-  return (
-    <div className="flex min-w-28 flex-col gap-1" title={`Reservation → PR → PO → GR → GI: ${text}`}>
-      <div className="flex items-center gap-0.5" aria-hidden>
-        {LEDGER_STAGES.map((s, i) => (
-          <Fragment key={s}>
-            {i > 0 && (
-              <span className={cn("h-px w-2.5", i <= reached ? "bg-success" : "bg-border")} />
-            )}
-            <span
-              title={LEDGER_STAGE_SHORT[s]}
-              className={cn(
-                "size-2 rounded-full",
-                i < reached && "bg-success",
-                i === reached && "bg-success ring-2 ring-success/30",
-                i > reached && "border border-border bg-transparent"
-              )}
-            />
-          </Fragment>
-        ))}
-      </div>
-      <span className="text-[11px] text-foreground">{text}</span>
-    </div>
-  )
 }
 
 /**
@@ -252,7 +213,6 @@ export function UtilizationLedgerTable({
                 <TableHead>Ledger ID</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead>Stage</TableHead>
                 <TableHead>Reservation</TableHead>
                 <TableHead>PR</TableHead>
                 <TableHead>PO</TableHead>
@@ -311,9 +271,6 @@ export function UtilizationLedgerTable({
                         {sapPlantLabel(entry.plant)}
                       </TableCell>
                       <TableCell>
-                        <StageTrack entry={entry} />
-                      </TableCell>
-                      <TableCell>
                         {entry.reservationNumber ? (
                           <SAPDocumentChip
                             doc={{ type: "RESERVATION", documentNumber: entry.reservationNumber, line: entry.reservationItem ?? undefined }}
@@ -356,7 +313,7 @@ export function UtilizationLedgerTable({
                     </TableRow>
                     <TableRow className="hover:bg-transparent">
                       <TableCell className="p-0" />
-                      <TableCell colSpan={12} className="p-0">
+                      <TableCell colSpan={11} className="p-0">
                         <div
                           className={cn(
                             "grid transition-[grid-template-rows] duration-300 ease-out",

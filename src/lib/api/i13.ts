@@ -154,6 +154,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
 function toWatchMetric(raw: RawRecord): WatchMetric {
   return {
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: raw.material_scope
       ? oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED")
@@ -212,6 +213,7 @@ function toActException(raw: RawRecord): ActException {
     status: oneOf(raw.status as string, ACT_EXCEPTION_STATUSES, "OPEN"),
 
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
 
     reservationNumber: str(raw.reservation_number),
@@ -899,6 +901,7 @@ export async function getI13Justifications(params?: {
       exceptionId: exception.exceptionId,
       exceptionType: exception.exceptionType,
       material: exception.material,
+      materialDescription: exception.materialDescription,
       plant: exception.plant,
       ownerRequesterId: exception.ownerRequesterId,
       reasonCategory: confirmation.reasonCategory,
@@ -981,6 +984,7 @@ function toGrniEntry(raw: RawRecord): GrniEntry {
     reservationNumber: String(raw.reservation_number ?? ""),
     reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     prNumber: str(raw.pr_number),
@@ -1026,6 +1030,7 @@ function toUsagePattern(raw: RawRecord): UsagePattern {
   const months = Array.isArray(raw.months) ? (raw.months as RawRecord[]) : []
   return {
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     agingBand: raw.aging_band ? oneOf(raw.aging_band as string, AGING_BANDS, "NON_MOVING") : null,

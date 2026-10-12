@@ -126,7 +126,7 @@ export interface UtilisationLedgerEntry {
   ledgerId: string
   material: string
   /** MAKT / ZMM065 text, where the backend sends one. */
-  materialDescription: string | null
+  materialDescription?: string | null
   plant: string
 
   reservationNumber: string | null
@@ -159,6 +159,8 @@ export interface UtilisationLedgerEntry {
 
 export interface WatchMetric {
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription?: string | null
   plant: string
   materialScope: MaterialScope | null
 
@@ -248,6 +250,8 @@ export interface ActException {
   status: ActExceptionStatus
 
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription?: string | null
   plant: string
 
   reservationNumber: string | null
@@ -321,6 +325,7 @@ export interface JustificationEntry {
   exceptionId: string
   exceptionType: ActExceptionType
   material: string
+  materialDescription?: string | null
   plant: string
   ownerRequesterId: string | null
   reasonCategory: string
@@ -347,6 +352,8 @@ export interface ConsumptionPlan {
    */
   sessionId: string
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription?: string | null
   plant: string
   purpose: string
   plannedQuantity: string
@@ -539,6 +546,8 @@ export interface GrniEntry {
   reservationNumber: string
   reservationItem: string
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription?: string | null
   plant: string
   materialScope: MaterialScope
   prNumber: string | null
@@ -571,6 +580,8 @@ export interface MonthlyConsumption {
  */
 export interface UsagePattern {
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription?: string | null
   plant: string
   materialScope: MaterialScope
   agingBand: AgingBand | null
@@ -609,7 +620,7 @@ export interface ReservationLedgerRow {
   reservationItem: string
   material: string
   /** MAKT / ZMM065 text, where the backend sends one. */
-  materialDescription: string | null
+  materialDescription?: string | null
   plant: string
   reservationQuantity: number | null
   requirementDate: string | null

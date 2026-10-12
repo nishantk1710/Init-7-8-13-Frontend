@@ -14,6 +14,7 @@ import {
 } from "@/lib/assistant/justifications"
 import { downloadCsv, formatCount } from "@/lib/utils"
 import { cn } from "@/lib/utils"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * Justification Log — every reason recorded for going ahead anyway, from both
@@ -109,9 +110,11 @@ export function JustificationLog({
           >
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-medium text-foreground">
-                {entry.material}
+                {entry.materialDescription
+                  ? `${entry.materialDescription} (${entry.material})`
+                  : entry.material}
               </span>
-              <span className="text-muted-foreground">@ {entry.plant}</span>
+              <span className="text-muted-foreground">@ {sapPlantLabel(entry.plant)}</span>
               <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {kindLabel(entry.kind)}
               </span>

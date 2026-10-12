@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
 import type { ConsumptionPlan } from "@/lib/api/i13"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * Consumption plans captured through the assistant — FR-4's record.
@@ -65,7 +67,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             <TableRow key={plan.id}>
               <TableCell className="font-medium text-foreground">
                 <div className="flex flex-col gap-0.5">
-                  <span>{plan.material}</span>
+                  <MaterialName material={plan.material} description={plan.materialDescription} />
                   <AskAssistantLink
                     materialId={plan.material}
                     plant={plan.plant}
@@ -74,7 +76,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                   />
                 </div>
               </TableCell>
-              <TableCell className="text-muted-foreground">{plan.plant}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(plan.plant)}</TableCell>
               <TableCell className="max-w-[260px] whitespace-normal text-foreground">{plan.purpose}</TableCell>
               <TableCell className="text-right text-foreground">
                 {/* Rendered as the string the backend sent. A planned quantity
