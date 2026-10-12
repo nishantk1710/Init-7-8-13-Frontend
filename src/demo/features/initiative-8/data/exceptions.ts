@@ -1,176 +1,104 @@
-import { JUSTIFICATIONS } from "@demo/features/initiative-8/data/justifications"
-import { REPAIR_CHAINS } from "@demo/features/initiative-8/data/repair-chains"
-import type { RepairException } from "@demo/features/initiative-8/types/repair"
+import type { ExceptionEvent } from "@demo/features/initiative-8/types/repair"
 
 /**
- * Deterministic mock data — no live SAP connection. "Today" is anchored at
- * 3 Sep 2026, the same reference date the repair chains use.
+ * The Exception Queue's stored half (FR-11): who owns each item, what was said
+ * about it, and where it stands.
  *
- * Two checks raise everything here, and the rows are chosen to show both
- * halves of each one:
+ * The findings themselves are never written here. Each check works them out
+ * from the data (`model/snapshot.ts`) — an item exists because a check finds
+ * it — and the ids are stable (`EX-<type>-<key>`), so this history attaches
+ * to the right item every time. When a check stops finding an item that is
+ * still open (a declaration is recorded, a justification names the purchase),
+ * the queue resolves it automatically and says why.
  *
- * - `MISSING_ATTESTATION` — a repair line went to a vendor with no
- *   condition-to-repair declaration recorded within the ±14-day window. Some
- *   of these predate Spares Automation, which is a reason rather than a
- *   violation, and they carry `preAutomation` so the queue can say so.
- * - `UNJUSTIFIED_ACQUISITION` — a new unit was bought while a repair for the
- *   same material was still open, and nobody recorded why. The ones that WERE
- *   justified are not here; they are in `data/justifications.ts`, which is the
- *   other half of the same record.
- *
- * `repairId` points at a chain in `data/repair-chains.ts` so every row can
- * link through to the register detail page.
+ *   EX-OD-<line>         OVERDUE_REPAIR           past EKET.EINDT + 7 days
+ *   EX-MA-<line>         MISSING_ATTESTATION      repair PR/PO with no declaration
+ *   EX-MS-<reservation>  MISSING_SESSION_ID       80-series reservation, no valid session
+ *   EX-UA-<purchase>     UNJUSTIFIED_ACQUISITION  new unit while a repairable one existed
  */
-export const EXCEPTIONS: RepairException[] = [
-  {
-    id: "EX-8001",
-    type: "UNJUSTIFIED_ACQUISITION",
-    severity: "critical",
-    material: {
-      materialId: "800-14201",
-      materialCode: "800-14201",
-      description: "Gearbox Bearing Housing Assy — SAG Mill",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    repairLine: { type: "PO", documentNumber: "PO-81001", line: "10" },
-    repairId: "RC-8001",
-    acquisitionLine: { type: "PO", documentNumber: "PO-94477", line: "20" },
-    title: "New unit bought while 2 units were at the vendor",
-    detail:
-      "PO-94477/20 ordered 1 new housing on 22 Aug 2026. PO-81001/10 was still open with 2 units at Weir Minerals, expected back 10 Sep 2026. No justification recorded within ±14 days of the order.",
-    raisedAt: "22 Aug 2026",
-    isOpenRepair: true,
-    preAutomation: false,
-  },
-  {
-    id: "EX-8002",
-    type: "MISSING_ATTESTATION",
-    severity: "warning",
-    material: {
-      materialId: "800-22110",
-      materialCode: "800-22110",
-      description: "Crusher Liner Set — Primary Crusher",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    repairLine: { type: "PO", documentNumber: "PO-81003", line: "10" },
-    repairId: "RC-8003",
-    title: "Repair sent out with no condition declaration",
-    detail:
-      "The line was released to Metso Outotec on 12 Aug 2026. No condition-to-repair attestation exists for 800-22110 at Black Mountain within ±14 days of that date. D-90078 is still awaiting engineer sign-off.",
-    raisedAt: "12 Aug 2026",
-    isOpenRepair: true,
-    preAutomation: false,
-  },
-  {
-    id: "EX-8003",
-    type: "UNJUSTIFIED_ACQUISITION",
-    severity: "critical",
-    material: {
-      materialId: "800-18830",
-      materialCode: "800-18830",
-      description: "Slurry Pump Impeller Assembly",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    repairLine: { type: "PO", documentNumber: "PO-81006", line: "10" },
-    repairId: "RC-8006",
-    acquisitionLine: { type: "PR", documentNumber: "PR-90112", line: "10" },
-    title: "MRP raised a new-unit PR against an open repair",
-    detail:
-      "PR-90112 was auto-generated on 1 Sep 2026 without checking repair status. PO-81006/10 has 3 units at Bosch Rexroth. MRP cannot record a justification, so the line reaches the buyer with nothing attached.",
-    raisedAt: "1 Sep 2026",
-    isOpenRepair: true,
-    preAutomation: false,
-  },
-  {
-    id: "EX-8004",
-    type: "MISSING_ATTESTATION",
-    severity: "warning",
-    material: {
-      materialId: "800-31090",
-      materialCode: "800-31090",
-      description: "Hydraulic Power Pack — Apron Feeder",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    repairLine: { type: "PO", documentNumber: "PO-81004", line: "10" },
-    repairId: "RC-8004",
-    title: "Repair sent out with no condition declaration",
-    detail:
-      "Released to Voith Industrial Rebuild on 3 Jul 2026, before the declaration workflow went live at Black Mountain Mining. Nothing could have been recorded against this line at the time.",
-    raisedAt: "3 Jul 2026",
-    isOpenRepair: false,
-    preAutomation: true,
-  },
-  {
-    id: "EX-8005",
-    type: "MISSING_ATTESTATION",
-    severity: "info",
-    material: {
-      materialId: "800-27340",
-      materialCode: "800-27340",
-      description: "Screen Deck Vibrator Motor",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    repairLine: { type: "PO", documentNumber: "PO-81007", line: "10" },
-    repairId: "RC-8007",
-    title: "Attestation recorded outside the ±14-day window",
-    detail:
-      "A declaration exists for 800-27340 at Black Mountain Mining, dated 19 days after the line was released. It covers the part but not the decision — raised as information rather than as a breach.",
-    raisedAt: "28 Jul 2026",
-    isOpenRepair: true,
-    preAutomation: false,
-  },
-  {
-    id: "EX-8006",
-    type: "MISSING_ATTESTATION",
-    severity: "warning",
-    material: {
-      materialId: "800-45210",
-      materialCode: "800-45210",
-      description: "Conveyor Gearmotor — Overland Conveyor",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    repairLine: { type: "PO", documentNumber: "PO-81005", line: "10" },
-    repairId: "RC-8005",
-    title: "Repair sent out with no condition declaration",
-    detail:
-      "D-90045 is still open against PR-90045 — the declaration was never completed, and the unit went to Weir Minerals anyway on 18 Aug 2026.",
-    raisedAt: "18 Aug 2026",
-    isOpenRepair: true,
-    preAutomation: false,
-  },
-  {
-    id: "EX-8007",
-    type: "UNJUSTIFIED_ACQUISITION",
-    severity: "warning",
-    material: {
-      materialId: "500-14892",
-      materialCode: "500-14892",
-      description: "Seal Assy, Mech Type XR-200",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    repairLine: { type: "PO", documentNumber: "PO-81002", line: "10" },
-    repairId: "RC-8002",
-    acquisitionLine: { type: "PO", documentNumber: "PO-93120", line: "10" },
-    title: "New seal set ordered against an open repair",
-    detail:
-      "PO-93120/10 ordered 2 seal assemblies on 14 Jun 2026, while PO-81002/10 was at SEW-Eurodrive. Predates the justification capture, so no reason was ever asked for.",
-    raisedAt: "14 Jun 2026",
-    isOpenRepair: true,
-    preAutomation: true,
-  },
+
+/** People an exception can be assigned to. */
+export const EXCEPTION_OWNERS = [
+  "Lindiwe Mahlangu",
+  "Thabo Nkosi",
+  "Pieter Steyn",
+  "Johan Botha",
+  "Sarah van Wyk",
+  "Riaan Kruger",
+  "Nomvula Dlamini",
 ]
 
-/**
- * What the two checks looked at, so a small count reads as a small count and
- * not as a check that never ran. Every acquisition checked is either justified
- * (`data/justifications.ts`) or raised here as unjustified.
- */
-export const EXCEPTION_CHECKS = {
-  linesChecked: REPAIR_CHAINS.length,
-  attestationWindowDays: 14,
-  acquisitionsChecked:
-    JUSTIFICATIONS.length + EXCEPTIONS.filter((e) => e.type === "UNJUSTIFIED_ACQUISITION").length,
-  justificationWindowDays: 14,
-  attestationCutoverDate: "15 Jul 2026",
-  justificationCutoverDate: "1 Jul 2026",
+const PRE_AUTOMATION_CLOSE: ExceptionEvent = {
+  at: "16 Jul 2026, 10:00",
+  actor: "Lindiwe Mahlangu",
+  kind: "STATUS",
+  status: "CLOSED",
+  text: "Raised before Spares Automation — nothing could have been recorded at the time. Closed in the cut-over review.",
 }
+
+/** What has happened to each item since its check raised it. */
+export const EXCEPTION_HISTORY: Record<string, ExceptionEvent[]> = {
+  "EX-OD-8006": [
+    { at: "28 Aug 2026, 09:00", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Lindiwe Mahlangu", text: "Taken by Lindiwe Mahlangu" },
+    { at: "28 Aug 2026, 09:02", actor: "Lindiwe Mahlangu", kind: "STATUS", status: "IN_PROGRESS", text: "Chasing Bosch Rexroth for a return date." },
+    { at: "1 Sep 2026, 14:30", actor: "Lindiwe Mahlangu", kind: "COMMENT", text: "Bosch: impeller castings on back-order. Revised return 12 Sep — not yet updated on the PO schedule line." },
+  ],
+  "EX-OD-8012": [
+    { at: "8 Aug 2026, 08:15", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Johan Botha", text: "Assigned to Johan Botha" },
+    { at: "10 Aug 2026, 11:00", actor: "Johan Botha", kind: "STATUS", status: "IN_PROGRESS", text: "Escalated to Bosch's regional service manager." },
+    { at: "20 Aug 2026, 16:40", actor: "Johan Botha", kind: "COMMENT", text: "The drive is waiting on an IGBT stack from Germany. No date offered." },
+    { at: "1 Sep 2026, 12:05", actor: "Johan Botha", kind: "COMMENT", text: "A replacement drive was bought (PO-94812) — see the justification. The repair is still being chased for credit." },
+  ],
+  "EX-MA-8003": [
+    { at: "28 Aug 2026, 15:10", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Thabo Nkosi", text: "Assigned to Thabo Nkosi" },
+    { at: "1 Sep 2026, 08:30", actor: "Thabo Nkosi", kind: "COMMENT", text: "Engineer sign-off booked for 4 Sep, before the liner set ships." },
+  ],
+  "EX-MA-8006": [
+    { at: "16 Jul 2026, 10:00", actor: "Lindiwe Mahlangu", kind: "COMMENT", text: "Raised before the declaration control went live (15 Jul). Left open while the impellers are still out — declare them when they come back." },
+  ],
+  "EX-MA-8009": [PRE_AUTOMATION_CLOSE],
+  "EX-MA-8016": [PRE_AUTOMATION_CLOSE],
+  "EX-MA-8017": [PRE_AUTOMATION_CLOSE],
+  "EX-MS-41318": [
+    { at: "31 Aug 2026, 07:45", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Riaan Kruger", text: "Assigned to Riaan Kruger, who raised the reservation" },
+  ],
+  "EX-MS-41292": [
+    { at: "29 Aug 2026, 08:20", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Pieter Steyn", text: "Assigned to Pieter Steyn" },
+    { at: "29 Aug 2026, 09:05", actor: "Pieter Steyn", kind: "STATUS", status: "IN_PROGRESS", text: "Looking into it." },
+    { at: "29 Aug 2026, 09:12", actor: "Pieter Steyn", kind: "COMMENT", text: "The item text carries the old pilot format. Session SE7R3VY8JN for this part was opened the same morning — asked stores to correct the item text." },
+  ],
+  "EX-MS-41098": [
+    { ...PRE_AUTOMATION_CLOSE, text: "Reserved before the Spares Assistant went live (1 Jul) — nobody could have had a session id. Closed in the cut-over review." },
+  ],
+  "EX-UA-90112": [
+    { at: "2 Sep 2026, 07:30", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Pieter Steyn", text: "Assigned to Pieter Steyn" },
+    { at: "2 Sep 2026, 07:34", actor: "Lindiwe Mahlangu", kind: "COMMENT", text: "MRP raised this against three impellers at Bosch and one on the shelf. MRP cannot record a reason — hold the release until the repair date is confirmed." },
+  ],
+  "EX-UA-93120": [
+    { ...PRE_AUTOMATION_CLOSE, text: "Bought before the justification control existed (1 Jul) — nobody was asked. Closed in the cut-over review." },
+  ],
+
+  // Raised and dealt with before the reference date. The checks no longer find
+  // these, so they are listed in EARLIER_FINDINGS to stay on the record.
+  "EX-UA-94655": [
+    { at: "21 Aug 2026, 08:00", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Jacques Louw", text: "Assigned to Jacques Louw, who raised the order" },
+    { at: "29 Aug 2026, 16:33", actor: "Jacques Louw", kind: "STATUS", status: "RESOLVED", text: "Justification J-7005 recorded for this purchase." },
+    { at: "30 Aug 2026, 09:15", actor: "Lindiwe Mahlangu", kind: "STATUS", status: "CLOSED", text: "Reviewed — BER confirmed by the Voith strip-down report." },
+  ],
+  "EX-UA-94812": [
+    { at: "1 Sep 2026, 13:00", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Thabo Nkosi", text: "Assigned to Thabo Nkosi, who raised the order" },
+    { at: "2 Sep 2026, 08:20", actor: "Thabo Nkosi", kind: "STATUS", status: "RESOLVED", text: "Justification J-7003 recorded for this purchase." },
+  ],
+  "EX-OD-8015": [
+    { at: "24 Aug 2026, 08:00", actor: "Lindiwe Mahlangu", kind: "ASSIGNED", owner: "Lindiwe Mahlangu", text: "Taken by Lindiwe Mahlangu" },
+    { at: "28 Aug 2026, 14:00", actor: "System", kind: "AUTO_RESOLVED", status: "RESOLVED", text: "Goods receipt posted — both load cells are back." },
+    { at: "29 Aug 2026, 09:00", actor: "Lindiwe Mahlangu", kind: "STATUS", status: "CLOSED", text: "Back in stock." },
+  ],
+  "EX-OD-8017": [
+    { at: "22 Jul 2026, 11:00", actor: "System", kind: "AUTO_RESOLVED", status: "RESOLVED", text: "Goods receipt posted — the motor is back." },
+    { at: "23 Jul 2026, 08:30", actor: "Lindiwe Mahlangu", kind: "STATUS", status: "CLOSED", text: "Back in stock, 12 days late. Noted against Bosch's turnaround." },
+  ],
+}
+
+/** Items raised earlier that the checks no longer find, kept as the record. */
+export const EARLIER_FINDINGS = ["EX-UA-94655", "EX-UA-94812", "EX-OD-8015", "EX-OD-8017"]

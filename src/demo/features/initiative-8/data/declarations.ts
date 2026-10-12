@@ -1,120 +1,268 @@
-import { REPAIR_CHAINS } from "@demo/features/initiative-8/data/repair-chains"
-import type { DeclarationItem } from "@demo/features/initiative-8/types/repair"
+import { plantRef } from "@demo/features/initiative-8/data/config"
+import { materialRef } from "@demo/features/initiative-8/data/materials"
+import type { DeclarationRecord } from "@demo/features/initiative-8/types/repair"
 
-// Deterministic mock data. The condition declaration is the mandatory
-// workflow, separate from the advisory duplicate check the Spares Assistant
-// runs at reservation time. There is no Declaration Queue screen any more
-// (folded into the register, 08-Oct-2026): `data/register.ts` joins these rows
-// onto their RC-80xx repair chains via `relatedRepairId`, so the register and
-// the detail page show who declared, when and the next action.
-//
-// A line released with no completed declaration is what the Exception Queue's
-// MISSING_ATTESTATION rows are counting.
-//
-// D-90112 is Scenario D from the master spec: an MRP-generated PR that still
-// needs declaration follow-up.
+/**
+ * Condition-to-repair declarations (FR-4), every one ever recorded.
+ *
+ * Declared from the part, when it comes off the machine — so some name no
+ * repair line yet (awaiting a repair PO), and the ones assessed Beyond
+ * Economical Repair or Scrap may never get one. Each is linked to its repair
+ * line(s) and assistant session explicitly; nothing is matched by date.
+ *
+ * Locked once recorded. DCL-1010 and DCL-1017 are amendments: new records that
+ * supersede the old ones, with the reason, and the old ones stay listed.
+ */
 
-const SCENARIO_DECLARATIONS: DeclarationItem[] = [
+type Seed = Omit<DeclarationRecord, "material" | "plant"> & { materialId: string; plantId: string }
+
+const SEEDS: Seed[] = [
   {
-    id: "D-90045",
-    pr: { type: "PR", documentNumber: "PR-90045" },
-    material: {
-      materialId: "800-45210",
-      materialCode: "800-45210",
-      description: "Conveyor Gearmotor — Overland Conveyor",
-    },
-    requester: "Riaan Kruger",
-    hasActiveRepair: true,
-    relatedRepairId: "RC-8005",
-    status: "Required",
-    nextAction: "Declare condition before this PR can be released.",
-    createdAt: "31 Aug 2026",
-  },
-  {
-    id: "D-90112",
-    pr: { type: "PR", documentNumber: "PR-90112" },
-    material: {
-      materialId: "800-18830",
-      materialCode: "800-18830",
-      description: "Slurry Pump Impeller Assembly",
-    },
-    requester: "Pieter Steyn",
-    hasActiveRepair: true,
-    relatedRepairId: "RC-8006",
-    status: "Required",
-    nextAction: "MRP auto-generated this PR without checking repair status — confirm condition before PO release.",
-    createdAt: "1 Sep 2026",
-  },
-  {
-    id: "D-90078",
-    pr: { type: "PR", documentNumber: "PR-90078" },
-    material: {
-      materialId: "800-22110",
-      materialCode: "800-22110",
-      description: "Crusher Liner Set — Primary Crusher",
-    },
-    requester: "Thabo Nkosi",
-    hasActiveRepair: true,
-    relatedRepairId: "RC-8003",
-    status: "Required",
-    nextAction: "Awaiting maintenance engineer sign-off on condition.",
-    createdAt: "29 Aug 2026",
-  },
-  {
-    id: "D-90031",
-    pr: { type: "PR", documentNumber: "PR-90031" },
-    material: {
-      materialId: "800-31090",
-      materialCode: "800-31090",
-      description: "Hydraulic Cylinder Assy — Stacker Reclaimer",
-    },
-    requester: "Sarah van Wyk",
-    hasActiveRepair: false,
-    relatedRepairId: "RC-8004",
-    status: "Completed",
-    declaredBy: "Sarah van Wyk",
-    declaredAt: "26 Aug 2026",
+    id: "DCL-0998",
+    materialId: "800-31090",
+    plantId: "PLANT-BMM",
+    quantity: 1,
     condition: "Repairable",
-    nextAction: "None — repair closed and receipted.",
-    createdAt: "2 Jul 2026",
+    faultCategory: "WEAR",
+    conditionDescription:
+      "Pump output down 30% on the bench test and the relief valve chattering. Strip and reseal expected to recover it.",
+    declaredBy: "Sarah van Wyk",
+    declaredAt: "2 Jul 2026, 10:15",
+    repairLineIds: ["RC-8004"],
   },
   {
-    id: "D-90099",
-    pr: { type: "PR", documentNumber: "PR-90099" },
-    material: {
-      materialId: "800-39950",
-      materialCode: "800-39950",
-      description: "Control Valve Actuator — Flotation Circuit",
-    },
-    requester: "Amanda Petersen",
-    hasActiveRepair: true,
-    relatedRepairId: "RC-8008",
-    status: "Flagged",
-    // Flagged means the assessment did NOT find the part repairable and it
-    // went for repair anyway -- the backend's meaning, not the old mock's.
-    declaredBy: "Thabo Nkosi",
-    declaredAt: "24 Aug 2026",
+    id: "DCL-1001",
+    materialId: "800-14201",
+    plantId: "PLANT-GBG",
+    quantity: 2,
+    condition: "Repairable",
+    faultCategory: "BEARING_FAILURE",
+    conditionDescription:
+      "Outer race spalling on both housings; bores measured within tolerance. Re-sleeve and fit new bearings.",
+    serialNumber: "GBH-SAG-0112",
+    declaredBy: "Sipho Mahlangu",
+    declaredAt: "28 Jul 2026, 09:12",
+    repairLineIds: ["RC-8001"],
+    sessionId: "SK4T7QW2MD",
+  },
+  {
+    id: "DCL-1002",
+    materialId: "800-52260",
+    plantId: "PLANT-GBG",
+    quantity: 2,
+    condition: "Repairable",
+    faultCategory: "SEAL_LEAK",
+    conditionDescription: "Seal faces scored; springs and sleeve sound. Re-lap the faces and replace the elastomers.",
+    declaredBy: "Anton de Villiers",
+    declaredAt: "17 Aug 2026, 15:20",
+    repairLineIds: ["RC-8002"],
+    sessionId: "SM6V1RK8EH",
+  },
+  {
+    id: "DCL-1003",
+    materialId: "800-27340",
+    plantId: "PLANT-BMM",
+    quantity: 2,
+    condition: "Repairable",
+    faultCategory: "ELECTRICAL_FAULT",
+    conditionDescription: "Both motors tripping on earth fault; insulation resistance 0.4 MΩ. Rewind.",
+    declaredBy: "Nomvula Dlamini",
+    declaredAt: "24 Jul 2026, 08:05",
+    repairLineIds: ["RC-8007"],
+    sessionId: "SP4K9DX2RW",
+  },
+  {
+    id: "DCL-1004",
+    materialId: "800-33870",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "OVERHEATING",
+    conditionDescription: "Winding hot spot on the thermal scan and noisy drive-end bearing.",
+    declaredBy: "Nomvula Dlamini",
+    declaredAt: "20 Jul 2026, 11:30",
+    repairLineIds: ["RC-8010"],
+    sessionId: "SL7X4DB3UF",
+  },
+  {
+    id: "DCL-1005",
+    materialId: "800-47120",
+    plantId: "PLANT-BMM",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "SEAL_LEAK",
+    conditionDescription: "Rod seal leaking; rod chrome pitted over about 40 mm. Re-chrome and reseal.",
+    declaredBy: "Sarah van Wyk",
+    declaredAt: "29 Jul 2026, 07:50",
+    repairLineIds: ["RC-8011"],
+    sessionId: "SQ1J6WH8YC",
+  },
+  {
+    id: "DCL-1006",
+    materialId: "800-58830",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "ELECTRICAL_FAULT",
+    conditionDescription: "IGBT stack failed on start-up; control board tested good on the bench.",
+    declaredBy: "Pieter Steyn",
+    declaredAt: "16 Jul 2026, 09:40",
+    repairLineIds: ["RC-8012"],
+    sessionId: "SG2M8WQ4NV",
+  },
+  {
+    id: "DCL-1007",
+    materialId: "800-29010",
+    plantId: "PLANT-BMM",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "WEAR",
+    conditionDescription: "Volute liner worn through at the cutwater; casing sound. Reline.",
+    declaredBy: "Riaan Kruger",
+    declaredAt: "2 Sep 2026, 08:15",
+    repairLineIds: ["RC-8013"],
+    sessionId: "SX3W7GN1KT",
+  },
+  {
+    id: "DCL-1008",
+    materialId: "800-71205",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "CONTAMINATION",
+    conditionDescription: "Clutch pack slipping; the oil sample shows bronze and water.",
+    serialNumber: "ULT-7720-0031",
+    declaredBy: "Pieter Steyn",
+    declaredAt: "6 Aug 2026, 13:05",
+    repairLineIds: ["RC-8014"],
+    sessionId: "SF8P2MV5KG",
+  },
+  {
+    id: "DCL-1009",
+    materialId: "800-36640",
+    plantId: "PLANT-BMM",
+    quantity: 2,
+    condition: "Repairable",
+    faultCategory: "IMPACT_DAMAGE",
+    conditionDescription: "Load cells reading erratically after the belt tear; both housings dented.",
+    declaredBy: "Riaan Kruger",
+    declaredAt: "16 Jul 2026, 10:00",
+    repairLineIds: ["RC-8015"],
+    sessionId: "SC5H9RB2MJ",
+  },
+  {
+    id: "DCL-1010",
+    materialId: "800-31090",
+    plantId: "PLANT-BMM",
+    quantity: 1,
     condition: "Beyond Economical Repair",
-    nextAction:
-      "Assessed as Beyond Economical Repair but sent for repair anyway — confirm with Thabo Nkosi before the unit comes back.",
-    createdAt: "23 Aug 2026",
+    faultCategory: "CORROSION",
+    conditionDescription:
+      "Voith strip-down: manifold cracked through behind the relief valve. Repair would cost more than 70% of a new pack.",
+    evidenceReference: "Voith strip-down report VR-25-0817",
+    declaredBy: "Sarah van Wyk",
+    declaredAt: "26 Aug 2026, 14:10",
+    repairLineIds: ["RC-8004"],
+    supersedes: "DCL-0998",
+    amendmentReason:
+      "Vendor strip-down report (Voith, 25 Aug) found the manifold cracked — the part is not repairable.",
   },
   {
-    id: "D-90205",
-    pr: { type: "PR", documentNumber: "PR-90205" },
-    material: {
-      materialId: "800-27340",
-      materialCode: "800-27340",
-      description: "Vibrating Screen Motor — Screening Plant",
-    },
-    requester: "Nomvula Dlamini",
-    hasActiveRepair: true,
-    relatedRepairId: "RC-8007",
-    status: "Required",
-    nextAction: "Declare condition — repair unit currently in transit for return.",
-    createdAt: "26 Jul 2026",
+    id: "DCL-1011",
+    materialId: "800-47120",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "SEAL_LEAK",
+    conditionDescription: "Piston seal bypassing; cylinder drifts under load. Reseal and hone.",
+    declaredBy: "Riaan Kruger",
+    declaredAt: "21 Jul 2026, 09:00",
+    repairLineIds: ["RC-8018"],
+    sessionId: "SY9D3HK6LB",
+  },
+  {
+    id: "DCL-1012",
+    materialId: "800-39950",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Beyond Economical Repair",
+    faultCategory: "VIBRATION_DAMAGE",
+    conditionDescription:
+      "Output shaft fretted and the housing bore oval by 0.3 mm. Assessed beyond economical repair.",
+    declaredBy: "Thabo Nkosi",
+    declaredAt: "24 Aug 2026, 11:20",
+    repairLineIds: ["RC-8008"],
+    sessionId: "SH3K8PZ1QA",
+  },
+  {
+    id: "DCL-1013",
+    materialId: "800-12090",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "SEAL_LEAK",
+    conditionDescription: "Bladder holds pre-charge for minutes only; shell and port threads sound.",
+    declaredBy: "Thabo Nkosi",
+    declaredAt: "1 Sep 2026, 15:45",
+    repairLineIds: [],
+  },
+  {
+    id: "DCL-1014",
+    materialId: "800-44500",
+    plantId: "PLANT-GBG",
+    quantity: 1,
+    condition: "Scrap",
+    faultCategory: "WEAR",
+    conditionDescription: "Gland housing cracked across the stuffing box; the parts are no longer made.",
+    declaredBy: "Pieter Steyn",
+    declaredAt: "28 Aug 2026, 10:30",
+    repairLineIds: [],
+  },
+  {
+    id: "DCL-1015",
+    materialId: "800-18830",
+    plantId: "PLANT-BMM",
+    quantity: 1,
+    condition: "Beyond Economical Repair",
+    faultCategory: "WEAR",
+    conditionDescription: "Impeller vanes eroded past the minimum thickness and the hub cracked.",
+    declaredBy: "Pieter Steyn",
+    declaredAt: "12 Aug 2026, 09:10",
+    repairLineIds: [],
+  },
+  {
+    id: "DCL-1016",
+    materialId: "800-60415",
+    plantId: "PLANT-BMM",
+    quantity: 3,
+    condition: "Repairable",
+    faultCategory: "BEARING_FAILURE",
+    conditionDescription: "Pinion bearing noise on the mill; inner race damage found on removal.",
+    declaredBy: "Thabo Nkosi",
+    declaredAt: "30 Aug 2026, 13:00",
+    repairLineIds: [],
+  },
+  {
+    id: "DCL-1017",
+    materialId: "800-60415",
+    plantId: "PLANT-BMM",
+    quantity: 1,
+    condition: "Repairable",
+    faultCategory: "BEARING_FAILURE",
+    conditionDescription: "Pinion bearing noise on the mill; inner race damage found on removal.",
+    declaredBy: "Thabo Nkosi",
+    declaredAt: "30 Aug 2026, 13:25",
+    repairLineIds: [],
+    supersedes: "DCL-1016",
+    amendmentReason: "Quantity entered as 3 — one unit came off the mill.",
   },
 ]
+
+export const SEED_DECLARATIONS: DeclarationRecord[] = SEEDS.map(({ materialId, plantId, ...rest }) => ({
+  ...rest,
+  material: materialRef(materialId),
+  plant: plantRef(plantId),
+}))
 
 /** The controlled fault-category list the declaration form offers (the backend's default). */
 export const FAULT_CATEGORIES = [
@@ -129,9 +277,3 @@ export const FAULT_CATEGORIES = [
   "CONTAMINATION",
   "UNKNOWN",
 ]
-
-/** Each row carries the quantity still out on its repair line, the form's default. */
-export const DECLARATIONS: DeclarationItem[] = SCENARIO_DECLARATIONS.map((d) => {
-  const quantity = REPAIR_CHAINS.find((c) => c.id === d.relatedRepairId)?.qtyUnderRepair
-  return quantity !== undefined && quantity > 0 ? { ...d, quantityUnderRepair: quantity } : d
-})

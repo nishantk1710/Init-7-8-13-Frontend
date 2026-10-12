@@ -1,127 +1,125 @@
+import { plantRef } from "@demo/features/initiative-8/data/config"
+import { materialRef } from "@demo/features/initiative-8/data/materials"
 import type { JustificationEntry } from "@demo/features/initiative-8/types/repair"
 
 /**
- * Deterministic mock data — no live SAP connection. Anchored at 3 Sep 2026.
+ * New-acquisition justifications (FR-7): the purchases where somebody was told
+ * a repairable unit already existed and recorded why they bought new anyway.
  *
- * The other half of the Exception Queue's record: these are the new-unit
- * purchases where somebody WAS told a repairable unit already existed and
- * recorded why they bought anyway. The ones with no reason on file are the
- * `UNJUSTIFIED_ACQUISITION` rows in `data/exceptions.ts` — the two files are
- * disjoint on purpose, and together they cover every acquisition the check
- * looked at.
+ * Each names the purchase it justifies, so the unjustified-acquisition check
+ * can tell a justified purchase from an unjustified one without a date window.
  *
  * `source` says which moment the reason was captured in:
  *
- * - `ASSISTANT` — written at reservation time, when the Spares Assistant
- *   raised the open repair and asked before the request went through.
- * - `EXCEPTION` — written weeks later, when somebody chased the exception.
+ * - `ASSISTANT` — at reservation time, when the Spares Assistant raised the
+ *   repairable unit and asked before the request went through.
+ * - `EXCEPTION` — later, when somebody chased the exception.
  *
  * They are different kinds of evidence about the same person's reasoning, and
  * a log that flattened them would invite a reader to treat the second as the
- * first. Benefit attribution counts only avoided purchases, so this log is the
- * denominator: it is how anyone finds out whether the advice is landing.
+ * first. Benefit attribution counts only purchases avoided, so this log is the
+ * other side of it: how anyone finds out whether the advice is landing.
  */
-export const JUSTIFICATIONS: JustificationEntry[] = [
+
+/** The reason categories the form offers. VZI's own list is still awaited. */
+export const JUSTIFICATION_REASONS = [
+  "PRODUCTION_CRITICAL",
+  "REPAIR_OVERDUE",
+  "REPAIR_NOT_ECONOMICAL",
+  "BEYOND_ECONOMICAL_REPAIR",
+  "SPECIFICATION_CHANGE",
+  "SHUTDOWN_COVER",
+]
+
+type Seed = Omit<JustificationEntry, "material" | "plant"> & { materialId: string; plantId: string }
+
+const SEEDS: Seed[] = [
   {
     id: "J-7001",
-    material: {
-      materialId: "800-14201",
-      materialCode: "800-14201",
-      description: "Gearbox Bearing Housing Assy — SAG Mill",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
+    materialId: "800-14201",
+    plantId: "PLANT-GBG",
     source: "ASSISTANT",
     reasonCategory: "PRODUCTION_CRITICAL",
     freeText:
-      "SAG mill is the only path for Gamsberg feed. Repair returns 10 Sep at the earliest and we have one unit on the floor — a second failure before then stops the plant. Buying one new as standing cover; the repaired pair still comes back to stores.",
-    author: "R. Kruger",
+      "SAG mill is the only path for Gamsberg feed. The repair returns 10 Sep at the earliest and we have one unit on the floor — a second failure before then stops the plant. Buying one new as standing cover; the repaired pair still comes back to stores.",
+    author: "Riaan Kruger",
     recordedAt: "22 Aug 2026, 10:42",
     acquisitionLine: { type: "PO", documentNumber: "PO-94477", line: "20" },
-    sessionId: "SES-4471",
+    sessionId: "SR8N3XJ5PB",
+    reservation: { type: "RESERVATION", documentNumber: "0041288", line: "1" },
   },
   {
     id: "J-7002",
-    material: {
-      materialId: "800-27340",
-      materialCode: "800-27340",
-      description: "Screen Deck Vibrator Motor",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
+    materialId: "800-27340",
+    plantId: "PLANT-BMM",
     source: "ASSISTANT",
     reasonCategory: "REPAIR_NOT_ECONOMICAL",
     freeText:
-      "Vendor quoted R41k against R52k new, with no warranty on the rewind. Third time this unit has been back in eighteen months. Buying new and scrapping the core.",
-    author: "N. Shivute",
-    recordedAt: "27 Aug 2026, 14:05",
+      "Metso quoted R41k against R52k new for the rewind, with no warranty, and this motor is on its third trip back in eighteen months. Buying new for the duty position; the units at Metso come back as shelf spares.",
+    author: "Nangula Shivute",
+    recordedAt: "27 Aug 2026, 09:41",
     acquisitionLine: { type: "PO", documentNumber: "PO-94701", line: "10" },
-    sessionId: "SES-4488",
+    sessionId: "SN4R7TC2XE",
+    reservation: { type: "RESERVATION", documentNumber: "0041298", line: "1" },
   },
   {
     id: "J-7003",
-    material: {
-      materialId: "800-22110",
-      materialCode: "800-22110",
-      description: "Crusher Liner Set — Primary Crusher",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
+    materialId: "800-58830",
+    plantId: "PLANT-GBG",
     source: "EXCEPTION",
     reasonCategory: "REPAIR_OVERDUE",
     freeText:
-      "Metso has held this set for 61 days against a 30-day turnaround and will not commit to a return date. Bought a replacement set to get the crusher back. Chasing the repair separately for credit.",
-    author: "T. Nkosi",
-    recordedAt: "1 Sep 2026, 08:20",
+      "Bosch has held this drive for six weeks against a 14-day planned turnaround and will not commit to a return date. Bought a replacement to get the reclaimer back. Chasing the repair separately for credit.",
+    author: "Thabo Nkosi",
+    recordedAt: "2 Sep 2026, 08:20",
     acquisitionLine: { type: "PO", documentNumber: "PO-94812", line: "10" },
-    exceptionId: "EX-8002",
+    exceptionId: "EX-UA-94812",
   },
   {
     id: "J-7004",
-    material: {
-      materialId: "500-14892",
-      materialCode: "500-14892",
-      description: "Seal Assy, Mech Type XR-200",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
+    materialId: "800-52260",
+    plantId: "PLANT-GBG",
     source: "ASSISTANT",
     reasonCategory: "SPECIFICATION_CHANGE",
     freeText:
-      "Pump was re-impellered in June and now needs the XR-200H face. The units at SEW are the old spec and will not fit the rebuilt casing — they go back to stores for the two unmodified pumps.",
-    author: "A. de Villiers",
+      "The tailings pump was re-engineered in June and now needs the high-solids face. The two cartridges on the shelf are the old spec and will not fit — they stay for the two unmodified pumps.",
+    author: "Anton de Villiers",
     recordedAt: "14 Aug 2026, 11:58",
     acquisitionLine: { type: "PO", documentNumber: "PO-93980", line: "10" },
-    sessionId: "SES-4402",
+    sessionId: "SB2Q9LM6TC",
+    reservation: { type: "RESERVATION", documentNumber: "0041251", line: "1" },
   },
   {
     id: "J-7005",
-    material: {
-      materialId: "800-31090",
-      materialCode: "800-31090",
-      description: "Hydraulic Power Pack — Apron Feeder",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
+    materialId: "800-31090",
+    plantId: "PLANT-BMM",
     source: "EXCEPTION",
     reasonCategory: "BEYOND_ECONOMICAL_REPAIR",
     freeText:
-      "Voith stripped the pack and found the manifold cracked through. Declared BER on inspection, after the order was already placed. Repair PO being cancelled.",
-    author: "J. Louw",
+      "Voith stripped the pack and found the manifold cracked through. The replacement was ordered on their verbal report, ahead of the formal BER declaration; the repair PO line is cancelled.",
+    author: "Jacques Louw",
     recordedAt: "29 Aug 2026, 16:33",
     acquisitionLine: { type: "PO", documentNumber: "PO-94655", line: "10" },
-    exceptionId: "EX-8004",
+    exceptionId: "EX-UA-94655",
   },
   {
     id: "J-7006",
-    material: {
-      materialId: "800-39950",
-      materialCode: "800-39950",
-      description: "Thickener Rake Drive Gearbox",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
+    materialId: "800-39950",
+    plantId: "PLANT-GBG",
     source: "ASSISTANT",
     reasonCategory: "SHUTDOWN_COVER",
     freeText:
-      "October shutdown needs two units on site on day one. One is at SEW with no firm return date. Holding a new unit as shutdown cover — it stays in stores if the repair lands in time.",
-    author: "M. Botha",
+      "The October shutdown needs two drives on site on day one. One is going to SEW with no firm return date. Holding a new unit as shutdown cover — it stays in stores if the repair lands in time.",
+    author: "Marius Botha",
     recordedAt: "2 Sep 2026, 07:15",
     acquisitionLine: { type: "PR", documentNumber: "PR-90640", line: "10" },
-    sessionId: "SES-4512",
+    sessionId: "SW5C2NE9JR",
+    reservation: { type: "RESERVATION", documentNumber: "0041330", line: "1" },
   },
 ]
+
+export const SEED_JUSTIFICATIONS: JustificationEntry[] = SEEDS.map(({ materialId, plantId, ...rest }) => ({
+  ...rest,
+  material: materialRef(materialId),
+  plant: plantRef(plantId),
+}))

@@ -1,84 +1,66 @@
 import type { AuditEvent } from "@demo/lib/domain/contracts"
-import { DECLARATIONS } from "@demo/features/initiative-8/data/declarations"
-import { REPAIR_CHAINS } from "@demo/features/initiative-8/data/repair-chains"
+import { BASE_SNAPSHOT } from "@demo/features/initiative-8/model/snapshot"
+import { STAGE_LABEL, exceptionTypeLabel } from "@demo/features/initiative-8/utils/status"
 
 /**
- * Every Initiative 8 audit-worthy event for the global Audit Trail: repair
- * PR/PO lifecycle steps, duplicate-procurement warnings shown, and completed
- * condition-to-repair declarations. All "Simulated" — no live SAP writes.
+ * Every Initiative 8 audit-worthy event for the global Audit Trail: each
+ * repair line's lifecycle steps, every declaration and amendment, every
+ * justification, and every change to an exception. All "Simulated" — no SAP
+ * writes.
  */
 export function getInitiative8AuditEvents(): AuditEvent[] {
   const events: AuditEvent[] = []
 
-  for (const c of REPAIR_CHAINS) {
-    events.push({
-      id: `i8-audit-${c.id}-pr`,
-      initiative: "initiative-8",
-      entityId: c.id,
-      eventType: "Repair PR Raised",
-      description: `${c.repairPR.documentNumber} raised for ${c.material.materialId} (${c.material.description}).`,
-      timestamp: c.raisedAt,
-    })
-
-    if (c.repairPO && c.poIssuedAt) {
+  for (const line of BASE_SNAPSHOT.lines) {
+    for (const step of line.stages) {
+      if (step.stage === "ATTESTED") continue
       events.push({
-        id: `i8-audit-${c.id}-po`,
+        id: `i8-audit-${line.id}-${step.stage}`,
         initiative: "initiative-8",
-        entityId: c.id,
-        eventType: "Repair PO Issued",
-        description: `${c.repairPO.documentNumber} issued to ${c.vendor} for ${c.material.materialId}.`,
-        timestamp: c.poIssuedAt,
-      })
-    }
-
-    if (c.sentToVendorAt) {
-      events.push({
-        id: `i8-audit-${c.id}-sent`,
-        initiative: "initiative-8",
-        entityId: c.id,
-        eventType: "Sent To Vendor",
-        description: `Unit for ${c.material.materialId} dispatched to ${c.vendor} (goods issue).`,
-        timestamp: c.sentToVendorAt,
-      })
-    }
-
-    if (c.receivedAt) {
-      events.push({
-        id: `i8-audit-${c.id}-received`,
-        initiative: "initiative-8",
-        entityId: c.id,
-        eventType: "Repair Receipted",
-        description: `Repaired unit for ${c.material.materialId} receipted back into stores (goods receipt).`,
-        timestamp: c.receivedAt,
-      })
-    }
-
-    if (c.declarationStatus === "Flagged") {
-      events.push({
-        id: `i8-audit-${c.id}-duplicate`,
-        initiative: "initiative-8",
-        entityId: c.id,
-        eventType: "Duplicate Warning Shown",
-        description: `The Spares Assistant flagged a new-unit request against ${c.material.materialId} while ${
-          c.repairPO?.documentNumber ?? "its repair PO"
-        } was open.`,
-        timestamp: c.poIssuedAt ?? c.raisedAt,
+        entityId: line.id,
+        eventType: STAGE_LABEL[step.stage],
+        description: `${line.id}: ${line.material.materialId} (${line.material.description}) — ${STAGE_LABEL[step.stage].toLowerCase()}${step.stage === "AT_VENDOR" ? ` at ${line.vendor}` : ""}.`,
+        timestamp: step.at,
       })
     }
   }
 
-  for (const d of DECLARATIONS) {
-    if (d.status === "Completed" && d.declaredAt) {
+  for (const d of BASE_SNAPSHOT.declarations) {
+    events.push({
+      id: `i8-audit-${d.id}`,
+      initiative: "initiative-8",
+      entityId: d.id,
+      eventType: d.supersedes ? "Declaration Amended" : "Declaration Recorded",
+      description: `${d.material.materialId} declared "${d.condition}" by ${d.declaredBy}${d.supersedes ? `, replacing ${d.supersedes}: ${d.amendmentReason ?? ""}` : ""} — not posted to SAP.`,
+      actor: d.declaredBy,
+      timestamp: d.declaredAt,
+    })
+  }
+
+  for (const j of BASE_SNAPSHOT.justifications) {
+    events.push({
+      id: `i8-audit-${j.id}`,
+      initiative: "initiative-8",
+      entityId: j.id,
+      eventType: "Justification Recorded",
+      description: `${j.author} recorded why a new ${j.material.materialId} was bought (${j.reasonCategory.replace(/_/g, " ").toLowerCase()}).`,
+      actor: j.author,
+      timestamp: j.recordedAt,
+    })
+  }
+
+  for (const e of BASE_SNAPSHOT.exceptions) {
+    e.history.forEach((event, index) => {
       events.push({
-        id: `i8-audit-decl-${d.id}`,
+        id: `i8-audit-${e.id}-${index}`,
         initiative: "initiative-8",
-        entityId: d.id,
-        eventType: "Declaration Completed",
-        description: `${d.material.materialId} declared "${d.condition}" by ${d.declaredBy ?? "—"} for ${d.pr.documentNumber} — not posted to SAP.`,
-        actor: d.declaredBy,
-        timestamp: d.declaredAt,
+        entityId: e.id,
+        eventType: `${exceptionTypeLabel(e.type)} — ${event.kind === "RAISED" ? "Raised" : event.kind === "AUTO_RESOLVED" ? "Resolved" : event.kind === "ASSIGNED" ? "Assigned" : event.kind === "COMMENT" ? "Comment" : "Status"}`,
+        description: `${e.id} (${e.material.materialId}): ${event.text}`,
+        actor: event.actor,
+        timestamp: event.at,
       })
-    }
+    })
   }
 
   return events

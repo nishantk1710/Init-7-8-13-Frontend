@@ -1,9 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
+import { ChevronDown, ChevronRight, Download, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { ClearFiltersButton } from "@demo/components/shared/clear-filters-button"
+import { EmptyState } from "@demo/components/shared/empty-state"
 import { FilterBar } from "@demo/components/shared/filter-bar"
 import { MaterialIdentity } from "@demo/components/shared/material-identity"
 import { StatusBadge } from "@demo/components/shared/status-badge"
@@ -23,69 +25,191 @@ import {
   TableHeader,
   TableRow,
 } from "@demo/components/ui/table"
-import { CODING_CANDIDATES, CODING_SCREEN } from "@demo/features/initiative-8/data/coding-candidates"
+import {
+  CODING_CONFIDENCE_THRESHOLD,
+  CODING_SCREEN,
+  I8_PLANTS,
+} from "@demo/features/initiative-8/data/config"
+import { ALL } from "@demo/features/initiative-8/model/metrics"
+import { snapshotStore, useI08Snapshot } from "@demo/features/initiative-8/state/snapshot-store"
+import type {
+  CodingCandidateLine,
+  CodingTextSource,
+  RankedCodingCandidate,
+} from "@demo/features/initiative-8/types/repair"
+import { instantOf } from "@demo/features/initiative-8/utils/dates"
 import {
   CODING_CONFIDENCE_TONE,
+  CODING_SOURCE_LABEL,
+  CODING_VERDICTS,
   CODING_VERDICT_TONE,
+  UNKNOWN,
+  codeLabel,
 } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
+import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
 
-const ALL = "all"
+const SOURCES = Object.keys(CODING_SOURCE_LABEL) as CodingTextSource[]
 
-const VERDICTS = [
-  "MISCODED_REPAIRABLE",
-  "UNCLEAR",
-  "REPAIR_SERVICE",
-  "CONSUMABLE_FOR_REPAIR",
-  "UNSCREENED",
-]
-
-/** How long the snapshot's re-screen shows as running. Nothing is called. */
+/** How long the Snapshot's re-screen shows as running. Nothing is called. */
 const SCREEN_DURATION_MS = 1500
 
+/** Columns in the table, so the expanded evidence row spans all of them. */
+const COLUMN_COUNT = 10
+
+/** "MISCODED_REPAIRABLE" -> "Miscoded repairable", for dropdowns and the CSV. */
+function verdictLabel(verdict: string): string {
+  const words = codeLabel(verdict)
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+function lineLabel(line: CodingCandidateLine): string {
+  const mvt = line.movementType ? ` mvt ${line.movementType}` : ""
+  return `${line.source} ${line.document}/${line.item}${mvt} @ ${line.plant.name}: ${line.shortText} (${line.raisedAt})`
+}
+
+function flagsOf(c: RankedCodingCandidate): string[] {
+  return [
+    c.isCorroborated && "Twin found",
+    c.isActionable && "Actionable",
+    c.meetsConfidenceThreshold && "Meets threshold",
+  ].filter((flag): flag is string => !!flag)
+}
+
+/** Toggle state for the three "only" filters. */
+interface OnlyFilters {
+  actionable: boolean
+  corroborated: boolean
+  threshold: boolean
+}
+
+const NO_ONLY: OnlyFilters = { actionable: false, corroborated: false, threshold: false }
+
+const ONLY_LABEL: Record<keyof OnlyFilters, string> = {
+  actionable: "Actionable only",
+  corroborated: "Corroborated only",
+  threshold: "Meets threshold only",
+}
+
 /**
- * Coding Candidates (FR-2) — materials whose purchase-order free text talks
- * about repair while the material is not 80-series coded. Advisory only:
- * nothing on this screen writes to SAP or recodes a material.
+ * Coding Candidates (FR-2) — materials whose purchase-requisition, purchase-
+ * order or goods-movement free text talks about repair while the material is
+ * not 80-series coded, ranked so the likeliest miscodings come first.
+ *
+ * Every row shows the text that raised it and the screen's reason in full,
+ * because a cataloguer deciding whether to recode a part needs the evidence,
+ * not a score. A twin — an 80-series material carrying the identical text —
+ * is called out separately: it is SAP's own counter-example and owes nothing
+ * to the model.
+ *
+ * Advisory only: nothing on this screen writes to SAP or recodes a material.
+ * "Run AI screen" moves the screening time on; the kept verdicts do not change.
  */
 export function CodingCandidatesTable() {
   const { openMaterial360 } = useMaterial360()
+  const candidates = useI08Snapshot().codingCandidates
   const [screening, setScreening] = useState(false)
   const [verdict, setVerdict] = useState<string>(ALL)
-  const [actionableOnly, setActionableOnly] = useState(false)
-  const [corroboratedOnly, setCorroboratedOnly] = useState(false)
-  const [meetsThresholdOnly, setMeetsThresholdOnly] = useState(false)
+  const [source, setSource] = useState<string>(ALL)
+  const [plant, setPlant] = useState<string>(ALL)
+  const [only, setOnly] = useState<OnlyFilters>(NO_ONLY)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
 
   const filtered = useMemo(
     () =>
-      CODING_CANDIDATES.filter((c) => {
+      candidates.filter((c) => {
         if (verdict !== ALL && c.verdict !== verdict) return false
-        if (actionableOnly && !c.isActionable) return false
-        if (corroboratedOnly && !c.isCorroborated) return false
-        if (meetsThresholdOnly && !c.meetsConfidenceThreshold) return false
+        if (source !== ALL && !c.sources.includes(source as CodingTextSource)) return false
+        if (plant !== ALL && !c.plants.some((p) => p.plantId === plant)) return false
+        if (only.actionable && !c.isActionable) return false
+        if (only.corroborated && !c.isCorroborated) return false
+        if (only.threshold && !c.meetsConfidenceThreshold) return false
         return true
       }),
-    [verdict, actionableOnly, corroboratedOnly, meetsThresholdOnly]
+    [candidates, verdict, source, plant, only]
   )
 
-  const corroborated = CODING_CANDIDATES.filter((c) => c.isCorroborated).length
+  const corroborated = candidates.filter((c) => c.isCorroborated).length
+  const lastScreened = candidates.reduce<string | undefined>(
+    (latest, c) => (!latest || instantOf(c.screenedAt) > instantOf(latest) ? c.screenedAt : latest),
+    undefined
+  )
+  const activeFilters =
+    [verdict, source, plant].filter((v) => v !== ALL).length +
+    Object.values(only).filter(Boolean).length
 
   function runScreen() {
     setScreening(true)
     setTimeout(() => {
+      snapshotStore.rescreenCodingCandidates()
       setScreening(false)
-      toast.success(`Screen complete — ${CODING_CANDIDATES.length} materials, verdicts unchanged.`)
+      toast.success(`Screen complete — ${formatCount(candidates.length)} materials, verdicts unchanged`)
     }, SCREEN_DURATION_MS)
+  }
+
+  function toggleRow(materialId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(materialId)) next.delete(materialId)
+      else next.add(materialId)
+      return next
+    })
+  }
+
+  function clearFilters() {
+    setVerdict(ALL)
+    setSource(ALL)
+    setPlant(ALL)
+    setOnly(NO_ONLY)
+  }
+
+  function exportCsv() {
+    downloadCsv(
+      "i08-coding-candidates.csv",
+      [
+        "Rank",
+        "Material",
+        "Description",
+        "Verdict",
+        "Confidence",
+        "Flags",
+        "Reason",
+        "Plants",
+        "Text sources",
+        "Evidence",
+        "Twins",
+        "Screened at",
+      ],
+      filtered.map((c) => [
+        c.rank,
+        c.material.materialId,
+        c.material.description,
+        verdictLabel(c.verdict),
+        c.confidence,
+        flagsOf(c).join("; "),
+        c.reason,
+        c.plants.map((p) => p.name).join("; "),
+        c.sources.map((s) => CODING_SOURCE_LABEL[s]).join("; "),
+        c.lines.map(lineLabel).join(" | "),
+        c.twins.map((t) => `${t.materialId}: ${t.sharedText}`).join(" | "),
+        c.screenedAt,
+      ])
+    )
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          Screened by <strong>{CODING_SCREEN.provider}</strong> ({CODING_SCREEN.model}).{" "}
-          {corroborated} candidate{corroborated === 1 ? "" : "s"} corroborated by an 80-series twin.
-        </div>
-        <Button size="sm" onClick={runScreen} disabled={screening}>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Screened by <strong className="text-foreground">{CODING_SCREEN.provider}</strong> (
+          {CODING_SCREEN.model}) · last screened{" "}
+          <strong className="text-foreground">{lastScreened ?? UNKNOWN}</strong> · confidence
+          threshold: <strong className="text-foreground">{CODING_CONFIDENCE_THRESHOLD}</strong>{" "}
+          (configuration) · {formatCount(corroborated)} corroborated by an 80-series twin · text
+          sources: PR, PO and movement text
+        </p>
+        <Button size="sm" onClick={runScreen} disabled={screening} className="shrink-0">
+          <Sparkles className={cn("size-3.5", screening && "animate-pulse")} />
           {screening ? "Screening…" : "Run AI screen"}
         </Button>
       </div>
@@ -94,143 +218,270 @@ export function CodingCandidatesTable() {
         <Select value={verdict} onValueChange={(v) => setVerdict(v ?? ALL)}>
           <SelectTrigger className="h-9 w-full sm:w-56">
             <SelectValue placeholder="Verdict">
-              {(value: string) => (value === ALL ? "All verdicts" : value)}
+              {(value: string) => (value === ALL ? "All verdicts" : verdictLabel(value))}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All verdicts</SelectItem>
-            {VERDICTS.map((v) => (
+            {CODING_VERDICTS.map((v) => (
               <SelectItem key={v} value={v}>
-                {v}
+                {verdictLabel(v)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select
-          value={actionableOnly ? "yes" : ALL}
-          onValueChange={(v) => setActionableOnly(v === "yes")}
-        >
+        <Select value={source} onValueChange={(v) => setSource(v ?? ALL)}>
           <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Actionable">
-              {(value: string) => (value === "yes" ? "Actionable only" : "All candidates")}
+            <SelectValue placeholder="Text source">
+              {(value: string) =>
+                value === ALL ? "All text sources" : CODING_SOURCE_LABEL[value as CodingTextSource]
+              }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Actionable only</SelectItem>
+            <SelectItem value={ALL}>All text sources</SelectItem>
+            {SOURCES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {CODING_SOURCE_LABEL[s]}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
-        <Select
-          value={corroboratedOnly ? "yes" : ALL}
-          onValueChange={(v) => setCorroboratedOnly(v === "yes")}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-48">
-            <SelectValue placeholder="Corroborated">
-              {(value: string) => (value === "yes" ? "Corroborated only" : "All candidates")}
+        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
+          <SelectTrigger className="h-9 w-full sm:w-52">
+            <SelectValue placeholder="Plant">
+              {(value: string) =>
+                value === ALL
+                  ? "All plants"
+                  : (I8_PLANTS.find((p) => p.plantId === value)?.name ?? value)
+              }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Corroborated only</SelectItem>
+            <SelectItem value={ALL}>All plants</SelectItem>
+            {I8_PLANTS.map((p) => (
+              <SelectItem key={p.plantId} value={p.plantId}>
+                {p.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
-        <Select
-          value={meetsThresholdOnly ? "yes" : ALL}
-          onValueChange={(v) => setMeetsThresholdOnly(v === "yes")}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-56">
-            <SelectValue placeholder="Confidence threshold">
-              {(value: string) => (value === "yes" ? "Meets confidence threshold" : "All candidates")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Meets confidence threshold</SelectItem>
-          </SelectContent>
-        </Select>
+        {(Object.keys(ONLY_LABEL) as (keyof OnlyFilters)[]).map((key) => (
+          <Button
+            key={key}
+            size="sm"
+            variant={only[key] ? "secondary" : "outline"}
+            aria-pressed={only[key]}
+            onClick={() => setOnly((prev) => ({ ...prev, [key]: !prev[key] }))}
+            className={cn("h-9", only[key] && "border border-primary/40")}
+          >
+            {ONLY_LABEL[key]}
+          </Button>
+        ))}
 
-        <ClearFiltersButton
-          activeCount={
-            [verdict !== ALL, actionableOnly, corroboratedOnly, meetsThresholdOnly].filter(Boolean)
-              .length
-          }
-          onClear={() => {
-            setVerdict(ALL)
-            setActionableOnly(false)
-            setCorroboratedOnly(false)
-            setMeetsThresholdOnly(false)
-          }}
-        />
+        <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
+
+        <div className="flex items-center gap-3 sm:ml-auto">
+          <span className="text-xs text-muted-foreground">
+            {formatCount(filtered.length)} of {formatCount(candidates.length)} materials
+          </span>
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+            <Download className="size-3.5" />
+            Export CSV
+          </Button>
+        </div>
       </FilterBar>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No coding candidates match these filters.
-        </div>
+        <EmptyState
+          title="No coding candidates match these filters."
+          description="Widen the verdict, source or plant, or drop an 'only' filter."
+        />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10 text-right">#</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Verdict</TableHead>
                 <TableHead>Confidence</TableHead>
                 <TableHead>Flags</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Plants</TableHead>
-                <TableHead className="text-right">PO Lines</TableHead>
-                <TableHead>Screened At</TableHead>
+                <TableHead>Text Sources</TableHead>
+                <TableHead className="text-right">Evidence</TableHead>
+                <TableHead className="w-10">
+                  <span className="sr-only">Show evidence</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => (
-                <TableRow key={c.material.materialId}>
-                  <TableCell>
-                    <MaterialIdentity material={c.material} onOpen={openMaterial360} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
-                      {c.verdict}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    {c.confidence ? (
-                      <StatusBadge tone={CODING_CONFIDENCE_TONE[c.confidence] ?? "default"}>
-                        {c.confidence}
-                      </StatusBadge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+              {filtered.map((c) => {
+                const id = c.material.materialId
+                const open = expanded.has(id)
+                const flags = flagsOf(c)
+                return (
+                  <Fragment key={id}>
+                    <TableRow className="align-top">
+                      <TableCell className="text-right align-top font-medium tabular-nums text-foreground">
+                        {c.rank}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <MaterialIdentity material={c.material} onOpen={openMaterial360} />
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
+                          {codeLabel(c.verdict)}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <StatusBadge tone={CODING_CONFIDENCE_TONE[c.confidence] ?? "default"}>
+                          {c.confidence || UNKNOWN}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex max-w-[180px] flex-wrap gap-1">
+                          {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
+                          {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
+                          {c.meetsConfidenceThreshold && (
+                            <StatusBadge tone="default">Meets threshold</StatusBadge>
+                          )}
+                          {flags.length === 0 && (
+                            <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="min-w-[260px] max-w-[360px] align-top text-xs whitespace-normal text-muted-foreground">
+                        {c.reason || UNKNOWN}
+                      </TableCell>
+                      <TableCell className="align-top text-xs text-muted-foreground">
+                        {c.plants.map((p) => (
+                          <span key={p.plantId} className="block">
+                            {p.name}
+                          </span>
+                        ))}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex max-w-[150px] flex-wrap gap-1">
+                          {c.sources.map((s) => (
+                            <StatusBadge key={s}>{CODING_SOURCE_LABEL[s]}</StatusBadge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right align-top tabular-nums text-foreground">
+                        {formatCount(c.lines.length)}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-expanded={open}
+                          aria-label={`${open ? "Hide" : "Show"} evidence for ${id}`}
+                          onClick={() => toggleRow(id)}
+                        >
+                          {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableCell colSpan={COLUMN_COUNT} className="whitespace-normal">
+                          <EvidencePanel candidate={c} />
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
-                      {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
-                      {c.meetsConfidenceThreshold && (
-                        <StatusBadge tone="default">Meets threshold</StatusBadge>
-                      )}
-                      {!c.isCorroborated && !c.isActionable && !c.meetsConfidenceThreshold && (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[280px] truncate text-muted-foreground" title={c.reason}>
-                    {c.reason || "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {c.plants.length > 0 ? c.plants.join(", ") : "—"}
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">{c.lines.length}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.screenedAt}</TableCell>
-                </TableRow>
-              ))}
+                  </Fragment>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * The document lines a candidate was raised on, each with its text and the
+ * words that matched, then any 80-series twin. This is what a cataloguer
+ * checks before deciding to recode.
+ */
+function EvidencePanel({ candidate }: { candidate: RankedCodingCandidate }) {
+  return (
+    <div className="flex flex-col gap-3 px-2 py-1">
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-foreground">
+          Evidence — {formatCount(candidate.lines.length)} line{candidate.lines.length === 1 ? "" : "s"}{" "}
+          of free text
+        </p>
+        <ul className="flex flex-col gap-1.5">
+          {candidate.lines.map((line) => (
+            <li
+              key={`${line.source}-${line.document}-${line.item}`}
+              className="flex flex-col gap-1 rounded-lg border border-border bg-card px-3 py-2 text-xs sm:flex-row sm:items-center sm:gap-3"
+            >
+              <div className="flex shrink-0 flex-wrap items-center gap-2 sm:w-72">
+                <StatusBadge>{CODING_SOURCE_LABEL[line.source]}</StatusBadge>
+                <span className="font-medium text-foreground">
+                  {line.document}/{line.item}
+                </span>
+                {line.movementType && (
+                  <span className="text-muted-foreground">mvt {line.movementType}</span>
+                )}
+                <span className="text-muted-foreground">{line.plant.name}</span>
+              </div>
+              <code className="min-w-0 flex-1 font-mono text-[11px] break-words text-foreground">
+                <HighlightedText text={line.shortText} keywords={line.matchedKeywords} />
+              </code>
+              <span className="shrink-0 whitespace-nowrap text-muted-foreground">{line.raisedAt}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {candidate.twins.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-foreground">80-series twin</p>
+          <ul className="flex flex-col gap-1">
+            {candidate.twins.map((twin) => (
+              <li key={twin.materialId} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{twin.materialId}</span> carries the
+                same text:{" "}
+                <code className="font-mono text-[11px] text-foreground">{twin.sharedText}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/** The short text with every matched keyword marked, case-insensitively. */
+function HighlightedText({ text, keywords }: { text: string; keywords: string[] }) {
+  const terms = keywords.filter(Boolean).sort((a, b) => b.length - a.length)
+  if (terms.length === 0) return <>{text}</>
+  // A capturing split puts every match at an odd index.
+  const parts = text.split(new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi"))
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <mark key={index} className="rounded-sm bg-warning/20 px-0.5 text-foreground">
+            {part}
+          </mark>
+        ) : (
+          <Fragment key={index}>{part}</Fragment>
+        )
+      )}
+    </>
   )
 }
