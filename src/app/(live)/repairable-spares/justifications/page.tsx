@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
-import dynamic from "next/dynamic"
+import Link from "next/link"
+import { ChevronRight } from "lucide-react"
 import { connection } from "next/server"
 
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
@@ -7,14 +8,9 @@ import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
 import { listJustifications } from "@/lib/api/assistant"
 import { getExceptions } from "@/lib/api/i8"
-import { formatCount } from "@/lib/utils"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+import { buttonVariants } from "@/components/ui/button"
+import { cn, formatCount } from "@/lib/utils"
 import { fromAssistant } from "@/lib/assistant/justifications"
-
-/** Demo mode only: the justifications recorded in this browser's demo sessions. */
-const DemoJustifications = dynamic(() =>
-  import("@/components/assistant/demo/demo-records").then((m) => m.DemoJustifications)
-)
 
 /** Shown on a tile whose source could not be read -- never a 0. */
 const NOT_LOADED = "Could not be loaded"
@@ -51,23 +47,6 @@ export default async function I08JustificationsPage() {
   // Reads a table that grows as people use the assistant, so a build-time
   // snapshot would be permanently empty.
   await connection()
-
-  if (ASSISTANT_DEMO) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="flex flex-col gap-5">
-          <PageHeader
-            title="New-acquisition justifications"
-            description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
-          />
-          <DemoJustifications
-            kinds={["NEW_ACQUISITION"]}
-            csvFilename="i08-new-acquisition-justifications.csv"
-          />
-        </div>
-      </div>
-    )
-  }
 
   let entries: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
@@ -134,6 +113,24 @@ export default async function I08JustificationsPage() {
           />
         </div>
 
+        {/* The other side of this log. A purchase with no reason recorded is
+            raised there; recording the reason is what closes it and adds it
+            here, so the two screens are one loop and each says so. */}
+        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-muted-foreground">
+            A new unit bought while a repair was already open, with no reason
+            recorded, is raised on the exception queue as an unjustified
+            acquisition.
+          </p>
+          <Link
+            href="/repairable-spares/exceptions?type=UNJUSTIFIED_ACQUISITION"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+          >
+            Open exception queue
+            <ChevronRight className="size-3.5" />
+          </Link>
+        </div>
+
         {entries === null ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
             <p className="text-sm text-foreground">
@@ -145,6 +142,7 @@ export default async function I08JustificationsPage() {
           <JustificationLog
             entries={entries.items.map(fromAssistant)}
             csvFilename="i08-new-acquisition-justifications.csv"
+            filterable
           />
         )}
       </div>

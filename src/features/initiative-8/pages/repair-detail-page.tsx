@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -10,16 +11,23 @@ import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
 import { DeclareConditionButton } from "@/features/initiative-8/components/declare-condition-button"
-import type { RepairChain } from "@/features/initiative-8/types/repair"
+import type {
+  ExceptionQueueRow,
+  RepairChain,
+} from "@/features/initiative-8/types/repair"
 import {
   DECLARATION_STATUS_TONE,
+  EXCEPTION_STATUS_LABEL,
   JUSTIFICATION_CELL_LABEL,
   JUSTIFICATION_CELL_NOTE,
   JUSTIFICATION_CELL_TONE,
   OVERDUE_STATUS_LABEL,
   REPAIR_STATUS_TONE,
   UNKNOWN,
+  exceptionTypeLabel,
   formatDaysRemaining,
+  hasNoDueDate,
+  isOpenRepair,
   isPartiallyReceived,
   isRepairOverdue,
   justificationCellOf,
@@ -50,6 +58,14 @@ export type RepairDetailPageProps = {
    * made up.
    */
   faultCategories?: string[]
+  /**
+   * The exception-queue items raised against this line.
+   *
+   * Null when that fetch failed, which the Traceability card shows as "could
+   * not be checked" rather than as a clean bill of health. An empty array is
+   * the much stronger claim that the checks ran and found nothing.
+   */
+  exceptions?: ExceptionQueueRow[] | null
 }
 
 export function RepairDetailPage({
@@ -57,6 +73,7 @@ export function RepairDetailPage({
   detail,
   loadError = null,
   faultCategories = [],
+  exceptions = null,
 }: RepairDetailPageProps) {
   const { openMaterial360 } = useMaterial360()
   const chain = detail?.chain
@@ -158,6 +175,31 @@ export function RepairDetailPage({
           </AlertBanner>
         )}
 
+        {/* Its own state, not "on time": nobody agreed a return date, so there
+            is nothing to be late against and nobody is chasing it. */}
+        {!isOverdue && hasNoDueDate(chain) && isOpenRepair(chain) && (
+          <AlertBanner tone="warning" title="No expected return date">
+            No delivery date was ever agreed on this line, so it can never read as
+            overdue and nothing will chase it. It has been open {chain.daysOpen} days.
+          </AlertBanner>
+        )}
+
+        {/* A PO blocked in SAP is not a slow vendor -- the unit is not going
+            anywhere until somebody unblocks it, and days-open keeps counting. */}
+        {chain.poBlocked && (
+          <AlertBanner tone="warning" title="Repair PO blocked in SAP">
+            This purchase order carries a block. The repair cannot progress until it
+            is released, however long the line has been open.
+          </AlertBanner>
+        )}
+
+        {chain.declarationStatus === "Flagged" && (
+          <AlertBanner tone="warning" title="Sent for repair against the assessment">
+            A recorded condition assessment did not find this part repairable, and a
+            repair was raised anyway. Confirm the decision with the attestor.
+          </AlertBanner>
+        )}
+
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="mb-1 text-sm font-medium text-foreground">Repair chain</div>
@@ -239,7 +281,19 @@ export function RepairDetailPage({
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="text-sm font-medium text-foreground">Condition declaration</div>
-                {chain.declarationStatus !== "Completed" && (
+                {/* Amend rather than re-declare where one exists. An
+                    attestation is never edited -- the amendment is a new row
+                    pointing at the old one, which stays readable -- and
+                    without the id the only option was a second, unrelated
+                    declaration that nothing tied to the first. */}
+                {chain.declarationId ? (
+                  <DeclareConditionButton
+                    chain={chain}
+                    faultCategories={faultCategories}
+                    label="Amend declaration"
+                    supersedes={chain.declarationId}
+                  />
+                ) : (
                   <DeclareConditionButton chain={chain} faultCategories={faultCategories} />
                 )}
               </div>
@@ -274,10 +328,140 @@ export function RepairDetailPage({
             </div>
 
             <JustificationPanel chain={chain} />
+
+            <TraceabilityPanel chain={chain} exceptions={exceptions} />
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * What this line can be traced through, end to end (FR-8).
+ *
+ * Three steps, in the order they happen: the part was assessed, a reason was
+ * recorded for anything bought new while it was out, and whatever the checks
+ * raised against it. Each step reads as done, missing, or not checked — and
+ * those are three different things, which is the whole point of the card.
+ *
+ * There is no session step. FR-8 also asks for the reservation's Spares
+ * Assistant session to be traceable to the repair, and I08's extract has no
+ * reservation view at all — no RESB, so no SGTXT to read a session id back
+ * from. Showing an empty "Session" row would imply the link exists and is
+ * unpopulated, when in fact nothing upstream carries it.
+ */
+function TraceabilityPanel({
+  chain,
+  exceptions,
+}: {
+  chain: RepairChain
+  exceptions: ExceptionQueueRow[] | null
+}) {
+  const declared = chain.declarationStatus === "Completed"
+  const justificationCell = justificationCellOf(chain)
+  const unjustified = chain.justification?.unjustifiedPurchases ?? []
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-1 text-sm font-medium text-foreground">Traceability</div>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        What can be followed from this repair line, and what cannot.
+      </p>
+
+      <ul className="flex flex-col gap-2 text-xs">
+        <TraceStep
+          label="Condition declared before dispatch"
+          state={declared ? "done" : chain.declarationStatus === "Flagged" ? "warn" : "missing"}
+        >
+          {declared
+            ? `${chain.condition ?? "Assessed"} by ${chain.declaredBy ?? UNKNOWN}${chain.declaredAt ? ` on ${chain.declaredAt}` : ""}.`
+            : chain.declarationStatus === "Flagged"
+              ? "Assessed as not repairable, and sent for repair anyway."
+              : "No recorded assessment covers this line."}
+        </TraceStep>
+
+        <TraceStep
+          label="New purchases while it was out"
+          state={
+            justificationCell === "RECORDED"
+              ? "done"
+              : unjustified.length > 0
+                ? "missing"
+                : "none"
+          }
+        >
+          {justificationCell === "RECORDED" ? (
+            <>
+              A reason is on record. The full log is on the{" "}
+              <Link href="/repairable-spares/justifications" className="text-primary hover:underline">
+                Justifications
+              </Link>{" "}
+              screen.
+            </>
+          ) : unjustified.length > 0 ? (
+            `${unjustified.length} new unit(s) bought with no reason recorded.`
+          ) : (
+            "Nothing was bought new while this repair was open."
+          )}
+        </TraceStep>
+
+        <TraceStep
+          label="Exceptions raised on this line"
+          state={exceptions === null ? "unknown" : exceptions.length > 0 ? "warn" : "none"}
+        >
+          {exceptions === null ? (
+            "The exception queue could not be read, so this line's findings are unknown."
+          ) : exceptions.length === 0 ? (
+            "No check has raised anything against this line."
+          ) : (
+            <span className="flex flex-col gap-1">
+              {exceptions.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/repairable-spares/exceptions?id=${encodeURIComponent(item.id)}`}
+                  className="text-primary hover:underline"
+                >
+                  {exceptionTypeLabel(item.type)} — {EXCEPTION_STATUS_LABEL[item.status]}
+                  {item.owner ? ` · ${item.owner}` : " · unassigned"}
+                </Link>
+              ))}
+            </span>
+          )}
+        </TraceStep>
+      </ul>
+    </div>
+  )
+}
+
+/** One step of the chain, with a dot whose colour is the claim being made. */
+function TraceStep({
+  label,
+  state,
+  children,
+}: {
+  label: string
+  /** done = it happened · missing = it did not · warn = it happened badly ·
+   *  none = nothing to trace here · unknown = we could not find out */
+  state: "done" | "missing" | "warn" | "none" | "unknown"
+  children: ReactNode
+}) {
+  const tone = {
+    done: "bg-success",
+    missing: "bg-destructive",
+    warn: "bg-warning",
+    none: "bg-muted-foreground",
+    unknown: "bg-muted-foreground",
+  }[state]
+
+  return (
+    <li className="flex gap-2">
+      <span className={`mt-1 size-2 shrink-0 rounded-full ${tone}`} aria-hidden />
+      <span className="flex flex-col">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="text-muted-foreground">{children}</span>
+      </span>
+    </li>
   )
 }
 

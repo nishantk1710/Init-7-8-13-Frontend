@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -99,6 +100,13 @@ export function CodingCandidatesTable({
 
   const [verdict, setVerdict] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
+  // Which free text the evidence came from. FR-2 names three sources and the
+  // backend reads all three, so "show me only what PR text turned up" is a
+  // question the screen has to be able to answer.
+  const [source, setSource] = useState<string>(ALL)
+  /** Materials whose evidence is open. Collapsed by default: the table is a
+   *  ranked list first, and 20 expanded rows of SAP free text is not one. */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [actionableOnly, setActionableOnly] = useState(false)
   const [corroboratedOnly, setCorroboratedOnly] = useState(false)
   const [meetsThresholdOnly, setMeetsThresholdOnly] = useState(false)
@@ -124,16 +132,28 @@ export function CodingCandidatesTable({
     return ranks
   }, [candidates])
 
+  function toggleExpanded(materialId: string) {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (!next.delete(materialId)) next.add(materialId)
+      return next
+    })
+  }
+
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
       if (verdict !== ALL && c.verdict !== verdict) return false
       if (plant !== ALL && !c.plants.includes(plant)) return false
+      // Matches a candidate with ANY line from that source, rather than only
+      // candidates found solely there: the question is "what did PR text turn
+      // up", and a material corroborated by two sources still answers it.
+      if (source !== ALL && !c.lines.some((line) => line.source === source)) return false
       if (actionableOnly && !c.isActionable) return false
       if (corroboratedOnly && !c.isCorroborated) return false
       if (meetsThresholdOnly && !c.meetsConfidenceThreshold) return false
       return true
     })
-  }, [candidates, verdict, plant, actionableOnly, corroboratedOnly, meetsThresholdOnly])
+  }, [candidates, verdict, plant, source, actionableOnly, corroboratedOnly, meetsThresholdOnly])
 
   /**
    * Export what is on screen.
@@ -335,11 +355,34 @@ export function CodingCandidatesTable({
           </SelectContent>
         </Select>
 
+        {/* FR-2 reads PO, PR and goods-movement free text. Which one turned a
+            material up changes how much the finding is worth, so it filters. */}
+        <Select value={source} onValueChange={(v) => setSource(v ?? ALL)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All text sources">
+              {(value: string) =>
+                value === ALL
+                  ? "All text sources"
+                  : SOURCE_LABEL[value as CodingCandidateSource] ?? value
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All text sources</SelectItem>
+            {(["PO", "PR", "MOVEMENT"] as const).map((s) => (
+              <SelectItem key={s} value={s}>
+                {SOURCE_LABEL[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <ClearFiltersButton
           activeCount={
             [
               verdict !== ALL,
               plant !== ALL,
+              source !== ALL,
               actionableOnly,
               corroboratedOnly,
               meetsThresholdOnly,
@@ -348,6 +391,7 @@ export function CodingCandidatesTable({
           onClear={() => {
             setVerdict(ALL)
             setPlant(ALL)
+            setSource(ALL)
             setActionableOnly(false)
             setCorroboratedOnly(false)
             setMeetsThresholdOnly(false)
@@ -374,11 +418,15 @@ export function CodingCandidatesTable({
                 <TableHead>Evidence From</TableHead>
                 <TableHead className="text-right">Lines</TableHead>
                 <TableHead>Screened At</TableHead>
+                <TableHead className="w-10">
+                  <span className="sr-only">Evidence</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.material.materialId}>
+                <Fragment key={c.material.materialId}>
+                <TableRow>
                   <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                     {rankOf.get(c.material.materialId)}
                   </TableCell>
@@ -423,9 +471,9 @@ export function CodingCandidatesTable({
                       rather than leaving a reader to open the row. */}
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {sourcesOf(c).map((source) => (
-                        <StatusBadge key={source} tone="default">
-                          {SOURCE_LABEL[source]}
+                      {sourcesOf(c).map((src) => (
+                        <StatusBadge key={src} tone="default">
+                          {SOURCE_LABEL[src]}
                         </StatusBadge>
                       ))}
                     </div>
@@ -434,12 +482,103 @@ export function CodingCandidatesTable({
                   <TableCell className="text-muted-foreground">
                     {formatScreenedAt(c.screenedAt)}
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      aria-expanded={expanded.has(c.material.materialId)}
+                      aria-label={`${expanded.has(c.material.materialId) ? "Hide" : "Show"} the text behind ${c.material.materialCode}`}
+                      onClick={() => toggleExpanded(c.material.materialId)}
+                    >
+                      {expanded.has(c.material.materialId) ? (
+                        <ChevronDown className="size-3.5" />
+                      ) : (
+                        <ChevronRight className="size-3.5" />
+                      )}
+                    </Button>
+                  </TableCell>
                 </TableRow>
+                {expanded.has(c.material.materialId) && (
+                  <TableRow>
+                    {/* The evidence itself. Until now the only way to read the
+                        text a verdict was reached on was to export the CSV,
+                        which is a poor place to check a model's judgement. */}
+                    <TableCell colSpan={11} className="bg-muted/30">
+                      <CandidateEvidence candidate={c} />
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * The text a candidate's verdict was reached on, under its row.
+ *
+ * FR-2 is a judgement about words, so the words have to be readable next to
+ * the judgement. Until this landed they existed only in the CSV export, which
+ * is a poor place to check a model: by the time anyone opens it they have
+ * already decided whether to trust the verdict.
+ *
+ * Twins come first when there are any. A twin is SAP's own counter-example —
+ * an 80-series material carrying the identical description — and it is the one
+ * piece of evidence here that owes nothing to a model's opinion.
+ */
+function CandidateEvidence({ candidate }: { candidate: CodingCandidate }) {
+  return (
+    <div className="flex flex-col gap-3 py-1">
+      {candidate.twins.length > 0 && (
+        <div>
+          <h3 className="text-xs font-medium text-foreground">
+            Already coded 80-series with the same text
+          </h3>
+          <ul className="mt-1 flex flex-col gap-1">
+            {candidate.twins.map((twin) => (
+              <li key={twin.materialId} className="text-xs text-muted-foreground">
+                <span className="font-mono text-foreground">{twin.materialId}</span>
+                {" — "}
+                {twin.sharedText}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-xs font-medium text-foreground">
+          {candidate.lines.length === 1
+            ? "The line it was found on"
+            : `The ${candidate.lines.length} lines it was found on`}
+        </h3>
+        <ul className="mt-1 flex flex-col gap-1.5">
+          {candidate.lines.map((line) => (
+            <li
+              key={`${line.source}-${line.document}-${line.documentItem}`}
+              className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs"
+            >
+              <StatusBadge tone="default">{SOURCE_LABEL[line.source]}</StatusBadge>
+              <span className="font-mono text-foreground">
+                {line.document}
+                {line.documentItem ? `/${line.documentItem}` : ""}
+              </span>
+              {line.plant && <span className="text-muted-foreground">{line.plant.name}</span>}
+              {line.raisedAt && <span className="text-muted-foreground">{line.raisedAt}</span>}
+              <span className="text-muted-foreground">{line.shortText}</span>
+              {line.matchedKeywords.length > 0 && (
+                <span className="text-muted-foreground">
+                  (matched {line.matchedKeywords.join(", ")})
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }

@@ -19,14 +19,20 @@
  */
 
 import type {
+  ExceptionEvent,
   ExceptionQueueRow,
   ExceptionQueueSummary,
+  ExceptionStatus,
+  RepairChain,
+  RepairLineException,
 } from "@/features/initiative-8/types/repair"
 import type {
+  ApiExceptionEvent,
   ApiExceptionItem,
   ApiExceptionMeta,
   ExceptionQuery,
 } from "@/lib/api/i8"
+import { formatApiDateTime } from "@/lib/api/format"
 import { formatApiDate, getExceptions } from "@/lib/api/i8"
 
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -68,6 +74,25 @@ function toRow(row: ApiExceptionItem): ExceptionQueueRow {
     raisedAt: row.raisedAt ? formatApiDate(row.raisedAt) : undefined,
     isOpenRepair: row.isOpenRepair,
     preAutomation: row.preAutomation,
+    // Defaults for a backend that does not serve the lifecycle yet. OPEN and
+    // unassigned is what an untouched item genuinely is, so an older API and
+    // a brand-new finding read the same way -- which is correct, because they
+    // are the same thing.
+    status: row.status ?? "OPEN",
+    owner: row.owner ?? undefined,
+    stillDetected: row.stillDetected ?? true,
+    history: (row.history ?? []).map(toEvent),
+  }
+}
+
+function toEvent(event: ApiExceptionEvent): ExceptionEvent {
+  return {
+    id: event.id,
+    kind: event.kind,
+    status: (event.status as ExceptionStatus | null) ?? undefined,
+    actor: event.actor,
+    text: event.text,
+    at: formatApiDateTime(event.at),
   }
 }
 
@@ -145,4 +170,40 @@ export async function loadLiveExceptions(
     referenceDate,
     truncated: rows.length < total,
   }
+}
+
+/**
+ * Hang each line's exception items off the register rows.
+ *
+ * The register and the exception queue are two different endpoints: the
+ * register knows nothing about the checks, and the checks are recomputed from
+ * it on every read. The join is by `repairId`, which the queue serves exactly
+ * so this is possible.
+ *
+ * `rows === null` means the exception fetch failed, and every chain comes back
+ * with `exceptions` left undefined — the register then shows "Not checked"
+ * rather than an empty cell. An empty array means the checks ran and found
+ * nothing against that line, which is a different and much stronger claim.
+ */
+export function attachLineExceptions(
+  chains: RepairChain[],
+  rows: ExceptionQueueRow[] | null,
+): RepairChain[] {
+  if (rows === null) return chains
+
+  const byLine = new Map<string, RepairLineException[]>()
+  for (const row of rows) {
+    // An item the queue could not tie back to a register line (no repairId)
+    // is still a real finding; it just has no row here to sit on.
+    if (!row.repairId) continue
+    const found = byLine.get(row.repairId)
+    const item = { id: row.id, type: row.type, severity: row.severity }
+    if (found) found.push(item)
+    else byLine.set(row.repairId, [item])
+  }
+
+  return chains.map((chain) => ({
+    ...chain,
+    exceptions: byLine.get(chain.id) ?? [],
+  }))
 }

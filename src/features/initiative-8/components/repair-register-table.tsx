@@ -31,6 +31,7 @@ import {
   ALL,
   NO_REGISTER_FILTERS,
   REGISTER_CSV_HEADERS,
+  WITH_EXCEPTIONS,
   filterRegister,
   registerRowsToCsv,
   type RegisterFilters,
@@ -40,6 +41,7 @@ import {
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
   DEFAULT_AGING_BUCKETS,
+  EXCEPTION_SEVERITY_TONE,
   JUSTIFICATION_CELL_LABEL,
   JUSTIFICATION_CELL_NOTE,
   JUSTIFICATION_CELL_TONE,
@@ -51,6 +53,7 @@ import {
   REPAIR_STATUS_TONE,
   UNKNOWN,
   type LeadTimeVerdict,
+  exceptionTypeLabel,
   hasNoLeadTime,
   isBeyondLeadTime,
   isPartiallyReceived,
@@ -236,6 +239,15 @@ export function RepairRegisterTable({
           options={agingBands.map((b) => ({ value: b, label: `${b} days` }))}
           className="sm:w-40"
         />
+        {/* FR-8's findings, as a way into the register rather than out of it:
+            "show me the lines something was raised against". */}
+        <FilterSelect
+          value={filters.exceptions}
+          onChange={setFilter("exceptions")}
+          allLabel="Any exceptions"
+          options={[{ value: WITH_EXCEPTIONS, label: "With exceptions only" }]}
+          className="sm:w-48"
+        />
         <ClearFiltersButton
           activeCount={Object.values(filters).filter((v) => v !== ALL).length}
           onClear={() => setFilters(NO_REGISTER_FILTERS)}
@@ -280,6 +292,7 @@ export function RepairRegisterTable({
                 <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead>Justification</TableHead>
+                <TableHead>Exceptions</TableHead>
                 <TableHead>Criticality</TableHead>
                 <TableHead className="text-right">SOH</TableHead>
                 <TableHead className="text-right">ROP</TableHead>
@@ -457,6 +470,37 @@ export function RepairRegisterTable({
                               : purchasesLabel(c.justification?.unjustifiedPurchases.length ?? 0)}
                           </span>
                         </div>
+                      )}
+                    </TableCell>
+                    {/* What the four FR-8 checks found against this line.
+                        Joined onto the register by the page, so a line whose
+                        exception fetch failed reads "not checked" rather than
+                        showing a clean dash it has not earned. */}
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      {c.exceptions === undefined ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="The exception queue could not be read, so this line's findings are unknown."
+                        >
+                          Not checked
+                        </span>
+                      ) : c.exceptions.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
+                      ) : (
+                        <Link
+                          href={`/repairable-spares/exceptions?repair=${encodeURIComponent(c.id)}`}
+                          className="flex flex-wrap items-center gap-1"
+                          title={`Open the exception queue filtered to ${c.id}`}
+                        >
+                          {c.exceptions.map((exception) => (
+                            <StatusBadge
+                              key={exception.id}
+                              tone={EXCEPTION_SEVERITY_TONE[exception.severity] ?? "default"}
+                            >
+                              {exceptionTypeLabel(exception.type)}
+                            </StatusBadge>
+                          ))}
+                        </Link>
                       )}
                     </TableCell>
                     {/* Unrated is "not recorded", never NORMAL -- a dash, with

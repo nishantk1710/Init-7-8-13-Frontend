@@ -31,16 +31,51 @@ export const metadata: Metadata = {
  *
  * ## What is still missing, and is not pretended here
  *
- * Two of the four FR-8 exception types are computed. `MISSING_SESSION_ID` is
- * defined in the backend and never raised, so the screen names the checks that
- * ARE running rather than letting a zero read as "nothing found".
+ * Three of the four FR-8 exception types are computed — missing attestation,
+ * unjustified acquisition and, since the FR-9 work, overdue repair.
+ * `MISSING_SESSION_ID` is declared in the backend and never raised: I08's
+ * extract has no reservation view, so there is no SGTXT to read a session id
+ * back from, and the check has no source data rather than a missing
+ * implementation. The screen names the checks that ARE running rather than
+ * letting a zero read as "nothing found".
  *
- * Nothing here is stored or owned. The items are recomputed from the register
- * each time; there is no owner, no status, no close date and no email, which
- * is the rest of FR-11. A queue that let someone "close" an item it cannot
- * remember closing would be worse than one that does not offer it.
+ * ## What is stored, and what is not
+ *
+ * The items are still recomputed from the register on every read — they are
+ * never stored, which is what keeps the queue from drifting away from the
+ * data. What IS stored, since FR-11 landed, is the work: status, owner, and a
+ * history of what people said and did, keyed by the item's own id.
+ *
+ * The consequence worth knowing is the good one. Record the declaration and
+ * the check stops finding the line; the item does not silently vanish from
+ * whoever owned it — it resolves itself, and its history says the data moved
+ * rather than that a person closed it.
+ *
+ * Still missing from FR-11: email. There is no notification of any kind, so a
+ * queue nobody opens is a queue nobody reads.
  */
-export default async function I08ExceptionsPage() {
+/** A query value as one string; a repeated parameter (`?id=a&id=b`) takes the first. */
+function single(value: string | string[] | undefined): string | undefined {
+  const first = Array.isArray(value) ? value[0] : value
+  return first?.trim() ? first.trim() : undefined
+}
+
+/**
+ * `?id=EX-…` opens that item's drawer; `?repair=4500000677-20` narrows the
+ * queue to one repair line — the link the register's Exceptions column uses.
+ *
+ * The page is keyed by both, so following a second link while already here
+ * starts from that link rather than from the last one's state.
+ */
+export default async function I08ExceptionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string; repair?: string }>
+}) {
+  const params = await searchParams
+  const id = single(params.id)
+  const repair = single(params.repair)
+
   // Recomputed from the register and the attestation table, both of which
   // change under the page. A build-time snapshot would be wrong by lunchtime.
   await connection()
@@ -78,9 +113,12 @@ export default async function I08ExceptionsPage() {
           </div>
         ) : (
           <ExceptionsTable
+            key={`${id ?? ""}|${repair ?? ""}`}
             rows={data.rows}
             summary={data.summary}
             truncated={data.truncated}
+            initialId={id}
+            initialRepair={repair}
           />
         )}
       </div>

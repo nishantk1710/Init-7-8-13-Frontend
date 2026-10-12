@@ -22,6 +22,16 @@ import type { SAPDocumentReference } from "@/lib/domain/contracts"
 /** The "no filter" value every register dropdown uses. */
 export const ALL = "all"
 
+/**
+ * The Exceptions filter's one narrowing choice.
+ *
+ * Not "open exceptions only": live exception items have no status yet — they
+ * are recomputed from the register on every read — so every item that exists
+ * is by definition still being found. Calling them open would promise a
+ * lifecycle this screen cannot show.
+ */
+export const WITH_EXCEPTIONS = "with"
+
 export type RegisterFilters = {
   plant: string
   vendor: string
@@ -32,6 +42,8 @@ export type RegisterFilters = {
   criticality: string
   declarationStatus: string
   aging: string
+  /** `WITH_EXCEPTIONS`, or `ALL`. */
+  exceptions: string
 }
 
 export const NO_REGISTER_FILTERS: RegisterFilters = {
@@ -42,6 +54,7 @@ export const NO_REGISTER_FILTERS: RegisterFilters = {
   criticality: ALL,
   declarationStatus: ALL,
   aging: ALL,
+  exceptions: ALL,
 }
 
 /** The rows matching every active filter. Client side, over the full register. */
@@ -58,6 +71,10 @@ export function filterRegister(chains: RepairChain[], filters: RegisterFilters):
       return false
     }
     if (filters.aging !== ALL && c.agingBucket !== filters.aging) return false
+    // A line whose exceptions could not be fetched is `undefined`, not []. It
+    // is excluded here rather than shown as clean: the filter asks for lines
+    // with findings, and "not checked" is not an answer to that.
+    if (filters.exceptions === WITH_EXCEPTIONS && (c.exceptions?.length ?? 0) === 0) return false
     return true
   })
 }
@@ -96,6 +113,7 @@ export const REGISTER_CSV_HEADERS = [
   "Declared by",
   "Declared at",
   "Justification",
+  "Exceptions",
   "Criticality",
   "Stock on hand",
   "Reorder point",
@@ -149,6 +167,10 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
       // Empty, not "—", for a line nothing touched: a dash is screen
       // punctuation, and in a spreadsheet it is a value.
       justification === "NONE" ? "" : JUSTIFICATION_CELL_LABEL[justification],
+      // The types raised, not a count: a spreadsheet filter on "2" tells
+      // nobody which two checks fired. Empty where the fetch failed, for the
+      // same reason an unknown number is never exported as 0.
+      c.exceptions ? c.exceptions.map((e) => e.type).join(" ") : "",
       c.criticality ?? "",
       c.stockOnHand ?? "",
       c.reorderPoint ?? "",

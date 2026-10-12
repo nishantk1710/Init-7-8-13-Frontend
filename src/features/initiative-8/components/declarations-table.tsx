@@ -30,6 +30,7 @@ import {
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
 } from "@/features/initiative-8/utils/status"
+import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
 import { downloadCsv } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
@@ -40,14 +41,27 @@ export type DeclarationsTableProps = {
   summary: DeclarationQueueSummary
   /** Set when the page loop stopped before reading every row. */
   truncated?: boolean
+  /**
+   * The attestation form's fault categories, so a line can be declared from
+   * this row rather than by navigating to the repair and back.
+   *
+   * Empty when that fetch failed: the form then says so and cannot submit,
+   * which is better than offering a list it invented.
+   */
+  faultCategories?: string[]
 }
 
 export function DeclarationsTable({
   rows,
   summary,
   truncated = false,
+  faultCategories = [],
 }: DeclarationsTableProps) {
   const { openMaterial360 } = useMaterial360()
+  const [declaring, setDeclaring] = useState<DeclarationQueueRow | null>(null)
+  // A fresh form per opening, so a half-typed description cannot reappear
+  // against a different part.
+  const [formKey, setFormKey] = useState(0)
 
   const [status, setStatus] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
@@ -226,6 +240,9 @@ export function DeclarationsTable({
                 <TableHead>Declared By</TableHead>
                 <TableHead>Declared At</TableHead>
                 <TableHead>Next Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="sr-only">Action</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -271,11 +288,44 @@ export function DeclarationsTable({
                   >
                     {row.nextAction}
                   </TableCell>
+                  {/* Declare it from here. The form used to live only on the
+                      repair detail page, which meant working this queue was a
+                      round trip per row: open the repair, declare, come back,
+                      find your place again. */}
+                  <TableCell className="text-right">
+                    {row.status !== "Completed" && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          setFormKey((k) => k + 1)
+                          setDeclaring(row)
+                        }}
+                      >
+                        Declare condition
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {declaring && (
+        <DeclarationFormDialog
+          key={formKey}
+          open
+          onClose={() => setDeclaring(null)}
+          target={{
+            materialId: declaring.material.materialId,
+            plantId: declaring.plant?.plantId,
+            label: `${declaring.material.materialCode} - ${declaring.material.description} at ${declaring.plant?.name ?? "an unknown plant"} (repair ${declaring.relatedRepairId})`,
+            defaultQuantity: "1",
+          }}
+          faultCategories={faultCategories}
+        />
       )}
     </div>
   )
