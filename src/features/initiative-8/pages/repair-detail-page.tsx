@@ -200,11 +200,10 @@ export function RepairDetailPage({
             </div>
 
             {/* Computed from the attestation table against a material +
-                plant + date-window match (W5.3). Since 08-Oct-2026 this panel
-                is also where the condition is declared: the Declaration Queue
-                was the register's own lines with other columns, so it was
-                folded into the register and its form moved here, beside the
-                evidence. */}
+                plant + date-window match (W5.3). The button is the fallback
+                for a line that went out undeclared: a part is meant to be
+                declared on the Declarations screen, before any repair PO
+                exists. Same form either way. */}
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="text-sm font-medium text-foreground">Condition declaration</div>
