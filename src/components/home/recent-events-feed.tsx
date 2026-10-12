@@ -1,5 +1,6 @@
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
+import { formatWhen } from "@/lib/api/format"
 import type { AuditEvent } from "@/lib/domain/contracts"
 import { initiative7Manifest } from "@/features/initiative-7/manifest"
 import { initiative8Manifest } from "@/features/initiative-8/manifest"
@@ -11,11 +12,25 @@ const INITIATIVE_LABEL: Record<AuditEvent["initiative"], string> = {
   "initiative-13": initiative13Manifest.name,
 }
 
-export function RecentEventsFeed({ events }: { events: AuditEvent[] }) {
+export function RecentEventsFeed({
+  events,
+  failedModules = 0,
+}: {
+  events: AuditEvent[]
+  /** How many modules' audit feeds could not be loaded; "no events" is only true at 0. */
+  failedModules?: number
+}) {
   return (
     <ChartCard title="Recent events" subtitle="See the full history in Audit Trail.">
       {events.length === 0 ? (
-        <EmptyState title="No events yet" />
+        failedModules > 0 ? (
+          <EmptyState
+            title="Nothing to show"
+            description={`${failedModules} module${failedModules === 1 ? "" : "s"} could not be loaded, so this is not a statement that nothing has happened.`}
+          />
+        ) : (
+          <EmptyState title="No events yet" />
+        )
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {events.slice(0, 8).map((event) => (
@@ -23,7 +38,7 @@ export function RecentEventsFeed({ events }: { events: AuditEvent[] }) {
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm text-foreground">{event.eventType}</span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {event.timestamp}
+                  {formatWhen(event.timestamp)}
                 </span>
               </div>
               <p className="mt-0.5 truncate text-[11px] text-muted-foreground">

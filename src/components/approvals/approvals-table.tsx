@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatWhen } from "@/lib/api/format"
 import type { GlobalAction } from "@/lib/domain/contracts"
 import { initiative7Manifest } from "@/features/initiative-7/manifest"
 import { initiative8Manifest } from "@/features/initiative-8/manifest"
@@ -30,9 +31,23 @@ const SEVERITY_TONE = {
 
 /** The §26 approvals table — Material / Decision Needed / Type — a
  * different presentation of the same shared action feed, not a fork. */
-export function ApprovalsTable({ approvals }: { approvals: GlobalAction[] }) {
+export function ApprovalsTable({
+  approvals,
+  incomplete = false,
+}: {
+  approvals: GlobalAction[]
+  /** Some module could not be loaded, so an empty list is not "all clear". */
+  incomplete?: boolean
+}) {
   if (approvals.length === 0) {
-    return <EmptyState title="You're up to date — nothing is waiting on your decision." />
+    return incomplete ? (
+      <EmptyState
+        title="Nothing to show"
+        description="A module could not be loaded, so this is not a statement that nothing is waiting on your decision."
+      />
+    ) : (
+      <EmptyState title="You're up to date — nothing is waiting on your decision." />
+    )
   }
 
   return (
@@ -55,7 +70,7 @@ export function ApprovalsTable({ approvals }: { approvals: GlobalAction[] }) {
               <TableCell>
                 <StatusBadge tone={SEVERITY_TONE[a.severity]}>{a.severity}</StatusBadge>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{a.createdAt}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{formatWhen(a.createdAt)}</TableCell>
               <TableCell>
                 <Link
                   href={a.href}

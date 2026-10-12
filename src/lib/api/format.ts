@@ -102,3 +102,19 @@ export function oneOf<T extends string>(
 export function orUndefined<T>(value: T | null | undefined): T | undefined {
   return value ?? undefined
 }
+
+/**
+ * A date or timestamp for display, whichever form it arrives in.
+ *
+ * The live backends send ISO — a bare date (`2026-07-28`) or a full timestamp.
+ * `formatApiDate` cannot take the second (it appends a time) and
+ * `formatApiDateTime` would invent a midnight on the first, so this picks. A
+ * value that is not ISO at all — the pre-formatted strings the scenario
+ * fixtures carry — is returned untouched rather than turned into "Invalid Date".
+ */
+export function formatWhen(value: string | null | undefined, fallback = "—"): string {
+  if (!value) return fallback
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatApiDate(value, fallback)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return formatApiDateTime(value, fallback)
+  return value
+}

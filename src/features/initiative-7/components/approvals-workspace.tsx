@@ -30,7 +30,7 @@ import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-c
 import { LiveApprovalsWorkspace } from "@/features/initiative-7/components/live-approvals-workspace"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
 import { approvalDueLabel, waitingDays } from "@/features/initiative-7/utils/inventory-calc"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
+import { USING_LIVE_DATA } from "@/lib/dataset-mode"
 
 const ALL = "all"
 

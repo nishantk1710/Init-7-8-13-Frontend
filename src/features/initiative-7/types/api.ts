@@ -634,3 +634,13 @@ export interface ApiQuarterlyReport {
   sap_adoption: ApiSapAdoptionSection
   limitations: ApiLimitationsSection
 }
+
+/** GET /v1/i7/approval-events -- the approval ledger across every
+ *  recommendation, newest first (app/api/i7/approval_events.py). */
+export interface ApiApprovalEventsResponse {
+  items: ApiApprovalHistoryEntry[]
+  /** The whole filtered population, not the length of `items`. */
+  total: number
+  limit: number
+  offset: number
+}

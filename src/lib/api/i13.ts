@@ -46,6 +46,7 @@ import {
   type ActException,
   type ActExceptionDetail,
   type ActExceptionEvent,
+  type ActExceptionFeedEvent,
   type ActExceptionType,
   type ConsumptionAttribution,
   type ConsumptionPlan,
@@ -1125,5 +1126,32 @@ export function getI13ReservationLedgerList(params?: {
   return apiFetchList<RawRecord>(`/i13/utilisation-ledger${query}`).then((list) => ({
     ...list,
     items: list.items.map(toReservationLedgerRow),
+  }))
+}
+
+/**
+ * `GET /i13/act/events` -- every ACT event across all exceptions, newest first,
+ * with the size of the whole filtered population in `total`. `fromTs` is
+ * inclusive and `toTs` exclusive (ISO 8601). Paging and the bounds are applied
+ * in SQL.
+ */
+export function getI13ActEvents(params?: {
+  limit?: number
+  offset?: number
+  fromTs?: string
+  toTs?: string
+}): Promise<ApiList<ActExceptionFeedEvent>> {
+  const query = buildQuery({
+    limit: params?.limit,
+    offset: params?.offset,
+    from_ts: params?.fromTs,
+    to_ts: params?.toTs,
+  })
+  return apiFetchList<RawRecord>(`/i13/act/events${query}`).then((list) => ({
+    ...list,
+    items: list.items.map((raw) => ({
+      ...toActExceptionEvent(raw),
+      exceptionId: String(raw.exception_id ?? ""),
+    })),
   }))
 }

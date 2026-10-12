@@ -20,6 +20,7 @@ import type {
   ApiAdoptionResponse,
   ApiAdoptionSummary,
   ApiApprovalAction,
+  ApiApprovalEventsResponse,
   ApiApprovalHistoryResponse,
   ApiApprovalRole,
   ApiDecimal,
@@ -810,4 +811,19 @@ export async function fetchAdoptionSummary(plant?: string): Promise<AdoptionSumm
     unknownCount: response.unknown_count,
     adoptionRatePercentage: response.adoption_rate_percentage,
   }
+}
+
+/** GET /api/v1/i7/approval-events -- one page of the approval ledger across all
+ * recommendations, newest first. `fromTs` is inclusive and `toTs` exclusive
+ * (ISO 8601). Paging and the bounds are applied in SQL by the backend. */
+export async function fetchApprovalEvents(
+  params: { limit?: number; offset?: number; fromTs?: string; toTs?: string } = {},
+): Promise<ApiApprovalEventsResponse> {
+  const search = new URLSearchParams()
+  if (params.limit !== undefined) search.set("limit", String(params.limit))
+  if (params.offset !== undefined) search.set("offset", String(params.offset))
+  if (params.fromTs) search.set("from_ts", params.fromTs)
+  if (params.toTs) search.set("to_ts", params.toTs)
+  const query = search.toString()
+  return apiFetch<ApiApprovalEventsResponse>(`${I7_BASE}/approval-events${query ? `?${query}` : ""}`)
 }

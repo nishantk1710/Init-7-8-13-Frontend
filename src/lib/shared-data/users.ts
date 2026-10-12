@@ -10,6 +10,21 @@ export type SharedRole =
   | "Inventory Control"
   | "Requester"
 
+/**
+ * Every role, in the order the profile menu lists them. Lives beside the
+ * `SharedRole` union it enumerates so the two cannot drift; the `satisfies`
+ * check makes a typo or a removed role a compile error.
+ */
+export const SHARED_ROLES = [
+  "End User",
+  "Engineering Manager",
+  "Commercial Manager",
+  "Warehouse Supervisor",
+  "HOD",
+  "Inventory Control",
+  "Requester",
+] as const satisfies readonly SharedRole[]
+
 export interface SharedUser {
   userId: string
   name: string
