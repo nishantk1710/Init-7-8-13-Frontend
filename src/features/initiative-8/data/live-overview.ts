@@ -28,8 +28,15 @@ import type {
   ApiExceptionMeta,
   ApiUniverseItem,
   ApiUniverseMeta,
+  ApiVendorTurnaround,
 } from "@/lib/api/i8"
-import { getDeclarations, getExceptions, getUniverse, toNumber } from "@/lib/api/i8"
+import {
+  getDeclarations,
+  getExceptions,
+  getUniverse,
+  getVendorTurnaround,
+  toNumber,
+} from "@/lib/api/i8"
 
 /** The API caps pageSize at 500. */
 const PAGE_SIZE = 500
@@ -148,19 +155,32 @@ export type LiveOverview = {
   universe: LiveUniverseStock | null
   declarations: ApiDeclarationMeta | null
   exceptions: ApiExceptionMeta | null
+  /**
+   * Vendor turnaround -- dispatch to goods receipt, over COMPLETED repairs.
+   *
+   * FR-10 asks for this on the dashboard, and the 09-Oct audit found the
+   * endpoint had been live all along with no screen calling it. The vendor
+   * chart beside it counts OPEN lines and says so in its own footnote: the
+   * two answer different questions and neither substitutes for the other.
+   */
+  vendorTurnaround: ApiVendorTurnaround[] | null
 }
 
 /** Throws only if the register fails; the rest degrade to null. */
 export async function loadLiveOverview(): Promise<LiveOverview> {
-  const [register, universe, declarations, exceptions] = await Promise.all([
-    loadLiveRegister(),
-    loadUniverseStock().catch(() => null),
-    getDeclarations({ pageSize: 1 })
-      .then((body) => body.meta)
-      .catch(() => null),
-    getExceptions({ pageSize: 1 })
-      .then((body) => body.meta)
-      .catch(() => null),
-  ])
-  return { register, universe, declarations, exceptions }
+  const [register, universe, declarations, exceptions, vendorTurnaround] =
+    await Promise.all([
+      loadLiveRegister(),
+      loadUniverseStock().catch(() => null),
+      getDeclarations({ pageSize: 1 })
+        .then((body) => body.meta)
+        .catch(() => null),
+      getExceptions({ pageSize: 1 })
+        .then((body) => body.meta)
+        .catch(() => null),
+      getVendorTurnaround()
+        .then((body) => body.items)
+        .catch(() => null),
+    ])
+  return { register, universe, declarations, exceptions, vendorTurnaround }
 }

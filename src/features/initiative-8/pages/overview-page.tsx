@@ -15,6 +15,7 @@ import {
   unjustifiedAcquisitions,
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
+import { VendorTurnaroundTable } from "@/features/initiative-8/components/vendor-turnaround-table"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
 import { formatApiDateTime } from "@/lib/api/format"
 import { formatCount } from "@/lib/utils"
@@ -37,9 +38,10 @@ const NOT_LOADED = "Could not be loaded"
  * The register is required; the other sources are best-effort, and a tile
  * whose source failed says so instead of showing a number.
  *
- * There is no exception-queue strip: the Exception Queue screen was removed on
- * 08-Oct-2026. The exception check still runs; its result shows here as the
- * Unjustified new purchases tile, and per line in the register.
+ * The exception check's result shows here as the Unjustified new purchases
+ * tile and per line in the register. The Exception Queue screen it links to
+ * came back on 12-Oct-2026, after the 09-Oct FRS audit found FR-8, FR-9,
+ * FR-11 and acceptance criteria 5 and 11 had nothing rendering them.
  */
 export async function RefurbishableSparesOverviewPage() {
   // Not statically prerendered: every figure here moves as attestations and
@@ -74,7 +76,7 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, declarations, exceptions } = live
+  const { register, universe, declarations, exceptions, vendorTurnaround } = live
   const meta = register.meta
   const vendors = openLinesByVendor(register.chains)
   const unjustified = exceptions ? unjustifiedAcquisitions(exceptions) : undefined
@@ -169,6 +171,31 @@ export async function RefurbishableSparesOverviewPage() {
           span={6}
         >
           <RepairsByVendorChart data={vendors.top} />
+        </ChartCard>
+        {/* FR-10's vendor turnaround. Deliberately NEXT TO "Repairs by
+            vendor", which counts open lines: the two look like the same
+            question and are not, and putting them apart would let either be
+            read as the other. */}
+        <ChartCard
+          title="Vendor turnaround"
+          subtitle="Dispatch to goods receipt, over closed repairs only"
+          footnote={
+            <>
+              Measured from the first 541 to the first goods receipt on the same
+              line. A line still at a vendor has no turnaround yet and is
+              counted under &ldquo;Repairs by vendor&rdquo; instead.
+            </>
+          }
+          span={6}
+        >
+          {vendorTurnaround ? (
+            <VendorTurnaroundTable vendors={vendorTurnaround} />
+          ) : (
+            <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+              Vendor turnaround could not be loaded, so it is not shown. This is
+              not &ldquo;no turnaround measured&rdquo;.
+            </div>
+          )}
         </ChartCard>
         <ChartCard
           title="Repair aging"

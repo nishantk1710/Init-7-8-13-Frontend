@@ -720,15 +720,29 @@ export function createAttestation(body: AttestationRequest): Promise<ApiAttestat
 // are not 80-series coded. Nothing here writes anywhere -- the endpoint is a
 // GET, same as everything except createAttestation above.
 
+/** Which free-text field a line's words came from. FR-2 names three. */
+export type CodingCandidateSource = "PO" | "PR" | "MOVEMENT"
+
 export type ApiCodingCandidateLine = {
-  purchasingDocument: string
-  item: string
+  /** PO (EKPO.TXZ01), PR (EBAN.TXZ01) or MOVEMENT (MSEG.SGTXT).
+   *
+   *  A closed union here, unlike `verdict`: these are the three fields the
+   *  FRS names, not a vocabulary the backend is free to extend. */
+  source: CodingCandidateSource
+  /** EBELN for a PO, BANFN for a PR, MBLNR for a movement. */
+  document: string
+  /** EBELP, BNFPO or ZEILE -- the three number differently, which is why the
+   *  source travels with them. */
+  documentItem: string
   plant: ApiPlantReference | null
   /** The text the verdict was reached on -- served so a cataloguer can check
    *  the call without going back to SAP. */
   shortText: string
   matchedKeywords: string[]
+  /** ERDAT on a PO line, BADAT on a requisition, BUDAT on a movement -- when
+   *  the words were written, whichever document carries them. */
   raisedAt: string | null
+  /** PSTYP on a PO or PR line. Always null on a movement, which has none. */
   itemCategory: string | null
 }
 
@@ -781,8 +795,24 @@ export type ApiCodingCandidateItem = {
 }
 
 export type ApiCodingCandidateMeta = {
+  /** Which free-text sources this run read. Every count below is relative to
+   *  it, so two runs cannot be compared without it. */
+  sources: CodingCandidateSource[]
   linesWithText: number
+  linesWithTextBySource: Record<string, number>
   linesWithRepairLanguage: number
+  /** Repair-language hits per source -- the number to read when deciding
+   *  whether a source earns its keep. */
+  linesBySource: Record<string, number>
+  /** PR lines ignored because LOEKZ is set: a deleted requisition is not a
+   *  request for anything. */
+  deletedRequisitionsDropped: number
+  /** PR lines ignored because the PO they became is in this same run. One
+   *  request, counted once. */
+  convertedRequisitionsDropped: number
+  /** Verdicts served from the store rather than bought from the model again,
+   *  because the material's text has not changed since it was judged. */
+  verdictsReused: number
   linesAlreadyEightySeries: number
   linesWithoutMaterial: number
   linesScreened: number
@@ -816,6 +846,15 @@ export type CodingCandidatesQuery = {
   /** Screen at most this many materials -- for demoing the model pass in
    *  seconds rather than minutes. */
   limit?: number
+  /**
+   * Which free-text sources to read, comma separated: `PO,PR,MOVEMENT`.
+   * Omitted, the backend's configured default applies (PO and PR today).
+   *
+   * MOVEMENT is off by default because nobody has measured whether it finds
+   * anything PO and PR text do not -- a 541 is already a part on its way to
+   * repair, so its comments sit mostly on materials that ARE 80-series.
+   */
+  sources?: string
   verdict?: string
   actionableOnly?: boolean
   corroboratedOnly?: boolean
