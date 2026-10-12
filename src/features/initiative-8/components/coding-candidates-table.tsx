@@ -113,6 +113,17 @@ export function CodingCandidatesTable({
     return [...seen].sort()
   }, [candidates])
 
+  // The backend serves these already ranked -- corroborated first, then
+  // verdict, confidence and evidence volume. The rank is taken from that
+  // order and carried through filtering, so "#3" still means third most worth
+  // reading, not third row on screen. Without it the ordering is invisible
+  // and reads as arbitrary.
+  const rankOf = useMemo(() => {
+    const ranks = new Map<string, number>()
+    candidates.forEach((c, i) => ranks.set(c.material.materialId, i + 1))
+    return ranks
+  }, [candidates])
+
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
       if (verdict !== ALL && c.verdict !== verdict) return false
@@ -239,6 +250,13 @@ export function CodingCandidatesTable({
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground">
+        Ranked most worth reading first: a candidate SAP itself contradicts
+        (same description, coded both ways) outranks any model verdict, then
+        verdict, then the model&rsquo;s own confidence, then how much text
+        there is to go on.
+      </p>
+
       <FilterBar>
         <Select value={verdict} onValueChange={(v) => setVerdict(v ?? ALL)}>
           <SelectTrigger className="h-9 w-full sm:w-56">
@@ -346,6 +364,7 @@ export function CodingCandidatesTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[48px] text-right">#</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Verdict</TableHead>
                 <TableHead>Confidence</TableHead>
@@ -360,6 +379,9 @@ export function CodingCandidatesTable({
             <TableBody>
               {filtered.map((c) => (
                 <TableRow key={c.material.materialId}>
+                  <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
+                    {rankOf.get(c.material.materialId)}
+                  </TableCell>
                   <TableCell>
                     <MaterialIdentity material={c.material} onOpen={openMaterial360} />
                   </TableCell>

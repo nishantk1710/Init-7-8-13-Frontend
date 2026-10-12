@@ -24,7 +24,8 @@ import type {
   ApiDeclarationMeta,
   DeclarationQuery,
 } from "@/lib/api/i8"
-import { formatApiDate, getDeclarations } from "@/lib/api/i8"
+import type { ApiAttestation } from "@/lib/api/i8"
+import { formatApiDate, getAttestations, getDeclarations } from "@/lib/api/i8"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -67,9 +68,67 @@ function toSummary(meta: ApiDeclarationMeta): DeclarationQueueSummary {
   }
 }
 
+/**
+ * One recorded attestation, for the declaration LOG.
+ *
+ * The queue above answers "who still owes one". This answers "what was
+ * actually judged, by whom, on what" -- the FR-4 fields the queue has no room
+ * for: quantity, fault category, the condition description somebody typed,
+ * and the optional serial. `GET /api/i8/attestations` has been live
+ * throughout with nothing calling it.
+ */
+export type DeclarationLogRow = {
+  id: string
+  material: { materialId: string; materialCode: string; description: string }
+  plant?: { plantId: string; name: string }
+  quantity: string
+  condition: string
+  faultCategory: string
+  conditionDescription: string
+  serialNumber?: string
+  /** Always empty today: there is no sign-in, so the server stamps a
+   *  placeholder. Shown as recorded rather than prettied up. */
+  attestor: string
+  attestedAt?: string
+  /** Set when a later amendment replaced this one. The original is never
+   *  edited or removed, so a reader needs this to know it is not current. */
+  supersededBy?: string
+  /** True when this row IS an amendment of an earlier one. */
+  isAmendment: boolean
+}
+
+function toLogRow(row: ApiAttestation): DeclarationLogRow {
+  return {
+    id: row.id,
+    material: {
+      materialId: row.material.materialId,
+      materialCode: row.material.materialCode ?? row.material.materialId,
+      description: row.material.description ?? row.material.materialId,
+    },
+    plant: row.plant
+      ? { plantId: row.plant.plantId, name: row.plant.name }
+      : undefined,
+    quantity: row.quantity,
+    condition: row.condition,
+    faultCategory: row.faultCategory,
+    conditionDescription: row.conditionDescription,
+    serialNumber: row.serialNumber ?? undefined,
+    attestor: row.attestor,
+    attestedAt: row.attestedAt ? formatApiDate(row.attestedAt) : undefined,
+    supersededBy: row.supersededBy ?? undefined,
+    isAmendment: Boolean(row.supersedes),
+  }
+}
+
 export type LiveDeclarations = {
   rows: DeclarationQueueRow[]
   summary: DeclarationQueueSummary
+  /**
+   * Recorded attestations, newest first. Null when that call failed -- the
+   * queue is still worth showing without the log, but an empty log must not
+   * be served in place of a failed one.
+   */
+  log: DeclarationLogRow[] | null
   referenceDate?: string
   /**
    * True when the page loop stopped before reading everything.
@@ -114,8 +173,15 @@ export async function loadLiveDeclarations(
     page += 1
   }
 
+  // Superseded rows are kept: they are the audit history, and an amendment
+  // chain with the amended row hidden is not a chain.
+  const log = await getAttestations()
+    .then((body) => body.items.map(toLogRow))
+    .catch(() => null)
+
   return {
     rows,
+    log,
     summary: summary ?? {
       total: 0,
       outstanding: 0,

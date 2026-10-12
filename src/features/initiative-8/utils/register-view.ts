@@ -80,6 +80,8 @@ export const REGISTER_CSV_HEADERS = [
   "Vendor",
   "Qty under repair",
   "Repair status",
+  "Days in current stage",
+  "Turnaround (days)",
   "Partially received",
   "Blocked in SAP",
   "Expected return",
@@ -121,6 +123,10 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
       vendorLabel(c),
       c.qtyUnderRepair,
       c.repairStatus,
+      // Empty, never 0: an open line has no turnaround YET, and a 0 in a
+      // spreadsheet cell asserts "came back the same day".
+      c.daysInCurrentStage ?? "",
+      c.daysAtVendor ?? "",
       isPartiallyReceived(c) ? "Yes" : "No",
       c.poBlocked ? "Yes" : "No",
       c.expectedReturn ?? "",

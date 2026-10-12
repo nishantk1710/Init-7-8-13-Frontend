@@ -16,6 +16,7 @@ import {
   JUSTIFICATION_CELL_LABEL,
   JUSTIFICATION_CELL_NOTE,
   JUSTIFICATION_CELL_TONE,
+  OVERDUE_STATUS_LABEL,
   REPAIR_STATUS_TONE,
   UNKNOWN,
   formatDaysRemaining,
@@ -23,6 +24,7 @@ import {
   isRepairOverdue,
   justificationCellOf,
   orUnknown,
+  overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { isPlaceholderActor } from "@/lib/api/actor"
@@ -177,8 +179,37 @@ export function RepairDetailPage({
               <dl className="grid grid-cols-2 gap-y-2 text-xs">
                 <dt className="text-muted-foreground">Vendor</dt>
                 <dd className="text-right text-foreground">{vendorLabel(chain)}</dd>
+                {/* The stage, and how long it has been in it. FR-9 asks for
+                    aging per stage, and days open alone cannot tell a slow
+                    start from a vendor who has stopped answering. */}
+                <dt className="text-muted-foreground">Stage</dt>
+                <dd className="text-right text-foreground">
+                  {chain.repairStatus}
+                  {chain.daysInCurrentStage !== undefined && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      &middot; {chain.daysInCurrentStage} d
+                    </span>
+                  )}
+                </dd>
+                <dt className="text-muted-foreground">Due date status</dt>
+                <dd className="text-right text-foreground">
+                  {OVERDUE_STATUS_LABEL[overdueStatusOf(chain)]}
+                </dd>
                 <dt className="text-muted-foreground">Days open</dt>
                 <dd className="text-right text-foreground">{chain.daysOpen}</dd>
+                {/* Turnaround: dispatch to goods receipt. Absent, not 0, while
+                    the unit is still out -- it has no turnaround YET. */}
+                <dt className="text-muted-foreground">Turnaround</dt>
+                <dd className="text-right text-foreground">
+                  {chain.daysAtVendor === undefined
+                    ? UNKNOWN
+                    : `${chain.daysAtVendor} days`}
+                </dd>
+                <dt className="text-muted-foreground">Reorder point</dt>
+                <dd className="text-right text-foreground">
+                  {chain.reorderPoint ?? UNKNOWN}
+                </dd>
                 <dt className="text-muted-foreground">Repair cost</dt>
                 {/* Unknown when the PO line carries no net price -- R 0.00 would
                     read as a free repair. */}

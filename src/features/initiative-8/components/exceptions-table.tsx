@@ -47,7 +47,36 @@ const TYPE_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No condition declaration",
   UNJUSTIFIED_ACQUISITION: "Bought new, no justification",
   MISSING_SESSION_ID: "No assistant session",
+  OVERDUE_REPAIR: "Repair overdue",
 }
+
+/**
+ * What each check actually looks for.
+ *
+ * Written out because a finding nobody can trace to a rule is a finding
+ * nobody will act on -- and because two of the four checks below are not
+ * running yet, which a reader has to be able to tell apart from "running and
+ * found nothing". The screen only shows the rule for checks the backend says
+ * it raises; the rest appear under "not running yet".
+ */
+const HOW_IT_WORKS: Record<string, string> = {
+  MISSING_ATTESTATION:
+    "A repair PO line with no condition declaration linked to it, matched on the same material and plant within the window below.",
+  UNJUSTIFIED_ACQUISITION:
+    "A new 80-series unit bought while a repair of the same part was open at that plant, with no justification naming the purchase.",
+  MISSING_SESSION_ID:
+    "An 80-series reservation whose item text (SGTXT) carries no valid Spares Assistant session for that part -- blank, an ID nobody issued, or another part's session.",
+  OVERDUE_REPAIR:
+    "A repair PO line past its EKET delivery date plus the grace period, with units still at the vendor.",
+}
+
+/** The four FR-8 / acceptance-criterion-11 checks, in the order they read. */
+const ALL_CHECKS = [
+  "MISSING_ATTESTATION",
+  "UNJUSTIFIED_ACQUISITION",
+  "OVERDUE_REPAIR",
+  "MISSING_SESSION_ID",
+] as const
 
 function labelFor(type: string): string {
   return TYPE_LABEL[type] ?? type
@@ -168,18 +197,54 @@ export function ExceptionsTable({
         </Button>
       </div>
 
-      {/* An empty count must read as "none found", never as "not built". */}
-      {summary.typesRaised.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Checks running: {summary.typesRaised.map(labelFor).join(", ")}.
-          Declarations matched within ±{summary.attestationWindowDays} days
+      {/* How each check works.
+          An empty count must read as "none found", never as "not built" --
+          so the checks that ARE running are separated from the ones that are
+          not, by name, rather than both rendering as a zero. */}
+      <div className="rounded-xl border border-border p-4">
+        <h2 className="text-xs font-medium text-foreground">How each check works</h2>
+        <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-2">
+          {ALL_CHECKS.filter((t) => summary.typesRaised.includes(t)).map((type) => (
+            <div key={type}>
+              <dt className="text-xs font-medium text-foreground">
+                {labelFor(type)}
+              </dt>
+              <dd className="mt-0.5 text-xs text-muted-foreground">
+                {HOW_IT_WORKS[type]}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          Declarations are matched within ±{summary.attestationWindowDays} days
+          of the repair line
           {summary.justificationWindowDays
-            ? `, justifications within ±${summary.justificationWindowDays} days`
+            ? `, justifications within ±${summary.justificationWindowDays} days of the purchase`
             : ""}
-          . A check not listed here is not running yet, and its absence from
-          this queue is not evidence of nothing to find.
+          . Items are found by the checks, never typed in: recording the
+          declaration resolves a missing attestation, and a justification
+          naming the purchase resolves an unjustified acquisition.
         </p>
-      )}
+
+        {/* Named, not silently absent. A check that is not running produces no
+            rows, and a zero on screen would be indistinguishable from a clean
+            bill of health. */}
+        {ALL_CHECKS.some((t) => !summary.typesRaised.includes(t)) && (
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-500">
+            <strong>Not running yet:</strong>{" "}
+            {ALL_CHECKS.filter((t) => !summary.typesRaised.includes(t))
+              .map(labelFor)
+              .join(", ")}
+            . Nothing in this queue reflects{" "}
+            {ALL_CHECKS.filter((t) => !summary.typesRaised.includes(t)).length > 1
+              ? "those checks"
+              : "that check"}
+            , so their absence here is not evidence that there is nothing to
+            find.
+          </p>
+        )}
+      </div>
 
       {truncated && (
         <div

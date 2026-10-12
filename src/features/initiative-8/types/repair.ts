@@ -180,6 +180,21 @@ export interface RepairChain {
    */
   daysElapsed?: number
 
+  /** Days in the CURRENT lifecycle stage, as the backend counts it.
+   *
+   *  Distinct from `daysOpen`, which runs from the PO line's creation date.
+   *  FR-9 asks for aging per stage and this is the figure that answers it:
+   *  a line 200 days open but 3 days at the vendor is not the same problem
+   *  as one 200 days open and 190 at the vendor. */
+  daysInCurrentStage?: number
+
+  /** Days between dispatch to the vendor and the goods receipt.
+   *
+   *  Only meaningful once the line has come back -- turnaround is measured
+   *  from a 541 to a receipt, so an open line has no turnaround YET rather
+   *  than a turnaround of zero. */
+  daysAtVendor?: number
+
   /**
    * The planned delivery time this line is measured against, in calendar days.
    * Undefined where none is maintained — including every Gamsberg line.

@@ -1,9 +1,15 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
 
+import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
+import { DeclarationLogTable } from "@/features/initiative-8/components/declaration-log-table"
 import { DeclarationsTable } from "@/features/initiative-8/components/declarations-table"
 import { loadLiveDeclarations } from "@/features/initiative-8/data/live-declarations"
+import { formatCount } from "@/lib/utils"
+
+/** Shown on a tile whose source could not be read -- never a 0. */
+const NOT_LOADED = "Could not be loaded"
 
 export const metadata: Metadata = {
   title: "Condition declarations — Spares AI",
@@ -72,11 +78,83 @@ export default async function I08DeclarationsPage() {
             </p>
           </div>
         ) : (
-          <DeclarationsTable
-            rows={data.rows}
-            summary={data.summary}
-            truncated={data.truncated}
-          />
+          <>
+            {/* The four numbers somebody asks for before reading any row.
+                "Could not be loaded" rather than a 0 where the source failed:
+                a zero here reads as "nothing outstanding", which is the
+                opposite of what a failed call means. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KPIStatCard
+                label="Repair lines undeclared"
+                value={formatCount(data.summary.outstanding)}
+                hint={`of ${formatCount(data.summary.total)} repair lines`}
+              />
+              <KPIStatCard
+                label="Declarations recorded"
+                value={data.log === null ? NOT_LOADED : formatCount(data.log.length)}
+                hint={data.log === null ? undefined : "condition assessments on record"}
+              />
+              <KPIStatCard
+                label="Repairable"
+                value={
+                  data.log === null
+                    ? NOT_LOADED
+                    : formatCount(
+                        data.log.filter((r) => r.condition === "Repairable").length
+                      )
+                }
+                hint="judged worth repairing"
+              />
+              <KPIStatCard
+                label="Not worth repairing"
+                value={
+                  data.log === null
+                    ? NOT_LOADED
+                    : formatCount(
+                        data.log.filter(
+                          (r) =>
+                            r.condition === "Scrap" ||
+                            r.condition === "Beyond Economical Repair"
+                        ).length
+                      )
+                }
+                hint="scrap or beyond economical repair"
+              />
+            </div>
+
+            <section className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-foreground">
+                Repair lines still owed a declaration
+              </h2>
+              <DeclarationsTable
+                rows={data.rows}
+                summary={data.summary}
+                truncated={data.truncated}
+              />
+            </section>
+
+            <section className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-foreground">
+                Declaration log
+              </h2>
+              {data.log === null ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm"
+                >
+                  <p className="text-foreground">
+                    The declaration log could not be loaded.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This is not &ldquo;nothing recorded&rdquo;. The queue above
+                    is unaffected.
+                  </p>
+                </div>
+              ) : (
+                <DeclarationLogTable rows={data.log} />
+              )}
+            </section>
+          </>
         )}
       </div>
     </div>

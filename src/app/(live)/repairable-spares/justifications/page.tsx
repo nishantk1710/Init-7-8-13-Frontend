@@ -3,8 +3,11 @@ import dynamic from "next/dynamic"
 import { connection } from "next/server"
 
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
+import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
 import { listJustifications } from "@/lib/api/assistant"
+import { getExceptions } from "@/lib/api/i8"
+import { formatCount } from "@/lib/utils"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { fromAssistant } from "@/lib/assistant/justifications"
 
@@ -12,6 +15,9 @@ import { fromAssistant } from "@/lib/assistant/justifications"
 const DemoJustifications = dynamic(() =>
   import("@/components/assistant/demo/demo-records").then((m) => m.DemoJustifications)
 )
+
+/** Shown on a tile whose source could not be read -- never a 0. */
+const NOT_LOADED = "Could not be loaded"
 
 export const metadata: Metadata = {
   title: "New-acquisition justifications — Spares AI",
@@ -71,6 +77,23 @@ export default async function I08JustificationsPage() {
     loadError = error instanceof Error ? error.message : String(error)
   }
 
+  // The other half of the picture: purchases the check FOUND with no
+  // justification. Best-effort -- the log is still worth reading without it,
+  // and a tile that could not be computed says so rather than showing a 0.
+  const exceptionMeta = await getExceptions({ pageSize: 1 })
+    .then((body) => body.meta)
+    .catch(() => null)
+
+  const recorded = entries?.items.length ?? 0
+  const linkedToSession = entries?.items.filter((e) => e.sessionId).length ?? 0
+  const stillUnjustified = exceptionMeta?.byType?.UNJUSTIFIED_ACQUISITION ?? null
+  // Of the new purchases the check looked at, how many carry a reason.
+  const checked = exceptionMeta?.acquisitionsChecked ?? null
+  const compliance =
+    checked && checked > 0 && stillUnjustified !== null
+      ? Math.round(((checked - stillUnjustified) / checked) * 100)
+      : null
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
@@ -78,6 +101,38 @@ export default async function I08JustificationsPage() {
           title="New-acquisition justifications"
           description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
         />
+
+        {/* Counts over the whole log, not the page. "Purchases avoided" is
+            deliberately absent: FR-7 wants benefit attributed only where the
+            requester chose repair after the assistant's advice, and nothing
+            computes that yet (MBEW is pulled and unread). A tile with an
+            invented number would be worse than no tile. */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KPIStatCard
+            label="Justifications recorded"
+            value={entries === null ? NOT_LOADED : formatCount(recorded)}
+            hint="new-acquisition reasons on record"
+          />
+          <KPIStatCard
+            label="Purchases still unjustified"
+            value={stillUnjustified === null ? NOT_LOADED : formatCount(stillUnjustified)}
+            hint="bought while a repair was open, no reason given"
+          />
+          <KPIStatCard
+            label="Justification compliance"
+            value={compliance === null ? NOT_LOADED : `${compliance}%`}
+            hint={
+              checked === null
+                ? undefined
+                : `of ${formatCount(checked)} new purchases checked`
+            }
+          />
+          <KPIStatCard
+            label="Linked to a session"
+            value={entries === null ? NOT_LOADED : formatCount(linkedToSession)}
+            hint="captured at the reservation, not after the fact"
+          />
+        </div>
 
         {entries === null ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">

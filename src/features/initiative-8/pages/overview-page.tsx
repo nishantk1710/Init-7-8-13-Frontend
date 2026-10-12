@@ -15,6 +15,7 @@ import {
   unjustifiedAcquisitions,
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
+import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
 import { VendorTurnaroundTable } from "@/features/initiative-8/components/vendor-turnaround-table"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
 import { formatApiDateTime } from "@/lib/api/format"
@@ -196,6 +197,25 @@ export async function RefurbishableSparesOverviewPage() {
               not &ldquo;no turnaround measured&rdquo;.
             </div>
           )}
+        </ChartCard>
+        {/* FR-9's "aging bands per lifecycle stage". Next to Repair aging,
+            which buckets the whole-repair clock: the two look like the same
+            question and are not, so they are shown together rather than one
+            standing in for the other. */}
+        <ChartCard
+          title="Aging by stage"
+          subtitle="Open repair lines, by days in their CURRENT stage"
+          footnote={
+            <>
+              Days open runs from the PO line&rsquo;s creation date; this runs
+              from the line entering the stage it is in now. A line 200 days
+              open but 3 days at the vendor is a different problem from one 200
+              days open and 190 at the vendor.
+            </>
+          }
+          span={6}
+        >
+          <StageAgingChart chains={register.chains} bands={register.agingBands} />
         </ChartCard>
         <ChartCard
           title="Repair aging"

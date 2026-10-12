@@ -18,7 +18,7 @@ import { formatCount } from "@/lib/utils"
 
 // Cycled by index rather than a 1:1 array, since the band count is backend
 // configuration (I8_AGING_BAND_BOUNDARIES) and is not always five.
-const BUCKET_COLORS = [
+export const BUCKET_COLORS = [
   "var(--chart-3)",
   "var(--chart-1)",
   "var(--chart-4)",
