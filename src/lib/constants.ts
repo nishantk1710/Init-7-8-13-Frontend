@@ -33,6 +33,7 @@ import {
   LayoutDashboard,
   Inbox,
   CircleX,
+  Upload,
   type LucideIcon,
 } from "lucide-react"
 
@@ -76,6 +77,7 @@ export const ICONS: Record<IconKey, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
   inbox: Inbox,
   cancel: CircleX,
+  upload: Upload,
 }
 
 export const CATEGORIES: { label: Category; icon: IconKey }[] = [
