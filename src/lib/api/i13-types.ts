@@ -621,3 +621,12 @@ export interface ReservationLedgerRow {
   sgtxt: string | null
   uatSimulated: boolean
 }
+
+/**
+ * One event in `GET /i13/act/events` -- an ACT event plus the exception it
+ * belongs to. A single exception's history omits `exceptionId` because the URL
+ * already names it; the portfolio-wide feed cannot.
+ */
+export interface ActExceptionFeedEvent extends ActExceptionEvent {
+  exceptionId: string
+}

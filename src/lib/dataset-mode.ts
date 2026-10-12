@@ -52,8 +52,15 @@
 //
 // WHAT IS STILL FIXTURE-BACKED, AND WHY THIS FLAG STILL EXISTS
 //
+// UPDATE: the cross-initiative feeds (summary, global actions, audit events)
+// are no longer fixture-backed. Home, the Action Center, Approvals and the Audit
+// trail read `selectors/live.ts` in each module, and a test
+// (lib/no-fixtures-in-shared-pages.test.ts) fails if they import a fixture. What
+// follows describes the state before that change and still applies to the
+// Material 360 adapter, which remains fixture-backed.
+//
 // The four cross-initiative selectors (summary, global actions, audit events,
-// the Material 360 adapter) are still fixture-backed: they are SYNCHRONOUS
+// the Material 360 adapter) were fixture-backed: they are SYNCHRONOUS
 // and are consumed by app-wide shared code -- lib/aggregation.ts, the global
 // chat intents, the material router, the Material 360 drawer -- which I07 and
 // I13 read too. Making those live is an async refactor across somebody else's

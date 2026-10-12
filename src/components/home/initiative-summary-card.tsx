@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight, CircleDot } from "lucide-react"
+import { ArrowRight, CircleAlert, CircleDot } from "lucide-react"
 
 import type { InitiativeHealth, InitiativeSummary } from "@/lib/domain/contracts"
 import { cn } from "@/lib/utils"
@@ -10,14 +10,32 @@ const HEALTH_CLASSES: Record<InitiativeHealth, string> = {
   critical: "text-destructive",
 }
 
+/** Counts get thousands separators so 44394 reads as 44,394; text passes through. */
+export function formatMetric(value: string | number): string {
+  return typeof value === "number" ? value.toLocaleString() : value
+}
+
 const HEALTH_LABELS: Record<InitiativeHealth, string> = {
   healthy: "Healthy",
   attention: "Needs attention",
   critical: "Critical",
 }
 
-/** Pure rendering of one `InitiativeSummary` — no calculation happens here. */
-export function InitiativeSummaryCard({ summary }: { summary: InitiativeSummary }) {
+/**
+ * Pure rendering of one `InitiativeSummary` — no calculation happens here.
+ *
+ * `attentionCount` is the real number of items needing attention, which can be
+ * larger than any capped list. When it is not given, the length of
+ * `summary.actions` is used (the fixture-era behaviour).
+ */
+export function InitiativeSummaryCard({
+  summary,
+  attentionCount,
+}: {
+  summary: InitiativeSummary
+  attentionCount?: number | null
+}) {
+  const attention = attentionCount === undefined ? summary.actions.length : attentionCount
   return (
     <Link
       href={summary.href}
@@ -36,19 +54,49 @@ export function InitiativeSummaryCard({ summary }: { summary: InitiativeSummary 
           {summary.metrics.slice(0, 4).map((m) => (
             <div key={m.label}>
               <dt className="text-[11px] text-muted-foreground">{m.label}</dt>
-              <dd className="text-sm font-medium text-foreground">{m.value}</dd>
+              <dd className="text-sm font-medium text-foreground">{formatMetric(m.value)}</dd>
             </div>
           ))}
         </dl>
       ) : (
         <p className="text-[11px] text-muted-foreground">No metrics reported yet.</p>
       )}
-      {summary.actions.length > 0 && (
+      {attention !== null && attention > 0 && (
         <div className="mt-auto border-t border-dashed border-border pt-2 text-[11px] text-muted-foreground">
-          {summary.actions.length} item{summary.actions.length === 1 ? "" : "s"} need
-          {summary.actions.length === 1 ? "s" : ""} attention
+          {attention.toLocaleString()} item{attention === 1 ? "" : "s"} need
+          {attention === 1 ? "s" : ""} attention
         </div>
       )}
+    </Link>
+  )
+}
+
+/**
+ * What a card shows when its module did not answer. Deliberately not a card of
+ * zeros: "0 items need attention" and "we could not ask" are different
+ * statements, and only one of them is true here.
+ */
+export function SummaryCardFailure({
+  label,
+  href,
+  message,
+}: {
+  label: string
+  href: string
+  message: string
+}) {
+  return (
+    <Link
+      href={href}
+      role="alert"
+      className="flex flex-col gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4 transition-colors hover:border-destructive/60"
+    >
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+        <CircleAlert className="size-3" />
+        Could not be loaded
+      </div>
+      <p className="text-[11px] text-muted-foreground">{message}</p>
     </Link>
   )
 }

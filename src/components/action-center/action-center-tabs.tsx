@@ -6,6 +6,7 @@ import { CircleAlert, Info, TriangleAlert } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatWhen } from "@/lib/api/format"
 import type { GlobalAction, InitiativeId } from "@/lib/domain/contracts"
 import { cn } from "@/lib/utils"
 import { ApprovalsWorkspace } from "@/features/initiative-7/components/approvals-workspace"
@@ -41,7 +42,14 @@ const SEVERITY_CLASS = {
  * since that workflow needs more than "title + severity + a link" can carry.
  * Every other tab stays a plain filter over the aggregated `GlobalAction[]`.
  */
-export function ActionCenterTabs({ actions }: { actions: GlobalAction[] }) {
+export function ActionCenterTabs({
+  actions,
+  counts,
+}: {
+  actions: GlobalAction[]
+  /** The real population per module — `null` where the module did not answer. */
+  counts?: Record<InitiativeId, number | null>
+}) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("all")
 
   const filtered = useMemo(
@@ -58,7 +66,14 @@ export function ActionCenterTabs({ actions }: { actions: GlobalAction[] }) {
               {t.label}
               {t.id !== "all" && (
                 <span className="ml-1 text-[11px] text-muted-foreground">
-                  ({actions.filter((a) => a.initiative === t.id).length})
+                  {/* `null` is a module that did not answer: say so, never "(0)". */}
+                  (
+                  {counts
+                    ? counts[t.id] === null
+                      ? "not loaded"
+                      : counts[t.id]!.toLocaleString()
+                    : actions.filter((a) => a.initiative === t.id).length}
+                  )
                 </span>
               )}
             </TabsTrigger>
@@ -84,8 +99,8 @@ export function ActionCenterTabs({ actions }: { actions: GlobalAction[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm text-foreground">{action.title}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      Created {action.createdAt}
-                      {action.dueAt && <> · Due {action.dueAt}</>}
+                      Created {formatWhen(action.createdAt)}
+                      {action.dueAt && <> · Due {formatWhen(action.dueAt)}</>}
                     </div>
                   </div>
                 </Link>

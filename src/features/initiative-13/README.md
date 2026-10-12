@@ -140,23 +140,19 @@ that shared file.
 - `escalations.ts` — `ESCALATION_TIMELINES`, keyed by ledger line id, named
   people sourced from `@/lib/shared-data/users`.
 - `reclassification.ts` — `RECLASSIFICATION_CANDIDATES`, includes `500-31005`.
-- `overview-metrics.ts` — summary KPIs computed from `LEDGER_LINES`, read only
-  by `selectors/summary.ts`.
 
 ## Public exports
 
 - `manifest.ts` → `initiative13Manifest` (sidebar nav + suggested questions,
   pre-wired — hrefs unchanged from scaffolding).
-- `selectors/summary.ts` → `getInitiative13Summary()` — Spares Control Tower
-  overview card + Action Center feed.
+- `selectors/live.ts` → `getInitiative13LiveSummary()`, `getInitiative13LiveActions()`
+  and `getInitiative13LiveAuditEvents()` — this module's half of Home, the Action
+  Center, Approvals and the Audit Trail, from `/i13/summary`, the ACT exception
+  queue, the reclassification candidates and `/i13/act/events`. Backend only;
+  throws on failure. The unutilized-value and plan-compliance figures have no
+  backend source and are shown as "Not available", never approximated.
 - `selectors/material-360-adapter.ts` → `getInitiative13Material360Signal(materialId)`
   — global Material 360 drawer.
-- `selectors/global-actions.ts` → `getInitiative13GlobalActions()` — global
-  Action Center, derived from ledger exception lines + reclassification data.
-- `selectors/audit-events.ts` → `getInitiative13AuditEvents()` — global Audit
-  Trail, derived from the ledger's document chain, escalation timelines and
-  reclassification flags (seeded/static; it is not mutated by
-  anything recorded on the Exceptions screen).
 - `selectors/oar-lookup.ts` → `isOARMaterial(materialId)` — the top-precedence
   check in `lib/material-router.ts`'s `routeMaterial()`, which is what
   triggers the chat's conversational consumption-plan capture.

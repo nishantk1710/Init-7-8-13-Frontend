@@ -100,9 +100,7 @@ the four **synchronous** cross-initiative selectors:
 
 | Selector | Read by |
 |---|---|
-| `selectors/summary.ts` | Home's initiative card (`lib/aggregation.ts`) |
-| `selectors/global-actions.ts` | Action Center, Approvals, Home |
-| `selectors/audit-events.ts` | Audit Trail, Home |
+| `selectors/live.ts` | Home's initiative card, Action Center, Approvals and the Audit Trail, composed by `lib/aggregation.ts`. Reads the backend only (snapshot, declarations, register, attestations); throws on failure so the aggregation can show one failed card. |
 | `selectors/material-360-adapter.ts` | Material 360 drawer, `lib/material-router.ts`, Initiative 7's `repair-context-signal.tsx` (material `500-14892` via `RC-8002`) |
 
 `lib/material-router.ts` and `lib/material-name-lookup.ts` also read
