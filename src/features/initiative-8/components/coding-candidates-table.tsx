@@ -23,11 +23,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { toCodingCandidate } from "@/features/initiative-8/data/live-coding-candidates"
-import type { CodingCandidate } from "@/features/initiative-8/types/repair"
+import type {
+  CodingCandidate,
+  CodingCandidateSource,
+} from "@/features/initiative-8/types/repair"
 import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE } from "@/features/initiative-8/utils/status"
 import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
 import { getCodingCandidates } from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
+import { downloadCsv } from "@/lib/utils"
 
 const ALL = "all"
 
@@ -42,6 +46,25 @@ const VERDICTS = [
   "CONSUMABLE_FOR_REPAIR",
   "UNSCREENED",
 ]
+
+// How a line's source reads in the table. The raw enum values are shouted
+// acronyms; these are what a cataloguer would call them.
+const SOURCE_LABEL: Record<CodingCandidateSource, string> = {
+  PO: "PO text",
+  PR: "PR text",
+  MOVEMENT: "Movement text",
+}
+
+/**
+ * Which sources a candidate's evidence came from, in a fixed order.
+ *
+ * Fixed rather than first-seen, so two rows with the same mix read the same
+ * way and the column can be scanned down rather than read cell by cell.
+ */
+function sourcesOf(candidate: CodingCandidate): CodingCandidateSource[] {
+  const present = new Set(candidate.lines.map((line) => line.source))
+  return (["PO", "PR", "MOVEMENT"] as const).filter((s) => present.has(s))
+}
 
 function formatScreenedAt(iso?: string): string {
   if (!iso) return "Not yet screened"
@@ -75,19 +98,84 @@ export function CodingCandidatesTable({
   const [screenError, setScreenError] = useState<string | null>(null)
 
   const [verdict, setVerdict] = useState<string>(ALL)
+  const [plant, setPlant] = useState<string>(ALL)
   const [actionableOnly, setActionableOnly] = useState(false)
   const [corroboratedOnly, setCorroboratedOnly] = useState(false)
   const [meetsThresholdOnly, setMeetsThresholdOnly] = useState(false)
 
+  // FR-10 asks for a plant filter on every screen and this one had none.
+  // Built from the rows rather than hard-coded: the plant scope is a backend
+  // setting (1300 and 1500 today) and a list typed here would be a second
+  // place to change it.
+  const plants = useMemo(() => {
+    const seen = new Set<string>()
+    for (const c of candidates) for (const p of c.plants) seen.add(p)
+    return [...seen].sort()
+  }, [candidates])
+
+  // The backend serves these already ranked -- corroborated first, then
+  // verdict, confidence and evidence volume. The rank is taken from that
+  // order and carried through filtering, so "#3" still means third most worth
+  // reading, not third row on screen. Without it the ordering is invisible
+  // and reads as arbitrary.
+  const rankOf = useMemo(() => {
+    const ranks = new Map<string, number>()
+    candidates.forEach((c, i) => ranks.set(c.material.materialId, i + 1))
+    return ranks
+  }, [candidates])
+
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
       if (verdict !== ALL && c.verdict !== verdict) return false
+      if (plant !== ALL && !c.plants.includes(plant)) return false
       if (actionableOnly && !c.isActionable) return false
       if (corroboratedOnly && !c.isCorroborated) return false
       if (meetsThresholdOnly && !c.meetsConfidenceThreshold) return false
       return true
     })
-  }, [candidates, verdict, actionableOnly, corroboratedOnly, meetsThresholdOnly])
+  }, [candidates, verdict, plant, actionableOnly, corroboratedOnly, meetsThresholdOnly])
+
+  /**
+   * Export what is on screen.
+   *
+   * The TEXT goes in the file, and so does the source it came from: a
+   * cataloguer takes this to the SAP team, and "material 5000094118 reads like
+   * a repairable" is not a case -- the words somebody typed on a specific
+   * document are.
+   */
+  function exportCsv() {
+    downloadCsv(
+      "i08-coding-candidates.csv",
+      [
+        "Material",
+        "Verdict",
+        "Confidence",
+        "Corroborated",
+        "Twin Material",
+        "Plants",
+        "Evidence From",
+        "Lines",
+        "Triggering Text",
+        "Reason",
+        "Provider",
+        "Screened At",
+      ],
+      filtered.map((c) => [
+        c.material.materialCode,
+        c.verdict,
+        c.confidence,
+        c.isCorroborated ? "Yes" : "No",
+        c.twins.map((t) => t.materialId).join(" "),
+        c.plants.join(" "),
+        sourcesOf(c).map((src) => SOURCE_LABEL[src]).join(" "),
+        c.lines.length,
+        c.distinctTexts.join(" | "),
+        c.reason,
+        c.provider,
+        c.screenedAt ?? "",
+      ])
+    )
+  }
 
   /**
    * The slow, opt-in language-judgement pass -- one model call per material,
@@ -146,9 +234,14 @@ export function CodingCandidatesTable({
             {meta?.corroborated === 1 ? "" : "s"} corroborated by an 80-series twin.
           </div>
         )}
-        <Button size="sm" onClick={() => void runScreen()} disabled={screening}>
-          {screening ? "Screening… (~4 min)" : "Run AI screen"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={exportCsv}>
+            Export CSV
+          </Button>
+          <Button size="sm" onClick={() => void runScreen()} disabled={screening}>
+            {screening ? "Screening… (~4 min)" : "Run AI screen"}
+          </Button>
+        </div>
       </div>
 
       {screenError && (
@@ -156,6 +249,13 @@ export function CodingCandidatesTable({
           The screen did not complete: {screenError}
         </div>
       )}
+
+      <p className="text-xs text-muted-foreground">
+        Ranked most worth reading first: a candidate SAP itself contradicts
+        (same description, coded both ways) outranks any model verdict, then
+        verdict, then the model&rsquo;s own confidence, then how much text
+        there is to go on.
+      </p>
 
       <FilterBar>
         <Select value={verdict} onValueChange={(v) => setVerdict(v ?? ALL)}>
@@ -219,13 +319,35 @@ export function CodingCandidatesTable({
           </SelectContent>
         </Select>
 
+        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All plants">
+              {(value: string) => (value === ALL ? "All plants" : value)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All plants</SelectItem>
+            {plants.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <ClearFiltersButton
           activeCount={
-            [verdict !== ALL, actionableOnly, corroboratedOnly, meetsThresholdOnly].filter(Boolean)
-              .length
+            [
+              verdict !== ALL,
+              plant !== ALL,
+              actionableOnly,
+              corroboratedOnly,
+              meetsThresholdOnly,
+            ].filter(Boolean).length
           }
           onClear={() => {
             setVerdict(ALL)
+            setPlant(ALL)
             setActionableOnly(false)
             setCorroboratedOnly(false)
             setMeetsThresholdOnly(false)
@@ -242,19 +364,24 @@ export function CodingCandidatesTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[48px] text-right">#</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Verdict</TableHead>
                 <TableHead>Confidence</TableHead>
                 <TableHead>Flags</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Plants</TableHead>
-                <TableHead className="text-right">PO Lines</TableHead>
+                <TableHead>Evidence From</TableHead>
+                <TableHead className="text-right">Lines</TableHead>
                 <TableHead>Screened At</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
                 <TableRow key={c.material.materialId}>
+                  <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
+                    {rankOf.get(c.material.materialId)}
+                  </TableCell>
                   <TableCell>
                     <MaterialIdentity material={c.material} onOpen={openMaterial360} />
                   </TableCell>
@@ -289,6 +416,19 @@ export function CodingCandidatesTable({
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {c.plants.length > 0 ? c.plants.join(", ") : "—"}
+                  </TableCell>
+                  {/* Which documents the words came from. A candidate seen only
+                      on a requisition is a different -- earlier -- finding from
+                      one seen on a purchase order, and the column says so
+                      rather than leaving a reader to open the row. */}
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {sourcesOf(c).map((source) => (
+                        <StatusBadge key={source} tone="default">
+                          {SOURCE_LABEL[source]}
+                        </StatusBadge>
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right text-foreground">{c.lines.length}</TableCell>
                   <TableCell className="text-muted-foreground">

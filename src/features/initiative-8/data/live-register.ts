@@ -189,6 +189,8 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // formatApiDate is the one place that conversion happens.
     raisedAt: formatApiDate(row.raisedAt),
     poIssuedAt: row.poIssuedAt ? formatApiDate(row.poIssuedAt) : undefined,
+    daysInCurrentStage: row.daysInCurrentStage ?? undefined,
+    daysAtVendor: row.daysAtVendor ?? undefined,
     sentToVendorAt: row.sentToVendorAt ? formatApiDate(row.sentToVendorAt) : undefined,
     // Undefined on the 63 lines with no schedule line. Nobody ever agreed a
     // return date for them, and those are precisely the lines nobody is

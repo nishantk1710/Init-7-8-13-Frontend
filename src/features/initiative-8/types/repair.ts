@@ -180,6 +180,21 @@ export interface RepairChain {
    */
   daysElapsed?: number
 
+  /** Days in the CURRENT lifecycle stage, as the backend counts it.
+   *
+   *  Distinct from `daysOpen`, which runs from the PO line's creation date.
+   *  FR-9 asks for aging per stage and this is the figure that answers it:
+   *  a line 200 days open but 3 days at the vendor is not the same problem
+   *  as one 200 days open and 190 at the vendor. */
+  daysInCurrentStage?: number
+
+  /** Days between dispatch to the vendor and the goods receipt.
+   *
+   *  Only meaningful once the line has come back -- turnaround is measured
+   *  from a 541 to a receipt, so an open line has no turnaround YET rather
+   *  than a turnaround of zero. */
+  daysAtVendor?: number
+
   /**
    * The planned delivery time this line is measured against, in calendar days.
    * Undefined where none is maintained — including every Gamsberg line.
@@ -314,16 +329,42 @@ export interface RepairJustification {
   unjustifiedPurchases: UnjustifiedPurchase[]
 }
 
-/** One PO line whose free text mentioned repair (W5.5 coding-candidate screen). */
+/**
+ * Which free-text field a coding-candidate line's words came from.
+ *
+ * Declared here rather than imported from `lib/api/i8`: these domain types
+ * stay independent of the wire module, the same way every other type in this
+ * file does. A closed union, unlike `verdict` — these are the three fields the
+ * FRS names, not a vocabulary the backend may extend.
+ *
+ * - `PO` — EKPO.TXZ01, purchase order item short text
+ * - `PR` — EBAN.TXZ01, requisition item short text (the earlier signal)
+ * - `MOVEMENT` — MSEG.SGTXT, goods movement item text
+ */
+export type CodingCandidateSource = "PO" | "PR" | "MOVEMENT"
+
+/**
+ * One document line whose free text mentioned repair (FR-2 coding-candidate
+ * screen).
+ *
+ * Not only a PO line any more: FR-2 names three free-text sources, and the
+ * source travels with the line because EBELN/EBELP, BANFN/BNFPO and
+ * MBLNR/ZEILE look alike and are opened in different SAP transactions.
+ */
 export interface CodingCandidateLine {
-  purchasingDocument: string
-  item: string
+  source: CodingCandidateSource
+  /** EBELN for a PO, BANFN for a PR, MBLNR for a movement. */
+  document: string
+  /** EBELP, BNFPO or ZEILE. */
+  documentItem: string
   plant?: PlantReference
   /** The text the verdict was reached on — served so a cataloguer can check
    *  the call without going back to SAP. */
   shortText: string
   matchedKeywords: string[]
+  /** ERDAT on a PO line, BADAT on a requisition, BUDAT on a movement. */
   raisedAt?: string
+  /** PSTYP on a PO or PR line. Absent on a movement, which has none. */
   itemCategory?: string
 }
 
@@ -382,6 +423,123 @@ export interface CodingCandidate {
   /** WHO answered — "stub" means nothing was really judged. */
   provider: string
   screenedAt?: string
+}
+
+/**
+ * One row of the LIVE exception queue (FR-8, FR-9, FR-11).
+ *
+ * `type` and `severity` are plain strings, not closed unions. The backend
+ * DECLARES more exception types than it raises — `MISSING_SESSION_ID` is
+ * defined and never raised today — and a type this build has not heard of
+ * must still render rather than crash a queue somebody is working. Nothing
+ * here may switch exhaustively over either field.
+ */
+export interface ExceptionQueueRow {
+  id: string
+  /** `MISSING_ATTESTATION`, `UNJUSTIFIED_ACQUISITION`, or one added later. */
+  type: string
+  severity: string
+  material: MaterialReference
+  plant?: PlantReference
+  /** The repair line, as `{document}-{item}`. For an unjustified acquisition,
+   *  the repair that was already open when the new unit was bought. */
+  repairLine: string
+  /** The register detail key, when the line can be linked at all. */
+  repairId?: string
+  /** The new-purchase PO line, on an unjustified acquisition only. */
+  acquisitionLine?: string
+  title: string
+  /** Says what is missing AND what was searched for — a finding nobody can
+   *  trace to a rule is a finding nobody will act on. */
+  detail: string
+  /** The repair line's own date, not when the check ran. */
+  raisedAt?: string
+  isOpenRepair: boolean
+  /**
+   * The line predates the control, so the gap is explained by when it was
+   * raised rather than by anyone failing to act. Render it as a reason, not a
+   * violation. Always false while no cutover date is configured, which is the
+   * current state (audit §11.5).
+   */
+  preAutomation: boolean
+}
+
+/** The counts the exception queue reports over the whole check, not a page. */
+export interface ExceptionQueueSummary {
+  /** The business case. */
+  total: number
+  /** `total` less `preAutomation` — the work.
+   *
+   *  Both are shown, always: quoting either alone misleads in a different
+   *  direction, and this screen's numbers end up in status reports. */
+  actionable: number
+  preAutomation: number
+  byType: Record<string, number>
+  bySeverity: Record<string, number>
+  linesChecked: number
+  linesCovered: number
+  /**
+   * Which types the backend actually raises, so an empty count reads as "none
+   * found" rather than as "not implemented". The two are completely different
+   * facts and the screen must not blur them.
+   */
+  typesRaised: string[]
+  /** The ±N-day windows that produced these findings. Rules WE invented, not
+   *  ones the FRS states (audit §11.5), so they are shown. */
+  attestationWindowDays: number
+  justificationWindowDays?: number
+  attestationCutoverDate?: string
+  acquisitionsChecked?: number
+}
+
+/**
+ * One row of the LIVE declaration queue (FR-4).
+ *
+ * Separate from `DeclarationItem` below, and the split is deliberate. That one
+ * describes the six hand-written scenario fixtures in `data/declarations.ts`,
+ * whose `requester` is a person's name somebody typed. This one describes what
+ * the backend actually serves, where `requester` is EKPO's requisitioner CODE
+ * and most fields can legitimately be absent.
+ *
+ * Merging them would mean one optional field per difference and a reader
+ * unable to tell which rows are real.
+ */
+export interface DeclarationQueueRow {
+  id: string
+  material: MaterialReference
+  /** The attestation is recorded per material-PLANT: the same part assessed
+   *  at Black Mountain and at Gamsberg is two different records. */
+  plant?: PlantReference
+  /** EKPO's requisitioner, a CODE rather than a name — no person directory
+   *  was delivered, so it is served as what it is. */
+  requester?: string
+  /** Absent where the repair line carries no requisition number. */
+  purchaseRequisition?: string
+  /** The repair line this declaration belongs to, as `{document}-{item}`. */
+  relatedRepairId: string
+  hasActiveRepair: boolean
+  status: DeclarationStatus
+  declaredBy?: string
+  declaredAt?: string
+  condition?: DeclarationCondition
+  nextAction: string
+  createdAt?: string
+}
+
+/** The counts the declaration queue reports over everything, not over a page. */
+export interface DeclarationQueueSummary {
+  total: number
+  /** Required + Flagged — the rows wanting somebody's attention. */
+  outstanding: number
+  byStatus: Record<string, number>
+  /**
+   * The ±N-day window that decided these statuses.
+   *
+   * Shown on the screen because it is a rule WE invented, not one the FRS
+   * states (audit §11.5), and a status nobody can trace to a rule is a status
+   * nobody will act on.
+   */
+  attestationWindowDays: number
 }
 
 /**

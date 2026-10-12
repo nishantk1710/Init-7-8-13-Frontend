@@ -22,6 +22,9 @@ const STATUS_COLORS: Record<RepairStatus, string> = {
   "At Vendor": "var(--chart-2)",
   Received: "var(--chart-3)",
   Closed: "var(--muted-foreground)",
+  // The vendor found it not worth repairing: the one outcome that ends in a
+  // write-off, so it reads in the destructive colour, as its badge does.
+  Scrapped: "var(--destructive)",
 }
 
 function StatusTooltip({ active, payload }: TooltipContentProps) {
@@ -31,18 +34,23 @@ function StatusTooltip({ active, payload }: TooltipContentProps) {
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="text-sm font-semibold text-foreground">
-        {formatCount(point.value)} chains
+        {formatCount(point.value)} repair {point.value === 1 ? "line" : "lines"}
       </div>
       <div className="mt-0.5 text-muted-foreground">{String(point.payload?.status)}</div>
     </div>
   )
 }
 
+/**
+ * Repair lines by repair status. Every status keeps its bar, empty ones
+ * included, so the axis does not shift as the Overview's filters narrow the
+ * lines — a missing "Scrapped" bar would read as "not tracked", not "none".
+ */
 export function RepairStatusChart({ chains }: { chains: RepairChain[] }) {
   const data = REPAIR_STATUS_ORDER.map((status) => ({
     status,
     count: chains.filter((c) => c.repairStatus === status).length,
-  })).filter((d) => d.count > 0)
+  }))
 
   return (
     <div className="h-[260px] w-full">

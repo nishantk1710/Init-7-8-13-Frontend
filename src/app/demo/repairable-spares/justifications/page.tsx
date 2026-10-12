@@ -1,10 +1,11 @@
-import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 
-/**
- * The Justifications screen was folded into the Overview on 08-Oct-2026, as in
- * live. The public path, not /demo/...: the data-mode proxy rewrites it back
- * into the Snapshot tree.
- */
+import { JustificationsPage } from "@demo/features/initiative-8/pages/justifications-page"
+
+export const metadata: Metadata = {
+  title: "Justifications — Repairable Spares — Spares AI",
+}
+
 export default function Page() {
-  redirect("/repairable-spares#justifications")
+  return <JustificationsPage />
 }

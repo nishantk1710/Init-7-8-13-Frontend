@@ -20,7 +20,7 @@ function VendorTooltip({ active, payload, label }: TooltipContentProps) {
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="text-sm font-semibold text-foreground">
-        {formatCount(point.value)} open repair lines
+        {formatCount(point.value)} open repair {point.value === 1 ? "line" : "lines"}
       </div>
       <div className="mt-0.5 text-muted-foreground">{label}</div>
     </div>

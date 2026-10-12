@@ -272,9 +272,11 @@ export function RepairRegisterTable({
                 <TableHead>Vendor</TableHead>
                 <TableHead className="text-right">Qty Under Repair</TableHead>
                 <TableHead>Repair Status</TableHead>
+                <TableHead className="text-right">In Stage</TableHead>
                 <TableHead>Expected Return</TableHead>
                 <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
+                <TableHead className="text-right">Turnaround</TableHead>
                 <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead>Justification</TableHead>
@@ -345,6 +347,15 @@ export function RepairRegisterTable({
                         )}
                       </div>
                     </TableCell>
+                    {/* FR-9 asks for aging per lifecycle stage. Days open runs
+                        from the PO line date; this runs from the line entering
+                        the stage it is in now. A line 200 days open but 3 days
+                        at the vendor is a different problem from one 200 days
+                        open and 190 at the vendor, and only this column tells
+                        them apart. */}
+                    <TableCell className="text-right text-muted-foreground tabular-nums">
+                      {c.daysInCurrentStage ?? UNKNOWN}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.expectedReturn ?? UNKNOWN}
                     </TableCell>
@@ -360,6 +371,15 @@ export function RepairRegisterTable({
                         never a "200" beside a "within the 21-day planned time"
                         verdict. */}
                     <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
+                    {/* Turnaround is dispatch to goods receipt, so a line still
+                        at the vendor has no turnaround YET rather than one of
+                        zero -- the dash says that, a 0 would not. */}
+                    <TableCell
+                      className="text-right text-muted-foreground tabular-nums"
+                      title="Measured from dispatch to the vendor (541) to goods receipt, so only for lines that came back"
+                    >
+                      {c.daysAtVendor ?? UNKNOWN}
+                    </TableCell>
                     {/* The lead-time verdict: a second, independent signal, not
                         a fallback for Due Date Status -- see LeadTimeStatus.
                         A badge where there is a verdict, a muted dash where

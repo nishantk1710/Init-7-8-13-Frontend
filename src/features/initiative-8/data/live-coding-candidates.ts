@@ -30,8 +30,9 @@ function orUndefined<T>(value: T | null | undefined): T | undefined {
 
 function toLine(row: ApiCodingCandidateLine): CodingCandidateLine {
   return {
-    purchasingDocument: row.purchasingDocument,
-    item: row.item,
+    source: row.source,
+    document: row.document,
+    documentItem: row.documentItem,
     plant: row.plant ? { plantId: row.plant.plantId, name: row.plant.name } : undefined,
     shortText: row.shortText,
     matchedKeywords: row.matchedKeywords,

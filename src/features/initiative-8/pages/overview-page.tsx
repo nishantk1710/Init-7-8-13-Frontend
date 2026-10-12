@@ -15,6 +15,8 @@ import {
   unjustifiedAcquisitions,
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
+import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
+import { VendorTurnaroundTable } from "@/features/initiative-8/components/vendor-turnaround-table"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
 import { formatApiDateTime } from "@/lib/api/format"
 import { formatCount } from "@/lib/utils"
@@ -37,9 +39,10 @@ const NOT_LOADED = "Could not be loaded"
  * The register is required; the other sources are best-effort, and a tile
  * whose source failed says so instead of showing a number.
  *
- * There is no exception-queue strip: the Exception Queue screen was removed on
- * 08-Oct-2026. The exception check still runs; its result shows here as the
- * Unjustified new purchases tile, and per line in the register.
+ * The exception check's result shows here as the Unjustified new purchases
+ * tile and per line in the register. The Exception Queue screen it links to
+ * came back on 12-Oct-2026, after the 09-Oct FRS audit found FR-8, FR-9,
+ * FR-11 and acceptance criteria 5 and 11 had nothing rendering them.
  */
 export async function RefurbishableSparesOverviewPage() {
   // Not statically prerendered: every figure here moves as attestations and
@@ -74,7 +77,7 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, declarations, exceptions } = live
+  const { register, universe, declarations, exceptions, vendorTurnaround } = live
   const meta = register.meta
   const vendors = openLinesByVendor(register.chains)
   const unjustified = exceptions ? unjustifiedAcquisitions(exceptions) : undefined
@@ -169,6 +172,50 @@ export async function RefurbishableSparesOverviewPage() {
           span={6}
         >
           <RepairsByVendorChart data={vendors.top} />
+        </ChartCard>
+        {/* FR-10's vendor turnaround. Deliberately NEXT TO "Repairs by
+            vendor", which counts open lines: the two look like the same
+            question and are not, and putting them apart would let either be
+            read as the other. */}
+        <ChartCard
+          title="Vendor turnaround"
+          subtitle="Dispatch to goods receipt, over closed repairs only"
+          footnote={
+            <>
+              Measured from the first 541 to the first goods receipt on the same
+              line. A line still at a vendor has no turnaround yet and is
+              counted under &ldquo;Repairs by vendor&rdquo; instead.
+            </>
+          }
+          span={6}
+        >
+          {vendorTurnaround ? (
+            <VendorTurnaroundTable vendors={vendorTurnaround} />
+          ) : (
+            <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+              Vendor turnaround could not be loaded, so it is not shown. This is
+              not &ldquo;no turnaround measured&rdquo;.
+            </div>
+          )}
+        </ChartCard>
+        {/* FR-9's "aging bands per lifecycle stage". Next to Repair aging,
+            which buckets the whole-repair clock: the two look like the same
+            question and are not, so they are shown together rather than one
+            standing in for the other. */}
+        <ChartCard
+          title="Aging by stage"
+          subtitle="Open repair lines, by days in their CURRENT stage"
+          footnote={
+            <>
+              Days open runs from the PO line&rsquo;s creation date; this runs
+              from the line entering the stage it is in now. A line 200 days
+              open but 3 days at the vendor is a different problem from one 200
+              days open and 190 at the vendor.
+            </>
+          }
+          span={6}
+        >
+          <StageAgingChart chains={register.chains} bands={register.agingBands} />
         </ChartCard>
         <ChartCard
           title="Repair aging"
