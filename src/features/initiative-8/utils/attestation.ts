@@ -3,8 +3,8 @@ import type { DeclarationCondition } from "@/features/initiative-8/types/repair"
 /**
  * The condition-to-repair attestation form's rules (FR-4), as plain functions.
  *
- * The form lived on the Declaration Queue until 08-Oct-2026 and now sits on
- * the repair detail page; these moved with it, unchanged.
+ * The form opens from the Declarations screen ("Declare a part") and, for a
+ * line that went out undeclared, from the repair detail page.
  */
 
 /** The three conclusions, in the order the form offers them. */

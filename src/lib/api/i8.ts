@@ -506,10 +506,12 @@ export type ApiAttestation = {
   supersededBy: string | null
 
   /**
-   * Register line ids this attestation covers. **Present on POST only**, null
-   * when reading history.
+   * Register line ids this attestation covers, on POST and on GET. On GET it
+   * is the declaration queue's own match, so a line listed here is one whose
+   * Declaration status this attestation sets. Null only from a backend older
+   * than the Declarations screen.
    *
-   * Read `coverageNote` with it. An empty array is a real and expected answer:
+   * On POST, read `coverageNote` with it. An empty array is a real and expected answer:
    * the attestation's timestamp is server-set and the extract is a frozen
    * July-2026 snapshot, so a new assessment is months outside the matching
    * window of every line in the register and covers none of them.

@@ -428,3 +428,47 @@ export interface DeclarationItem {
   createdAt: string
 }
 
+/**
+ * Where one recorded declaration stands against the repair register.
+ *
+ *   MATCHED          Repairable, and a repair line has picked it up
+ *   AWAITING_PO      Repairable, no repair line yet -- the normal state of a
+ *                    part declared before it is sent anywhere
+ *   NOT_FOR_REPAIR   Beyond Economical Repair or Scrap, and no repair line:
+ *                    the repair spend the declaration avoided
+ *   SENT_ANYWAY      Beyond Economical Repair or Scrap, and a repair line took
+ *                    it regardless -- the register reads Flagged
+ *   AMENDED          replaced by a later declaration; kept as the audit trail
+ */
+export type DeclarationLink =
+  | "MATCHED"
+  | "AWAITING_PO"
+  | "NOT_FOR_REPAIR"
+  | "SENT_ANYWAY"
+  | "AMENDED"
+
+/**
+ * One condition-to-repair declaration, as the Declarations screen lists it
+ * (FR-4). Recorded against a material and a plant, never a repair line: the
+ * part is assessed when it comes off the machine, before any repair PO exists.
+ */
+export interface DeclarationRecord {
+  id: string
+  material: MaterialReference
+  plant: PlantReference
+  quantity: number
+  condition: DeclarationCondition
+  faultCategory: string
+  conditionDescription: string
+  serialNumber?: string
+  evidenceReference?: string
+  declaredBy: string
+  /** ISO timestamp, server-set. */
+  declaredAt: string
+  /** Register line ids (`{EBELN}-{EBELP}`) this declaration sets the
+   *  Declaration status of. Empty when no repair line has picked it up. */
+  repairLineIds: string[]
+  supersedes?: string
+  supersededBy?: string
+}
+

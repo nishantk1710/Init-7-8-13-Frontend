@@ -22,17 +22,22 @@ export const initiative8Manifest: InitiativeManifest = {
       // comes with a session id and a justification prompt. A separate lookup
       // gave the same answer with neither.
       //
-      //
-      // No Declaration Queue (08-Oct-2026): it was the register's own lines
-      // with other columns. Each line's declaration shows in the register and
-      // the form is on the repair detail page.
-      //
-      // No Exception Queue either (08-Oct-2026): declaration and justification
+      // FR-4's capture: a part is declared when it comes off the machine,
+      // before any repair PO exists, so the form starts from the part rather
+      // than from a register line. Scrap and Beyond Economical Repair
+      // declarations -- which never get a repair line -- are listed here too.
+      // Not the old Declaration Queue (folded into the register 08-Oct-2026),
+      // which listed repair lines and so could only be worked after the PO.
+      {
+        label: "Declarations",
+        icon: "file-text",
+        href: "/repairable-spares/declarations",
+      },
+      // No Exception Queue (08-Oct-2026): declaration and justification
       // are treated as mandatory. The checks still run on the backend, and each
       // line shows its findings in the register (Declaration Status Required,
-      // Justification Missing, Due Date Status Overdue).
-      //
-      // Both old URLs redirect to the register.
+      // Justification Missing, Due Date Status Overdue). Its old URL
+      // redirects to the register.
       {
         label: "Coding Candidates",
         icon: "search",
