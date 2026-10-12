@@ -18,7 +18,7 @@ import {
   formatMonth,
   showingLabel,
 } from "@/features/initiative-7/utils/criticality-reports"
-import { sapPlantLabel } from "@/features/initiative-7/utils/sap-plants"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** Every upload, per plant. The plant toggle filters what is already loaded. */
 export function CriticalityHistoryCard({

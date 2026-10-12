@@ -12,7 +12,7 @@ import { cn, formatCount } from "@/lib/utils"
 import { uploadCriticalityReport } from "@/features/initiative-7/services/criticality-reports-api"
 import type { CriticalityPlant, CriticalityUploadResult } from "@/features/initiative-7/types/criticality-reports"
 import { formatMonth, previousMonth, thisMonth } from "@/features/initiative-7/utils/criticality-reports"
-import { sapPlantLabel } from "@/features/initiative-7/utils/sap-plants"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * Upload one plant's monthly criticality report (ZMM065).
