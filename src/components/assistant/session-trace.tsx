@@ -25,6 +25,8 @@ import type {
 } from "@/lib/api/assistant"
 import { summariseAnswer } from "@/lib/assistant/transcript"
 import { cn } from "@/lib/utils"
+import { flowLabel } from "@/lib/assistant/flow-labels"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * One session and everything it produced — the FR-8 demo surface, for both
@@ -85,7 +87,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       </Section>
 
       {trace.plans.length > 0 && (
-        <Section title="Consumption plan captured">
+        <Section title="Consumption plan">
           {trace.plans.map((plan) => (
             <PlanCard key={plan.id} plan={plan} />
           ))}
@@ -126,8 +128,8 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
       <span aria-hidden className="ai-gradient absolute inset-x-0 top-0 h-1" />
       <div className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={trace.outcome} />
-        <span className="ai-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-white uppercase">
-          {trace.flow}
+        <span className="ai-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+          {flowLabel(trace.flow)}
         </span>
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
           opened from {trace.origin === "BADI" ? "SAP" : "the platform"}
@@ -135,8 +137,15 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
       </div>
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Field label="Material" value={trace.materialId} mono />
-        <Field label="Plant" value={trace.plant} mono />
+        <Field
+          label="Material"
+          value={
+            trace.materialDescription
+              ? `${trace.materialDescription} (${trace.materialId})`
+              : trace.materialId
+          }
+        />
+        <Field label="Plant" value={sapPlantLabel(trace.plant)} />
         {/* Who the part was for, as typed by whoever ran the assistant. Not
             shown here: who ran it. `trace.requester` is served, because the
             trace is the FR-8 evidence view and an audit record without its
@@ -245,12 +254,18 @@ function PlanCard({ plan }: { plan: ApiPlan }) {
           />
         </dl>
         <p className="text-[11px] text-muted-foreground">
-          {plan.status} · captured by {plan.capturedBy} ·{" "}
+          {planStatusLabel(plan.status)} · captured by {plan.capturedBy} ·{" "}
           {formatInstant(plan.capturedAt)}
         </p>
       </div>
     </div>
   )
+}
+
+/** `OPEN` -> `Open`: the plan's status is a code on the wire. */
+function planStatusLabel(status: string): string {
+  const words = status.replace(/_/g, " ").toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 function SuggestionCard({
@@ -414,13 +429,13 @@ function Field({
 }) {
   const missing = value === null || value === undefined || value === ""
   return (
-    <div className="flex flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
       <dt className="text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
         className={cn(
-          "text-sm font-medium",
+          "text-sm font-medium break-words",
           missing ? "text-muted-foreground" : "text-foreground",
           mono && !missing && "font-mono"
         )}

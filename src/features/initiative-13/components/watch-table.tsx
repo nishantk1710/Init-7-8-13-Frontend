@@ -16,6 +16,8 @@ import { SessionChips } from "@/features/initiative-13/components/session-chips"
 import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { formatCount } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 const AGING_LABEL: Record<AgingBand, string> = {
   FAST: "Fast-moving",
@@ -30,7 +32,7 @@ const AGING_TONE: Record<AgingBand, "success" | "warning" | "danger"> = {
 }
 
 const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
-  NO_PLAN: "No plan",
+  NO_PLAN: "Non-AI",
   BELOW_PLAN: "Below plan",
   ON_PLAN: "On plan",
   ABOVE_PLAN: "Above plan",
@@ -66,7 +68,7 @@ export function WatchTable({
     <div className="flex flex-col gap-3">
       {filtered.length === 0 ? (
         <EmptyState
-          title="No WATCH records found."
+          title="No consumption tracking records found."
           description="Try clearing the plant/material/aging-band filters."
         />
       ) : (
@@ -76,7 +78,7 @@ export function WatchTable({
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead>Aging band</TableHead>
+                <TableHead>Stock type</TableHead>
                 <TableHead className="text-right">Months of cover</TableHead>
                 <TableHead className="text-right">Days since movement</TableHead>
                 <TableHead className="text-right">Consumption (12m)</TableHead>
@@ -88,9 +90,9 @@ export function WatchTable({
             <TableBody>
               {filtered.map((m) => (
                 <TableRow key={`${m.material}-${m.plant}`}>
-                  <TableCell className="font-medium text-foreground">
+                  <TableCell className="text-foreground">
                     <div className="flex flex-col gap-0.5">
-                      {m.material}
+                      <MaterialName material={m.material} description={m.materialDescription} />
                       {/* Both identifiers are real here and come from the
                           backend, so this opens a session directly rather
                           than asking for a plant the row already knows. */}
@@ -100,7 +102,7 @@ export function WatchTable({
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{m.plant}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(m.plant)}</TableCell>
                   <TableCell>
                     <StatusBadge tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusBadge>
                   </TableCell>

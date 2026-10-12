@@ -293,6 +293,8 @@ export type ApiSessionOutcome = "OPEN" | "COMPLETED" | "ABANDONED"
  * not. Narrow it with `lib/api/assistant-facts` exactly like a step's `facts`.
  */
 export type SessionTraceResponse = {
+  /** MAKT / ZMM065 name, where the backend has one. */
+  materialDescription?: string | null
   sessionId: string
   flow: string
   outcome: ApiSessionOutcome
@@ -335,6 +337,8 @@ export type SessionTraceResponse = {
 }
 
 export type ApiSessionSummary = {
+  /** MAKT / ZMM065 name, where the backend has one. */
+  materialDescription?: string | null
   sessionId: string
   flow: string
   outcome: string

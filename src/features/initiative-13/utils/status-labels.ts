@@ -34,7 +34,7 @@ export const PLAN_STATUS_LABEL: Record<AcquiredVsPlanStatus, string> = {
   ON_PLAN: "On plan",
   BELOW_PLAN: "Below plan",
   ABOVE_PLAN: "Above plan",
-  NO_PLAN: "No plan",
+  NO_PLAN: "Non-AI",
 }
 
 export const PLAN_STATUS_TONE: Record<AcquiredVsPlanStatus, Tone> = {
@@ -53,11 +53,20 @@ export const EXCEPTION_STATUS_ORDER: ActExceptionStatus[] = [
 ]
 
 export const EXCEPTION_STATUS_LABEL: Record<ActExceptionStatus, string> = {
-  OPEN: "Open — not routed",
-  AWAITING_REQUESTER: "Awaiting requester",
+  OPEN: "Requester not identified",
+  AWAITING_REQUESTER: "Assigned to requester",
   ESCALATED: "Escalated to HOD",
-  CONFIRMED: "Confirmed",
-  RESOLVED: "Resolved",
+  CONFIRMED: "Reason given",
+  RESOLVED: "Closed",
+}
+
+/** One-line explanation of each status, for tooltips. */
+export const EXCEPTION_STATUS_HINT: Record<ActExceptionStatus, string> = {
+  OPEN: "We can't tell who raised it, so nobody is assigned",
+  AWAITING_REQUESTER: "We know who raised it and are waiting for their reason",
+  ESCALATED: "No reason given in 5 days, so it goes to the HOD",
+  CONFIRMED: "The requester gave a reason",
+  RESOLVED: "Closed: the material was issued",
 }
 
 export const EXCEPTION_STATUS_TONE: Record<ActExceptionStatus, Tone> = {
@@ -69,10 +78,18 @@ export const EXCEPTION_STATUS_TONE: Record<ActExceptionStatus, Tone> = {
 }
 
 export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
-  PLAN_BREACH: "Plan breach",
-  NO_PLAN: "No plan",
-  NO_PLAN_GRNI: "No plan + 30-day GRNI",
-  QUANTITY_OVERRIDE: "Quantity override",
+  PLAN_BREACH: "Planned Overdue",
+  NO_PLAN: "Non-AI",
+  NO_PLAN_GRNI: "Non-AI + 30-day not issued",
+  QUANTITY_OVERRIDE: "Quantity Overridden",
+}
+
+/** One-line explanation of each exception type, for tooltips. */
+export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
+  PLAN_BREACH: "A plan exists but the material wasn't used within 14 days of the planned date",
+  NO_PLAN: "Reserved without using the assistant, so there is no consumption plan",
+  NO_PLAN_GRNI: "Reserved without the assistant, and received but not issued for 30+ days",
+  QUANTITY_OVERRIDE: "The requester asked for a different quantity than the assistant suggested",
 }
 
 /** `StatusBadge` has no neutral/info tone of its own. */

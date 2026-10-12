@@ -19,6 +19,8 @@ import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-r
 import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import { downloadCsv, formatCount } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** "4,716 days" alone is hard to read at a glance; the years say how stale. */
 function IdleFor({ days }: { days: number }) {
@@ -68,7 +70,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        title="No non-moving positions"
+        title="No non-moving materials"
         description="No OAR position is classified non-moving for the current filters."
       />
     )
@@ -98,8 +100,10 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
           <TableBody>
             {paged.map((row) => (
               <TableRow key={`${row.material}-${row.plant}`}>
-                <TableCell className="font-medium text-foreground">{row.material}</TableCell>
-                <TableCell className="text-muted-foreground">{row.plant}</TableCell>
+                <TableCell>
+                  <MaterialName material={row.material} description={row.materialDescription} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
                 <TableCell className="text-right text-foreground">
                   {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : "—"}
                 </TableCell>

@@ -26,7 +26,7 @@ independently.
 
 The former standalone "Approval Queue" page was removed — recommendations
 awaiting a decision surface in the global Action Center instead (via
-`selectors/global-actions.ts`), which links straight into
+`selectors/live.ts`), which links straight into
 `RecommendationDetailPage`'s full workflow rather than a separate quick-action
 table.
 
@@ -59,13 +59,10 @@ beyond what the scaffolding pass already wired up.
 ## Public exports other code relies on
 
 - `manifest.ts` — `initiative7Manifest` (unchanged from scaffolding: nav section + suggested questions)
-- `selectors/summary.ts` — `getInitiative7Summary(): InitiativeSummary`, feeds the Spares Control Tower overview cards
+- `selectors/live.ts` — `getInitiative7LiveSummary()`, `getInitiative7LiveActions()` and `getInitiative7LiveAuditEvents()`: this module's half of Home, the Action Center, Approvals and the Audit Trail. Backend only (`services/i7-api.ts`); a recommendation counts as *a decision* from its backend status, never from the wording of a title.
 - `selectors/material-360-adapter.ts` — `getInitiative7Material360Signal(materialId): Material360Signal | null`, feeds the global Material 360 drawer
-- `selectors/global-actions.ts` — `getInitiative7GlobalActions(): GlobalAction[]`, feeds the global Action Center
-- `selectors/audit-events.ts` — `getInitiative7AuditEvents(): AuditEvent[]`, feeds the global Audit Trail
 
-All four selectors are pure read functions over the mock data in `data/` —
-no business logic lives in the selectors themselves.
+`selectors/live.ts` throws on failure and holds no business logic; the synchronous fixture selectors that used to feed these pages were removed so the live pages cannot render demo data.
 
 ## Shared dependencies used
 

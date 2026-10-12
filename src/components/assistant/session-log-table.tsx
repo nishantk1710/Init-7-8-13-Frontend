@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/table"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, downloadCsv } from "@/lib/utils"
+import { FLOW_LABEL, flowLabel } from "@/lib/assistant/flow-labels"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * The session log.
@@ -75,7 +78,7 @@ export function SessionLogTable({
       ],
       filtered.map((session) => [
         session.sessionId,
-        session.flow,
+        flowLabel(session.flow),
         session.materialId,
         session.plant,
         // The person the part was for, not whoever operated the assistant.
@@ -101,8 +104,8 @@ export function SessionLogTable({
           onChange={setFlow}
           options={[
             { value: "all", label: "All" },
-            { value: "i08", label: "Repairable" },
-            { value: "i13", label: "Planned on demand" },
+            { value: "i08", label: FLOW_LABEL.i08 },
+            { value: "i13", label: FLOW_LABEL.i13 },
           ]}
         />
         <FilterGroup
@@ -146,7 +149,7 @@ export function SessionLogTable({
         <div className="animate-ai-message-in overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <Table>
             <caption className="sr-only">
-              Assistant sessions{flow === "all" ? "" : `, ${flow} flow only`}
+              Assistant sessions{flow === "all" ? "" : `, ${flowLabel(flow)} only`}
               {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
             </caption>
             <TableHeader>
@@ -175,15 +178,15 @@ export function SessionLogTable({
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-semibold text-ai-2 uppercase">
-                      {session.flow}
+                    <span className="whitespace-nowrap rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-semibold text-ai-2">
+                      {flowLabel(session.flow)}
                     </span>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {session.materialId}
+                  <TableCell className="text-xs">
+                    <MaterialName material={session.materialId} description={session.materialDescription} />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {session.plant}
+                  <TableCell className="whitespace-nowrap text-xs">
+                    {sapPlantLabel(session.plant)}
                   </TableCell>
                   {/* Who the part was for. This column used to show
                       `session.requester` -- who operated the assistant -- which

@@ -32,6 +32,11 @@ export const initiative7Manifest: InitiativeManifest = {
         icon: "file-text",
         href: "/inventory-planning/reports",
       },
+      {
+        label: "Criticality Reports",
+        icon: "upload",
+        href: "/inventory-planning/criticality-reports",
+      },
     ],
   },
 }

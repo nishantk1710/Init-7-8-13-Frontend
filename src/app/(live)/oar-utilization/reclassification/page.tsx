@@ -1,19 +1,9 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { ReclassificationPage } from "@/features/initiative-13/pages/reclassification-page"
-import {
-  parseSearchParams,
-  type RawSearchParams,
-} from "@/features/initiative-13/utils/search-params"
-
-export const metadata: Metadata = {
-  title: "Reclassification Candidates — OAR Utilization — Spares AI",
-}
-
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<RawSearchParams>
-}) {
-  return <ReclassificationPage searchParams={parseSearchParams(await searchParams)} />
+/**
+ * Reclassification was removed from scope (12-Oct-2026). An old link or bookmark lands on
+ * the dashboard.
+ */
+export default function Page() {
+  permanentRedirect("/oar-utilization")
 }

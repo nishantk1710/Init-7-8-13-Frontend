@@ -57,7 +57,9 @@ describe("a snapshot 503", () => {
     respond(503, { detail: { status: "failed", message: reason } }, { "Retry-After": "60" })
     const error = await failure()
     expect(error.message).not.toContain("still preparing")
-    expect(error.message).toContain(reason)
+    // Shown without the initiative number the backend puts in front of it.
+    expect(error.message).toContain(reason.replace("I08 data", "This data"))
+    expect(error.message).not.toContain("I08")
     expect(error.message).toContain("in 60 seconds")
     expect(error.detailText()).toBe(reason)
   })
