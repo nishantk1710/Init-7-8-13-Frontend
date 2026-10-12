@@ -141,6 +141,14 @@ export interface RepairChain {
   repairStatus: RepairStatus
   receiptStatus: ReceiptStatus
   declarationStatus: DeclarationStatus
+  /**
+   * The attestation covering this line, when one does.
+   *
+   * Served so the detail page can offer to AMEND it. Without the id the only
+   * thing somebody who disagrees with a declaration could do is record a
+   * second, unrelated one — which is how an audit chain becomes a pile.
+   */
+  declarationId?: string
 
   /**
    * Where this line stands against its promised date. Authoritative when
@@ -285,6 +293,23 @@ export interface RepairChain {
    * was folded into the register on 08-Oct-2026.
    */
   justification?: RepairJustification
+  /**
+   * The exception-queue items raised against this line.
+   *
+   * Joined onto the register by the page, not served with it: the checks are
+   * recomputed by `GET /api/i8/exceptions` and the register knows nothing
+   * about them. Absent — not an empty array — when the exception fetch failed,
+   * so "no findings" and "could not be checked" stay distinguishable.
+   */
+  exceptions?: RepairLineException[]
+}
+
+/** One exception-queue item, as the register's own column needs it. */
+export interface RepairLineException {
+  id: string
+  /** `MISSING_ATTESTATION`, `UNJUSTIFIED_ACQUISITION`, `OVERDUE_REPAIR`, … */
+  type: string
+  severity: string
 }
 
 /**
@@ -462,6 +487,42 @@ export interface ExceptionQueueRow {
    * current state (audit §11.5).
    */
   preAutomation: boolean
+
+  // --- FR-11: what people have done about it --------------------------
+  //
+  // The finding above is recomputed from SAP data on every read. Everything
+  // below is stored against its id by the backend, and is the half no check
+  // can derive. An item nobody has touched is OPEN and unassigned with an
+  // empty history — which is the truth about it, not a placeholder.
+
+  status: ExceptionStatus
+  /** Undefined means unassigned, which is a real and common state. */
+  owner?: string
+  /** Whether a check still raises this. False only for an item looked up by
+   *  id after the data moved under it. */
+  stillDetected: boolean
+  /** Oldest first, the order a history is read in. */
+  history: ExceptionEvent[]
+}
+
+export type ExceptionStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+
+/** One thing that happened to an exception. */
+export interface ExceptionEvent {
+  id: string
+  /** `AUTO_RESOLVED` is kept apart from `STATUS` deliberately: "Priya resolved
+   *  this" and "the check stopped finding it" are different claims. */
+  kind: "ASSIGNED" | "COMMENT" | "STATUS" | "AUTO_RESOLVED"
+  /** The status this entry set; absent on a comment or an assignment. */
+  status?: ExceptionStatus
+  /** Who the item was assigned to, on an `ASSIGNED` entry. Absent there means
+   *  it was unassigned — `kind` tells the two absences apart. */
+  owner?: string
+  /** `system` on an AUTO_RESOLVED entry. */
+  actor: string
+  text: string
+  /** Already formatted for display. */
+  at: string
 }
 
 /** The counts the exception queue reports over the whole check, not a page. */

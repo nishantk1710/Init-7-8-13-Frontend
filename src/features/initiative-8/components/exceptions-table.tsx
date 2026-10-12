@@ -8,6 +8,7 @@ import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -23,41 +24,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ExceptionDetailDrawer } from "@/features/initiative-8/components/exception-detail-drawer"
 import type {
   ExceptionQueueRow,
   ExceptionQueueSummary,
+  ExceptionStatus,
 } from "@/features/initiative-8/types/repair"
+import {
+  EXCEPTION_SEVERITY_TONE as SEVERITY_TONE,
+  EXCEPTION_STATUSES,
+  EXCEPTION_STATUS_LABEL,
+  EXCEPTION_STATUS_TONE,
+  exceptionTypeLabel as labelFor,
+  isOpenException,
+} from "@/features/initiative-8/utils/status"
 import { downloadCsv } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
 
-type Tone = "default" | "success" | "warning" | "danger"
+/** The status dropdown's default: OPEN and IN_PROGRESS together. */
+const ACTIVE = "active"
 
-// Severity is a plain string on purpose (the backend may add one), so this is
-// a lookup with a fallback rather than an exhaustive map.
-const SEVERITY_TONE: Record<string, Tone> = {
-  info: "default",
-  warning: "warning",
-  critical: "danger",
-}
-
-/** The shouted enum values as a reader would say them. */
-const TYPE_LABEL: Record<string, string> = {
-  MISSING_ATTESTATION: "No condition declaration",
-  UNJUSTIFIED_ACQUISITION: "Bought new, no justification",
-  MISSING_SESSION_ID: "No assistant session",
-  OVERDUE_REPAIR: "Repair overdue",
-}
+/** The owner dropdown's "nobody has taken this" choice. */
+const UNASSIGNED = "unassigned"
 
 /**
  * What each check actually looks for.
  *
  * Written out because a finding nobody can trace to a rule is a finding
- * nobody will act on -- and because two of the four checks below are not
- * running yet, which a reader has to be able to tell apart from "running and
- * found nothing". The screen only shows the rule for checks the backend says
- * it raises; the rest appear under "not running yet".
+ * nobody will act on -- and because not every check below is running, which a
+ * reader has to be able to tell apart from "running and found nothing". The
+ * screen only shows the rule for checks the backend says it raises; the rest
+ * appear under "not running yet". Which those are is read from `typesRaised`
+ * rather than written down here, so this does not go stale as checks land.
  */
 const HOW_IT_WORKS: Record<string, string> = {
   MISSING_ATTESTATION:
@@ -78,20 +78,22 @@ const ALL_CHECKS = [
   "MISSING_SESSION_ID",
 ] as const
 
-function labelFor(type: string): string {
-  return TYPE_LABEL[type] ?? type
-}
-
 export type ExceptionsTableProps = {
   rows: ExceptionQueueRow[]
   summary: ExceptionQueueSummary
   truncated?: boolean
+  /** `?id=` — open this item's drawer on arrival. */
+  initialId?: string
+  /** `?repair=` — narrow the queue to one repair line, as the register links. */
+  initialRepair?: string
 }
 
 export function ExceptionsTable({
   rows,
   summary,
   truncated = false,
+  initialId,
+  initialRepair,
 }: ExceptionsTableProps) {
   const { openMaterial360 } = useMaterial360()
 
@@ -99,6 +101,14 @@ export function ExceptionsTable({
   const [plant, setPlant] = useState<string>(ALL)
   const [openOnly, setOpenOnly] = useState(false)
   const [hidePreAutomation, setHidePreAutomation] = useState(false)
+  // Defaults to the items still being worked. The queue runs to thousands,
+  // and almost all of it is historical; showing every resolved item by
+  // default would bury the handful somebody can actually act on.
+  const [status, setStatus] = useState<string>(ACTIVE)
+  const [owner, setOwner] = useState<string>(ALL)
+  const [search, setSearch] = useState("")
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialId)
+  const [drawerOpen, setDrawerOpen] = useState(initialId !== undefined)
 
   const plants = useMemo(() => {
     const seen = new Map<string, string>()
@@ -117,15 +127,39 @@ export function ExceptionsTable({
     return [...seen].sort()
   }, [rows, summary.typesRaised])
 
+  // Only owners who actually hold something: a directory of everyone would
+  // be a list of names that mostly return nothing.
+  const owners = useMemo(() => {
+    const seen = new Set<string>()
+    for (const row of rows) if (row.owner) seen.add(row.owner)
+    return [...seen].sort()
+  }, [rows])
+
   const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase()
     return rows.filter((row) => {
       if (type !== ALL && row.type !== type) return false
       if (plant !== ALL && row.plant?.plantId !== plant) return false
       if (openOnly && !row.isOpenRepair) return false
       if (hidePreAutomation && row.preAutomation) return false
+      if (status === ACTIVE && !isOpenException(row)) return false
+      if (status !== ACTIVE && status !== ALL && row.status !== status) return false
+      if (owner === UNASSIGNED && row.owner) return false
+      if (owner !== ALL && owner !== UNASSIGNED && row.owner !== owner) return false
+      if (initialRepair && row.repairId !== initialRepair) return false
+      if (
+        needle &&
+        ![row.id, row.material.materialCode, row.material.description, row.repairLine, row.acquisitionLine, row.owner]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(needle))
+      ) {
+        return false
+      }
       return true
     })
-  }, [rows, type, plant, openOnly, hidePreAutomation])
+  }, [rows, type, plant, openOnly, hidePreAutomation, status, owner, search, initialRepair])
+
+  const selected = selectedId ? rows.find((r) => r.id === selectedId) : undefined
 
   function exportCsv() {
     downloadCsv(
@@ -141,6 +175,8 @@ export function ExceptionsTable({
         "Raised At",
         "Open Repair",
         "Pre-automation",
+        "Status",
+        "Owner",
         "Detail",
       ],
       filtered.map((row) => [
@@ -154,6 +190,8 @@ export function ExceptionsTable({
         row.raisedAt ?? "",
         row.isOpenRepair ? "Yes" : "No",
         row.preAutomation ? "Yes" : "No",
+        EXCEPTION_STATUS_LABEL[row.status],
+        row.owner ?? "",
         row.detail,
       ])
     )
@@ -164,7 +202,17 @@ export function ExceptionsTable({
     plant !== ALL,
     openOnly,
     hidePreAutomation,
+    // The status filter starts narrowed, so ACTIVE is not "a filter the user
+    // applied" -- counting it would show "1 filter" on an untouched screen.
+    status !== ACTIVE,
+    owner !== ALL,
+    search.trim() !== "",
   ].filter(Boolean).length
+
+  function openItem(id: string) {
+    setSelectedId(id)
+    setDrawerOpen(true)
+  }
 
   const coverage =
     summary.linesChecked > 0
@@ -331,6 +379,61 @@ export function ExceptionsTable({
           </SelectContent>
         </Select>
 
+        {/* FR-11: the queue is worked, so it filters by where the work is. */}
+        <Select value={status} onValueChange={(v) => setStatus(v ?? ACTIVE)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Open + In progress">
+              {(value: string) =>
+                value === ACTIVE
+                  ? "Open + In progress"
+                  : value === ALL
+                    ? "All statuses"
+                    : EXCEPTION_STATUS_LABEL[value as ExceptionStatus] ?? value
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ACTIVE}>Open + In progress</SelectItem>
+            {EXCEPTION_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {EXCEPTION_STATUS_LABEL[s]}
+              </SelectItem>
+            ))}
+            <SelectItem value={ALL}>All statuses</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={owner} onValueChange={(v) => setOwner(v ?? ALL)}>
+          <SelectTrigger className="w-[190px]">
+            <SelectValue placeholder="Any owner">
+              {(value: string) =>
+                value === ALL
+                  ? "Any owner"
+                  : value === UNASSIGNED
+                    ? "Unassigned"
+                    : value
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any owner</SelectItem>
+            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+            {owners.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search id, material, document…"
+          aria-label="Search exceptions"
+          className="h-9 w-full sm:w-64"
+        />
+
         <ClearFiltersButton
           activeCount={activeFilters}
           onClear={() => {
@@ -338,6 +441,9 @@ export function ExceptionsTable({
             setPlant(ALL)
             setOpenOnly(false)
             setHidePreAutomation(false)
+            setStatus(ACTIVE)
+            setOwner(ALL)
+            setSearch("")
           }}
         />
       </FilterBar>
@@ -355,6 +461,8 @@ export function ExceptionsTable({
               <TableRow>
                 <TableHead>Type</TableHead>
                 <TableHead>Severity</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead>Exception</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
@@ -365,7 +473,19 @@ export function ExceptionsTable({
             </TableHeader>
             <TableBody>
               {filtered.map((row) => (
-                <TableRow key={row.id} className="align-top">
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer align-top"
+                  tabIndex={0}
+                  aria-label={`Open ${row.id}`}
+                  onClick={() => openItem(row.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      openItem(row.id)
+                    }
+                  }}
+                >
                   <TableCell className="text-xs font-medium whitespace-nowrap text-foreground">
                     {labelFor(row.type)}
                   </TableCell>
@@ -373,6 +493,16 @@ export function ExceptionsTable({
                     <StatusBadge tone={SEVERITY_TONE[row.severity] ?? "default"}>
                       {row.severity}
                     </StatusBadge>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge tone={EXCEPTION_STATUS_TONE[row.status]}>
+                      {EXCEPTION_STATUS_LABEL[row.status]}
+                    </StatusBadge>
+                  </TableCell>
+                  {/* Unassigned is the common state and says so, rather than
+                      rendering as an empty cell that looks like missing data. */}
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {row.owner ?? "Unassigned"}
                   </TableCell>
                   <TableCell className="max-w-[420px] whitespace-normal">
                     <p className="text-xs font-medium text-foreground">{row.title}</p>
@@ -427,6 +557,12 @@ export function ExceptionsTable({
           </Table>
         </div>
       )}
+
+      <ExceptionDetailDrawer
+        exception={selected}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   )
 }

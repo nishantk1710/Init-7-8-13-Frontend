@@ -1,6 +1,7 @@
 import type {
   AgingBucket,
   DeclarationStatus,
+  ExceptionStatus,
   LeadTimeStatus,
   OverdueStatus,
   ReceiptStatus,
@@ -306,4 +307,68 @@ export function vendorLabel(chain: RepairChain): string {
 /** A number for display, or a placeholder when the source does not carry one. */
 export function orUnknown(value: number | string | undefined): string {
   return value === undefined ? UNKNOWN : String(value)
+}
+
+/**
+ * The exception vocabulary, shared by every screen that shows a finding.
+ *
+ * Here rather than in the exception table because the register's Exceptions
+ * column, the repair detail page and the queue itself all render the same
+ * items, and three private copies of these labels would drift apart.
+ *
+ * Open sets, not closed unions: the backend decides which checks exist and
+ * adds to them (OVERDUE_REPAIR arrived after the first two), so an unknown
+ * type renders as its raw value rather than disappearing.
+ */
+export const EXCEPTION_TYPE_LABEL: Record<string, string> = {
+  MISSING_ATTESTATION: "No condition declaration",
+  UNJUSTIFIED_ACQUISITION: "Bought new, no justification",
+  MISSING_SESSION_ID: "No assistant session",
+  OVERDUE_REPAIR: "Repair overdue",
+}
+
+export const EXCEPTION_SEVERITY_TONE: Record<string, Tone> = {
+  info: "default",
+  warning: "warning",
+  critical: "danger",
+}
+
+/** A check's name as a reader would say it; the raw value if it is new here. */
+export function exceptionTypeLabel(type: string): string {
+  return EXCEPTION_TYPE_LABEL[type] ?? type
+}
+
+/**
+ * FR-11's workflow vocabulary.
+ *
+ * A closed set, unlike the exception TYPES above: each status has behaviour
+ * attached (what the default filter shows, which ones the queue may resolve by
+ * itself), so adding a sixth is a conversation rather than a config change.
+ */
+export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = [
+  "OPEN",
+  "IN_PROGRESS",
+  "RESOLVED",
+  "CLOSED",
+]
+
+export const EXCEPTION_STATUS_LABEL: Record<ExceptionStatus, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+}
+
+export const EXCEPTION_STATUS_TONE: Record<ExceptionStatus, Tone> = {
+  OPEN: "danger",
+  IN_PROGRESS: "warning",
+  RESOLVED: "success",
+  CLOSED: "default",
+}
+
+/** Still being worked — what the queue shows unless asked otherwise. */
+export const ACTIVE_EXCEPTION_STATUSES: readonly ExceptionStatus[] = ["OPEN", "IN_PROGRESS"]
+
+export function isOpenException(row: { status: ExceptionStatus }): boolean {
+  return ACTIVE_EXCEPTION_STATUSES.includes(row.status)
 }

@@ -33,7 +33,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch } from "@/lib/api/client"
+import { apiFetch, apiPost } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -182,6 +182,9 @@ export type ApiRepairChain = {
   // only until every backend in use serves them.
 
   /** The attestor. Null when no attestation covers the line. */
+  /** The attestation covering this line, when one does — so the detail page
+   *  can offer to amend it rather than only to add another. */
+  declarationId?: string | null
   declaredBy?: string | null
   /** ISO timestamp of the attestation. */
   declaredAt?: string | null
@@ -394,6 +397,8 @@ export type ApiDeclarationItem = {
    * has no approval step — an attestation is recorded or it is not.
    */
   status: "Required" | "Completed" | "Flagged"
+  /** The attestation covering this line, when one does. */
+  declarationId?: string | null
   declaredBy: string | null
   declaredAt: string | null
   condition: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
@@ -447,6 +452,33 @@ export type ApiExceptionItem = {
    * the current state.
    */
   preAutomation: boolean
+  /**
+   * FR-11's workflow state. Optional on the wire until every backend in use
+   * serves it: a build talking to an older API gets `undefined` and renders
+   * the queue without a lifecycle rather than claiming everything is OPEN.
+   */
+  status?: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+  /** Null or absent means unassigned, which is a real and common state. */
+  owner?: string | null
+  /** Whether a check still raises this. False only on an item fetched by id
+   *  after the data moved under it. */
+  stillDetected?: boolean
+  history?: ApiExceptionEvent[]
+}
+
+/** One entry in an exception's history. */
+export type ApiExceptionEvent = {
+  id: string
+  kind: "ASSIGNED" | "COMMENT" | "STATUS" | "AUTO_RESOLVED"
+  /** The status this entry set; null on a comment or an assignment. */
+  status?: string | null
+  /** Who the item was assigned to, on an `ASSIGNED` entry. Null there means
+   *  it was unassigned — `kind` tells the two nulls apart. */
+  owner?: string | null
+  /** `system` on an AUTO_RESOLVED entry. */
+  actor: string
+  text: string
+  at: string
 }
 
 export type ApiExceptionMeta = {
@@ -659,6 +691,12 @@ export function getDeclarations(
 export type ExceptionQuery = {
   type?: string
   plant?: string
+  /** One repair line, as the register keys it — `4500000677-20`. */
+  repair?: string
+  /** OPEN / IN_PROGRESS / RESOLVED / CLOSED. */
+  status?: string
+  /** An owner, or the literal `unassigned`. */
+  owner?: string
   /** Only exceptions on repairs still out at a vendor — the actionable ones. */
   openOnly?: boolean
   page?: number
@@ -678,6 +716,31 @@ export function getExceptions(
   query: ExceptionQuery = {},
 ): Promise<ApiPage<ApiExceptionItem, ApiExceptionMeta>> {
   return apiFetch(`/i8/exceptions${queryString(query)}`)
+}
+
+/**
+ * `POST /api/i8/exceptions/{id}/events` — append one entry to the history.
+ *
+ * Writes the HISTORY, never the finding: the exception itself is recomputed
+ * from SAP data on every read and has no stored form to edit. Its status and
+ * owner are not columns either — they are folded from this log, which is why
+ * assigning, commenting and moving are one call and there is no PATCH
+ * anywhere in this application.
+ *
+ * `ASSIGNED` with `owner: null` is an unassignment, and gets its own entry:
+ * handing something back is an action, not an absence.
+ */
+export function appendExceptionEvent(
+  exceptionId: string,
+  body:
+    | { kind: "ASSIGNED"; owner: string | null }
+    | { kind: "STATUS"; status: string; text?: string }
+    | { kind: "COMMENT"; text: string },
+): Promise<ApiExceptionItem> {
+  return apiPost<ApiExceptionItem>(
+    `/i8/exceptions/${encodeURIComponent(exceptionId)}/events`,
+    body,
+  )
 }
 
 /** `GET /api/i8/attestations` — recorded attestations, newest first. */

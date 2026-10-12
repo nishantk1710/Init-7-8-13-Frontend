@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
 
+import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
 import { loadLiveRepairDetail } from "@/features/initiative-8/data/live-repair-detail"
 import { RepairDetailPage } from "@/features/initiative-8/pages/repair-detail-page"
+import type { ExceptionQueueRow } from "@/features/initiative-8/types/repair"
 import { getAttestations } from "@/lib/api/i8"
 
 export async function generateMetadata({
@@ -41,14 +43,26 @@ export default async function Page({
   // the form its list (it then says so and cannot submit), not the page.
   let detail: Awaited<ReturnType<typeof loadLiveRepairDetail>> = null
   let faultCategories: string[] = []
+  let exceptions: ExceptionQueueRow[] | null = null
   let loadError: string | null = null
   try {
-    const [line, attestations] = await Promise.all([
+    // The exception fetch asks the backend for this ONE line rather than
+    // pulling the whole queue and filtering: the queue runs to thousands of
+    // items and this page needs the handful raised against one repair.
+    const [line, attestations, raised] = await Promise.all([
       loadLiveRepairDetail(id),
       getAttestations().catch(() => null),
+      loadLiveExceptions({ repair: id })
+        // Filtered again here, deliberately. A backend that predates the
+        // `repair` parameter ignores it and answers with the whole queue --
+        // thousands of items -- and this page would then report every one of
+        // them as raised against this line.
+        .then((data) => data.rows.filter((row) => row.repairId === id))
+        .catch(() => null),
     ])
     detail = line
     faultCategories = attestations?.faultCategories ?? []
+    exceptions = raised
   } catch (error) {
     // A failed request -- the backend down, a timeout, a 500 -- and it must say
     // so rather than masquerading as "not found".
@@ -67,6 +81,7 @@ export default async function Page({
       repairId={id}
       detail={detail ?? undefined}
       faultCategories={faultCategories}
+      exceptions={exceptions}
     />
   )
 }

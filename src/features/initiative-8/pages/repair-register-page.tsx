@@ -2,6 +2,7 @@ import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { RepairRegisterTable } from "@/features/initiative-8/components/repair-register-table"
+import { attachLineExceptions, loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
 import {
   loadLiveRegister,
   registerDescription,
@@ -45,6 +46,13 @@ export async function RepairRegisterPage() {
   // opposite of this page's whole point about distinguishing the two.
   let live: Awaited<ReturnType<typeof loadLiveRegister>> | null = null
   let loadError: string | null = null
+  // Best-effort, and deliberately not inside the same try as the register:
+  // the register failing takes the screen down, whereas the checks failing
+  // only costs the Exceptions column, which says "Not checked" rather than
+  // implying the lines are clean.
+  const exceptionRows = loadLiveExceptions()
+    .then((data) => data.rows)
+    .catch(() => null)
   try {
     live = await loadLiveRegister()
   } catch (error) {
@@ -66,7 +74,7 @@ export async function RepairRegisterPage() {
   return (
     <Shell
       description={registerDescription(live.meta, live.referenceDate, live.sourceLoadedAt)}
-      chains={live.chains}
+      chains={attachLineExceptions(live.chains, await exceptionRows)}
       plantOptions={live.plantOptions}
       vendorOptions={live.vendorOptions}
       repairStatusOptions={live.repairStatusOptions}

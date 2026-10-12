@@ -8,15 +8,22 @@ import type { CodingCandidate } from "@/features/initiative-8/types/repair"
 import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
 
 const DESCRIPTION =
-  "Materials whose purchase-order free text talks about repair but are not " +
-  "80-series coded (FR-2). Advisory only — nothing here changes SAP."
+  "Materials whose purchase-requisition, purchase-order or goods-movement free " +
+  "text talks about repair but are not 80-series coded (FR-2). Ranked, each " +
+  "row opening on the text that triggered it and the AI's reason. Advisory " +
+  "only — nothing here changes SAP."
 
 /**
  * Coding Candidates (FR-2 / W5.5).
  *
  * There was never a fixture for this screen — it is an analyst/audit tool over
- * real PO free text, and a synthetic "miscoded material" would be a fabricated
+ * real SAP free text, and a synthetic "miscoded material" would be a fabricated
  * finding rather than a demo situation.
+ *
+ * The screen reads all three sources FR-2 names — requisition, purchase order
+ * and goods movement — and the table filters by which one turned a material
+ * up, because a candidate seen only on a requisition is an earlier and
+ * cheaper finding than one already on a PO.
  *
  * Same server/client split as the register and declaration queue: this page
  * fetches the fast keyword-only pass once; the table's "Run AI screen" button
