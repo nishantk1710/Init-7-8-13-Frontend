@@ -299,22 +299,6 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /**
- * PATCH a JSON body and read a JSON response.
- *
- * **No retry either**, though the reason differs from {@link apiPost}. A PATCH
- * here sets a value rather than appending a row, so repeating it is harmless
- * in itself — but every PATCH in this application also writes a history entry
- * beside the value, and a retry after a timeout that actually succeeded leaves
- * the same change recorded twice in a history nobody can edit.
- */
-export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
-  return apiFetch<T>(path, {
-    method: "PATCH",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-}
-
-/**
  * POST a multipart form (a file upload) and read a JSON response. No retry,
  * for the same reason as {@link apiPost}.
  */

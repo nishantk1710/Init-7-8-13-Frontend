@@ -90,6 +90,7 @@ function toEvent(event: ApiExceptionEvent): ExceptionEvent {
     id: event.id,
     kind: event.kind,
     status: (event.status as ExceptionStatus | null) ?? undefined,
+    owner: event.owner ?? undefined,
     actor: event.actor,
     text: event.text,
     at: formatApiDateTime(event.at),

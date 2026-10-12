@@ -25,7 +25,7 @@ import {
   exceptionTypeLabel,
 } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
-import { commentOnException, updateException } from "@/lib/api/i8"
+import { appendExceptionEvent } from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 /** What each history entry's verb reads as. */
@@ -67,15 +67,21 @@ export type ExceptionDetailDrawerProps = {
  * One exception-queue item, opened from its row (FR-11): what the check found,
  * the records it points at, its history, and the controls to work it.
  *
+ * ## Why every action is one POST
+ *
+ * Assigning, commenting and moving an item all append one entry to the same
+ * history. The item's status and owner are not columns anybody edits — they
+ * are folded from that history — so there is no PATCH here, and none anywhere
+ * in this application.
+ *
  * ## Why this writes and then refreshes the route
  *
  * The item itself is not stored — it is recomputed from the register and the
  * attestation table on every read — so there is nothing here to mutate
- * locally and re-render. Each action POSTs or PATCHes the item's STATE and
- * then calls `router.refresh()`, which re-runs the server fetch and brings
- * back both the new state and whatever the checks now say. That is also how
- * an item that resolved itself in the meantime shows up as resolved rather
- * than sitting here looking open.
+ * locally and re-render. Each action POSTs and then calls `router.refresh()`,
+ * which re-runs the server fetch and brings back both the new history and
+ * whatever the checks now say. That is also how an item that resolved itself
+ * in the meantime shows up as resolved rather than sitting here looking open.
  */
 export function ExceptionDetailDrawer({
   exception,
@@ -240,7 +246,11 @@ export function ExceptionDetailDrawer({
                 disabled={busy || !owner.trim()}
                 onClick={() =>
                   run(
-                    () => updateException(item.id, { owner: owner.trim() }),
+                    () =>
+                      appendExceptionEvent(item.id, {
+                        kind: "ASSIGNED",
+                        owner: owner.trim(),
+                      }),
                     `${item.id} assigned to ${owner.trim()}`,
                   )
                 }
@@ -254,10 +264,10 @@ export function ExceptionDetailDrawer({
                   disabled={busy}
                   onClick={() =>
                     run(
-                      // Explicit null, not an omitted key: the backend tells
-                      // "leave the owner alone" from "unassign" by whether the
-                      // field was sent at all.
-                      () => updateException(item.id, { owner: null }),
+                      // An ASSIGNED entry naming nobody. Handing something
+                      // back is an action and gets its own line in the
+                      // history, not a quietly cleared field.
+                      () => appendExceptionEvent(item.id, { kind: "ASSIGNED", owner: null }),
                       `${item.id} unassigned`,
                     )
                   }
@@ -289,7 +299,11 @@ export function ExceptionDetailDrawer({
                   onClick={() =>
                     run(
                       () =>
-                        updateException(item.id, { status, note: note.trim() }),
+                        appendExceptionEvent(item.id, {
+                          kind: "STATUS",
+                          status,
+                          text: note.trim(),
+                        }),
                       `${item.id} set to ${EXCEPTION_STATUS_LABEL[status]}`,
                     )
                   }
@@ -318,7 +332,11 @@ export function ExceptionDetailDrawer({
                 disabled={busy || !comment.trim()}
                 onClick={() =>
                   run(
-                    () => commentOnException(item.id, comment.trim()),
+                    () =>
+                      appendExceptionEvent(item.id, {
+                        kind: "COMMENT",
+                        text: comment.trim(),
+                      }),
                     `Comment added to ${item.id}`,
                   )
                 }

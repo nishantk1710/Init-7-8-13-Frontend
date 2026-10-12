@@ -33,7 +33,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch, apiPatch, apiPost } from "@/lib/api/client"
+import { apiFetch, apiPost } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -472,6 +472,9 @@ export type ApiExceptionEvent = {
   kind: "ASSIGNED" | "COMMENT" | "STATUS" | "AUTO_RESOLVED"
   /** The status this entry set; null on a comment or an assignment. */
   status?: string | null
+  /** Who the item was assigned to, on an `ASSIGNED` entry. Null there means
+   *  it was unassigned — `kind` tells the two nulls apart. */
+  owner?: string | null
   /** `system` on an AUTO_RESOLVED entry. */
   actor: string
   text: string
@@ -716,32 +719,27 @@ export function getExceptions(
 }
 
 /**
- * `PATCH /api/i8/exceptions/{id}` — move an exception, or change its owner.
+ * `POST /api/i8/exceptions/{id}/events` — append one entry to the history.
  *
- * Writes the STATE, never the finding: the exception itself is recomputed
- * from SAP data on every read and has no stored form to edit.
+ * Writes the HISTORY, never the finding: the exception itself is recomputed
+ * from SAP data on every read and has no stored form to edit. Its status and
+ * owner are not columns either — they are folded from this log, which is why
+ * assigning, commenting and moving are one call and there is no PATCH
+ * anywhere in this application.
  *
- * Send `owner: null` to unassign. Omitting `owner` leaves it alone — the
- * backend tells the two apart by whether the key was sent at all.
+ * `ASSIGNED` with `owner: null` is an unassignment, and gets its own entry:
+ * handing something back is an action, not an absence.
  */
-export function updateException(
+export function appendExceptionEvent(
   exceptionId: string,
-  body: { status?: string; owner?: string | null; note?: string },
-): Promise<ApiExceptionItem> {
-  return apiPatch<ApiExceptionItem>(
-    `/i8/exceptions/${encodeURIComponent(exceptionId)}`,
-    body,
-  )
-}
-
-/** `POST /api/i8/exceptions/{id}/comments` — say something without moving it. */
-export function commentOnException(
-  exceptionId: string,
-  text: string,
+  body:
+    | { kind: "ASSIGNED"; owner: string | null }
+    | { kind: "STATUS"; status: string; text?: string }
+    | { kind: "COMMENT"; text: string },
 ): Promise<ApiExceptionItem> {
   return apiPost<ApiExceptionItem>(
-    `/i8/exceptions/${encodeURIComponent(exceptionId)}/comments`,
-    { text },
+    `/i8/exceptions/${encodeURIComponent(exceptionId)}/events`,
+    body,
   )
 }
 

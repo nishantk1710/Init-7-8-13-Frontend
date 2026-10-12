@@ -515,6 +515,9 @@ export interface ExceptionEvent {
   kind: "ASSIGNED" | "COMMENT" | "STATUS" | "AUTO_RESOLVED"
   /** The status this entry set; absent on a comment or an assignment. */
   status?: ExceptionStatus
+  /** Who the item was assigned to, on an `ASSIGNED` entry. Absent there means
+   *  it was unassigned — `kind` tells the two absences apart. */
+  owner?: string
   /** `system` on an AUTO_RESOLVED entry. */
   actor: string
   text: string
