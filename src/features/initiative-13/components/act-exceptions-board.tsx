@@ -33,6 +33,8 @@ import {
   EXCEPTION_TYPE_LABEL,
 } from "@/features/initiative-13/utils/status-labels"
 import { cn } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 const TYPE_RISK: Record<ActExceptionType, "low" | "medium" | "high"> = {
   PLAN_BREACH: "high",
@@ -161,7 +163,7 @@ export function ActExceptionsBoard({
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       <div className="flex flex-col gap-0.5">
-                        <span>{exception.material}</span>
+                        <MaterialName material={exception.material} description={exception.materialDescription} />
                         <span
                           className="flex items-center gap-1"
                           onClick={(event) => event.stopPropagation()}
@@ -194,8 +196,8 @@ export function ActExceptionsBoard({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {exception.plant}
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {sapPlantLabel(exception.plant)}
                     </TableCell>
                     <TableCell>
                       {exception.reservationNumber ? (

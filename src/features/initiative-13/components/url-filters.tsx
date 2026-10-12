@@ -26,6 +26,7 @@ import {
   PLAN_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
 import { cn } from "@/lib/utils"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 const ALL = "all"
 const DEBOUNCE_MS = 400
@@ -106,11 +107,11 @@ export function I13UrlFilters({
         {fields.includes("plant") && (
           <UrlSelect
             label="All plants"
-            width="sm:w-40"
+            width="sm:w-52"
             value={selectedPlant ?? ""}
             options={filterOptions(OAR_PLANTS, plants, selectedPlant).map((p) => ({
               value: p,
-              label: `Plant ${p}`,
+              label: sapPlantLabel(p),
             }))}
             onChange={(value) => push({ plant: value })}
           />

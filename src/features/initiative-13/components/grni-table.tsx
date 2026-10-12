@@ -15,6 +15,8 @@ import {
 import { formatApiDate } from "@/lib/api/format"
 import type { GrniEntry } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
  * Goods received and not issued for 30+ days, one row per reservation line.
@@ -55,11 +57,11 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
             <TableRow key={row.ledgerId}>
               <TableCell className="font-medium text-foreground">
                 <div className="flex flex-col gap-0.5">
-                  <span>{row.material}</span>
+                  <MaterialName material={row.material} description={row.materialDescription} />
                   <AskAssistantLink materialId={row.material} plant={row.plant} variant="chip" label="Ask" />
                 </div>
               </TableCell>
-              <TableCell className="text-muted-foreground">{row.plant}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell>
                 <SAPDocumentChip
                   doc={{
