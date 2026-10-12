@@ -65,7 +65,7 @@ export function DemoSessionLog({ material, plant }: { material?: string; plant?:
         id: "missing-session",
         label: "Reservations with no session",
         description:
-          "Reservations whose item text (SGTXT) carries no valid session reference — I08 FR-8 and I13 FR-4.",
+          "Reservations whose item text (SGTXT) carries no valid session reference.",
         state: "counted",
         count: 0,
         detail:

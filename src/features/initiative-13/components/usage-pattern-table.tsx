@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/table"
 import type { MonthlyConsumption, UsagePattern } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 const BAND_TONE = { FAST: "success", SLOW: "warning", NON_MOVING: "danger" } as const
 
@@ -60,7 +62,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
           <TableRow>
             <TableHead>Material</TableHead>
             <TableHead>Plant</TableHead>
-            <TableHead>Aging band</TableHead>
+            <TableHead>Stock type</TableHead>
             <TableHead>Monthly issues</TableHead>
             <TableHead className="text-right">Issued (history)</TableHead>
             <TableHead className="text-right">Active months</TableHead>
@@ -75,11 +77,11 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
             <TableRow key={`${row.material}::${row.plant}`}>
               <TableCell className="font-medium text-foreground">
                 <div className="flex flex-col gap-0.5">
-                  <span>{row.material}</span>
+                  <MaterialName material={row.material} description={row.materialDescription} />
                   <AskAssistantLink materialId={row.material} plant={row.plant} variant="chip" label="Ask" />
                 </div>
               </TableCell>
-              <TableCell className="text-muted-foreground">{row.plant}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell>
                 {row.agingBand ? (
                   <StatusBadge tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusBadge>

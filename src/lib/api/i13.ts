@@ -46,6 +46,7 @@ import {
   type ActException,
   type ActExceptionDetail,
   type ActExceptionEvent,
+  type ActExceptionFeedEvent,
   type ActExceptionType,
   type ConsumptionAttribution,
   type ConsumptionPlan,
@@ -114,6 +115,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     reservationNumber: str(raw.reservation_number),
     reservationItem: str(raw.reservation_item),
@@ -152,6 +154,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
 function toWatchMetric(raw: RawRecord): WatchMetric {
   return {
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: raw.material_scope
       ? oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED")
@@ -210,6 +213,7 @@ function toActException(raw: RawRecord): ActException {
     status: oneOf(raw.status as string, ACT_EXCEPTION_STATUSES, "OPEN"),
 
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
 
     reservationNumber: str(raw.reservation_number),
@@ -897,6 +901,7 @@ export async function getI13Justifications(params?: {
       exceptionId: exception.exceptionId,
       exceptionType: exception.exceptionType,
       material: exception.material,
+      materialDescription: exception.materialDescription,
       plant: exception.plant,
       ownerRequesterId: exception.ownerRequesterId,
       reasonCategory: confirmation.reasonCategory,
@@ -979,6 +984,7 @@ function toGrniEntry(raw: RawRecord): GrniEntry {
     reservationNumber: String(raw.reservation_number ?? ""),
     reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     prNumber: str(raw.pr_number),
@@ -1024,6 +1030,7 @@ function toUsagePattern(raw: RawRecord): UsagePattern {
   const months = Array.isArray(raw.months) ? (raw.months as RawRecord[]) : []
   return {
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     agingBand: raw.aging_band ? oneOf(raw.aging_band as string, AGING_BANDS, "NON_MOVING") : null,
@@ -1090,6 +1097,7 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     reservationNumber: String(raw.reservation_number ?? ""),
     reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     reservationQuantity: toNumber(raw.reservation_quantity as string) ?? null,
     requirementDate: str(raw.requirement_date),
@@ -1125,5 +1133,32 @@ export function getI13ReservationLedgerList(params?: {
   return apiFetchList<RawRecord>(`/i13/utilisation-ledger${query}`).then((list) => ({
     ...list,
     items: list.items.map(toReservationLedgerRow),
+  }))
+}
+
+/**
+ * `GET /i13/act/events` -- every ACT event across all exceptions, newest first,
+ * with the size of the whole filtered population in `total`. `fromTs` is
+ * inclusive and `toTs` exclusive (ISO 8601). Paging and the bounds are applied
+ * in SQL.
+ */
+export function getI13ActEvents(params?: {
+  limit?: number
+  offset?: number
+  fromTs?: string
+  toTs?: string
+}): Promise<ApiList<ActExceptionFeedEvent>> {
+  const query = buildQuery({
+    limit: params?.limit,
+    offset: params?.offset,
+    from_ts: params?.fromTs,
+    to_ts: params?.toTs,
+  })
+  return apiFetchList<RawRecord>(`/i13/act/events${query}`).then((list) => ({
+    ...list,
+    items: list.items.map((raw) => ({
+      ...toActExceptionEvent(raw),
+      exceptionId: String(raw.exception_id ?? ""),
+    })),
   }))
 }

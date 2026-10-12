@@ -82,7 +82,7 @@ function I08Card({
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat
           icon={<PackageCheck />}
-          label="On the shelf"
+          label="Stock available"
           // "0 in stock" and "no stock record for this plant" look identical
           // once rendered as a number, and only one of them means the shelf is
           // empty.
@@ -110,7 +110,7 @@ function I08Card({
               : undefined
           }
           nullNote={
-            facts.openRepairLines > 0 ? "no date promised" : "no repair on order"
+            facts.openRepairLines > 0 ? "no date promised" : "no open repair PO"
           }
         />
       </dl>
@@ -195,20 +195,20 @@ function I13Card({
       {headline && <p className="text-sm text-foreground">{headline}</p>}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat icon={<PackageCheck />} label="On the shelf" value={facts.stockOnHand} />
-        <Stat icon={<ArrowDownToLine />} label="On order" value={facts.openPoQuantity} />
+        <Stat icon={<PackageCheck />} label="Stock available" value={facts.stockOnHand} />
+        <Stat icon={<ArrowDownToLine />} label="Open PO" value={facts.openPoQuantity} />
         <Stat
           icon={<Gauge />}
           label="Months of cover"
           value={facts.monthsOfCover}
           // When the figure could not be computed the reason is the useful
           // thing, not a dash on its own.
-          nullNote={facts.monthsOfCoverReason ?? "cannot be computed"}
+          nullNote={facts.monthsOfCoverReason ? coverReasonText(facts.monthsOfCoverReason) : "cannot be computed"}
         />
         <Stat
           icon={<TrendingUp />}
-          label="Moving class"
-          value={facts.agingBand}
+          label="Stock type"
+          value={BAND_LABEL[facts.agingBand] ?? facts.agingBand}
           band={facts.agingBand}
           suffix={
             facts.daysSinceLastMovement === null
@@ -306,6 +306,21 @@ function Identity({
 }
 
 /** Colour for the backend's aging band. Display only — the band is the backend's. */
+const BAND_LABEL: Record<string, string> = {
+  FAST: "Fast-moving",
+  SLOW: "Slow-moving",
+  NON_MOVING: "Non-moving",
+}
+
+/** Why months of cover is blank, in words -- the backend sends a code. */
+const COVER_REASON: Record<string, string> = {
+  INSUFFICIENT_HISTORY: "not enough consumption history",
+}
+
+function coverReasonText(reason: string): string {
+  return COVER_REASON[reason] ?? reason.replace(/_/g, " ").toLowerCase()
+}
+
 const BAND_TONE: Record<string, string> = {
   FAST: "bg-success/15 text-success",
   SLOW: "bg-warning/15 text-warning",
@@ -335,7 +350,7 @@ function Stat({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 rounded-xl border p-3 transition-colors",
+        "flex min-w-0 flex-col gap-1 rounded-xl border p-3 transition-colors",
         tone === "warning" && !missing
           ? "border-warning/30 bg-warning/5"
           : "border-border/70 bg-muted/40"
@@ -347,6 +362,7 @@ function Stat({
       </dt>
       <dd
         className={cn(
+          "break-words",
           missing
             ? "text-sm font-medium text-muted-foreground"
             : "text-xl font-semibold tracking-tight text-foreground tabular-nums"
