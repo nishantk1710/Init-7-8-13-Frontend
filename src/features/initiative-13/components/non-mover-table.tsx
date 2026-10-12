@@ -68,7 +68,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        title="No non-moving positions"
+        title="No non-moving materials"
         description="No OAR position is classified non-moving for the current filters."
       />
     )

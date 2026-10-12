@@ -2,18 +2,16 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
-import { ArrowRight, ChevronDown, Clock3 } from "lucide-react"
+import { ArrowRight, Clock3 } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { PageHeader } from "@/components/shared/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
-import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import {
-  CalculatedAtNote,
   LoadFailure,
   PlanProvenanceNote,
   RowCapNote,
@@ -63,9 +61,9 @@ const DemoPlans = dynamic(() =>
  * dashboard shows only their status summary (FR-10's "exception status") and
  * links to the Exceptions screen, which owns the queue -- the full list here
  * duplicated it. Captured plans live only here -- there
- * is no separate plans screen; `?tab=plans` opens that tab. Reclassification
- * and validation have their own screens; the reclassification feed is read
- * here only for the non-movers' Critical impact column. Provenance and row-cap notes live in a collapsed "About this data".
+ * is no separate plans screen; `?tab=plans` opens that tab. The
+ * reclassification feed is read here only for the non-movers' Critical impact
+ * column.
  *
  * ## Data
  *
@@ -173,18 +171,18 @@ export async function UtilisationDashboardPage({
             material={searchParams.material}
           />
         ) : (
-          <SectionFallback section={dashboard.summary} what="utilisation summary" />
+          <SectionFallback section={dashboard.summary} what="utilization summary" />
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <ChartCard
-            title="Plan coverage"
-            subtitle="Received quantity against the consumption plan, per position"
+            title="Consumption Plan Coverage"
+            subtitle="Received quantity against the consumption plan, per material"
             span={6}
           >
             {watch ? (
               <div className="flex h-full flex-col gap-4">
-                <DistributionBar segments={planSegments} label="Positions by acquired-vs-plan status" />
+                <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
                 <PlanProvenanceNote
                   capturedCount={capturedPlanCount}
                   referenceCount={referencePlanCount}
@@ -192,7 +190,7 @@ export async function UtilisationDashboardPage({
                 />
               </div>
             ) : (
-              <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+              <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
             )}
           </ChartCard>
 
@@ -212,8 +210,8 @@ export async function UtilisationDashboardPage({
                   <DistributionBar segments={exceptionSegments} label="Exceptions by status" />
                   {unroutedExceptions > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      {formatCount(unroutedExceptions)} have no resolved requester, so they
-                      have not been routed and cannot escalate.
+                      {formatCount(unroutedExceptions)} have no identified requester, so
+                      nobody has been asked for a reason yet.
                     </p>
                   )}
                 </div>
@@ -226,7 +224,7 @@ export async function UtilisationDashboardPage({
                 href="/oar-utilization/aging-exceptions"
                 className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
               >
-                Open exceptions queue
+                Open procurement exceptions
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
@@ -265,7 +263,7 @@ export async function UtilisationDashboardPage({
                     <NonMoverTable rows={nonMoverRows} />
                   </div>
                 ) : (
-                  <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+                  <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
                 )}
               </TabsContent>
 
@@ -273,7 +271,7 @@ export async function UtilisationDashboardPage({
                 {watch ? (
                   <AcquiredVsPlanPanel rows={watch.rows} />
                 ) : (
-                  <LoadFailure what="WATCH metrics" message={dashboard.watchError} />
+                  <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
                 )}
               </TabsContent>
 
@@ -320,29 +318,6 @@ export async function UtilisationDashboardPage({
           </Tabs>
         </section>
 
-        <details className="group rounded-xl border border-border bg-card">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
-            About this data
-            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
-            <CalculatedAtNote calculatedAt={watch?.calculatedAt ?? null} />
-            {watch && (
-              <RowCapNote
-                atLimit={watch.atLimit}
-                count={watch.count}
-                total={watch.total}
-                noun="WATCH position"
-              />
-            )}
-            {dashboard.summary.status === "ready" && dashboard.summary.data.valuationIsMocked && (
-              <p className="text-[11px] text-muted-foreground">
-                Valuation data behind these figures is currently mocked in the backend.
-              </p>
-            )}
-            <DataSourcePanel />
-          </div>
-        </details>
       </div>
     </div>
   )

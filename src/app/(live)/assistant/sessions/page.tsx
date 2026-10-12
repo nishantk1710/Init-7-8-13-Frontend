@@ -114,7 +114,7 @@ export default async function AssistantSessionsPage({
       ? {
           id: "missing-session",
           label: "Reservations with no session",
-          description: `OAR reservations required since ${compliance.goLiveDate} whose item text (SGTXT) carries no valid session ID — I08 FR-8 and I13 FR-4.`,
+          description: `OAR reservations required since ${compliance.goLiveDate} whose item text (SGTXT) carries no valid session ID.`,
           state: "counted",
           count: compliance.missingSession + compliance.invalidSession,
           detail:
@@ -126,7 +126,7 @@ export default async function AssistantSessionsPage({
           id: "missing-session",
           label: "Reservations with no session",
           description:
-            "An 80-series or OAR reservation saved without a valid session reference — I08 FR-8 and I13 FR-4.",
+            "An 80-series or OAR reservation saved without a valid session reference.",
           state: "blocked",
           reason:
             "The session count could not be loaded from the backend, so it is not shown. A zero here would mean the check never ran, not that everyone complied.",

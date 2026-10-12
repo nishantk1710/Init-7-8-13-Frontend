@@ -18,7 +18,7 @@ import {
 } from "@/features/initiative-7/components/dashboard-filters"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
-import { sapPlantLabel } from "@/features/initiative-7/utils/sap-plants"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 
 // The backend's own page-size ceiling (see app/api/i7/recommendations.py's

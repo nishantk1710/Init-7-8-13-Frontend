@@ -82,7 +82,7 @@ function I08Card({
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat
           icon={<PackageCheck />}
-          label="On the shelf"
+          label="Stock available"
           // "0 in stock" and "no stock record for this plant" look identical
           // once rendered as a number, and only one of them means the shelf is
           // empty.
@@ -110,7 +110,7 @@ function I08Card({
               : undefined
           }
           nullNote={
-            facts.openRepairLines > 0 ? "no date promised" : "no repair on order"
+            facts.openRepairLines > 0 ? "no date promised" : "no open repair PO"
           }
         />
       </dl>
@@ -195,8 +195,8 @@ function I13Card({
       {headline && <p className="text-sm text-foreground">{headline}</p>}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat icon={<PackageCheck />} label="On the shelf" value={facts.stockOnHand} />
-        <Stat icon={<ArrowDownToLine />} label="On order" value={facts.openPoQuantity} />
+        <Stat icon={<PackageCheck />} label="Stock available" value={facts.stockOnHand} />
+        <Stat icon={<ArrowDownToLine />} label="Open PO" value={facts.openPoQuantity} />
         <Stat
           icon={<Gauge />}
           label="Months of cover"
@@ -207,7 +207,7 @@ function I13Card({
         />
         <Stat
           icon={<TrendingUp />}
-          label="Moving class"
+          label="Stock type"
           value={facts.agingBand}
           band={facts.agingBand}
           suffix={

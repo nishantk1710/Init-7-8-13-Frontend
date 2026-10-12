@@ -322,7 +322,7 @@ function JustificationPanel({ chain }: { chain: RepairChain }) {
       {/* Why some reasons are not here: one recorded while a unit was on the
           shelf, with nothing out for repair, has no line to sit on. */}
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Reasons recorded while a unit was on the shelf, with nothing out for repair, are on the{" "}
+        Reasons recorded while stock was available, with nothing out for repair, are on the{" "}
         <Link href="/repairable-spares/justifications" className="text-primary hover:underline">
           Justifications
         </Link>{" "}

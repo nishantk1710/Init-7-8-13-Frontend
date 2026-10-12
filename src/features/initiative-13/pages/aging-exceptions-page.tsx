@@ -69,21 +69,20 @@ export async function ExceptionsPage({
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
-          title="Exceptions"
-          description="Plan breaches, no-plan reservations, 30-day GR-not-issued positions and quantity overrides — the persisted ACT queue, with requester confirmation and HOD escalation (FR-9)."
+          title="Procurement Exceptions"
+          description="Planned consumption overdue, Non-AI reservations, materials received but not issued for 30+ days, and quantity overridden reservations — with the requester's reason and HOD escalation."
         />
 
         {live !== null && unrouted > 0 && (
           <AlertBanner
             tone="warning"
-            title={`${formatCount(unrouted)} of ${formatCount(live.count)} exceptions have no owner`}
+            title={`${formatCount(unrouted)} of ${formatCount(live.count)} exceptions: requester not identified`}
           >
-            An exception with no requester has never been routed and cannot
-            escalate, so it cannot be confirmed either. Detection resolves an
-            owner from the consumption plan first and from the reservation&rsquo;s
-            goods recipient second; where neither is available — or where the two
-            name different people — it is left unowned rather than assigned to a
-            guess.
+            We can&rsquo;t tell who raised these reservations, so nobody has been
+            asked for a reason and they cannot escalate. The requester is taken
+            from the consumption plan first and from the reservation&rsquo;s goods
+            recipient in SAP second; where neither is available — or the two name
+            different people — it is left unassigned rather than guessed.
           </AlertBanner>
         )}
 
