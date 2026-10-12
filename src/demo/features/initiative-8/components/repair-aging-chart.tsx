@@ -16,7 +16,11 @@ import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import { AGING_BUCKETS, isOpenRepair } from "@demo/features/initiative-8/utils/status"
 import { formatCount } from "@demo/lib/utils"
 
-const BUCKET_COLORS = [
+/**
+ * One colour per aging band, oldest in the destructive colour. The stage aging
+ * chart uses the same five, so a band reads the same on both.
+ */
+export const AGING_BUCKET_COLORS = [
   "var(--chart-3)",
   "var(--chart-1)",
   "var(--chart-4)",
@@ -30,12 +34,15 @@ function AgingTooltip({ active, payload }: TooltipContentProps) {
   if (!point || typeof point.value !== "number") return null
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <div className="text-sm font-semibold text-foreground">{formatCount(point.value)} chains</div>
+      <div className="text-sm font-semibold text-foreground">
+        {formatCount(point.value)} open {point.value === 1 ? "line" : "lines"}
+      </div>
       <div className="mt-0.5 text-muted-foreground">{String(point.payload?.bucket)} days open</div>
     </div>
   )
 }
 
+/** Days open on the whole-repair clock, for the lines still out. */
 export function RepairAgingChart({ chains }: { chains: RepairChain[] }) {
   // Still out, so the bars add up to the "open repair lines" figure beside them.
   const open = chains.filter(isOpenRepair)
@@ -67,7 +74,7 @@ export function RepairAgingChart({ chains }: { chains: RepairChain[] }) {
           <Tooltip content={AgingTooltip} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
           <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40} isAnimationActive={false}>
             {data.map((d, i) => (
-              <Cell key={d.bucket} fill={BUCKET_COLORS[i]} />
+              <Cell key={d.bucket} fill={AGING_BUCKET_COLORS[i]} />
             ))}
           </Bar>
         </BarChart>

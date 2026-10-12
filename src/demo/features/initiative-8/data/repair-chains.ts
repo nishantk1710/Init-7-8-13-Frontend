@@ -1,311 +1,33 @@
+import { BASE_SNAPSHOT } from "@demo/features/initiative-8/model/snapshot"
 import type { RepairChain, RepairStatus } from "@demo/features/initiative-8/types/repair"
-import { NO_CRITICALITY, REPAIR_STATUS_ORDER } from "@demo/features/initiative-8/utils/status"
-import { USING_GENERATED_DATA } from "@demo/lib/dataset-mode"
-import generatedRepairChains from "@demo/features/initiative-8/data/generated/repair-chains.json"
+import { NO_CRITICALITY, REPAIR_STATUS_ORDER, isOpenRepair } from "@demo/features/initiative-8/utils/status"
 
-// Deterministic mock data — no live SAP connection. "Today" for aging/days-
-// remaining math throughout this module is anchored at REFERENCE_DATE.
-//
-// RC-8001 is Scenario C from the master spec: low SOH, an open repair PO,
-// 2 units at the vendor, expected return soon — the material the assistant's
-// reservation-time duplicate check fires on, and the one behind EX-8001 on
-// the Exception Queue.
-//
-// RC-8002 is the mandatory Initiative 7 integration entry for the real
-// shared-catalog material 500-14892 ("Seal Assy, Mech Type XR-200",
-// Flowserve) — read directly by `selectors/material-360-adapter.ts`.
+export { REFERENCE_DATE } from "@demo/features/initiative-8/data/config"
 
-export const REFERENCE_DATE = "3 Sep 2026"
-
-const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
-  {
-    id: "RC-8001",
-    material: {
-      materialId: "800-14201",
-      materialCode: "800-14201",
-      description: "Gearbox Bearing Housing Assy — SAG Mill",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    stockOnHand: 1,
-    reorderPoint: 4,
-    qtyUnderRepair: 2,
-    repairPR: { type: "PR", documentNumber: "PR-81001" },
-    repairPO: { type: "PO", documentNumber: "PO-81001" },
-    vendor: "Weir Minerals Service Center",
-    repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
-    declarationStatus: "Completed",
-    // Completed with no row in data/declarations.ts, so the attestation the
-    // status rests on is written here, for the register to show who and when.
-    declaredBy: "Sipho Mahlangu",
-    declaredAt: "29 Jul 2026",
-    condition: "Repairable",
-    requester: "Sipho Mahlangu",
-    daysOpen: 37,
-    agingBucket: "31-45",
-    criticality: "CRITICAL",
-    leadTimeDays: 30,
-    raisedAt: "28 Jul 2026",
-    poIssuedAt: "1 Aug 2026",
-    sentToVendorAt: "5 Aug 2026",
-    expectedReturn: "10 Sep 2026",
-    daysRemainingInRepair: 7,
-    newUnitCost: 185000,
-    repairCost: 68000,
-    newUnitLeadTimeDays: 45,
-    notes: "Below reorder point — repair return is the fastest path to cover.",
-  },
-  {
-    id: "RC-8002",
-    material: {
-      materialId: "500-14892",
-      materialCode: "500-14892",
-      description: "Seal Assy, Mech Type XR-200",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    stockOnHand: 3,
-    reorderPoint: 2,
-    qtyUnderRepair: 2,
-    repairPR: { type: "PR", documentNumber: "PR-81002" },
-    repairPO: { type: "PO", documentNumber: "PO-81002" },
-    vendor: "SEW-Eurodrive Repair Center",
-    repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
-    declarationStatus: "Completed",
-    declaredBy: "Johan Botha",
-    declaredAt: "17 Aug 2026",
-    condition: "Repairable",
-    requester: "Johan Botha",
-    daysOpen: 18,
-    agingBucket: "16-30",
-    criticality: "NORMAL",
-    leadTimeDays: 21,
-    raisedAt: "16 Aug 2026",
-    poIssuedAt: "18 Aug 2026",
-    sentToVendorAt: "20 Aug 2026",
-    expectedReturn: "15 Sep 2026",
-    daysRemainingInRepair: 12,
-    newUnitCost: 48200,
-    repairCost: 19500,
-    newUnitLeadTimeDays: 12,
-    notes: "Warman 8/6 AH slurry pump seal — milling circuit.",
-  },
-  {
-    id: "RC-8003",
-    material: {
-      materialId: "800-22110",
-      materialCode: "800-22110",
-      description: "Crusher Liner Set — Primary Crusher",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    stockOnHand: 2,
-    reorderPoint: 3,
-    qtyUnderRepair: 3,
-    repairPR: { type: "PR", documentNumber: "PR-81003" },
-    repairPO: { type: "PO", documentNumber: "PO-81003" },
-    vendor: "Metso Outotec Workshop",
-    repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
-    declarationStatus: "Required",
-    daysOpen: 5,
-    agingBucket: "0-15",
-    criticality: "IMPACT",
-    leadTimeDays: 28,
-    raisedAt: "29 Aug 2026",
-    poIssuedAt: "30 Aug 2026",
-    expectedReturn: "20 Sep 2026",
-    daysRemainingInRepair: 17,
-    newUnitCost: 96000,
-    repairCost: 41000,
-    newUnitLeadTimeDays: 30,
-  },
-  {
-    id: "RC-8004",
-    material: {
-      materialId: "800-31090",
-      materialCode: "800-31090",
-      description: "Hydraulic Cylinder Assy — Stacker Reclaimer",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    stockOnHand: 5,
-    reorderPoint: 2,
-    qtyUnderRepair: 0,
-    repairPR: { type: "PR", documentNumber: "PR-81004" },
-    repairPO: { type: "PO", documentNumber: "PO-81004" },
-    vendor: "Voith Industrial Rebuild",
-    repairStatus: "Closed",
-    receiptStatus: "Received",
-    declarationStatus: "Completed",
-    daysOpen: 54,
-    agingBucket: "46-60",
-    criticality: "NORMAL",
-    daysElapsed: 54,
-    leadTimeDays: 45,
-    raisedAt: "2 Jul 2026",
-    poIssuedAt: "4 Jul 2026",
-    sentToVendorAt: "6 Jul 2026",
-    expectedReturn: "22 Aug 2026",
-    daysRemainingInRepair: -12,
-    receivedAt: "25 Aug 2026",
-    newUnitCost: 142000,
-    repairCost: 52000,
-    newUnitLeadTimeDays: 38,
-    notes: "Repair complete — unit receipted back into stores.",
-  },
-  {
-    id: "RC-8005",
-    material: {
-      materialId: "800-45210",
-      materialCode: "800-45210",
-      description: "Conveyor Gearmotor — Overland Conveyor",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    stockOnHand: 0,
-    reorderPoint: 2,
-    qtyUnderRepair: 1,
-    repairPR: { type: "PR", documentNumber: "PR-81005" },
-    vendor: "Weir Minerals Service Center",
-    repairStatus: "PR Raised",
-    receiptStatus: "Not Yet Shipped",
-    declarationStatus: "Required",
-    daysOpen: 3,
-    agingBucket: "0-15",
-    criticality: "CRITICAL",
-    raisedAt: "31 Aug 2026",
-    expectedReturn: "28 Sep 2026",
-    daysRemainingInRepair: 25,
-    newUnitCost: 214000,
-    repairCost: 79000,
-    newUnitLeadTimeDays: 60,
-    notes: "Stockout — PR raised, PO not yet cut. Declaration required before release.",
-  },
-  {
-    id: "RC-8006",
-    material: {
-      materialId: "800-18830",
-      materialCode: "800-18830",
-      description: "Slurry Pump Impeller Assembly",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    stockOnHand: 1,
-    reorderPoint: 3,
-    qtyUnderRepair: 4,
-    repairPR: { type: "PR", documentNumber: "PR-81006" },
-    repairPO: { type: "PO", documentNumber: "PO-81006" },
-    vendor: "Bosch Rexroth Service Hub",
-    repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
-    declarationStatus: "Required",
-    daysOpen: 58,
-    agingBucket: "46-60",
-    criticality: "IMPACT",
-    leadTimeDays: 35,
-    raisedAt: "7 Jul 2026",
-    poIssuedAt: "9 Jul 2026",
-    sentToVendorAt: "12 Jul 2026",
-    expectedReturn: "20 Aug 2026",
-    daysRemainingInRepair: -14,
-    newUnitCost: 118000,
-    repairCost: 46500,
-    newUnitLeadTimeDays: 33,
-    notes: "Overdue — expected return date has passed, vendor follow-up needed.",
-  },
-  {
-    id: "RC-8007",
-    material: {
-      materialId: "800-27340",
-      materialCode: "800-27340",
-      description: "Vibrating Screen Motor — Screening Plant",
-    },
-    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-    stockOnHand: 2,
-    reorderPoint: 2,
-    qtyUnderRepair: 2,
-    repairPR: { type: "PR", documentNumber: "PR-81007" },
-    repairPO: { type: "PO", documentNumber: "PO-81007" },
-    vendor: "Metso Outotec Workshop",
-    repairStatus: "At Vendor",
-    receiptStatus: "Partially Received",
-    declarationStatus: "Required",
-    daysOpen: 40,
-    agingBucket: "31-45",
-    leadTimeDays: 42,
-    raisedAt: "25 Jul 2026",
-    poIssuedAt: "27 Jul 2026",
-    sentToVendorAt: "29 Jul 2026",
-    expectedReturn: "5 Sep 2026",
-    daysRemainingInRepair: 2,
-    newUnitCost: 76000,
-    repairCost: 29500,
-    newUnitLeadTimeDays: 21,
-  },
-  {
-    id: "RC-8008",
-    material: {
-      materialId: "800-39950",
-      materialCode: "800-39950",
-      description: "Control Valve Actuator — Flotation Circuit",
-    },
-    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-    stockOnHand: 4,
-    reorderPoint: 3,
-    qtyUnderRepair: 1,
-    repairPR: { type: "PR", documentNumber: "PR-81008" },
-    repairPO: { type: "PO", documentNumber: "PO-81008" },
-    vendor: "SEW-Eurodrive Repair Center",
-    repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
-    declarationStatus: "Flagged",
-    daysOpen: 12,
-    agingBucket: "0-15",
-    criticality: "INSURANCE",
-    raisedAt: "22 Aug 2026",
-    poIssuedAt: "24 Aug 2026",
-    expectedReturn: "25 Sep 2026",
-    daysRemainingInRepair: 22,
-    newUnitCost: 61500,
-    repairCost: 24000,
-    newUnitLeadTimeDays: 20,
-    notes: "Flagged — a new-unit PR was raised against this material while its repair PO was already open.",
-  },
-]
-
-/** The lead-time verdict, from days elapsed against the planned delivery time. */
-function withLeadTime(chain: RepairChain): RepairChain {
-  const daysElapsed = chain.daysElapsed ?? chain.daysOpen
-  if (chain.leadTimeDays === undefined) {
-    return { ...chain, daysElapsed, leadTimeStatus: "NO_LEAD_TIME" }
-  }
-  const daysOverLeadTime = daysElapsed - chain.leadTimeDays
-  return {
-    ...chain,
-    daysElapsed,
-    daysOverLeadTime,
-    leadTimeStatus: daysOverLeadTime > 0 ? "BEYOND_LEAD_TIME" : "WITHIN_LEAD_TIME",
-  }
-}
-
-/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const REPAIR_CHAINS: RepairChain[] = (
-  USING_GENERATED_DATA
-    ? (generatedRepairChains as unknown as RepairChain[])
-    : SCENARIO_REPAIR_CHAINS
-).map(withLeadTime)
+/**
+ * The repair register's lines as shipped — what code outside the Initiative 8
+ * screens reads (Home, Action Center, Audit Trail, Material 360, Initiative
+ * 7's repair signal). The screens themselves read `useI08Snapshot()`, which
+ * adds whatever the viewer has done this session.
+ *
+ * The lines are built in `model/snapshot.ts` from the facts in
+ * `data/repair-lines.ts`.
+ */
+export const REPAIR_CHAINS: RepairChain[] = BASE_SNAPSHOT.lines
 
 export function getRepairChainById(id: string): RepairChain | undefined {
   return REPAIR_CHAINS.find((rc) => rc.id === id)
 }
 
+/** The material's open repair line, or its latest one when none is open. */
 export function getRepairChainByMaterialId(materialId: string): RepairChain | undefined {
-  return REPAIR_CHAINS.find((rc) => rc.material.materialId === materialId)
+  const lines = REPAIR_CHAINS.filter((rc) => rc.material.materialId === materialId)
+  return lines.find(isOpenRepair) ?? lines[0]
 }
 
 export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map((rc) => rc.vendor))).sort()
 
-/** Plants the register can filter by, taken from the rows themselves rather
- *  than from `lib/shared-data/plants`, which still carries sites this module
- *  has no repairs for. Same shape as `REPAIR_VENDORS`: an option list is only
- *  useful if picking it can return something. */
+/** Plants the register can filter by, taken from the rows themselves. */
 export const REPAIR_PLANTS = Array.from(
   new Map(REPAIR_CHAINS.map((rc) => [rc.plant.plantId, rc.plant])).values(),
 ).sort((a, b) => a.name.localeCompare(b.name))

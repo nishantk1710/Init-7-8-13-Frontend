@@ -1,26 +1,28 @@
+import { plantRef } from "@demo/features/initiative-8/data/config"
 import type { CodingCandidate } from "@demo/features/initiative-8/types/repair"
 
 /**
- * Deterministic mock data — no live SAP connection, no model call. Screening
+ * Coding candidates (FR-2) — deterministic mock data, no model call. Screening
  * timestamps are anchored at 2 Sep 2026.
  *
- * Every row is a material whose purchase-order free text talks about repair,
- * refurbishment or overhaul while the material itself is NOT 80-series coded.
- * The screen is advisory: nothing here writes to SAP or recodes a material.
+ * Every row is a material whose free text talks about repair, refurbishment or
+ * overhaul while the material itself is NOT 80-series coded. The text comes
+ * from all three places the FRS names: purchase requisitions (EBAN.TXZ01),
+ * purchase orders (EKPO.TXZ01) and goods movements (MSEG.SGTXT) — and two
+ * candidates are found ONLY through PR or movement text, which a PO-only
+ * screen would have missed.
+ *
+ * The verdicts are kept, not recomputed on each visit, so every row carries
+ * its reason. The screen is advisory: nothing here writes to SAP.
  *
  * `twins` carries the strongest evidence the screen produces, and it owes
  * nothing to a language model — an 80-series material already carrying the
- * identical description, which shows the naming convention was applied to this
- * exact text elsewhere and not here. A candidate with a twin is
- * `isCorroborated`.
- *
- * The verdicts deliberately span the full vocabulary, so the demo shows the
- * screen rejecting its own candidates as well as raising them:
- * `REPAIR_SERVICE` (a service line, not a part) and `CONSUMABLE_FOR_REPAIR`
- * (a part consumed during a repair) are both correctly coded today.
+ * identical text, which shows the naming convention was applied to this exact
+ * part elsewhere and not here.
  */
-/** Who screened the fixtures — the banner's "Screened by …" line. */
-export const CODING_SCREEN = { provider: "foundry", model: "gpt-4o" }
+
+const GBG = plantRef("PLANT-GBG")
+const BMM = plantRef("PLANT-BMM")
 
 export const CODING_CANDIDATES: CodingCandidate[] = [
   {
@@ -32,35 +34,13 @@ export const CODING_CANDIDATES: CodingCandidate[] = [
     verdict: "MISCODED_REPAIRABLE",
     confidence: "high",
     reason:
-      "Six purchase orders across two plants describe this part being sent out and returned after overhaul. An identical description is already coded 800-14201, so the convention exists and was not applied here.",
-    plants: ["Gamsberg", "Black Mountain Mining"],
+      "Purchase orders and a requisition across both plants describe this gearbox being sent out and returned after overhaul. An identical description is already coded 80-series, so the convention exists and was not applied here.",
     lines: [
-      {
-        purchasingDocument: "4500881204",
-        item: "10",
-        plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-        shortText: "REPAIR & OVERHAUL GEARBOX ASSY BEVEL HELICAL SAG DRIVE",
-        matchedKeywords: ["REPAIR", "OVERHAUL"],
-        raisedAt: "14 Mar 2026",
-      },
-      {
-        purchasingDocument: "4500903817",
-        item: "20",
-        plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-        shortText: "GEARBOX ASSY — RETURN FROM VENDOR REFURBISHMENT",
-        matchedKeywords: ["REFURBISHMENT"],
-        raisedAt: "2 Jun 2026",
-      },
+      { source: "PO", document: "4500881204", item: "10", plant: GBG, shortText: "REPAIR & OVERHAUL GEARBOX ASSY BEVEL HELICAL SAG DRIVE", matchedKeywords: ["REPAIR", "OVERHAUL"], raisedAt: "14 Mar 2026" },
+      { source: "PO", document: "4500903817", item: "20", plant: BMM, shortText: "GEARBOX ASSY — RETURN FROM VENDOR REFURBISHMENT", matchedKeywords: ["REFURBISHMENT"], raisedAt: "2 Jun 2026" },
+      { source: "PR", document: "0010443120", item: "10", plant: GBG, shortText: "OVERHAUL SAG DRIVE GEARBOX — EXCHANGE UNIT", matchedKeywords: ["OVERHAUL", "EXCHANGE"], raisedAt: "9 Aug 2026" },
     ],
-    twins: [
-      {
-        materialId: "800-14201",
-        sharedText: "GEARBOX ASSY, BEVEL HELICAL — SAG MILL DRIVE",
-      },
-    ],
-    isCorroborated: true,
-    isActionable: true,
-    meetsConfidenceThreshold: true,
+    twins: [{ materialId: "800-14388", sharedText: "GEARBOX ASSY, BEVEL HELICAL — SAG MILL DRIVE" }],
     screenedAt: "2 Sep 2026, 09:14",
   },
   {
@@ -72,36 +52,65 @@ export const CODING_CANDIDATES: CodingCandidate[] = [
     verdict: "MISCODED_REPAIRABLE",
     confidence: "high",
     reason:
-      "Purchase text repeatedly refers to re-tipping and rebuild of the same serialised unit, not to a replacement part. Rebuild of a returned unit is the defining 80-series behaviour.",
-    plants: ["Black Mountain Mining"],
+      "Purchase text repeatedly refers to re-tipping and rebuilding the same serialised unit, and a 541 moved it into vendor stock for the rebuild. Rebuilding a returned unit is the defining 80-series behaviour.",
     lines: [
-      {
-        purchasingDocument: "4500876650",
-        item: "10",
-        plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-        shortText: "RE-TIP AND REBUILD IMPELLER SLURRY PUMP 14/12",
-        matchedKeywords: ["REBUILD"],
-        raisedAt: "28 Jan 2026",
-      },
-      {
-        purchasingDocument: "4500919044",
-        item: "10",
-        plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
-        shortText: "IMPELLER REBUILD — RETURN SERIAL IMP-14/12-0087",
-        matchedKeywords: ["REBUILD"],
-        raisedAt: "17 Jul 2026",
-      },
+      { source: "PO", document: "4500876650", item: "10", plant: BMM, shortText: "RE-TIP AND REBUILD IMPELLER SLURRY PUMP 14/12", matchedKeywords: ["REBUILD"], raisedAt: "28 Jan 2026" },
+      { source: "PO", document: "4500919044", item: "10", plant: BMM, shortText: "IMPELLER REBUILD — RETURN SERIAL IMP-14/12-0087", matchedKeywords: ["REBUILD"], raisedAt: "17 Jul 2026" },
+      { source: "MOVEMENT", document: "4900179911", item: "1", movementType: "541", plant: BMM, shortText: "IMPELLER TO WEIR FOR RE-TIP", matchedKeywords: ["RE-TIP"], raisedAt: "18 Jul 2026" },
     ],
-    twins: [
-      {
-        materialId: "800-18830",
-        sharedText: "SLURRY PUMP IMPELLER ASSEMBLY",
-      },
-    ],
-    isCorroborated: true,
-    isActionable: true,
-    meetsConfidenceThreshold: true,
+    twins: [{ materialId: "800-18830", sharedText: "SLURRY PUMP IMPELLER ASSEMBLY" }],
     screenedAt: "2 Sep 2026, 09:16",
+  },
+  {
+    material: {
+      materialId: "300-77105",
+      materialCode: "300-77105",
+      description: "Agitator Shaft Seal Assembly — Leach Tank",
+    },
+    verdict: "MISCODED_REPAIRABLE",
+    confidence: "high",
+    reason:
+      "Found only in goods-movement text: the seal has twice been moved into vendor stock (541) for refurbishment in four months. A part that goes to a vendor and comes back is repairable, whatever its purchase text says.",
+    lines: [
+      { source: "MOVEMENT", document: "4900176233", item: "1", movementType: "541", plant: GBG, shortText: "SEAL ASSY TO VENDOR FOR REFURB", matchedKeywords: ["REFURB"], raisedAt: "12 May 2026" },
+      { source: "MOVEMENT", document: "4900180460", item: "1", movementType: "541", plant: GBG, shortText: "AGITATOR SEAL — SEND FOR REFURB, RETURN SAME UNIT", matchedKeywords: ["REFURB", "RETURN"], raisedAt: "5 Aug 2026" },
+    ],
+    twins: [],
+    screenedAt: "2 Sep 2026, 09:17",
+  },
+  {
+    material: {
+      materialId: "200-55730",
+      materialCode: "200-55730",
+      description: "Vibrator Motor, Screen Deck 7.5 kW",
+    },
+    verdict: "MISCODED_REPAIRABLE",
+    confidence: "medium",
+    reason:
+      "Purchase text mentions exchange-unit pricing, which implies a core return, and a movement sent one out for rewind. No 80-series twin carries this description, so the call rests on the free text alone.",
+    lines: [
+      { source: "PO", document: "4500907210", item: "10", plant: BMM, shortText: "VIBRATOR MOTOR 7.5KW EXCHANGE UNIT — CORE RETURN REQD", matchedKeywords: ["EXCHANGE", "CORE RETURN"], raisedAt: "30 May 2026" },
+      { source: "MOVEMENT", document: "4900182015", item: "1", movementType: "541", plant: BMM, shortText: "MOTOR SENT FOR REWIND", matchedKeywords: ["REWIND"], raisedAt: "14 Aug 2026" },
+    ],
+    twins: [],
+    screenedAt: "2 Sep 2026, 09:24",
+  },
+  {
+    material: {
+      materialId: "200-48812",
+      materialCode: "200-48812",
+      description: "Hydraulic Pump, Piston — Loader Steering",
+    },
+    verdict: "MISCODED_REPAIRABLE",
+    confidence: "medium",
+    reason:
+      "Found only in requisition text: two PRs ask for the same pump to be repaired and returned. The purchase orders that followed say only \"PUMP PISTON 45CC\", so a PO-only screen would never have raised it.",
+    lines: [
+      { source: "PR", document: "0010439022", item: "10", plant: BMM, shortText: "OVERHAUL STEERING PUMP EX LOADER 7", matchedKeywords: ["OVERHAUL"], raisedAt: "30 Jun 2026" },
+      { source: "PR", document: "0010451877", item: "10", plant: BMM, shortText: "REPAIR PISTON PUMP LOADER STEERING — RETURN UNIT", matchedKeywords: ["REPAIR", "RETURN"], raisedAt: "18 Aug 2026" },
+    ],
+    twins: [],
+    screenedAt: "2 Sep 2026, 09:25",
   },
   {
     material: {
@@ -112,31 +121,29 @@ export const CODING_CANDIDATES: CodingCandidate[] = [
     verdict: "UNCLEAR",
     confidence: "medium",
     reason:
-      "Two of four lines describe reseal and test of a returned cylinder; the other two read as outright replacement purchases. Could be a repairable unit or a cheap consumable bought both ways — a cataloguer should decide.",
-    plants: ["Skorpion Zinc"],
+      "One line describes reseal and test of a returned cylinder; the other reads as an outright replacement. Could be a repairable unit or a cheap part bought both ways — a cataloguer should decide.",
     lines: [
-      {
-        purchasingDocument: "4500890311",
-        item: "30",
-        plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
-        shortText: "RESEAL AND PRESSURE TEST HYD CYLINDER APRON FEEDER",
-        matchedKeywords: ["RESEAL"],
-        raisedAt: "9 Apr 2026",
-      },
-      {
-        purchasingDocument: "4500912880",
-        item: "10",
-        plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
-        shortText: "HYDRAULIC CYLINDER APRON FEEDER TENSIONER — NEW",
-        matchedKeywords: [],
-        raisedAt: "21 Jun 2026",
-      },
+      { source: "PO", document: "4500890311", item: "30", plant: BMM, shortText: "RESEAL AND PRESSURE TEST HYD CYLINDER APRON FEEDER", matchedKeywords: ["RESEAL"], raisedAt: "9 Apr 2026" },
+      { source: "PO", document: "4500912880", item: "10", plant: BMM, shortText: "HYDRAULIC CYLINDER APRON FEEDER TENSIONER — NEW", matchedKeywords: [], raisedAt: "21 Jun 2026" },
     ],
     twins: [],
-    isCorroborated: false,
-    isActionable: true,
-    meetsConfidenceThreshold: true,
     screenedAt: "2 Sep 2026, 09:19",
+  },
+  {
+    material: {
+      materialId: "300-12006",
+      materialCode: "300-12006",
+      description: "Conveyor Pulley, Drive — 1200 mm Lagged",
+    },
+    verdict: "UNCLEAR",
+    confidence: "low",
+    reason:
+      "A single line mentions re-lagging, which is maintenance of a shell that may or may not be returned. One piece of evidence below the confidence threshold — listed so nobody has to rediscover it, not as a finding.",
+    lines: [
+      { source: "PO", document: "4500921533", item: "20", plant: GBG, shortText: "DRIVE PULLEY 1200MM RE-LAG CERAMIC", matchedKeywords: ["RE-LAG"], raisedAt: "25 Jul 2026" },
+    ],
+    twins: [],
+    screenedAt: "2 Sep 2026, 09:26",
   },
   {
     material: {
@@ -148,21 +155,11 @@ export const CODING_CANDIDATES: CodingCandidate[] = [
     confidence: "high",
     reason:
       "A service line, not a part: the text buys labour to rewind a motor the site already owns. Correctly coded as a service today — recoding it 80-series would put a service into the repairable universe.",
-    plants: ["Gamsberg", "Skorpion Zinc"],
     lines: [
-      {
-        purchasingDocument: "4500884402",
-        item: "10",
-        plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-        shortText: "MOTOR REWIND SERVICE 630KW INCL BALANCE AND TEST",
-        matchedKeywords: ["REWIND", "SERVICE"],
-        raisedAt: "3 Feb 2026",
-      },
+      { source: "PO", document: "4500884402", item: "10", plant: GBG, shortText: "MOTOR REWIND SERVICE 630KW INCL BALANCE AND TEST", matchedKeywords: ["REWIND", "SERVICE"], raisedAt: "3 Feb 2026" },
+      { source: "PR", document: "0010447301", item: "20", plant: GBG, shortText: "REWIND SERVICE — BALL MILL MOTOR 2", matchedKeywords: ["REWIND", "SERVICE"], raisedAt: "4 Aug 2026" },
     ],
     twins: [],
-    isCorroborated: false,
-    isActionable: false,
-    meetsConfidenceThreshold: true,
     screenedAt: "2 Sep 2026, 09:21",
   },
   {
@@ -175,75 +172,26 @@ export const CODING_CANDIDATES: CodingCandidate[] = [
     confidence: "high",
     reason:
       "Bought to carry out a repair, not itself repairable — the kit is consumed and discarded. The keyword hit comes from the job it is used on, which is exactly the false positive this verdict exists to absorb.",
-    plants: ["Skorpion Zinc"],
     lines: [
-      {
-        purchasingDocument: "4500890311",
-        item: "40",
-        plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
-        shortText: "SEAL KIT FOR CYLINDER REPAIR 125MM BORE",
-        matchedKeywords: ["REPAIR"],
-        raisedAt: "9 Apr 2026",
-      },
+      { source: "PO", document: "4500890311", item: "40", plant: BMM, shortText: "SEAL KIT FOR CYLINDER REPAIR 125MM BORE", matchedKeywords: ["REPAIR"], raisedAt: "9 Apr 2026" },
     ],
     twins: [],
-    isCorroborated: false,
-    isActionable: false,
-    meetsConfidenceThreshold: true,
     screenedAt: "2 Sep 2026, 09:22",
   },
   {
     material: {
-      materialId: "200-55730",
-      materialCode: "200-55730",
-      description: "Vibrator Motor, Screen Deck 7.5 kW",
+      materialId: "100-33019",
+      materialCode: "100-33019",
+      description: "Wear Plate, Chute — Hardox 450",
     },
-    verdict: "MISCODED_REPAIRABLE",
-    confidence: "medium",
+    verdict: "CONSUMABLE_FOR_REPAIR",
+    confidence: "high",
     reason:
-      "Text mentions exchange-unit pricing, which implies a core return. No 80-series twin carries this description, so the call rests on the free text alone.",
-    plants: ["Skorpion Zinc"],
+      "The word is in movement text, but the movement is a 201 issue to a cost centre: the plates were fitted during a chute refurbishment and used up. Nothing comes back.",
     lines: [
-      {
-        purchasingDocument: "4500907210",
-        item: "10",
-        plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
-        shortText: "VIBRATOR MOTOR 7.5KW EXCHANGE UNIT — CORE RETURN REQD",
-        matchedKeywords: ["EXCHANGE", "CORE RETURN"],
-        raisedAt: "30 May 2026",
-      },
+      { source: "MOVEMENT", document: "4900178802", item: "3", movementType: "201", plant: GBG, shortText: "CHUTE REFURB — WEAR PLATES FITTED", matchedKeywords: ["REFURB"], raisedAt: "22 Jul 2026" },
     ],
     twins: [],
-    isCorroborated: false,
-    isActionable: true,
-    meetsConfidenceThreshold: true,
-    screenedAt: "2 Sep 2026, 09:24",
-  },
-  {
-    material: {
-      materialId: "300-12006",
-      materialCode: "300-12006",
-      description: "Conveyor Pulley, Drive — 1200 mm Lagged",
-    },
-    verdict: "UNCLEAR",
-    confidence: "low",
-    reason:
-      "A single line mentions re-lagging, which is maintenance of a shell that may or may not be returned. One piece of evidence below the confidence threshold — listed so nobody has to rediscover it, not as a finding.",
-    plants: ["Gamsberg"],
-    lines: [
-      {
-        purchasingDocument: "4500921533",
-        item: "20",
-        plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
-        shortText: "DRIVE PULLEY 1200MM RE-LAG CERAMIC",
-        matchedKeywords: ["RE-LAG"],
-        raisedAt: "25 Jul 2026",
-      },
-    ],
-    twins: [],
-    isCorroborated: false,
-    isActionable: true,
-    meetsConfidenceThreshold: false,
-    screenedAt: "2 Sep 2026, 09:26",
+    screenedAt: "2 Sep 2026, 09:27",
   },
 ]

@@ -1,28 +1,26 @@
 import type { Material360Signal } from "@demo/lib/domain/contracts"
 import { getRepairChainByMaterialId } from "@demo/features/initiative-8/data/repair-chains"
 import { initiative8Manifest } from "@demo/features/initiative-8/manifest"
+import { STAGE_LABEL, isOpenRepair } from "@demo/features/initiative-8/utils/status"
 
 /**
- * Returns a repair-chain summary for the global Material 360 drawer.
- * Read-only presentation data — also called directly by Initiative 7's
- * recommendation-detail page for material `500-14892`, which must resolve to
- * a real, non-null signal here (see `data/repair-chains.ts` RC-8002).
+ * Returns a repair-line summary for the global Material 360 drawer, and for
+ * Initiative 7's repair-context notice. Read-only presentation data; null for
+ * a material with no repair line.
  */
 export function getInitiative8Material360Signal(materialId: string): Material360Signal | null {
   const chain = getRepairChainByMaterialId(materialId)
   if (!chain) return null
 
-  const isClosed = chain.repairStatus === "Closed"
-  const isOverdue = !isClosed && chain.daysRemainingInRepair < 0
-
+  const open = isOpenRepair(chain)
   const status: Material360Signal["status"] =
     chain.declarationStatus === "Flagged"
       ? "critical"
-      : isOverdue
+      : chain.overdueStatus === "OVERDUE"
         ? "attention"
-        : isClosed
-          ? "healthy"
-          : "neutral"
+        : open
+          ? "neutral"
+          : "healthy"
 
   return {
     initiative: "initiative-8",
@@ -31,12 +29,15 @@ export function getInitiative8Material360Signal(materialId: string): Material360
     status,
     lines: [
       { label: "Repair status", value: `${chain.repairStatus} — ${chain.vendor}` },
+      { label: "Stage", value: `${STAGE_LABEL[chain.stage]} since ${chain.stageEnteredAt}` },
       { label: "Qty under repair", value: String(chain.qtyUnderRepair) },
       {
-        label: isClosed ? "Received" : "Expected return",
-        value: isClosed ? (chain.receivedAt ?? "—") : chain.expectedReturn,
+        label: open ? "Expected return" : chain.scrappedAt ? "Scrapped" : "Received",
+        value: open
+          ? (chain.expectedReturn ?? "No date agreed")
+          : (chain.scrappedAt ?? chain.receivedAt ?? "—"),
       },
-      { label: "Repair PO", value: chain.repairPO?.documentNumber ?? "Not yet raised" },
+      { label: "Declaration", value: chain.declarationStatus },
     ],
   }
 }

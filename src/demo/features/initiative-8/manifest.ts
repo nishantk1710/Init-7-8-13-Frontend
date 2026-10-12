@@ -10,6 +10,10 @@ export const initiative8Manifest: InitiativeManifest = {
   href: "/repairable-spares",
   navSection: {
     title: "Repairable Spares",
+    // The six FRS screens, as the Snapshot shows them (12-Oct-2026). The
+    // Snapshot keeps the Declarations, Exception Queue and Justifications
+    // screens as their own pages, as the FRS asks, even where live has folded
+    // one into another.
     items: [
       { label: "Overview", icon: "package", href: "/repairable-spares" },
       {
@@ -17,28 +21,28 @@ export const initiative8Manifest: InitiativeManifest = {
         icon: "wrench",
         href: "/repairable-spares/repair-register",
       },
-      // No standalone "is there already a unit?" page: the duplicate check is
-      // a rule the Spares Assistant runs at reservation time, where the answer
-      // arrives with a session id and a justification prompt. A separate
-      // lookup screen gave the same answer with neither, so the record of it
-      // now lives in the Exception Queue and the justification log instead.
-      //
-      // No Declaration Queue or Justifications page either (08-Oct-2026), as
-      // in live: each line's declaration and justification show in the
-      // register, the declaration form is on the repair detail page, and the
-      // justification log is a section of the Overview. Both old URLs redirect.
-
-      // Every finding the checks raise: missing declarations, and new units
-      // bought while a repair was open with no justification recorded.
+      {
+        label: "Coding Candidates",
+        icon: "search",
+        href: "/repairable-spares/coding-candidates",
+      },
+      // FR-4: every condition-to-repair declaration, and the ones still owed.
+      {
+        label: "Declarations",
+        icon: "file-text",
+        href: "/repairable-spares/declarations",
+      },
+      // FR-8 / FR-9 / FR-11: every finding the checks raise, with an owner.
       {
         label: "Exception Queue",
         icon: "alert-triangle",
         href: "/repairable-spares/exceptions",
       },
+      // FR-7: why a new unit was bought while a repairable one existed.
       {
-        label: "Coding Candidates",
-        icon: "search",
-        href: "/repairable-spares/coding-candidates",
+        label: "Justifications",
+        icon: "clipboard-check",
+        href: "/repairable-spares/justifications",
       },
     ],
   },
