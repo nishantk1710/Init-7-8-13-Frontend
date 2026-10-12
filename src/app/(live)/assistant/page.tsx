@@ -39,8 +39,8 @@ export default async function AssistantPage({
                 What are you <span className="ai-gradient-text">reserving</span> today?
               </h1>
               <p className="max-w-2xl text-sm text-muted-foreground">
-                Checks a spare before you reserve it — what is already in repair, what is
-                already on the shelf, and how much you actually need.
+                Checks a spare before you reserve it — what is already in repair, what
+                stock is available, and how much you actually need.
               </p>
             </div>
           </div>
@@ -58,7 +58,7 @@ export default async function AssistantPage({
               icon={<Wrench className="size-4" />}
               term="For a repairable (80-series) part"
             >
-              Whether a unit already exists — on the shelf, or on a repair order with a due
+              Whether a unit already exists — as stock available, or on a repair order with a due
               date — and how far past that date it is. If you still need a new one, it records
               why.
             </FeatureTile>
@@ -66,7 +66,7 @@ export default async function AssistantPage({
               icon={<Boxes className="size-4" />}
               term="For a planned-on-demand (OAR) part"
             >
-              Stock on hand, what is already on order, months of cover, how recently it moved,
+              Stock available, open PO quantity, months of cover, how recently it moved,
               and what other plants hold. Then it captures the consumption plan and suggests a
               quantity.
             </FeatureTile>

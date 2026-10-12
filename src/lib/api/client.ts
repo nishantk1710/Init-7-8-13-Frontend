@@ -187,7 +187,12 @@ function unavailableMessage(response: Response, body: ErrorBody): string {
   const retry = response.headers.get("Retry-After")
   const when = retry ? ` in ${retry} seconds` : " shortly"
   if (body.snapshotStatus === "failed") {
-    const reason = typeof body.detail === "string" ? body.detail : "The backend could not prepare this data"
+    // The backend names its initiative ("I13 data could not be prepared: ...");
+    // screens never show initiative numbers.
+    const reason =
+      typeof body.detail === "string"
+        ? body.detail.replace(/^I0?(8|13) data\b/, "This data")
+        : "The backend could not prepare this data"
     return (
       `${reason}. The backend retries at most once a minute — reload the page${when}. ` +
       "If this keeps happening, the backend log has the cause."

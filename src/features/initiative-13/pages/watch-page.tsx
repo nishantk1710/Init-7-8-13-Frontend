@@ -124,8 +124,8 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
   return (
     <>
       <PageHeader
-        title="WATCH"
-        description="Backend-computed utilisation health per material and plant — months of cover, aging band, GR-not-issued, and acquired-vs-plan status."
+        title="Live Consumption Tracking"
+        description="Live consumption health per material and plant — months of cover, stock type, received-not-issued, and consumption plan status."
         actions={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
       />
       <WatchTabs searchParams={searchParams} active="metrics" />
@@ -137,11 +137,11 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
       />
 
       {live === null ? (
-        <LoadFailure what="WATCH data" message={loadError} />
+        <LoadFailure what="consumption tracking data" message={loadError} />
       ) : (
         <>
           <WatchTable metrics={live.rows} sessionsByKey={sessionsByKey} />
-          <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="WATCH position" />
+          <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="material" />
         </>
       )}
     </>
@@ -168,7 +168,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
   return (
     <>
       <PageHeader
-        title="WATCH"
+        title="Live Consumption Tracking"
         description={
           live
             ? `${formatCount(live.total ?? live.count)} OAR reservation lines received and not issued for 30 days or more, oldest receipt first.`
@@ -223,7 +223,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
   return (
     <>
       <PageHeader
-        title="WATCH"
+        title="Live Consumption Tracking"
         description="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
       />
       <WatchTabs searchParams={searchParams} active="usage" />

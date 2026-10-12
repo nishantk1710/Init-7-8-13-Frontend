@@ -7,7 +7,7 @@ import {
 } from "@/features/initiative-13/utils/search-params"
 
 export const metadata: Metadata = {
-  title: "WATCH — OAR Utilization — Spares AI",
+  title: "Live Consumption Tracking — OAR Utilization — Spares AI",
 }
 
 export default async function Page({

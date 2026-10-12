@@ -125,6 +125,8 @@ export interface DataSourceStatus {
 export interface UtilisationLedgerEntry {
   ledgerId: string
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription: string | null
   plant: string
 
   reservationNumber: string | null
@@ -606,6 +608,8 @@ export interface ReservationLedgerRow {
   reservationNumber: string
   reservationItem: string
   material: string
+  /** MAKT / ZMM065 text, where the backend sends one. */
+  materialDescription: string | null
   plant: string
   reservationQuantity: number | null
   requirementDate: string | null

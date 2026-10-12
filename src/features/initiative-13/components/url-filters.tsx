@@ -127,7 +127,7 @@ export function I13UrlFilters({
 
         {fields.includes("agingBand") && (
           <UrlSelect
-            label="All aging bands"
+            label="All stock types"
             width="sm:w-40"
             value={searchParams.get("agingBand") ?? ""}
             options={filterOptions(AGING_BAND_ORDER, agingBands, searchParams.get("agingBand")).map(
