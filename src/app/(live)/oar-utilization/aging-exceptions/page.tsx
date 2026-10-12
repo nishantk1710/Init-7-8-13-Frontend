@@ -7,7 +7,7 @@ import {
 } from "@/features/initiative-13/utils/search-params"
 
 export const metadata: Metadata = {
-  title: "Exceptions — OAR Utilization — Spares AI",
+  title: "Procurement Exceptions — OAR Utilization — Spares AI",
 }
 
 export default async function Page({

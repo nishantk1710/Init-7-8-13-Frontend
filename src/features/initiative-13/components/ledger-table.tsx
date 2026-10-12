@@ -25,12 +25,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  LEDGER_STAGE_SHORT,
+  LEDGER_STAGES,
+  ledgerStage,
+  ledgerStageLabel,
+} from "@/features/initiative-13/utils/ledger-stage"
 import type {
-  LinkageStatus,
   ProcurementStatus,
   UtilisationLedgerEntry,
   LedgerUtilisationStatus,
 } from "@/lib/api/i13"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
 const ALL_FILTER = "all"
@@ -45,13 +51,6 @@ const UTILISATION_TONE: Record<LedgerUtilisationStatus, "default" | "success" | 
   NOT_ISSUED: "default",
   PARTIALLY_ISSUED: "warning",
   FULLY_ISSUED: "success",
-}
-
-const LINKAGE_TONE: Record<LinkageStatus, "default" | "success" | "warning" | "danger"> = {
-  RESERVATION_LINKED: "success",
-  FULL_CHAIN: "success",
-  PR_ONLY: "warning",
-  UNMATCHED: "danger",
 }
 
 function label(value: string): string {
@@ -74,18 +73,6 @@ function Quantity({ value }: { value: number | null }) {
       )}
     </TableCell>
   )
-}
-
-/** Parses the backend's own `dataSource` string (e.g.
- * "reservation:MOCK,pr:LIVE,po:LIVE,gr:LIVE,gi:LIVE") into leg/mode pairs —
- * pure display of a string the backend already produced, no source-mode
- * decisions made here. */
-function parseDataSource(dataSource: string): { leg: string; mode: string }[] {
-  return dataSource
-    .split(",")
-    .map((part) => part.split(":"))
-    .filter((pair): pair is [string, string] => pair.length === 2)
-    .map(([leg, mode]) => ({ leg, mode }))
 }
 
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
@@ -133,43 +120,38 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
     },
   ]
 
-  const sources = parseDataSource(entry.dataSource)
+  return <Timeline events={events} />
+}
 
+/**
+ * Reservation -> PR -> PO -> GR -> GI as five dots, filled up to the furthest
+ * leg the line has reached, with that stage named underneath.
+ */
+function StageTrack({ entry }: { entry: UtilisationLedgerEntry }) {
+  const stage = ledgerStage(entry)
+  const reached = stage === null ? -1 : LEDGER_STAGES.indexOf(stage)
+  const text = ledgerStageLabel(entry)
   return (
-    <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-[1fr_auto]">
-      <Timeline events={events} />
-      <dl className="flex h-fit flex-col gap-1 rounded-lg border border-border p-3 text-[11px] sm:w-64">
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Attribution</dt>
-          <dd className="text-right text-foreground">{entry.attributionStatus ? label(entry.attributionStatus) : "—"}</dd>
-        </div>
-        {entry.attributionEvidence && (
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Evidence</dt>
-            <dd className="max-w-[160px] text-right text-foreground">{entry.attributionEvidence}</dd>
-          </div>
-        )}
-        <div className="mt-1 border-t border-dashed border-border pt-1">
-          <dt className="mb-1 text-muted-foreground">Source per leg</dt>
-          <dd className="flex flex-wrap gap-1">
-            {sources.map(({ leg, mode }) => (
-              <span
-                key={leg}
-                className={cn(
-                  "rounded-md border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.4px]",
-                  mode === "MOCK"
-                    ? "border-warning/30 bg-warning/10 text-warning"
-                    : mode === "UNAVAILABLE"
-                      ? "border-destructive/30 bg-destructive/10 text-destructive"
-                      : "border-success/30 bg-success/10 text-success"
-                )}
-              >
-                {leg}: {mode === "MOCK" ? "REFERENCE" : mode}
-              </span>
-            ))}
-          </dd>
-        </div>
-      </dl>
+    <div className="flex min-w-28 flex-col gap-1" title={`Reservation → PR → PO → GR → GI: ${text}`}>
+      <div className="flex items-center gap-0.5" aria-hidden>
+        {LEDGER_STAGES.map((s, i) => (
+          <Fragment key={s}>
+            {i > 0 && (
+              <span className={cn("h-px w-2.5", i <= reached ? "bg-success" : "bg-border")} />
+            )}
+            <span
+              title={LEDGER_STAGE_SHORT[s]}
+              className={cn(
+                "size-2 rounded-full",
+                i < reached && "bg-success",
+                i === reached && "bg-success ring-2 ring-success/30",
+                i > reached && "border border-border bg-transparent"
+              )}
+            />
+          </Fragment>
+        ))}
+      </div>
+      <span className="text-[11px] text-foreground">{text}</span>
     </div>
   )
 }
@@ -179,7 +161,7 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
  *
  * Plant and material are **not** filtered here any more — they are server-side
  * query parameters now, owned by the URL and rendered by `I13UrlFilters` on the
- * page. What remains local are the three status filters, which narrow rows the
+ * page. What remains local are the two status filters, which narrow rows the
  * server already sent: that is genuine client work over data in hand, and it is
  * the split Initiative 8's register uses.
  */
@@ -191,23 +173,21 @@ export function UtilizationLedgerTable({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [procurementFilter, setProcurementFilter] = useState<string>(ALL_FILTER)
   const [utilisationFilter, setUtilisationFilter] = useState<string>(ALL_FILTER)
-  const [linkageFilter, setLinkageFilter] = useState<string>(ALL_FILTER)
 
   const filtered = useMemo(
     () =>
       entries.filter((e) => {
         if (procurementFilter !== ALL_FILTER && e.procurementStatus !== procurementFilter) return false
         if (utilisationFilter !== ALL_FILTER && e.utilisationStatus !== utilisationFilter) return false
-        if (linkageFilter !== ALL_FILTER && e.linkageStatus !== linkageFilter) return false
         return true
       }),
-    [entries, procurementFilter, utilisationFilter, linkageFilter]
+    [entries, procurementFilter, utilisationFilter]
   )
 
   if (entries.length === 0) {
     return (
       <EmptyState
-        title="No utilisation records found."
+        title="No utilization records found."
         description="Try clearing the plant/material filters."
       />
     )
@@ -233,28 +213,13 @@ export function UtilizationLedgerTable({
         </Select>
         <Select value={utilisationFilter} onValueChange={(v) => setUtilisationFilter(v ?? ALL_FILTER)}>
           <SelectTrigger className="h-9 w-full sm:w-48">
-            <SelectValue placeholder="Utilisation status">
-              {(v: string) => (v === ALL_FILTER ? "All utilisation statuses" : label(v))}
+            <SelectValue placeholder="Utilization status">
+              {(v: string) => (v === ALL_FILTER ? "All utilization statuses" : label(v))}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_FILTER}>All utilisation statuses</SelectItem>
+            <SelectItem value={ALL_FILTER}>All utilization statuses</SelectItem>
             {Object.keys(UTILISATION_TONE).map((s) => (
-              <SelectItem key={s} value={s}>
-                {label(s)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={linkageFilter} onValueChange={(v) => setLinkageFilter(v ?? ALL_FILTER)}>
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Linkage status">
-              {(v: string) => (v === ALL_FILTER ? "All linkage statuses" : label(v))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All linkage statuses</SelectItem>
-            {Object.keys(LINKAGE_TONE).map((s) => (
               <SelectItem key={s} value={s}>
                 {label(s)}
               </SelectItem>
@@ -263,20 +228,19 @@ export function UtilizationLedgerTable({
         </Select>
         <ClearFiltersButton
           activeCount={
-            [procurementFilter, utilisationFilter, linkageFilter].filter((f) => f !== ALL_FILTER)
+            [procurementFilter, utilisationFilter].filter((f) => f !== ALL_FILTER)
               .length
           }
           onClear={() => {
             setProcurementFilter(ALL_FILTER)
             setUtilisationFilter(ALL_FILTER)
-            setLinkageFilter(ALL_FILTER)
           }}
         />
       </FilterBar>
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="No utilisation records found."
+          title="No utilization records found."
           description="No rows match the selected status filters."
         />
       ) : (
@@ -288,6 +252,7 @@ export function UtilizationLedgerTable({
                 <TableHead>Ledger ID</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
+                <TableHead>Stage</TableHead>
                 <TableHead>Reservation</TableHead>
                 <TableHead>PR</TableHead>
                 <TableHead>PO</TableHead>
@@ -295,8 +260,7 @@ export function UtilizationLedgerTable({
                 <TableHead className="text-right">Issued</TableHead>
                 <TableHead className="text-right">Open</TableHead>
                 <TableHead>Procurement</TableHead>
-                <TableHead>Utilisation</TableHead>
-                <TableHead>Linkage</TableHead>
+                <TableHead>Utilization</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -319,8 +283,17 @@ export function UtilizationLedgerTable({
                       </TableCell>
                       <TableCell className="font-medium text-foreground">{entry.ledgerId}</TableCell>
                       <TableCell className="text-foreground">
-                        <div className="flex flex-col gap-0.5">
-                          <span>{entry.material}</span>
+                        <div className="flex max-w-[240px] flex-col gap-0.5">
+                          {entry.materialDescription ? (
+                            <>
+                              <span className="truncate font-medium" title={entry.materialDescription}>
+                                {entry.materialDescription}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">{entry.material}</span>
+                            </>
+                          ) : (
+                            <span className="font-medium">{entry.material}</span>
+                          )}
                           {/* Stops the click reaching the row's expand handler:
                               following the link and opening the drawer are
                               different intents on the same pixel. */}
@@ -334,7 +307,12 @@ export function UtilizationLedgerTable({
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{entry.plant}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {sapPlantLabel(entry.plant)}
+                      </TableCell>
+                      <TableCell>
+                        <StageTrack entry={entry} />
+                      </TableCell>
                       <TableCell>
                         {entry.reservationNumber ? (
                           <SAPDocumentChip
@@ -374,9 +352,6 @@ export function UtilizationLedgerTable({
                         <StatusBadge tone={UTILISATION_TONE[entry.utilisationStatus]}>
                           {label(entry.utilisationStatus)}
                         </StatusBadge>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge tone={LINKAGE_TONE[entry.linkageStatus]}>{label(entry.linkageStatus)}</StatusBadge>
                       </TableCell>
                     </TableRow>
                     <TableRow className="hover:bg-transparent">

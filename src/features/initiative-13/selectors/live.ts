@@ -7,9 +7,12 @@ import { cache } from "react"
 
 import { initiative13Manifest } from "@/features/initiative-13/manifest"
 import {
+  EXCEPTION_STATUS_LABEL,
+  EXCEPTION_TYPE_LABEL,
+} from "@/features/initiative-13/utils/status-labels"
+import {
   getI13ActEvents,
   getI13ActExceptionsList,
-  getI13ReclassificationList,
   getI13Summary,
   type ActException,
 } from "@/lib/api/i13"
@@ -51,8 +54,7 @@ export const getInitiative13LiveSummary = cache(async (): Promise<InitiativeSumm
   const health: InitiativeHealth =
     s.planBreachCount > 0 ||
     s.noPlanCount > 0 ||
-    s.grNotIssued30DayCount > 0 ||
-    s.reclassificationCandidateCount > 0
+    s.grNotIssued30DayCount > 0
       ? "attention"
       : "healthy"
 
@@ -62,9 +64,9 @@ export const getInitiative13LiveSummary = cache(async (): Promise<InitiativeSumm
     href: initiative13Manifest.href,
     health,
     metrics: [
-      { label: "OAR positions", value: s.totalOarPositions },
-      { label: "Plan breaches", value: s.planBreachCount },
-      { label: "No plan", value: s.noPlanCount },
+      { label: "OAR materials", value: s.totalOarPositions },
+      { label: "Planned Consumption Overdue", value: s.planBreachCount },
+      { label: "Non-AI Reservations", value: s.noPlanCount },
       { label: "GR not issued 30d+", value: s.grNotIssued30DayCount },
       { label: "Unutilized OAR value", value: NOT_AVAILABLE },
       { label: "Plan compliance", value: NOT_AVAILABLE },
@@ -79,15 +81,8 @@ const OPEN_STATUSES = ["OPEN", "AWAITING_REQUESTER", "ESCALATED"] as const
 /** Rows per source; the exception queue alone holds tens of thousands. */
 const PER_SOURCE = 100
 
-const TYPE_LABEL: Record<string, string> = {
-  PLAN_BREACH: "Consumption exceeded plan",
-  NO_PLAN: "No consumption plan on record",
-  NO_PLAN_GRNI: "Goods received with no plan",
-  QUANTITY_OVERRIDE: "Quantity override needs confirming",
-}
-
 function typeLabel(type: string): string {
-  return TYPE_LABEL[type] ?? type.replace(/_/g, " ").toLowerCase()
+  return (EXCEPTION_TYPE_LABEL as Record<string, string>)[type] ?? words(type)
 }
 
 function severityOf(e: ActException, now: number): ActionSeverity {
@@ -97,20 +92,14 @@ function severityOf(e: ActException, now: number): ActionSeverity {
 }
 
 /**
- * Open ACT exceptions and reclassification candidates.
- *
- * Both are decisions: an exception is waiting on a requester to confirm (or on
- * their HOD, once escalated), and a reclassification candidate waits on a
- * reviewer to accept or dismiss it. Each is a structured status on a real row —
- * not a phrase in a title.
+ * Open ACT exceptions: each is waiting on a requester to give a reason (or on
+ * their HOD, once escalated). A structured status on a real row — not a phrase
+ * in a title.
  */
 export const getInitiative13LiveActions = cache(async (): Promise<LiveActions> => {
-  const [exceptionBuckets, reclassification] = await Promise.all([
-    Promise.all(
-      OPEN_STATUSES.map((status) => getI13ActExceptionsList({ status, limit: PER_SOURCE }))
-    ),
-    getI13ReclassificationList({ candidatesOnly: true, limit: PER_SOURCE }),
-  ])
+  const exceptionBuckets = await Promise.all(
+    OPEN_STATUSES.map((status) => getI13ActExceptionsList({ status, limit: PER_SOURCE }))
+  )
 
   const now = Date.now()
   const seen = new Set<string>()
@@ -135,49 +124,35 @@ export const getInitiative13LiveActions = cache(async (): Promise<LiveActions> =
     }
   }
 
-  for (const r of reclassification.items) {
-    decisions.push({
-      id: `i13-reclass-${r.material}-${r.plant}`,
-      initiative: "initiative-13",
-      title: `Reclassification candidate ready for review — ${r.material} (plant ${r.plant})`,
-      severity: "info",
-      materialId: r.material,
-      plantId: r.plant,
-      href: "/oar-utilization/reclassification",
-      // The candidate list carries no timestamp; an empty value is rendered as
-      // "—" rather than as the date the screen happened to load.
-      createdAt: "",
-    })
-  }
-
-  const exceptionTotal = exceptionBuckets.reduce((sum, b) => sum + (b.total ?? b.items.length), 0)
-  const total = exceptionTotal + (reclassification.total ?? reclassification.items.length)
+  const total = exceptionBuckets.reduce((sum, b) => sum + (b.total ?? b.items.length), 0)
 
   return {
     actions: decisions,
     decisions,
     total,
     decisionTotal: total,
-    capped:
-      exceptionBuckets.some((b) => (b.total ?? 0) > b.items.length) ||
-      (reclassification.total ?? 0) > reclassification.items.length,
+    capped: exceptionBuckets.some((b) => (b.total ?? 0) > b.items.length),
   }
 })
 
 const EVENT_LABEL: Record<string, string> = {
   DETECTED: "Exception detected",
   ROUTED_TO_REQUESTER: "Routed to requester",
-  REQUESTER_CONFIRMED: "Requester confirmed",
+  REQUESTER_CONFIRMED: "Reason given",
   JUSTIFICATION_ADDED: "Justification added",
   ESCALATED_TO_HOD: "Escalated to HOD",
   ROUTING_FAILED: "Routing failed",
-  RESOLVED: "Resolved",
+  RESOLVED: "Closed",
   NOTIFICATION_SENT: "Notification sent",
   NOTIFICATION_FAILED: "Notification failed",
 }
 
 function words(raw: string): string {
   return raw.replace(/_/g, " ").toLowerCase()
+}
+
+function statusLabel(status: string): string {
+  return (EXCEPTION_STATUS_LABEL as Record<string, string>)[status] ?? words(status)
 }
 
 /**
@@ -189,7 +164,7 @@ export async function getInitiative13LiveAuditEvents(query: AuditQuery): Promise
   const page = await getI13ActEvents({ limit: query.limit, fromTs: query.fromTs, toTs: query.toTs })
   const events: AuditEvent[] = page.items.map((e) => {
     const label = EVENT_LABEL[e.eventType] ?? words(e.eventType)
-    const move = e.fromStatus && e.toStatus ? ` (${words(e.fromStatus)} → ${words(e.toStatus)})` : e.toStatus ? ` (${words(e.toStatus)})` : ""
+    const move = e.fromStatus && e.toStatus ? ` (${statusLabel(e.fromStatus)} → ${statusLabel(e.toStatus)})` : e.toStatus ? ` (${statusLabel(e.toStatus)})` : ""
     return {
       id: `i13-act-event-${e.eventId ?? `${e.exceptionId}-${e.timestamp}-${e.eventType}`}`,
       initiative: "initiative-13",

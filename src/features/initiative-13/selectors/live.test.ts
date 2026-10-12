@@ -37,10 +37,6 @@ function serveExceptions(buckets: Record<string, { rows: ReturnType<typeof excep
   })
 }
 
-function serveReclassification(rows: { material: string; plant: string }[], total: number | null = rows.length) {
-  api.getI13ReclassificationList.mockResolvedValue({ items: rows, total, headers: new Headers() })
-}
-
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(NOW)
@@ -63,9 +59,9 @@ describe("getInitiative13LiveSummary", () => {
     api.getI13Summary.mockResolvedValue(summary())
     const s = await getInitiative13LiveSummary()
     expect(s.metrics.slice(0, 4).map((m) => [m.label, m.value])).toEqual([
-      ["OAR positions", 44394],
-      ["Plan breaches", 12],
-      ["No plan", 30],
+      ["OAR materials", 44394],
+      ["Planned Consumption Overdue", 12],
+      ["Non-AI Reservations", 30],
       ["GR not issued 30d+", 8],
     ])
   })
@@ -98,16 +94,15 @@ describe("getInitiative13LiveSummary", () => {
 })
 
 describe("getInitiative13LiveActions", () => {
-  it("fetches each open status separately, capped, plus the reclassification candidates only", async () => {
+  it("fetches each open status separately, capped, and no reclassification candidates", async () => {
     serveExceptions({})
-    serveReclassification([])
     await getInitiative13LiveActions()
     expect(api.getI13ActExceptionsList.mock.calls.map(([p]) => p)).toEqual([
       { status: "OPEN", limit: 100 },
       { status: "AWAITING_REQUESTER", limit: 100 },
       { status: "ESCALATED", limit: 100 },
     ])
-    expect(api.getI13ReclassificationList).toHaveBeenCalledWith({ candidatesOnly: true, limit: 100 })
+    expect(api.getI13ReclassificationList).not.toHaveBeenCalled()
   })
 
   it("makes an escalated exception critical and an ordinary open one a warning", async () => {
@@ -115,7 +110,6 @@ describe("getInitiative13LiveActions", () => {
       OPEN: { rows: [exception("E1", "OPEN")] },
       ESCALATED: { rows: [exception("E2", "ESCALATED")] },
     })
-    serveReclassification([])
     const { actions } = await getInitiative13LiveActions()
     expect(actions.map((a) => [a.entityId, a.severity])).toEqual([
       ["E1", "warning"],
@@ -132,7 +126,6 @@ describe("getInitiative13LiveActions", () => {
         ],
       },
     })
-    serveReclassification([])
     const { actions } = await getInitiative13LiveActions()
     expect(actions.map((a) => [a.entityId, a.severity])).toEqual([
       ["late", "critical"],
@@ -141,20 +134,12 @@ describe("getInitiative13LiveActions", () => {
     expect(actions[0].dueAt).toBe("2026-09-18T00:00:00Z")
   })
 
-  it("treats every exception and every reclassification candidate as a decision", async () => {
+  it("treats every open exception as a decision, titled with its VZI label", async () => {
     serveExceptions({ OPEN: { rows: [exception("E1", "OPEN")] } })
-    serveReclassification([{ material: "000000008000000001", plant: "1500" }])
     const result = await getInitiative13LiveActions()
-    expect(result.decisions).toHaveLength(2)
+    expect(result.decisions).toHaveLength(1)
     expect(result.actions).toEqual(result.decisions)
-    expect(result.decisions[1].title).toContain("Reclassification candidate")
-    expect(result.decisions[1].severity).toBe("info")
-  })
-
-  it("shows no date for a candidate rather than the date the screen loaded", async () => {
-    serveExceptions({})
-    serveReclassification([{ material: "M", plant: "1300" }])
-    expect((await getInitiative13LiveActions()).decisions[0].createdAt).toBe("")
+    expect(result.decisions[0].title).toMatch(/^Planned Overdue — /)
   })
 
   it("lists an exception once even if it somehow appears in two buckets", async () => {
@@ -162,7 +147,6 @@ describe("getInitiative13LiveActions", () => {
       OPEN: { rows: [exception("E1", "OPEN")] },
       ESCALATED: { rows: [exception("E1", "ESCALATED")] },
     })
-    serveReclassification([])
     expect((await getInitiative13LiveActions()).actions).toHaveLength(1)
   })
 
@@ -171,15 +155,13 @@ describe("getInitiative13LiveActions", () => {
       OPEN: { rows: [exception("E1", "OPEN")], total: 42649 },
       ESCALATED: { rows: [], total: 0 },
     })
-    serveReclassification([{ material: "M", plant: "1300" }], 310)
     const result = await getInitiative13LiveActions()
-    expect(result.total).toBe(42649 + 310)
+    expect(result.total).toBe(42649)
     expect(result.capped).toBe(true)
   })
 
   it("falls back to the rows it has when the backend sent no total, and is not marked capped", async () => {
     serveExceptions({ OPEN: { rows: [exception("E1", "OPEN"), exception("E2", "OPEN")], total: null } })
-    serveReclassification([], null)
     const result = await getInitiative13LiveActions()
     expect(result.total).toBe(2)
     expect(result.capped).toBe(false)
@@ -187,13 +169,11 @@ describe("getInitiative13LiveActions", () => {
 
   it("gives an unknown exception type a readable title rather than a blank", async () => {
     serveExceptions({ OPEN: { rows: [exception("E1", "OPEN", { exceptionType: "SOMETHING_NEW" })] } })
-    serveReclassification([])
     expect((await getInitiative13LiveActions()).actions[0].title).toContain("something new")
   })
 
   it("throws if a source fails rather than returning a partial queue as complete", async () => {
     api.getI13ActExceptionsList.mockRejectedValue(new Error("queue down"))
-    serveReclassification([])
     await expect(getInitiative13LiveActions()).rejects.toThrow("queue down")
   })
 })
@@ -251,8 +231,8 @@ describe("getInitiative13LiveAuditEvents", () => {
     })
     const [e] = (await getInitiative13LiveAuditEvents({ limit: 25 })).events
     expect(e.actor).toBe("VZIREQ01")
-    expect(e.eventType).toBe("Requester confirmed")
-    expect(e.description).toContain("awaiting requester → confirmed")
+    expect(e.eventType).toBe("Reason given")
+    expect(e.description).toContain("Assigned to requester → Reason given")
   })
 
   it("still gives an event a unique id when the backend sends no event id", async () => {

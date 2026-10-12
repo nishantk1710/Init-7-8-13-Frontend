@@ -26,14 +26,13 @@ import { SessionChips } from "@/features/initiative-13/components/session-chips"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import type { ActException, ActExceptionStatus, ActExceptionType } from "@/lib/api/i13"
 import { formatApiDateTime } from "@/lib/api/format"
+import {
+  EXCEPTION_STATUS_HINT,
+  EXCEPTION_STATUS_LABEL,
+  EXCEPTION_TYPE_HINT,
+  EXCEPTION_TYPE_LABEL,
+} from "@/features/initiative-13/utils/status-labels"
 import { cn } from "@/lib/utils"
-
-const TYPE_LABEL: Record<ActExceptionType, string> = {
-  PLAN_BREACH: "Plan breach",
-  NO_PLAN: "No plan",
-  NO_PLAN_GRNI: "No plan + 30-day GRNI",
-  QUANTITY_OVERRIDE: "Quantity override",
-}
 
 const TYPE_RISK: Record<ActExceptionType, "low" | "medium" | "high"> = {
   PLAN_BREACH: "high",
@@ -51,14 +50,6 @@ const STATUS_TONE: Record<
   CONFIRMED: "success",
   ESCALATED: "danger",
   RESOLVED: "success",
-}
-
-const STATUS_LABEL: Record<ActExceptionStatus, string> = {
-  OPEN: "Open — not routed",
-  AWAITING_REQUESTER: "Awaiting requester",
-  CONFIRMED: "Confirmed",
-  ESCALATED: "Escalated to HOD",
-  RESOLVED: "Resolved",
 }
 
 /**
@@ -163,9 +154,9 @@ export function ActExceptionsBoard({
                         )}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell title={EXCEPTION_TYPE_HINT[exception.exceptionType]}>
                       <RiskBadge level={TYPE_RISK[exception.exceptionType]}>
-                        {TYPE_LABEL[exception.exceptionType]}
+                        {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
                       </RiskBadge>
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
@@ -229,9 +220,9 @@ export function ActExceptionsBoard({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell title={EXCEPTION_STATUS_HINT[exception.status]}>
                       <StatusBadge tone={STATUS_TONE[exception.status]}>
-                        {STATUS_LABEL[exception.status]}
+                        {EXCEPTION_STATUS_LABEL[exception.status]}
                       </StatusBadge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -336,7 +327,7 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
       </div>
 
       {exception.status === "OPEN" && (
-        <AlertBanner tone="warning" title="This exception has never been routed">
+        <AlertBanner tone="warning" title="Requester not identified">
           No requester could be resolved for it, so nobody has been asked to
           confirm and the escalation clock has not started. Detection resolves an
           owner from the consumption plan first and from the reservation&rsquo;s

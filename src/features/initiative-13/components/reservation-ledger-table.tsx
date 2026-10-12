@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
 
 function qty(value: number | null): string {
@@ -65,8 +66,19 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   doc={{ type: "RESERVATION", documentNumber: row.reservationNumber, line: row.reservationItem }}
                 />
               </TableCell>
-              <TableCell className="font-medium text-foreground">{row.material}</TableCell>
-              <TableCell className="text-muted-foreground">{row.plant}</TableCell>
+              <TableCell className="text-foreground">
+                {row.materialDescription ? (
+                  <div className="flex max-w-[240px] flex-col gap-0.5">
+                    <span className="truncate font-medium" title={row.materialDescription}>
+                      {row.materialDescription}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">{row.material}</span>
+                  </div>
+                ) : (
+                  <span className="font-medium">{row.material}</span>
+                )}
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
               <TableCell className="text-right text-foreground">{qty(row.reservationQuantity)}</TableCell>
               <TableCell>

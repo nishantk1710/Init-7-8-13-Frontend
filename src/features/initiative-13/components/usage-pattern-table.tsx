@@ -60,7 +60,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
           <TableRow>
             <TableHead>Material</TableHead>
             <TableHead>Plant</TableHead>
-            <TableHead>Aging band</TableHead>
+            <TableHead>Stock type</TableHead>
             <TableHead>Monthly issues</TableHead>
             <TableHead className="text-right">Issued (history)</TableHead>
             <TableHead className="text-right">Active months</TableHead>

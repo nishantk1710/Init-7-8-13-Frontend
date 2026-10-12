@@ -21,7 +21,7 @@ export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
       variant="outline"
       onClick={() =>
         downloadCsv(
-          "i13-utilisation.csv",
+          "oar-consumption-tracking.csv",
           [
             "Material",
             "Plant",
@@ -47,7 +47,7 @@ export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
       }
     >
       <Download className="size-3.5" />
-      Export all positions
+      Export all materials
     </Button>
   )
 }

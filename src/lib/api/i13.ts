@@ -115,6 +115,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     reservationNumber: str(raw.reservation_number),
     reservationItem: str(raw.reservation_item),
@@ -1091,6 +1092,7 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     reservationNumber: String(raw.reservation_number ?? ""),
     reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     reservationQuantity: toNumber(raw.reservation_quantity as string) ?? null,
     requirementDate: str(raw.requirement_date),
