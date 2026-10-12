@@ -49,6 +49,8 @@ export type UnifiedJustification = {
   /** `NEW_ACQUISITION`, `QUANTITY_OVERRIDE`, `PLAN_BREACH`, `NO_PLAN`. */
   kind: string
   material: string
+  /** Set where the source names the part (the exception queue does). */
+  materialDescription?: string | null
   plant: string
   reasonCategory: string
   freeText: string
@@ -82,6 +84,7 @@ export type ActConfirmationEntry = {
   exceptionId: string
   exceptionType: string
   material: string
+  materialDescription?: string | null
   plant: string
   ownerRequesterId: string | null
   reasonCategory: string
@@ -101,6 +104,7 @@ export function fromActConfirmation(
     source: "EXCEPTION_QUEUE",
     kind: entry.exceptionType,
     material: entry.material,
+    materialDescription: entry.materialDescription ?? null,
     plant: entry.plant,
     reasonCategory: entry.reasonCategory,
     freeText: entry.freeText,

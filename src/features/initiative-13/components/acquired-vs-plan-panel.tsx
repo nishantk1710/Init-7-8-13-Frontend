@@ -23,6 +23,8 @@ import {
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
 import { downloadCsv, formatCount } from "@/lib/utils"
+import { MaterialName } from "@/components/shared/material-name"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** Acquired vs. Plan (§9): backend-computed `acquired_vs_plan_status` and
  * variance, rendered as-is — no tolerance/comparison rule is recreated
@@ -67,8 +69,10 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
           <TableBody>
             {paged.map((r) => (
               <TableRow key={`${r.material}-${r.plant}`}>
-                <TableCell className="font-medium text-foreground">{r.material}</TableCell>
-                <TableCell className="text-muted-foreground">{r.plant}</TableCell>
+                <TableCell>
+                  <MaterialName material={r.material} description={r.materialDescription} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(r.plant)}</TableCell>
                 <TableCell className="text-right text-foreground">
                   {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : "—"}
                 </TableCell>

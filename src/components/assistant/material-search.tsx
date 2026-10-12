@@ -11,6 +11,7 @@ import {
   type ApiMaterialMatch,
 } from "@/lib/api/assistant"
 import { cn } from "@/lib/utils"
+import { FLOW_LABEL } from "@/lib/assistant/flow-labels"
 
 /** What the person picked: a suggestion, or a number typed by hand. */
 export type MaterialPick =
@@ -233,12 +234,6 @@ function MatchRow({ match }: { match: ApiMaterialMatch }) {
       <FlowBadge flow={match.flowHint} />
     </>
   )
-}
-
-const FLOW_LABEL: Record<ApiFlow, string> = {
-  i08: "Repairable",
-  i13: "OAR",
-  none: "No assistant flow",
 }
 
 /** The router's likely verdict. A hint: the router decides when it opens. */
