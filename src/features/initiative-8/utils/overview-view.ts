@@ -1,4 +1,5 @@
-import type { RepairChain } from "@/features/initiative-8/types/repair"
+import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
+import type { ApiVendorTurnaround } from "@/lib/api/i8"
 import { ALL } from "@/features/initiative-8/utils/register-view"
 import {
   NO_CRITICALITY,
@@ -177,6 +178,115 @@ export function openLinesByVendor(chains: RepairChain[], limit = 10): VendorLine
     top: ranked.slice(0, limit),
     vendorCount: ranked.length,
     otherLines: ranked.slice(limit).reduce((sum, v) => sum + v.count, 0),
+  }
+}
+
+/** One bar on the repair status distribution. */
+export type StatusBucket = {
+  label: string
+  count: number
+  color: string
+}
+
+/**
+ * The lifecycle as the status chart draws it, in order.
+ *
+ * Not `REPAIR_STATUS_ORDER` — that is the five statuses the register serves,
+ * and two of them cannot stand as their own bar.
+ *
+ * **Received and Closed are counted together.** Both mean the unit is back
+ * from the vendor; the only thing separating them is SAP's delivery-complete
+ * flag (EKPO.ELIKZ), and that flag carries almost no information here.
+ * Measured against the deployed register on 13-Oct-2026: of 400 lines with
+ * NOTHING received, 358 (90%) were already flagged delivery-complete, and the
+ * corner that defines "Received" — fully back AND not flagged — held 0 of
+ * 5,155 lines. A flag set on nine lines in ten regardless of receipts cannot
+ * carry a lifecycle split, and an empty "Received" bar beside a full "Closed"
+ * one reads as a stage nothing reaches, which is a claim about repairs rather
+ * than about a flag.
+ *
+ * The register's own Repair Status column and filter still show all five, so
+ * the distinction stays one click away wherever it does occur.
+ */
+const STATUS_BUCKETS: { label: string; statuses: RepairStatus[]; color: string }[] = [
+  { label: "PR Raised", statuses: ["PR Raised"], color: "var(--chart-4)" },
+  { label: "PO Issued", statuses: ["PO Issued"], color: "var(--chart-1)" },
+  { label: "At Vendor", statuses: ["At Vendor"], color: "var(--chart-2)" },
+  { label: "Received / Closed", statuses: ["Received", "Closed"], color: "var(--chart-3)" },
+]
+
+/**
+ * Repair lines per lifecycle bucket, empty buckets dropped.
+ *
+ * An empty bar is a claim that the stage is tracked and nothing reached it.
+ * For `PR Raised` neither half of that is true — the register is built from PO
+ * lines, so nothing produces it — and the card's footnote says so in words
+ * instead. It stays a bucket rather than being deleted so that a
+ * requisition-stage row, if one ever arrives, draws itself.
+ */
+export function repairStatusBuckets(chains: RepairChain[]): StatusBucket[] {
+  return STATUS_BUCKETS.map((bucket) => ({
+    label: bucket.label,
+    color: bucket.color,
+    count: chains.filter((c) => bucket.statuses.includes(c.repairStatus)).length,
+  })).filter((bucket) => bucket.count > 0)
+}
+
+/** Below this, a turnaround average is an anecdote and is labelled as one. */
+export const THIN_TURNAROUND_SAMPLE = 3
+
+/** How many turnaround bars fit the card before they stop being readable. */
+export const TURNAROUND_LIMIT = 10
+
+/** One bar on the vendor turnaround chart. */
+export type TurnaroundBar = {
+  vendor: string
+  averageDays: number
+  sample: number
+  minDays: number | null
+  maxDays: number | null
+  openCount: number
+  overdueCount: number
+}
+
+/**
+ * Vendor turnaround bars, slowest first, with the counts needed to say what
+ * was left out.
+ *
+ * An average needs BOTH ends of the clock — a 541 dispatch and a goods receipt
+ * on the same line. Most vendors on the live register have neither, and a
+ * vendor missing from a turnaround chart reads as "this vendor has no
+ * repairs", which is a different and wrong claim. So the unmeasurable ones are
+ * counted here and named in the card's footnote rather than silently dropped.
+ *
+ * Returns `measurable` and `total` alongside the bars so the footnote is
+ * written from the same numbers that drew them and the two cannot disagree.
+ */
+export function turnaroundBars(
+  vendors: ApiVendorTurnaround[],
+  limit: number = TURNAROUND_LIMIT,
+): { bars: TurnaroundBar[]; measurable: number; total: number; hidden: number } {
+  const measurable = vendors.filter((v) => v.avgTurnaroundDays !== null)
+  const ranked = measurable
+    .map((v) => ({
+      // An unnamed vendor shows its code. No LFA1 row was delivered for some
+      // of them -- a code is a fact, an invented name is not.
+      vendor: v.vendorName ?? v.vendor,
+      averageDays: Math.round(v.avgTurnaroundDays as number),
+      sample: v.turnaroundSample,
+      minDays: v.minTurnaroundDays === null ? null : Math.round(v.minTurnaroundDays),
+      maxDays: v.maxTurnaroundDays === null ? null : Math.round(v.maxTurnaroundDays),
+      openCount: v.openCount,
+      overdueCount: v.overdueCount,
+    }))
+    // Slowest at the top: those are the ones worth a conversation.
+    .sort((a, b) => b.averageDays - a.averageDays || a.vendor.localeCompare(b.vendor))
+
+  return {
+    bars: ranked.slice(0, limit),
+    measurable: measurable.length,
+    total: vendors.length,
+    hidden: Math.max(0, ranked.length - limit),
   }
 }
 

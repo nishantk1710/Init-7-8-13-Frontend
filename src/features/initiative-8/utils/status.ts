@@ -299,9 +299,18 @@ export function formatDaysRemaining(chain: RepairChain): string {
   return UNKNOWN
 }
 
+/**
+ * The bucket a line with no vendor at all falls into.
+ *
+ * Exported so a caller can TEST for the group rather than retyping the string:
+ * the overview only explains the group when one is actually on screen, and a
+ * second copy of this literal would quietly stop matching.
+ */
+export const UNKNOWN_VENDOR = "Unknown vendor"
+
 /** The vendor to show: its name when known, else its code, else a placeholder. */
 export function vendorLabel(chain: RepairChain): string {
-  return chain.vendorName ?? chain.vendor ?? "Unknown vendor"
+  return chain.vendorName ?? chain.vendor ?? UNKNOWN_VENDOR
 }
 
 /** A number for display, or a placeholder when the source does not carry one. */
