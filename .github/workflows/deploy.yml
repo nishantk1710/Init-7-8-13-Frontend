@@ -80,6 +80,10 @@ jobs:
           # ASSISTANT_DEMO=true; delete the variable and redeploy once the
           # backend opens real repairable and OAR sessions.
           NEXT_PUBLIC_ASSISTANT_DEMO: ${{ vars.ASSISTANT_DEMO || 'false' }}
+          # How long a GET may take before the page gives up, in ms
+          # (src/lib/api/client.ts). Repository variable API_GET_TIMEOUT_MS
+          # overrides the 60 s default; App Service cuts requests at 230 s.
+          NEXT_PUBLIC_API_GET_TIMEOUT_MS: ${{ vars.API_GET_TIMEOUT_MS || '60000' }}
         run: npm run build
 
       # The standalone output deliberately omits public/ and .next/static/ --
