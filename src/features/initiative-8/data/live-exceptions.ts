@@ -10,12 +10,23 @@
  * carries `actionable` (total less pre-automation) alongside `total`. Quoting
  * either one on its own misleads, in opposite directions.
  *
- * ## Paged, and honest when it stops
+ * `preAutomation` depends on `attestationCutoverDate`, which is unset on the
+ * deployed backend -- so every row currently reads as actionable, and
+ * `actionable === total`. Hiding pre-automation rows, on this screen, hides
+ * nothing today. It stays applied because it is correct and will matter the
+ * day VZI supplies the date (FRS open item, audit §10 item 5's sibling), but
+ * it must not be read as a way to make this fetch shorter right now.
  *
- * The backend caps a page, and the queue can run to thousands of rows. The
- * loop below stops at `MAX_ROWS` and reports that it did. A queue that
- * silently shows the first slice reads as a complete queue, and somebody will
- * work it to the bottom and believe they are finished.
+ * ## Paged, to the end
+ *
+ * The backend caps a page at `maxPageSize` (500), and the queue can run to
+ * thousands of rows. The loop below follows pages until it has everything,
+ * the same way `live-register.ts` and `live-declarations.ts` do. There used
+ * to be a `MAX_ROWS` ceiling here, and it is why this screen showed "first
+ * 2,000 of 5,975" -- a limit this file imposed on itself, not one the API or
+ * the browser required. Removed 13-Oct-2026 for the same reason it came out
+ * of the declaration queue: a cap with a caption still shows a partial queue,
+ * and the caption does not make that true.
  */
 
 import type {
@@ -121,7 +132,6 @@ export type LiveExceptions = {
   truncated: boolean
 }
 
-const MAX_ROWS = 2000
 const PAGE_SIZE = 500
 
 /**
@@ -150,8 +160,9 @@ export async function loadLiveExceptions(
 
     rows.push(...body.items.map(toRow))
 
-    if (rows.length >= total || body.items.length === 0 || rows.length >= MAX_ROWS)
-      break
+    // Stops on the total, or on an empty page -- never on a row count of its
+    // own, which is what let the fetch stop short of everything before.
+    if (rows.length >= total || body.items.length === 0) break
     page += 1
   }
 
