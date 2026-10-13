@@ -15,6 +15,10 @@ import { fromAssistant } from "@/lib/assistant/justifications"
 /** Shown on a tile whose source could not be read -- never a 0. */
 const NOT_LOADED = "Could not be loaded"
 
+/** A check the backend does not run. Distinct from a failed fetch, and from a
+ *  genuine zero -- see the three states where the tiles are computed. */
+const UNKNOWN = "—"
+
 export const metadata: Metadata = {
   title: "New-acquisition justifications — Spares AI",
 }
@@ -65,11 +69,28 @@ export default async function I08JustificationsPage() {
 
   const recorded = entries?.items.length ?? 0
   const linkedToSession = entries?.items.filter((e) => e.sessionId).length ?? 0
-  const stillUnjustified = exceptionMeta?.byType?.UNJUSTIFIED_ACQUISITION ?? null
+  // THREE states, and they are three different claims. `byType` is built by
+  // counting items, so a check that found NOTHING has no key at all -- and
+  // reading that absence as "could not be loaded" reported a clean result as
+  // a failure. Measured on the deployed API 13-Oct-2026: the check had run
+  // over 6,837 new purchases and found zero unjustified, and both tiles below
+  // said "Could not be loaded" instead of 0 and 100%.
+  //
+  //   null       the exception check could not be read at all
+  //   undefined  the check is not running, so a 0 would be a lie
+  //   a number   the check ran; an absent key means it found none
+  const checkRuns =
+    exceptionMeta?.typesRaised?.includes("UNJUSTIFIED_ACQUISITION") ?? false
+  const stillUnjustified =
+    exceptionMeta === null
+      ? null
+      : checkRuns
+        ? (exceptionMeta.byType?.UNJUSTIFIED_ACQUISITION ?? 0)
+        : undefined
   // Of the new purchases the check looked at, how many carry a reason.
   const checked = exceptionMeta?.acquisitionsChecked ?? null
   const compliance =
-    checked && checked > 0 && stillUnjustified !== null
+    checked && checked > 0 && typeof stillUnjustified === "number"
       ? Math.round(((checked - stillUnjustified) / checked) * 100)
       : null
 
@@ -94,12 +115,28 @@ export default async function I08JustificationsPage() {
           />
           <KPIStatCard
             label="Purchases still unjustified"
-            value={stillUnjustified === null ? NOT_LOADED : formatCount(stillUnjustified)}
-            hint="bought while a repair was open, no reason given"
+            value={
+              stillUnjustified === null
+                ? NOT_LOADED
+                : stillUnjustified === undefined
+                  ? UNKNOWN
+                  : formatCount(stillUnjustified)
+            }
+            hint={
+              stillUnjustified === undefined
+                ? "this check is not running on this backend"
+                : "bought while a repair was open, no reason given"
+            }
           />
           <KPIStatCard
             label="Justification compliance"
-            value={compliance === null ? NOT_LOADED : `${compliance}%`}
+            value={
+              compliance === null
+                ? stillUnjustified === undefined
+                  ? UNKNOWN
+                  : NOT_LOADED
+                : `${compliance}%`
+            }
             hint={
               checked === null
                 ? undefined
