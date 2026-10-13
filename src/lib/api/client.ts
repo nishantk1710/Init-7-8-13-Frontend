@@ -174,6 +174,19 @@ async function readErrorBody(response: Response): Promise<ErrorBody> {
 export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS ?? 20000)
 
 /**
+ * The budget for the few GETs known to be slow, passed as `timeoutMs`.
+ *
+ * Deliberately NOT the default: raising that would make every screen in the
+ * app sit for a minute before reporting a hung backend, to accommodate one
+ * screen that reads free text across the whole purchase-order extract. A
+ * route opts in rather than everything paying for it.
+ */
+export const SLOW_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_SLOW_GET_TIMEOUT_MS ?? 60000)
+
+/** `RequestInit` plus the per-call timeout override. */
+export type ApiRequestInit = RequestInit & { timeoutMs?: number }
+
+/**
  * The backend answers 503 with `Retry-After` while an I08 or I13 snapshot is
  * unavailable, for one of two reasons the body tells apart:
  *
@@ -204,28 +217,32 @@ function unavailableMessage(response: Response, body: ErrorBody): string {
   )
 }
 
-async function request(path: string, init?: RequestInit): Promise<Response> {
+async function request(path: string, init?: ApiRequestInit): Promise<Response> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
-  const method = init?.method ?? "GET"
-  const signal =
-    init?.signal ?? (method === "GET" && API_GET_TIMEOUT_MS > 0 ? AbortSignal.timeout(API_GET_TIMEOUT_MS) : undefined)
+  const { timeoutMs, ...fetchInit } = init ?? {}
+  const method = fetchInit.method ?? "GET"
+  // One number for both the abort and the message, so a route that opted into
+  // a longer budget cannot report the default one back and read as a 20s
+  // failure that never happened.
+  const budget = timeoutMs ?? (method === "GET" ? API_GET_TIMEOUT_MS : 0)
+  const signal = fetchInit.signal ?? (budget > 0 ? AbortSignal.timeout(budget) : undefined)
 
   let response: Response
   try {
     response = await fetch(url, {
-      ...init,
+      ...fetchInit,
       signal,
       headers: {
         // A multipart body sets its own Content-Type, boundary included.
-        ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        ...(fetchInit.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         [ACTOR_ID_HEADER]: currentActorId(),
-        ...init?.headers,
+        ...fetchInit.headers,
       },
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
       throw new ApiError(
-        `The backend did not respond within ${Math.round(API_GET_TIMEOUT_MS / 1000)} seconds (${method} ${url}).`,
+        `The backend did not respond within ${Math.round(budget / 1000)} seconds (${method} ${url}).`,
         504
       )
     }
@@ -253,7 +270,7 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
  * it on read routes too (the ACT routes log who looked), and a header that is
  * only sometimes present is harder to reason about than one that always is.
  */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const response = await request(path, init)
 
   // 204 has no body. Nothing in this API returns one today, but a JSON parse of
@@ -279,7 +296,7 @@ export type ApiList<T> = {
  * shape changed) and report the unpaged total in that header, which is what
  * lets a screen say "1,000 of 42,649" instead of "there may be more".
  */
-export async function apiFetchList<T>(path: string, init?: RequestInit): Promise<ApiList<T>> {
+export async function apiFetchList<T>(path: string, init?: ApiRequestInit): Promise<ApiList<T>> {
   const response = await request(path, init)
   const items = (await response.json()) as T[]
   const header = response.headers.get("X-Total-Count")

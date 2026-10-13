@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, apiFetch } from "@/lib/api/client"
+import { API_GET_TIMEOUT_MS, ApiError, SLOW_GET_TIMEOUT_MS, apiFetch } from "@/lib/api/client"
 
 function respond(status: number, body: unknown, headers: Record<string, string> = {}) {
   vi.stubGlobal(
@@ -69,5 +69,60 @@ describe("a snapshot 503", () => {
     const error = await failure()
     expect(error.message).toMatch(/failed with 503$/)
     expect(error.detailText()).toBe("database unavailable")
+  })
+})
+
+/**
+ * The per-route timeout override.
+ *
+ * Coding Candidates reads free text across the whole purchase-order and
+ * requisition extract and is slow in a way no other screen is, so it opts into
+ * a longer budget. The risk worth a test is not the abort -- it is the MESSAGE:
+ * the reported number used to be read from the default constant whatever
+ * budget actually applied, so a route that waited 60s would tell the user the
+ * backend failed to answer in 20. That reads as a different, faster failure
+ * than the one that happened.
+ */
+describe("a route that asks for a longer timeout", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function timeOut() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError")
+      })
+    )
+  }
+
+  it("reports the budget it actually waited, not the default", async () => {
+    timeOut()
+    try {
+      await apiFetch("/i8/coding-candidates", { timeoutMs: SLOW_GET_TIMEOUT_MS })
+      expect.unreachable("the request should have timed out")
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError)
+      expect((error as ApiError).message).toContain(
+        `within ${Math.round(SLOW_GET_TIMEOUT_MS / 1000)} seconds`
+      )
+    }
+  })
+
+  it("still reports the default for a route that did not opt in", async () => {
+    timeOut()
+    try {
+      await apiFetch("/i8/snapshot")
+      expect.unreachable("the request should have timed out")
+    } catch (error) {
+      expect((error as ApiError).message).toContain(
+        `within ${Math.round(API_GET_TIMEOUT_MS / 1000)} seconds`
+      )
+    }
+  })
+
+  it("leaves the two budgets distinguishable", () => {
+    // If these ever converge the tests above still pass while asserting
+    // nothing, so the premise is checked rather than assumed.
+    expect(SLOW_GET_TIMEOUT_MS).toBeGreaterThan(API_GET_TIMEOUT_MS)
   })
 })
