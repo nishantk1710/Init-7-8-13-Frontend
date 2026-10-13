@@ -65,7 +65,13 @@ export default async function I08DeclarationsPage() {
     .then((body) => body.faultCategories ?? [])
     .catch(() => [] as string[])
   try {
-    data = await loadLiveDeclarations()
+    // Only what the table draws. The table is scoped to outstanding rows --
+    // with no declaration-status column, a Completed row would look
+    // identical to an undeclared one -- so fetching the Completed ones too
+    // would be paying to transfer rows nothing renders. The table still
+    // filters them again itself, so a backend that ignores the parameter
+    // renders exactly the same screen.
+    data = await loadLiveDeclarations({ outstandingOnly: true })
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
@@ -116,7 +122,7 @@ export default async function I08DeclarationsPage() {
                 "Could not be loaded" rather than a 0 where the source failed:
                 a zero here reads as "nothing outstanding", which is the
                 opposite of what a failed call means. */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KPIStatCard
                 label="Repair lines undeclared"
                 value={formatCount(data.summary.outstanding)}
@@ -161,25 +167,6 @@ export default async function I08DeclarationsPage() {
                 }
                 hint="scrap or beyond economical repair"
               />
-              {/* Assessed as not repairable and sent for repair anyway. The
-                  one number on this screen that is a finding rather than a
-                  count: somebody overrode an assessment. */}
-              <KPIStatCard
-                label="Sent for repair anyway"
-                value={formatCount(data.summary.byStatus.Flagged ?? 0)}
-                trend={(data.summary.byStatus.Flagged ?? 0) > 0 ? "down" : "flat"}
-                trendLabel={(data.summary.byStatus.Flagged ?? 0) > 0 ? "Flagged" : undefined}
-                hint="declared not repairable, repair raised"
-              />
-              <KPIStatCard
-                label="Amendments"
-                value={
-                  data.log === null
-                    ? NOT_LOADED
-                    : formatCount(data.log.filter((r) => r.isAmendment).length)
-                }
-                hint="declarations corrected by a later one"
-              />
             </div>
 
             <section className="flex flex-col gap-3">
@@ -212,7 +199,7 @@ export default async function I08DeclarationsPage() {
                   </p>
                 </div>
               ) : (
-                <DeclarationLogTable rows={data.log} faultCategories={categories} />
+                <DeclarationLogTable rows={data.log} />
               )}
             </section>
           </>

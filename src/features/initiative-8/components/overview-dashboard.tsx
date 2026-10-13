@@ -20,7 +20,7 @@ import { RepairableStockByPlantChart } from "@/features/initiative-8/components/
 import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs-by-vendor-chart"
 import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
 import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
-import { VendorTurnaroundTable } from "@/features/initiative-8/components/vendor-turnaround-table"
+import { VendorTurnaroundChart } from "@/features/initiative-8/components/vendor-turnaround-chart"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   ALL,
@@ -30,10 +30,11 @@ import {
   openLinesByVendor,
   overviewSummaryRows,
   summariseOverview,
+  turnaroundBars,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
+import { NO_CRITICALITY, UNKNOWN, UNKNOWN_VENDOR } from "@/features/initiative-8/utils/status"
 import type { ApiUniverseMeta, ApiVendorTurnaround } from "@/lib/api/i8"
 import { cn, downloadCsv, formatCount } from "@/lib/utils"
 
@@ -101,6 +102,12 @@ export function OverviewDashboard({
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
   const vendors = useMemo(() => openLinesByVendor(slice.chains), [slice])
+  // Computed from the same helper the chart draws with, so the footnote's
+  // "N of M" can never disagree with the bars above it.
+  const turnaround = useMemo(
+    () => (vendorTurnaround ? turnaroundBars(vendorTurnaround) : null),
+    [vendorTurnaround],
+  )
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
@@ -246,6 +253,17 @@ export function OverviewDashboard({
         <ChartCard
           title="Repair status distribution"
           subtitle={`All ${formatCount(metrics.totalLines)} repair lines, by current lifecycle stage`}
+          footnote={
+            <>
+              Received and Closed are counted together: both mean the unit is
+              back, and the only thing separating them is SAP&rsquo;s
+              delivery-complete flag, which is set on about nine lines in ten
+              whether or not anything has been received. The register&rsquo;s
+              Repair Status column still tells them apart. There is no
+              requisition stage — the register is built from purchase order
+              lines, so a repair appears once it has been ordered.
+            </>
+          }
           span={6}
         >
           <RepairStatusChart chains={slice.chains} />
@@ -261,8 +279,13 @@ export function OverviewDashboard({
             <>
               A count of open lines, not a turnaround.
               {vendors.otherLines > 0 &&
-                ` The other ${vendors.vendorCount - vendors.top.length} vendors hold ${formatCount(vendors.otherLines)} open lines.`}{" "}
-              Lines with no PO header in the extract are grouped as Unknown vendor.
+                ` The other ${vendors.vendorCount - vendors.top.length} vendors hold ${formatCount(vendors.otherLines)} open lines.`}
+              {/* Only said when it is true of the data on screen. Every line
+                  currently carries a PO header, so the group is empty and a
+                  standing sentence about it described a case that no longer
+                  occurs. */}
+              {vendors.top.some((v) => v.vendor === UNKNOWN_VENDOR) &&
+                " Lines with no purchase-order header are grouped as Unknown vendor."}
             </>
           }
           span={6}
@@ -275,20 +298,35 @@ export function OverviewDashboard({
             read as the other. */}
         <ChartCard
           title="Vendor turnaround"
-          subtitle="Dispatch to goods receipt, over closed repairs only"
+          subtitle={
+            turnaround && turnaround.bars.length > 0
+              ? `Average days, dispatch to goods receipt — slowest ${turnaround.bars.length} of ${turnaround.measurable} measurable vendors`
+              : "Dispatch to goods receipt, over closed repairs only"
+          }
           footnote={
             <>
               Measured from the first 541 to the first goods receipt on the same
-              line. A line still at a vendor has no turnaround yet and is
-              counted under &ldquo;Repairs by vendor&rdquo; instead. Computed by
-              the backend over the whole register, so the filters above do not
+              line.{" "}
+              {turnaround && (
+                <>
+                  <strong>
+                    {turnaround.measurable} of {turnaround.total} vendors
+                  </strong>{" "}
+                  have at least one repair with both a dispatch and a receipt;
+                  the rest hold repairs that cannot be timed yet and are not
+                  drawn — that is not the same as having no repairs.{" "}
+                </>
+              )}
+              A line still at a vendor has no turnaround yet and is counted
+              under &ldquo;Repairs by vendor&rdquo; instead. Computed by the
+              backend over the whole register, so the filters above do not
               narrow it.
             </>
           }
           span={6}
         >
           {vendorTurnaround ? (
-            <VendorTurnaroundTable vendors={vendorTurnaround} />
+            <VendorTurnaroundChart vendors={vendorTurnaround} />
           ) : (
             <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
               Vendor turnaround could not be loaded, so it is not shown. This is

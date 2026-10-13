@@ -54,6 +54,13 @@
 }
 
 :root {
+  /* Native controls -- the <select> popup, scrollbars, date pickers -- are
+     painted by the browser, not by these tokens, and default to light. The
+     assistant's reason dropdown inherited the page's light text colour and
+     then drew it on the browser's white popup: unreadable until hover, when
+     the browser forced its own highlight colours. Declaring the scheme is
+     what tells the browser which way round the page actually is. */
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -93,6 +100,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

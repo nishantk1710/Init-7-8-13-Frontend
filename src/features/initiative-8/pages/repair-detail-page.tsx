@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import type { ReactNode } from "react"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -109,7 +108,7 @@ export function RepairDetailPage({
           <PageHeader title="Repair not found" />
           <EmptyState
             title={`No repair chain "${repairId}"`}
-            description="No repair line with this id exists in the July SAP extract."
+            description="No repair line with this id exists in the register."
           />
         </div>
       </div>
@@ -123,7 +122,7 @@ export function RepairDetailPage({
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <PageHeader
           title={`Repair ${chain.id}`}
-          description="Live data from the July SAP extract. Every stage below shows the evidence for it, or why there is none."
+          description="Every stage below shows the evidence for it, or why there is none."
           actions={
             <div className="flex items-center gap-2">
               <StatusBadge tone={REPAIR_STATUS_TONE[chain.repairStatus]}>
@@ -329,7 +328,7 @@ export function RepairDetailPage({
 
             <JustificationPanel chain={chain} />
 
-            <TraceabilityPanel chain={chain} exceptions={exceptions} />
+            <LineExceptions chain={chain} exceptions={exceptions} />
           </div>
         </div>
       </div>
@@ -338,130 +337,71 @@ export function RepairDetailPage({
 }
 
 /**
- * What this line can be traced through, end to end (FR-8).
+ * What the FR-8 checks raised against this line.
  *
- * Three steps, in the order they happen: the part was assessed, a reason was
- * recorded for anything bought new while it was out, and whatever the checks
- * raised against it. Each step reads as done, missing, or not checked — and
- * those are three different things, which is the whole point of the card.
+ * All that is left of the Traceability card, which was removed on
+ * 13-Oct-2026. That card restated the Declaration and Justification panels
+ * above it as a three-step list, and two of its three steps were the same
+ * facts a second time.
  *
- * There is no session step. FR-8 also asks for the reservation's Spares
- * Assistant session to be traceable to the repair, and I08's extract has no
- * reservation view at all — no RESB, so no SGTXT to read a session id back
- * from. Showing an empty "Session" row would imply the link exists and is
- * unpopulated, when in fact nothing upstream carries it.
+ * The third was not, and is why this strip exists: the exception items are
+ * shown nowhere else on this page, and losing them would also lose the only
+ * route from a repair line into the queue.
+ *
+ * Three states, and they are three different claims. Items found. Checks ran
+ * and found nothing. The queue could not be read at all -- which must never
+ * render as a clean bill of health.
  */
-function TraceabilityPanel({
+function LineExceptions({
   chain,
   exceptions,
 }: {
   chain: RepairChain
   exceptions: ExceptionQueueRow[] | null
 }) {
-  const declared = chain.declarationStatus === "Completed"
-  const justificationCell = justificationCellOf(chain)
-  const unjustified = chain.justification?.unjustifiedPurchases ?? []
-
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-1 text-sm font-medium text-foreground">Traceability</div>
-      <p className="mb-3 text-[11px] text-muted-foreground">
-        What can be followed from this repair line, and what cannot.
-      </p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">Exceptions on this line</span>
+        {exceptions !== null && exceptions.length > 0 && (
+          <Link
+            href={`/repairable-spares/exceptions?repair=${encodeURIComponent(chain.id)}`}
+            className="text-xs text-primary hover:underline"
+          >
+            Open queue
+          </Link>
+        )}
+      </div>
 
-      <ul className="flex flex-col gap-2 text-xs">
-        <TraceStep
-          label="Condition declared before dispatch"
-          state={declared ? "done" : chain.declarationStatus === "Flagged" ? "warn" : "missing"}
-        >
-          {declared
-            ? `${chain.condition ?? "Assessed"} by ${chain.declaredBy ?? UNKNOWN}${chain.declaredAt ? ` on ${chain.declaredAt}` : ""}.`
-            : chain.declarationStatus === "Flagged"
-              ? "Assessed as not repairable, and sent for repair anyway."
-              : "No recorded assessment covers this line."}
-        </TraceStep>
-
-        <TraceStep
-          label="New purchases while it was out"
-          state={
-            justificationCell === "RECORDED"
-              ? "done"
-              : unjustified.length > 0
-                ? "missing"
-                : "none"
-          }
-        >
-          {justificationCell === "RECORDED" ? (
-            <>
-              A reason is on record. The full log is on the{" "}
-              <Link href="/repairable-spares/justifications" className="text-primary hover:underline">
-                Justifications
-              </Link>{" "}
-              screen.
-            </>
-          ) : unjustified.length > 0 ? (
-            `${unjustified.length} new unit(s) bought with no reason recorded.`
-          ) : (
-            "Nothing was bought new while this repair was open."
-          )}
-        </TraceStep>
-
-        <TraceStep
-          label="Exceptions raised on this line"
-          state={exceptions === null ? "unknown" : exceptions.length > 0 ? "warn" : "none"}
-        >
-          {exceptions === null ? (
-            "The exception queue could not be read, so this line's findings are unknown."
-          ) : exceptions.length === 0 ? (
-            "No check has raised anything against this line."
-          ) : (
-            <span className="flex flex-col gap-1">
-              {exceptions.map((item) => (
-                <Link
-                  key={item.id}
-                  href={`/repairable-spares/exceptions?id=${encodeURIComponent(item.id)}`}
-                  className="text-primary hover:underline"
-                >
-                  {exceptionTypeLabel(item.type)} — {EXCEPTION_STATUS_LABEL[item.status]}
-                  {item.owner ? ` · ${item.owner}` : " · unassigned"}
-                </Link>
-              ))}
-            </span>
-          )}
-        </TraceStep>
-      </ul>
+      {exceptions === null ? (
+        <p className="text-xs text-warning">
+          The exception queue could not be read, so this line&rsquo;s findings
+          are unknown. This is not &ldquo;nothing found&rdquo;.
+        </p>
+      ) : exceptions.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          The checks ran and raised nothing against this line.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1.5 text-xs">
+          {exceptions.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={`/repairable-spares/exceptions?id=${encodeURIComponent(item.id)}`}
+                className="text-primary hover:underline"
+              >
+                {exceptionTypeLabel(item.type)}
+              </Link>
+              <span className="text-muted-foreground">
+                {" — "}
+                {EXCEPTION_STATUS_LABEL[item.status]}
+                {item.owner ? ` · ${item.owner}` : " · unassigned"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
-  )
-}
-
-/** One step of the chain, with a dot whose colour is the claim being made. */
-function TraceStep({
-  label,
-  state,
-  children,
-}: {
-  label: string
-  /** done = it happened · missing = it did not · warn = it happened badly ·
-   *  none = nothing to trace here · unknown = we could not find out */
-  state: "done" | "missing" | "warn" | "none" | "unknown"
-  children: ReactNode
-}) {
-  const tone = {
-    done: "bg-success",
-    missing: "bg-destructive",
-    warn: "bg-warning",
-    none: "bg-muted-foreground",
-    unknown: "bg-muted-foreground",
-  }[state]
-
-  return (
-    <li className="flex gap-2">
-      <span className={`mt-1 size-2 shrink-0 rounded-full ${tone}`} aria-hidden />
-      <span className="flex flex-col">
-        <span className="font-medium text-foreground">{label}</span>
-        <span className="text-muted-foreground">{children}</span>
-      </span>
-    </li>
   )
 }
 

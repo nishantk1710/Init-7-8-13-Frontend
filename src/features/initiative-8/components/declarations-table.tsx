@@ -26,10 +26,7 @@ import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
 } from "@/features/initiative-8/types/repair"
-import {
-  DECLARATION_STATUSES,
-  DECLARATION_STATUS_TONE,
-} from "@/features/initiative-8/utils/status"
+import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
 import { downloadCsv } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
@@ -63,9 +60,7 @@ export function DeclarationsTable({
   // against a different part.
   const [formKey, setFormKey] = useState(0)
 
-  const [status, setStatus] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
-  const [outstandingOnly, setOutstandingOnly] = useState(false)
 
   // FR-10 asks for a plant filter on every screen, and the register is the
   // only one that had one. Built from the rows rather than hard-coded: the
@@ -79,50 +74,62 @@ export function DeclarationsTable({
     return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b))
   }, [rows])
 
+  // Outstanding only, and not as a default somebody can switch off.
+  //
+  // The heading above this table says "still owed a declaration", and since
+  // 13-Oct the columns carry no declaration status at all. A Completed row
+  // would be indistinguishable from an undeclared one and would still offer a
+  // "Declare condition" button, which is why this is a scope rather than a
+  // filter.
+  //
+  // "Outstanding" is the backend's own test -- Required or Flagged, anything
+  // not Completed -- so this table and the "Repair lines undeclared" tile
+  // above it count the same rows. A Flagged line was declared NOT repairable
+  // and sent for repair anyway; it still wants somebody's attention, and the
+  // tile already counts it.
   const filtered = useMemo(() => {
     return rows.filter((row) => {
-      if (status !== ALL && row.status !== status) return false
+      if (row.status === "Completed") return false
       if (plant !== ALL && row.plant?.plantId !== plant) return false
-      if (outstandingOnly && row.status === "Completed") return false
       return true
     })
-  }, [rows, status, plant, outstandingOnly])
+  }, [rows, plant])
 
   function exportCsv() {
     downloadCsv(
       "i08-declaration-queue.csv",
+      // Wider than the table on purpose, the same way the register's export
+      // is: the screen is for working the queue, the file is for somebody
+      // slicing it in Excel, and the repair line and requisition are what
+      // they need to join it to anything else.
       [
         "Material",
         "Description",
         "Plant",
+        "Vendor",
+        "Repair Status",
         "Repair Line",
         "Requisition",
         "Requester Code",
-        "Status",
-        "Condition",
-        "Declared By",
-        "Declared At",
-        "Next Action",
+        "Declaration Status",
+        "Raised",
       ],
       filtered.map((row) => [
         row.material.materialCode,
         row.material.description ?? "",
         row.plant?.name ?? row.plant?.plantId ?? "",
+        row.vendor ?? "",
+        row.repairStatus ?? "",
         row.relatedRepairId,
         row.purchaseRequisition ?? "",
         row.requester ?? "",
         row.status,
-        row.condition ?? "",
-        row.declaredBy ?? "",
-        row.declaredAt ?? "",
-        row.nextAction,
+        row.createdAt ?? "",
       ])
     )
   }
 
-  const activeFilters = [status !== ALL, plant !== ALL, outstandingOnly].filter(
-    Boolean
-  ).length
+  const activeFilters = plant !== ALL ? 1 : 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,28 +161,11 @@ export function DeclarationsTable({
           className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-foreground"
         >
           Showing the first {rows.length} of {summary.total} rows. This is a
-          partial queue, not an empty one — narrow by plant or status to see the
-          rest.
+          partial queue, not an empty one — narrow by plant to see the rest.
         </div>
       )}
 
       <FilterBar>
-        <Select value={status} onValueChange={(v) => setStatus(v ?? ALL)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All statuses">
-              {(value: string) => (value === ALL ? "All statuses" : value)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
-            {DECLARATION_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="All plants">
@@ -196,30 +186,9 @@ export function DeclarationsTable({
           </SelectContent>
         </Select>
 
-        <Select
-          value={outstandingOnly ? "yes" : ALL}
-          onValueChange={(v) => setOutstandingOnly(v === "yes")}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All declarations">
-              {(value: string) =>
-                value === "yes" ? "Outstanding only" : "All declarations"
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All declarations</SelectItem>
-            <SelectItem value="yes">Outstanding only</SelectItem>
-          </SelectContent>
-        </Select>
-
         <ClearFiltersButton
           activeCount={activeFilters}
-          onClear={() => {
-            setStatus(ALL)
-            setPlant(ALL)
-            setOutstandingOnly(false)
-          }}
+          onClear={() => setPlant(ALL)}
         />
       </FilterBar>
 
@@ -234,12 +203,9 @@ export function DeclarationsTable({
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead>Repair Line</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Condition</TableHead>
-                <TableHead>Declared By</TableHead>
-                <TableHead>Declared At</TableHead>
-                <TableHead>Next Action</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Repair Status</TableHead>
+                <TableHead>Raised</TableHead>
                 <TableHead className="text-right">
                   <span className="sr-only">Action</span>
                 </TableHead>
@@ -257,54 +223,42 @@ export function DeclarationsTable({
                   <TableCell className="text-muted-foreground">
                     {row.plant?.name ?? row.plant?.plantId ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.relatedRepairId}
-                    {row.hasActiveRepair && (
-                      <StatusBadge tone="warning" className="ml-2">
-                        Open
+                  {/* Name when LFA1 gave one, else the code, else neither.
+                      455 repair lines carry no PO header, so "not known from
+                      this data" is a real answer and gets said. */}
+                  <TableCell className="max-w-[180px] truncate text-muted-foreground">
+                    {row.vendor ?? "—"}
+                  </TableCell>
+                  {/* The REPAIR's status, not the declaration's. Whether the
+                      part is still out changes how urgent an undeclared line
+                      is, and every row here is undeclared by definition. */}
+                  <TableCell>
+                    {row.repairStatus ? (
+                      <StatusBadge tone={REPAIR_STATUS_TONE[row.repairStatus]}>
+                        {row.repairStatus}
                       </StatusBadge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={DECLARATION_STATUS_TONE[row.status]}>
-                      {row.status}
-                    </StatusBadge>
-                  </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {row.condition ?? "—"}
-                  </TableCell>
-                  {/* No sign-in exists, so this is whatever the server stamped
-                      -- UNAUTHENTICATED_LOCAL_USER on every row written so far
-                      (audit §11.3). Shown as recorded rather than prettied up. */}
-                  <TableCell className="text-muted-foreground">
-                    {row.declaredBy ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.declaredAt ?? "—"}
-                  </TableCell>
-                  <TableCell
-                    className="max-w-[320px] truncate text-muted-foreground"
-                    title={row.nextAction}
-                  >
-                    {row.nextAction}
+                    {row.createdAt ?? "—"}
                   </TableCell>
                   {/* Declare it from here. The form used to live only on the
                       repair detail page, which meant working this queue was a
                       round trip per row: open the repair, declare, come back,
                       find your place again. */}
                   <TableCell className="text-right">
-                    {row.status !== "Completed" && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => {
-                          setFormKey((k) => k + 1)
-                          setDeclaring(row)
-                        }}
-                      >
-                        Declare condition
-                      </Button>
-                    )}
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        setFormKey((k) => k + 1)
+                        setDeclaring(row)
+                      }}
+                    >
+                      Declare condition
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -323,6 +277,11 @@ export function DeclarationsTable({
             plantId: declaring.plant?.plantId,
             label: `${declaring.material.materialCode} - ${declaring.material.description} at ${declaring.plant?.name ?? "an unknown plant"} (repair ${declaring.relatedRepairId})`,
             defaultQuantity: "1",
+            // FR-4's link to the repair PO. Working a queue row declares THAT
+            // line, so it is named outright rather than left to a date window
+            // that these lines are far too old to satisfy.
+            repairDocument: declaring.repairPO?.documentNumber,
+            repairItem: declaring.repairPO?.line,
           }}
           faultCategories={faultCategories}
         />

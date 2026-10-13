@@ -31,23 +31,24 @@ import type {
   ExceptionStatus,
 } from "@/features/initiative-8/types/repair"
 import {
-  EXCEPTION_SEVERITY_TONE as SEVERITY_TONE,
   EXCEPTION_STATUSES,
   EXCEPTION_STATUS_LABEL,
   EXCEPTION_STATUS_TONE,
   exceptionTypeLabel as labelFor,
-  isOpenException,
 } from "@/features/initiative-8/utils/status"
 import { downloadCsv } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
 
-/** The status dropdown's default: OPEN and IN_PROGRESS together. */
-const ACTIVE = "active"
-
-/** The owner dropdown's "nobody has taken this" choice. */
-const UNASSIGNED = "unassigned"
+/** The status filter's default. Chosen over "All statuses" for the same
+ *  reason it always was: the queue runs to thousands of rows and almost all
+ *  of it is historical, so starting on everything would bury the handful
+ *  somebody can actually act on. "Open + In progress" used to be the default
+ *  value too, as a second blended option the dropdown offered; removed on
+ *  request, leaving OPEN -- the first of the four real statuses -- as the
+ *  plain default instead of a fifth synthetic one. */
+const DEFAULT_STATUS: ExceptionStatus = "OPEN"
 
 /**
  * What each check actually looks for.
@@ -100,12 +101,7 @@ export function ExceptionsTable({
   const [type, setType] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
   const [openOnly, setOpenOnly] = useState(false)
-  const [hidePreAutomation, setHidePreAutomation] = useState(false)
-  // Defaults to the items still being worked. The queue runs to thousands,
-  // and almost all of it is historical; showing every resolved item by
-  // default would bury the handful somebody can actually act on.
-  const [status, setStatus] = useState<string>(ACTIVE)
-  const [owner, setOwner] = useState<string>(ALL)
+  const [status, setStatus] = useState<string>(DEFAULT_STATUS)
   const [search, setSearch] = useState("")
   const [selectedId, setSelectedId] = useState<string | undefined>(initialId)
   const [drawerOpen, setDrawerOpen] = useState(initialId !== undefined)
@@ -127,29 +123,21 @@ export function ExceptionsTable({
     return [...seen].sort()
   }, [rows, summary.typesRaised])
 
-  // Only owners who actually hold something: a directory of everyone would
-  // be a list of names that mostly return nothing.
-  const owners = useMemo(() => {
-    const seen = new Set<string>()
-    for (const row of rows) if (row.owner) seen.add(row.owner)
-    return [...seen].sort()
-  }, [rows])
-
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return rows.filter((row) => {
       if (type !== ALL && row.type !== type) return false
       if (plant !== ALL && row.plant?.plantId !== plant) return false
       if (openOnly && !row.isOpenRepair) return false
-      if (hidePreAutomation && row.preAutomation) return false
-      if (status === ACTIVE && !isOpenException(row)) return false
-      if (status !== ACTIVE && status !== ALL && row.status !== status) return false
-      if (owner === UNASSIGNED && row.owner) return false
-      if (owner !== ALL && owner !== UNASSIGNED && row.owner !== owner) return false
+      // Always on, not a toggle. Depends on attestationCutoverDate, which is
+      // unset on the deployed backend -- every row reads as actionable today,
+      // so this filters nothing yet. It will the day VZI supplies the date.
+      if (row.preAutomation) return false
+      if (status !== ALL && row.status !== status) return false
       if (initialRepair && row.repairId !== initialRepair) return false
       if (
         needle &&
-        ![row.id, row.material.materialCode, row.material.description, row.repairLine, row.acquisitionLine, row.owner]
+        ![row.id, row.material.materialCode, row.material.description, row.repairLine]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(needle))
       ) {
@@ -157,7 +145,7 @@ export function ExceptionsTable({
       }
       return true
     })
-  }, [rows, type, plant, openOnly, hidePreAutomation, status, owner, search, initialRepair])
+  }, [rows, type, plant, openOnly, status, search, initialRepair])
 
   const selected = selectedId ? rows.find((r) => r.id === selectedId) : undefined
 
@@ -171,7 +159,7 @@ export function ExceptionsTable({
         "Description",
         "Plant",
         "Repair Line",
-        "Acquisition Line",
+        "New Purchase",
         "Raised At",
         "Open Repair",
         "Pre-automation",
@@ -201,11 +189,10 @@ export function ExceptionsTable({
     type !== ALL,
     plant !== ALL,
     openOnly,
-    hidePreAutomation,
-    // The status filter starts narrowed, so ACTIVE is not "a filter the user
-    // applied" -- counting it would show "1 filter" on an untouched screen.
-    status !== ACTIVE,
-    owner !== ALL,
+    // The status filter starts narrowed to DEFAULT_STATUS, so being on it is
+    // not "a filter the user applied" -- counting it would show "1 filter" on
+    // an untouched screen.
+    status !== DEFAULT_STATUS,
     search.trim() !== "",
   ].filter(Boolean).length
 
@@ -264,34 +251,6 @@ export function ExceptionsTable({
           ))}
         </dl>
 
-        <p className="mt-3 text-xs text-muted-foreground">
-          Declarations are matched within ±{summary.attestationWindowDays} days
-          of the repair line
-          {summary.justificationWindowDays
-            ? `, justifications within ±${summary.justificationWindowDays} days of the purchase`
-            : ""}
-          . Items are found by the checks, never typed in: recording the
-          declaration resolves a missing attestation, and a justification
-          naming the purchase resolves an unjustified acquisition.
-        </p>
-
-        {/* Named, not silently absent. A check that is not running produces no
-            rows, and a zero on screen would be indistinguishable from a clean
-            bill of health. */}
-        {ALL_CHECKS.some((t) => !summary.typesRaised.includes(t)) && (
-          <p className="mt-3 text-xs text-amber-700 dark:text-amber-500">
-            <strong>Not running yet:</strong>{" "}
-            {ALL_CHECKS.filter((t) => !summary.typesRaised.includes(t))
-              .map(labelFor)
-              .join(", ")}
-            . Nothing in this queue reflects{" "}
-            {ALL_CHECKS.filter((t) => !summary.typesRaised.includes(t)).length > 1
-              ? "those checks"
-              : "that check"}
-            , so their absence here is not evidence that there is nothing to
-            find.
-          </p>
-        )}
       </div>
 
       {truncated && (
@@ -360,69 +319,27 @@ export function ExceptionsTable({
           </SelectContent>
         </Select>
 
-        <Select
-          value={hidePreAutomation ? "yes" : ALL}
-          onValueChange={(v) => setHidePreAutomation(v === "yes")}
-        >
-          <SelectTrigger className="w-[240px]">
-            <SelectValue placeholder="Including pre-automation">
-              {(value: string) =>
-                value === "yes"
-                  ? "Actionable only"
-                  : "Including pre-automation"
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Including pre-automation</SelectItem>
-            <SelectItem value="yes">Actionable only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* FR-11: the queue is worked, so it filters by where the work is. */}
-        <Select value={status} onValueChange={(v) => setStatus(v ?? ACTIVE)}>
+        {/* FR-11: the queue is worked, so it filters by where the work is.
+            No "Open + In progress" blend any more -- that was a fifth,
+            synthetic option sitting beside the four real statuses. Starts on
+            OPEN, the plain first status, rather than on a combined one. */}
+        <Select value={status} onValueChange={(v) => setStatus(v ?? DEFAULT_STATUS)}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Open + In progress">
+            <SelectValue placeholder={EXCEPTION_STATUS_LABEL[DEFAULT_STATUS]}>
               {(value: string) =>
-                value === ACTIVE
-                  ? "Open + In progress"
-                  : value === ALL
-                    ? "All statuses"
-                    : EXCEPTION_STATUS_LABEL[value as ExceptionStatus] ?? value
+                value === ALL
+                  ? "All statuses"
+                  : EXCEPTION_STATUS_LABEL[value as ExceptionStatus] ?? value
               }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ACTIVE}>Open + In progress</SelectItem>
             {EXCEPTION_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {EXCEPTION_STATUS_LABEL[s]}
               </SelectItem>
             ))}
             <SelectItem value={ALL}>All statuses</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={owner} onValueChange={(v) => setOwner(v ?? ALL)}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue placeholder="Any owner">
-              {(value: string) =>
-                value === ALL
-                  ? "Any owner"
-                  : value === UNASSIGNED
-                    ? "Unassigned"
-                    : value
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any owner</SelectItem>
-            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-            {owners.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
           </SelectContent>
         </Select>
 
@@ -440,9 +357,7 @@ export function ExceptionsTable({
             setType(ALL)
             setPlant(ALL)
             setOpenOnly(false)
-            setHidePreAutomation(false)
-            setStatus(ACTIVE)
-            setOwner(ALL)
+            setStatus(DEFAULT_STATUS)
             setSearch("")
           }}
         />
@@ -460,14 +375,12 @@ export function ExceptionsTable({
                   two read the same way side by side. */}
               <TableRow>
                 <TableHead>Type</TableHead>
-                <TableHead>Severity</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Owner</TableHead>
                 <TableHead>Exception</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
                 <TableHead>Repair Line</TableHead>
-                <TableHead>Acquisition Line</TableHead>
+                <TableHead>New purchase</TableHead>
                 <TableHead>Raised</TableHead>
               </TableRow>
             </TableHeader>
@@ -490,19 +403,9 @@ export function ExceptionsTable({
                     {labelFor(row.type)}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge tone={SEVERITY_TONE[row.severity] ?? "default"}>
-                      {row.severity}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
                     <StatusBadge tone={EXCEPTION_STATUS_TONE[row.status]}>
                       {EXCEPTION_STATUS_LABEL[row.status]}
                     </StatusBadge>
-                  </TableCell>
-                  {/* Unassigned is the common state and says so, rather than
-                      rendering as an empty cell that looks like missing data. */}
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {row.owner ?? "Unassigned"}
                   </TableCell>
                   <TableCell className="max-w-[420px] whitespace-normal">
                     <p className="text-xs font-medium text-foreground">{row.title}</p>

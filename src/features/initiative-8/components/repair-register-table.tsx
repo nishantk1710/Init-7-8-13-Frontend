@@ -42,23 +42,13 @@ import {
   DECLARATION_STATUS_TONE,
   DEFAULT_AGING_BUCKETS,
   EXCEPTION_SEVERITY_TONE,
-  JUSTIFICATION_CELL_LABEL,
-  JUSTIFICATION_CELL_NOTE,
-  JUSTIFICATION_CELL_TONE,
-  LEAD_TIME_VERDICT_LABEL,
-  LEAD_TIME_VERDICT_TONE,
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
   OVERDUE_STATUS_TONE,
   REPAIR_STATUS_TONE,
   UNKNOWN,
-  type LeadTimeVerdict,
   exceptionTypeLabel,
-  hasNoLeadTime,
-  isBeyondLeadTime,
   isPartiallyReceived,
-  justificationCellOf,
-  orUnknown,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -284,18 +274,13 @@ export function RepairRegisterTable({
                 <TableHead>Vendor</TableHead>
                 <TableHead className="text-right">Qty Under Repair</TableHead>
                 <TableHead>Repair Status</TableHead>
-                <TableHead className="text-right">In Stage</TableHead>
                 <TableHead>Expected Return</TableHead>
                 <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
                 <TableHead className="text-right">Turnaround</TableHead>
-                <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
-                <TableHead>Justification</TableHead>
                 <TableHead>Exceptions</TableHead>
                 <TableHead>Criticality</TableHead>
-                <TableHead className="text-right">SOH</TableHead>
-                <TableHead className="text-right">ROP</TableHead>
                 <TableHead>Repair PR</TableHead>
                 <TableHead>Repair PO</TableHead>
               </TableRow>
@@ -304,14 +289,6 @@ export function RepairRegisterTable({
               {filtered.map((c) => {
                 const href = repairHref(c)
                 const overdue = overdueStatusOf(c)
-                const beyondLeadTime = isBeyondLeadTime(c)
-                const noLeadTime = hasNoLeadTime(c)
-                // Only reached when noLeadTime is false, so the absent third
-                // state never has to be represented as a verdict.
-                const verdict: LeadTimeVerdict = beyondLeadTime
-                  ? "BEYOND_LEAD_TIME"
-                  : "WITHIN_LEAD_TIME"
-                const justification = justificationCellOf(c)
                 return (
                   <TableRow
                     key={c.id}
@@ -360,15 +337,6 @@ export function RepairRegisterTable({
                         )}
                       </div>
                     </TableCell>
-                    {/* FR-9 asks for aging per lifecycle stage. Days open runs
-                        from the PO line date; this runs from the line entering
-                        the stage it is in now. A line 200 days open but 3 days
-                        at the vendor is a different problem from one 200 days
-                        open and 190 at the vendor, and only this column tells
-                        them apart. */}
-                    <TableCell className="text-right text-muted-foreground tabular-nums">
-                      {c.daysInCurrentStage ?? UNKNOWN}
-                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.expectedReturn ?? UNKNOWN}
                     </TableCell>
@@ -393,42 +361,6 @@ export function RepairRegisterTable({
                     >
                       {c.daysAtVendor ?? UNKNOWN}
                     </TableCell>
-                    {/* The lead-time verdict: a second, independent signal, not
-                        a fallback for Due Date Status -- see LeadTimeStatus.
-                        A badge where there is a verdict, a muted dash where
-                        there is none. NO_LEAD_TIME is the absence of a
-                        benchmark (no MARC.PLIFZ for this material at this
-                        plant, which is every Gamsberg line) and gets the same
-                        treatment as an unrated criticality, because a third
-                        badge beside two verdicts reads as a third verdict. */}
-                    <TableCell>
-                      {noLeadTime ? (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title="No planned delivery time (MARC.PLIFZ) is maintained for this material at this plant, so there is nothing to measure against"
-                        >
-                          {UNKNOWN}
-                        </span>
-                      ) : (
-                        <div className="flex flex-col items-start gap-0.5">
-                          <StatusBadge tone={LEAD_TIME_VERDICT_TONE[verdict]}>
-                            {LEAD_TIME_VERDICT_LABEL[verdict]}
-                          </StatusBadge>
-                          {/* The evidence, because "Beyond" on its own is a
-                              verdict without a number. Cites days elapsed
-                              rather than days open: that is what the check
-                              ran on. */}
-                          <span
-                            className="text-[10px] text-muted-foreground"
-                            title={`${c.daysElapsed ?? UNKNOWN} days elapsed (PO line raised to ${c.receivedAt ? "receipt" : "the reference date"}) against a ${c.leadTimeDays}-day planned delivery time`}
-                          >
-                            {beyondLeadTime
-                              ? `+${c.daysOverLeadTime}d over ${c.leadTimeDays}d`
-                              : `${c.leadTimeDays}d planned`}
-                          </span>
-                        </div>
-                      )}
-                    </TableCell>
                     {/* Who declared and when, under the status -- what the
                         Declaration Queue showed in two columns of its own. The
                         condition, the next action and the form are on the
@@ -445,32 +377,6 @@ export function RepairRegisterTable({
                           </span>
                         )}
                       </div>
-                    </TableCell>
-                    {/* FR-7 on this line. The full reason, who recorded it and
-                        the session are on the detail page. */}
-                    <TableCell>
-                      {justification === "NONE" ? (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title={JUSTIFICATION_CELL_NOTE.NONE}
-                        >
-                          {JUSTIFICATION_CELL_LABEL.NONE}
-                        </span>
-                      ) : (
-                        <div
-                          className="flex flex-col items-start gap-0.5"
-                          title={JUSTIFICATION_CELL_NOTE[justification]}
-                        >
-                          <StatusBadge tone={JUSTIFICATION_CELL_TONE[justification]}>
-                            {JUSTIFICATION_CELL_LABEL[justification]}
-                          </StatusBadge>
-                          <span className="max-w-[160px] truncate text-[10px] text-muted-foreground">
-                            {justification === "RECORDED"
-                              ? reasonLabel(c.justification?.entries[0]?.reasonCategory)
-                              : purchasesLabel(c.justification?.unjustifiedPurchases.length ?? 0)}
-                          </span>
-                        </div>
-                      )}
                     </TableCell>
                     {/* What the four FR-8 checks found against this line.
                         Joined onto the register by the page, so a line whose
@@ -519,14 +425,6 @@ export function RepairRegisterTable({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right text-foreground">
-                      {orUnknown(c.stockOnHand)}
-                    </TableCell>
-                    {/* Undefined for every Gamsberg material -- the July MARC
-                        extract has rows for plant 1300 only. A dash, never a 0. */}
-                    <TableCell className="text-right text-muted-foreground">
-                      {orUnknown(c.reorderPoint)}
-                    </TableCell>
                     <TableCell>
                       <SAPDocumentChip doc={c.repairPR} />
                     </TableCell>
@@ -546,15 +444,6 @@ export function RepairRegisterTable({
       )}
     </div>
   )
-}
-
-/** A reason category as words: `URGENT_BREAKDOWN` -> "urgent breakdown". */
-function reasonLabel(category: string | undefined): string {
-  return category ? category.replace(/_/g, " ").toLowerCase() : "reason recorded"
-}
-
-function purchasesLabel(count: number): string {
-  return count === 1 ? "1 new unit bought" : `${count} new units bought`
 }
 
 /** One register dropdown: an "all" choice followed by the given options. */

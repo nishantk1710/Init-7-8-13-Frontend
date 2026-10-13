@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useMemo, useState } from "react"
+import { Fragment, useMemo, useRef, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
@@ -30,9 +30,13 @@ import type {
 } from "@/features/initiative-8/types/repair"
 import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE } from "@/features/initiative-8/utils/status"
 import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
-import { getCodingCandidates } from "@/lib/api/i8"
+import {
+  CODING_SCREEN_BATCH,
+  CODING_SCREEN_TIMEOUT_MS,
+  getCodingCandidates,
+} from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
-import { downloadCsv } from "@/lib/utils"
+import { downloadCsv, formatCount } from "@/lib/utils"
 
 const ALL = "all"
 
@@ -40,12 +44,16 @@ const ALL = "all"
 // verdicts this build's prompt has ever produced. An unrecognised verdict
 // value still renders fine (CODING_VERDICT_TONE falls back to "default");
 // it just would not appear as a filter option until added here.
+/** The absence of a judgement, not a weak one -- and what the batched screen
+ *  counts to know where to resume from. */
+const UNSCREENED = "UNSCREENED"
+
 const VERDICTS = [
   "MISCODED_REPAIRABLE",
   "UNCLEAR",
   "REPAIR_SERVICE",
   "CONSUMABLE_FOR_REPAIR",
-  "UNSCREENED",
+  UNSCREENED,
 ]
 
 // How a line's source reads in the table. The raw enum values are shouted
@@ -96,7 +104,11 @@ export function CodingCandidatesTable({
   const [candidates, setCandidates] = useState(initialCandidates)
   const [meta, setMeta] = useState(initialMeta)
   const [screening, setScreening] = useState(false)
+  const [screenProgress, setScreenProgress] = useState<{ done: number; total: number } | null>(null)
   const [screenError, setScreenError] = useState<string | null>(null)
+  // A ref, not state: the running loop reads it between batches, and a state
+  // value captured when the loop started would never see the change.
+  const stopRef = useRef(false)
 
   const [verdict, setVerdict] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
@@ -197,23 +209,90 @@ export function CodingCandidatesTable({
     )
   }
 
+  /** How many materials still carry no judgement -- what the button offers to
+   *  work through, and what makes "All screened" an honest end state. */
+  const unscreenedCount = candidates.filter((c) => c.verdict === UNSCREENED).length
+
   /**
-   * The slow, opt-in language-judgement pass -- one model call per material,
-   * ~6 seconds each and strictly sequential (246s measured for 41 materials
-   * against live gpt-4o). Triggered from the client rather than the page load,
-   * exactly because it must not block rendering the fast keyword-only pass.
+   * The slow, opt-in language-judgement pass, run in batches.
+   *
+   * One model call per material, strictly sequential, about 5.5 seconds each
+   * measured against the deployed backend on 13-Oct-2026. With 113 materials
+   * in the pool that is roughly ten minutes -- and it used to be attempted as
+   * ONE request, which could not work on any timeout setting: Azure App
+   * Service ends a request at about 230 seconds and answers 504 itself.
+   *
+   * So it is split. Each call raises the limit by `CODING_SCREEN_BATCH`, and
+   * because a verdict is stored against the exact text it judged, the
+   * materials already done come back from storage instead of being re-bought.
+   * Verified: `limit=3` took 38.8s cold, `limit=6` took 18.0s -- three served
+   * from storage, three newly judged.
+   *
+   * Three things this does deliberately:
+   *
+   * **It keeps every batch.** State is updated after each one, so stopping
+   * halfway -- by the button, by a failure, by closing the tab -- leaves the
+   * work done so far both on screen and stored. Pressing the button again
+   * resumes rather than restarting.
+   *
+   * **It reports a failure without discarding progress.** A batch that throws
+   * sets the error and stops the loop; the batches before it stay.
+   *
+   * **It can be stopped.** A ten-minute operation with no way out is one
+   * nobody will start twice.
    */
   async function runScreen() {
     setScreening(true)
     setScreenError(null)
+    stopRef.current = false
+
+    // A limited response carries ONLY the materials that limit covered -- ten
+    // rows, not all 113 -- so each batch is MERGED into the list rather than
+    // replacing it. Replacing it shrank the table to the batch while the
+    // screen ran, which looked like the other candidates had been lost.
+    //
+    // Keyed by material and seeded from the current list, so the original
+    // order holds while verdicts fill in underneath. Rows that stay put as
+    // they resolve are easier to watch than rows that re-sort under the
+    // cursor; the backend's ranking applies again on the next full load.
+    const byMaterial = new Map(candidates.map((c) => [c.material.materialId, c]))
+    const total = candidates.length
+    // Resume from whatever is already judged -- an earlier run, or a
+    // colleague's. Never from zero.
+    let done = candidates.filter((c) => c.verdict !== UNSCREENED).length
+
     try {
-      const body = await getCodingCandidates({ screen: true })
-      setCandidates(body.items.map(toCodingCandidate))
-      setMeta(body.meta)
+      while (done < total) {
+        if (stopRef.current) break
+
+        const limit = Math.min(done + CODING_SCREEN_BATCH, total)
+        const body = await getCodingCandidates(
+          { screen: true, limit },
+          { timeoutMs: CODING_SCREEN_TIMEOUT_MS },
+        )
+
+        for (const row of body.items.map(toCodingCandidate)) {
+          byMaterial.set(row.material.materialId, row)
+        }
+        const merged = [...byMaterial.values()]
+        setCandidates(merged)
+        setMeta(body.meta)
+
+        const judged = merged.filter((c) => c.verdict !== UNSCREENED).length
+        // Nothing new came back. A backend that ignores `limit`, or a batch
+        // the model could not judge, would otherwise spin here for ever.
+        if (judged <= done) break
+        done = judged
+        setScreenProgress({ done, total })
+      }
     } catch (error) {
+      // The batches before this one are already on screen and already stored.
+      // Reporting the failure must not throw them away.
       setScreenError(error instanceof Error ? error.message : String(error))
     } finally {
       setScreening(false)
+      setScreenProgress(null)
+      stopRef.current = false
     }
   }
 
@@ -258,9 +337,29 @@ export function CodingCandidatesTable({
           <Button size="sm" variant="outline" onClick={exportCsv}>
             Export CSV
           </Button>
-          <Button size="sm" onClick={() => void runScreen()} disabled={screening}>
-            {screening ? "Screening… (~4 min)" : "Run AI screen"}
-          </Button>
+          {/* Progress, not a guess. The old label said "~4 min", calibrated
+              when the pool was 41 materials; it is 113 now and the estimate
+              was quietly wrong by six minutes. A count of what is actually
+              done cannot go stale that way. */}
+          {screening ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                stopRef.current = true
+              }}
+            >
+              {screenProgress
+                ? `Stop (${formatCount(screenProgress.done)} of ${formatCount(screenProgress.total)})`
+                : "Stop"}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => void runScreen()} disabled={unscreenedCount === 0}>
+              {unscreenedCount === 0
+                ? "All screened"
+                : `Run AI screen (${formatCount(unscreenedCount)} left)`}
+            </Button>
+          )}
         </div>
       </div>
 
