@@ -33,7 +33,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch, apiPost } from "@/lib/api/client"
+import { apiFetch, apiPost, type ApiRequestInit } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -958,9 +958,30 @@ export type CodingCandidatesQuery = {
  */
 export function getCodingCandidates(
   query: CodingCandidatesQuery = {},
+  init?: ApiRequestInit,
 ): Promise<ApiCodingCandidateResponse> {
-  return apiFetch(`/i8/coding-candidates${queryString(query)}`)
+  return apiFetch(`/i8/coding-candidates${queryString(query)}`, init)
 }
+
+/**
+ * How many materials one `screen=true` call may judge.
+ *
+ * Measured against the deployed backend on 13-Oct-2026: about 5.5 seconds of
+ * model time per material, strictly sequential. Ten is roughly a minute --
+ * comfortably inside both the timeout below and Azure's own ~230-second
+ * ceiling, and small enough that a failure costs one batch rather than ten
+ * minutes of work.
+ *
+ * Nothing is re-bought when a batch is repeated: a verdict is stored against
+ * the exact text it judged, so raising the limit screens only what is new.
+ * That is what makes the whole pass resumable (and what a single unbounded
+ * call could never be -- all 113 materials is about ten minutes, and the
+ * platform would have killed it at four).
+ */
+export const CODING_SCREEN_BATCH = 10
+
+/** Headroom for one batch. Well under Azure's ~230s, well over 10 x 5.5s. */
+export const CODING_SCREEN_TIMEOUT_MS = 150_000
 
 // --- Helpers --------------------------------------------------------------
 
