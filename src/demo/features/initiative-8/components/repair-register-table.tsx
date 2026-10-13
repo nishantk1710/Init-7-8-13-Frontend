@@ -51,9 +51,6 @@ import {
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
   AGING_BUCKETS,
-  JUSTIFICATION_CELL_LABEL,
-  JUSTIFICATION_CELL_NOTE,
-  JUSTIFICATION_CELL_TONE,
   LEAD_TIME_VERDICT_LABEL,
   LEAD_TIME_VERDICT_TONE,
   OVERDUE_STATUSES,
@@ -67,7 +64,6 @@ import {
   hasNoLeadTime,
   isBeyondLeadTime,
   isPartiallyReceived,
-  justificationCellOf,
   overdueStatusOf,
 } from "@demo/features/initiative-8/utils/status"
 import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
@@ -75,11 +71,6 @@ import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
 /** The repair detail page for one register line. */
 export function repairHref(chain: Pick<RepairChain, "id">): string {
   return `/repairable-spares/repair-register/${chain.id}`
-}
-
-/** The Exception Queue narrowed to one repair line's exceptions. */
-function exceptionsHref(chain: Pick<RepairChain, "id">): string {
-  return `/repairable-spares/exceptions?repair=${encodeURIComponent(chain.id)}`
 }
 
 /**
@@ -101,23 +92,22 @@ const STAGE_BAND_TONE: Record<AgingBucket, Tone> = {
  *
  * The register: one row per repair PR/PO line, and the one place to work on it.
  *
- * Since 08-Oct-2026 it also carries what the Declaration Queue and the
- * Justifications screen showed (who declared and when, and whether a new
- * purchase while the repair was out has a reason), and **the whole row opens
- * the repair** — there is no View button. The material name opens it too,
- * rather than the Material 360 drawer: two click targets in one row that go to
- * different places is how people land somewhere they did not mean to. Material
- * 360 is one click away on the detail page.
+ * Since 08-Oct-2026 it also carries what the Declaration Queue showed (who
+ * declared and when), and **the whole row opens the repair** — there is no
+ * View button. The material name opens it too, rather than the Material 360
+ * drawer: two click targets in one row that go to different places is how
+ * people land somewhere they did not mean to. Material 360 is one click away
+ * on the detail page.
  *
  * The Snapshot shows the FRS in full (ruled 12-Oct-2026), so it adds what live
  * cannot show yet: the lifecycle stage with its own aging (FR-3, FR-9), the
- * vendor turnaround (FR-3), the assistant session behind the repair (FR-8) and
- * the open exceptions on the line, which link to the queue. The Exceptions
- * badge is the one other click target in the row, and it says where it goes.
+ * vendor turnaround (FR-3) and the assistant session behind the repair (FR-8).
+ * Justification and exceptions came off the row on 13-Oct-2026: each has a
+ * screen of its own, and the register reads as the repair's own state.
  *
- * Columns run from what a repair is doing now, through its declaration,
- * justification and trace, to the reference columns (criticality, stock, SAP
- * documents) people read least.
+ * Columns run from what a repair is doing now, through its declaration and
+ * trace, to the reference columns (criticality, stock, SAP documents) people
+ * read least.
  */
 export function RepairRegisterTable() {
   const chains = useI08Snapshot().lines
@@ -266,9 +256,7 @@ export function RepairRegisterTable() {
                 <TableHead className="text-right">Turnaround</TableHead>
                 <TableHead>Lead Time</TableHead>
                 <TableHead>Declaration Status</TableHead>
-                <TableHead>Justification</TableHead>
                 <TableHead>Session</TableHead>
-                <TableHead>Exceptions</TableHead>
                 <TableHead>Criticality</TableHead>
                 <TableHead className="text-right">SOH</TableHead>
                 <TableHead className="text-right">ROP</TableHead>
@@ -287,8 +275,6 @@ export function RepairRegisterTable() {
                 const verdict: LeadTimeVerdict = beyondLeadTime
                   ? "BEYOND_LEAD_TIME"
                   : "WITHIN_LEAD_TIME"
-                const justification = justificationCellOf(c)
-                const openExceptions = c.openExceptionIds.length
                 return (
                   <TableRow
                     key={c.id}
@@ -468,32 +454,6 @@ export function RepairRegisterTable() {
                         )}
                       </div>
                     </TableCell>
-                    {/* FR-7 on this line. The full reason, who recorded it and
-                        the session are on the detail page. */}
-                    <TableCell>
-                      {justification === "NONE" ? (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title={JUSTIFICATION_CELL_NOTE.NONE}
-                        >
-                          {JUSTIFICATION_CELL_LABEL.NONE}
-                        </span>
-                      ) : (
-                        <div
-                          className="flex flex-col items-start gap-0.5"
-                          title={JUSTIFICATION_CELL_NOTE[justification]}
-                        >
-                          <StatusBadge tone={JUSTIFICATION_CELL_TONE[justification]}>
-                            {JUSTIFICATION_CELL_LABEL[justification]}
-                          </StatusBadge>
-                          <span className="max-w-[160px] truncate text-[10px] text-muted-foreground">
-                            {justification === "RECORDED"
-                              ? reasonLabel(c.justification?.entries[0]?.reasonCategory)
-                              : purchasesLabel(c.justification?.unjustifiedPurchases.length ?? 0)}
-                          </span>
-                        </div>
-                      )}
-                    </TableCell>
                     {/* FR-8: the assistant session the reservation quoted. The
                         reservation goes underneath, because a reservation with
                         no session is exactly the case the queue chases. */}
@@ -519,29 +479,6 @@ export function RepairRegisterTable() {
                           </span>
                         )}
                       </div>
-                    </TableCell>
-                    {/* Open or In-progress items on the queue for this line,
-                        whatever the type. A link, so the row handler leaves it
-                        alone and ctrl-click opens the queue in a new tab. */}
-                    <TableCell>
-                      {openExceptions > 0 ? (
-                        <Link
-                          href={exceptionsHref(c)}
-                          title={`${c.openExceptionIds.join(", ")} — open on the Exception Queue`}
-                          className="inline-flex hover:opacity-80"
-                        >
-                          <StatusBadge tone="danger">
-                            {openExceptions} open
-                          </StatusBadge>
-                        </Link>
-                      ) : (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title="No open exception on this line"
-                        >
-                          {UNKNOWN}
-                        </span>
-                      )}
                     </TableCell>
                     {/* Unrated is "not recorded", never NORMAL -- a dash, with
                         the reason on hover. */}
@@ -634,13 +571,6 @@ function StageCell({ chain }: { chain: RepairChain }) {
 }
 
 /** A reason category as words: `URGENT_BREAKDOWN` -> "urgent breakdown". */
-function reasonLabel(category: string | undefined): string {
-  return category ? category.replace(/_/g, " ").toLowerCase() : "reason recorded"
-}
-
-function purchasesLabel(count: number): string {
-  return count === 1 ? "1 new unit bought" : `${count} new units bought`
-}
 
 /** One register dropdown: an "all" choice followed by the given options. */
 function FilterSelect({
