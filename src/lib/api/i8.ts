@@ -395,6 +395,12 @@ export type ApiDeclarationItem = {
   /** The same repair line, unjoined — so the declaration form can send FR-4's
    *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
   repairPo?: ApiSAPDocumentReference | null
+  /** Vendor code; null where the repair line carries no PO header. */
+  vendor?: string | null
+  /** LFA1's name for that vendor, where one was delivered. */
+  vendorName?: string | null
+  /** Where the REPAIR stands — not the declaration status, which is `status`. */
+  repairStatus?: string | null
   /**
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
    * has no approval step — an attestation is recorded or it is not.

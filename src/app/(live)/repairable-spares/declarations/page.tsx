@@ -212,7 +212,7 @@ export default async function I08DeclarationsPage() {
                   </p>
                 </div>
               ) : (
-                <DeclarationLogTable rows={data.log} faultCategories={categories} />
+                <DeclarationLogTable rows={data.log} />
               )}
             </section>
           </>

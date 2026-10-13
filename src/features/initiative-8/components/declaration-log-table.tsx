@@ -23,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
 import type { DeclarationLogRow } from "@/features/initiative-8/data/live-declarations"
 import { cn, downloadCsv } from "@/lib/utils"
 
@@ -41,22 +40,24 @@ import { useMaterial360 } from "@/lib/material-360-context"
  *
  * ## Superseded rows are shown, not hidden
  *
- * An attestation is never edited or deleted — the database blocks both. An
- * amendment is a NEW row pointing at the one it replaces, and the original
+ * An attestation is never edited or deleted — the database blocks both. A
+ * correction is a NEW row pointing at the one it replaces, and the original
  * stays readable forever, because the chain IS the audit trail. Hiding the
  * amended row would leave a chain with a link missing, so both are listed and
  * the superseded one is marked.
+ *
+ * ## There is no Amend button
+ *
+ * There was one until 13-Oct-2026; it was removed on request. The API still
+ * accepts `supersedes`, and existing chains still render — this screen simply
+ * does not offer the action. Worth knowing before telling anyone a
+ * declaration can be corrected: through the UI, it currently cannot.
  */
 export type DeclarationLogTableProps = {
   rows: DeclarationLogRow[]
-  /** Offered per row so a declaration can be corrected where it is read. */
-  faultCategories?: string[]
 }
 
-export function DeclarationLogTable({
-  rows: allRows,
-  faultCategories = [],
-}: DeclarationLogTableProps) {
+export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps) {
   const { openMaterial360 } = useMaterial360()
   const [search, setSearch] = useState("")
   const [condition, setCondition] = useState<string>(ALL)
@@ -65,8 +66,6 @@ export function DeclarationLogTable({
   // Hiding them is a reading aid, never the default, because a chain with a
   // link quietly missing is worse than a longer list.
   const [inForceOnly, setInForceOnly] = useState(false)
-  const [amending, setAmending] = useState<DeclarationLogRow | null>(null)
-  const [formKey, setFormKey] = useState(0)
 
   const conditions = useMemo(
     () => [...new Set(allRows.map((r) => r.condition).filter(Boolean))].sort(),
@@ -202,8 +201,10 @@ export function DeclarationLogTable({
       </FilterBar>
 
       <p className="text-xs text-muted-foreground">
-        Nothing here can be edited or deleted &mdash; an amendment is a new row
-        pointing at the one it replaces, and both stay readable.
+        A record here is never edited or deleted. Where one was corrected, the
+        correction is a new row pointing at the one it replaced and both stay
+        listed &mdash; which is why a superseded row is marked rather than
+        removed.
       </p>
 
       {rows.length === 0 && (
@@ -226,9 +227,6 @@ export function DeclarationLogTable({
               <TableHead>Serial</TableHead>
               <TableHead>Declared By</TableHead>
               <TableHead>Declaration</TableHead>
-              <TableHead className="text-right">
-                <span className="sr-only">Action</span>
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -292,44 +290,12 @@ export function DeclarationLogTable({
                     <div className="text-[10px]">superseded by {r.supersededBy}</div>
                   )}
                 </TableCell>
-                <TableCell className="text-right">
-                  {/* Only what is in force can be amended. Amending a row that
-                      has already been replaced would fork the chain, and the
-                      audit trail stops being a line. */}
-                  {!r.supersededBy && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        setFormKey((k) => k + 1)
-                        setAmending(r)
-                      }}
-                    >
-                      Amend
-                    </Button>
-                  )}
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      {amending && (
-        <DeclarationFormDialog
-          key={formKey}
-          open
-          onClose={() => setAmending(null)}
-          target={{
-            materialId: amending.material.materialId,
-            plantId: amending.plant?.plantId,
-            label: `${amending.material.materialCode} - ${amending.material.description} at ${amending.plant?.name ?? "an unknown plant"}`,
-            defaultQuantity: amending.quantity,
-            supersedes: amending.id,
-          }}
-          faultCategories={faultCategories}
-        />
-      )}
     </div>
   )
 }

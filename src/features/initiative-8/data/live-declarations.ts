@@ -18,6 +18,7 @@
 import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
+  RepairStatus,
 } from "@/features/initiative-8/types/repair"
 import type {
   ApiDeclarationItem,
@@ -56,6 +57,10 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
           line: row.repairPo.line ?? undefined,
         }
       : undefined,
+    // Name when LFA1 gave one, else the code. A code is a fact; an invented
+    // name is not, and "Unknown vendor" is reserved for a line with neither.
+    vendor: row.vendorName ?? row.vendor ?? undefined,
+    repairStatus: (row.repairStatus as RepairStatus | null) ?? undefined,
     hasActiveRepair: row.hasActiveRepair,
     status: row.status,
     declaredBy: orUndefined(row.declaredBy),

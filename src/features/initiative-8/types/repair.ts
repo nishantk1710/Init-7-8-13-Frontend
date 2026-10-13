@@ -580,6 +580,10 @@ export interface DeclarationQueueRow {
   relatedRepairId: string
   /** The same line, unjoined, for FR-4's link on the declaration form. */
   repairPO?: SAPDocumentReference
+  /** The vendor the part went to — its name when known, else its code. */
+  vendor?: string
+  /** Where the REPAIR stands. Not `status`, which is the declaration. */
+  repairStatus?: RepairStatus
   hasActiveRepair: boolean
   status: DeclarationStatus
   declaredBy?: string
