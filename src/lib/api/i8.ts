@@ -392,6 +392,9 @@ export type ApiDeclarationItem = {
   requester: string | null
   hasActiveRepair: boolean
   relatedRepairId: string
+  /** The same repair line, unjoined — so the declaration form can send FR-4's
+   *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
+  repairPo?: ApiSAPDocumentReference | null
   /**
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
    * has no approval step — an attestation is recorded or it is not.
@@ -581,6 +584,20 @@ export type AttestationRequest = {
   /** The attestation this one amends. Attestations are never edited: an
    *  amendment is a new record pointing at the one it replaces. */
   supersedes?: string
+  /**
+   * The repair line being declared against — `EKPO.EBELN` and `EKPO.EBELP`.
+   *
+   * FR-4's "link … to the repair PR or PO". Send both whenever the screen
+   * knows which line it is declaring, which is every entry point except
+   * "Declare a part". The backend then covers that line outright instead of
+   * guessing from material + plant + a ±30-day window — a guess that matches
+   * nothing on this data, because the repair lines are years old and a
+   * declaration is stamped today.
+   *
+   * Both or neither: half a key identifies no line and is refused with a 422.
+   */
+  repairDocument?: string
+  repairItem?: string
 }
 
 // --- Query parameters -----------------------------------------------------

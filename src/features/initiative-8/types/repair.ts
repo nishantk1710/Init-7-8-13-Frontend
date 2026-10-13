@@ -578,6 +578,8 @@ export interface DeclarationQueueRow {
   purchaseRequisition?: string
   /** The repair line this declaration belongs to, as `{document}-{item}`. */
   relatedRepairId: string
+  /** The same line, unjoined, for FR-4's link on the declaration form. */
+  repairPO?: SAPDocumentReference
   hasActiveRepair: boolean
   status: DeclarationStatus
   declaredBy?: string

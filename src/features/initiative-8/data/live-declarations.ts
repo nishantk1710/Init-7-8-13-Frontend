@@ -49,6 +49,13 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
     requester: orUndefined(row.requester),
     purchaseRequisition: row.pr ? row.pr.documentNumber : undefined,
     relatedRepairId: row.relatedRepairId,
+    repairPO: row.repairPo
+      ? {
+          type: "PO",
+          documentNumber: row.repairPo.documentNumber,
+          line: row.repairPo.line ?? undefined,
+        }
+      : undefined,
     hasActiveRepair: row.hasActiveRepair,
     status: row.status,
     declaredBy: orUndefined(row.declaredBy),

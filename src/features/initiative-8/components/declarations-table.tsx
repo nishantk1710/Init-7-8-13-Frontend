@@ -323,6 +323,11 @@ export function DeclarationsTable({
             plantId: declaring.plant?.plantId,
             label: `${declaring.material.materialCode} - ${declaring.material.description} at ${declaring.plant?.name ?? "an unknown plant"} (repair ${declaring.relatedRepairId})`,
             defaultQuantity: "1",
+            // FR-4's link to the repair PO. Working a queue row declares THAT
+            // line, so it is named outright rather than left to a date window
+            // that these lines are far too old to satisfy.
+            repairDocument: declaring.repairPO?.documentNumber,
+            repairItem: declaring.repairPO?.line,
           }}
           faultCategories={faultCategories}
         />
