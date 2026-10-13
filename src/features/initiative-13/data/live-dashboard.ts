@@ -27,6 +27,7 @@ import {
   getI13AllJustifications,
   type I13Summary,
 } from "@/lib/api/i13"
+import { listSummaryReports } from "@/lib/api/i13-report"
 import type { UnifiedJustification } from "@/lib/assistant/justifications"
 import {
   loadLiveActExceptions,
@@ -87,6 +88,10 @@ export type LiveDashboard = {
   exceptions: Section<LiveActExceptions>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
+  /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
+   * Any failure reads as "not offered": the button is a convenience, and a
+   * broken check must never cost the dashboard. */
+  reportEnabled: boolean
 }
 
 export async function loadLiveDashboard(
@@ -96,7 +101,7 @@ export async function loadLiveDashboard(
 
   // All six in flight together. Sequentially this would be six round trips
   // deep on a screen whose whole job is to be glanced at.
-  const [watchResult, summary, reclassification, exceptions, justifications, plans] =
+  const [watchResult, summary, reclassification, exceptions, justifications, plans, reportEnabled] =
     await Promise.all([
       loadLiveWatch(filters).then(
         (data) => ({ ok: true as const, data }),
@@ -110,6 +115,10 @@ export async function loadLiveDashboard(
       section(loadLiveActExceptions(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope)),
+      listSummaryReports({ limit: 1 }).then(
+        () => true,
+        () => false
+      ),
     ])
 
   return {
@@ -120,5 +129,6 @@ export async function loadLiveDashboard(
     exceptions,
     justifications,
     plans,
+    reportEnabled,
   }
 }
