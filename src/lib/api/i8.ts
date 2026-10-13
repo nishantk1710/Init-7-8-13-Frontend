@@ -33,7 +33,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch, apiPost, SLOW_GET_TIMEOUT_MS } from "@/lib/api/client"
+import { apiFetch, apiPost } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -936,12 +936,7 @@ export type CodingCandidatesQuery = {
 export function getCodingCandidates(
   query: CodingCandidatesQuery = {},
 ): Promise<ApiCodingCandidateResponse> {
-  // The one screen that reads free text across the whole purchase-order and
-  // requisition extract, so it gets the slow budget rather than the default.
-  // Still well under the gateway's 240s: a genuine hang must still fail.
-  return apiFetch(`/i8/coding-candidates${queryString(query)}`, {
-    timeoutMs: SLOW_GET_TIMEOUT_MS,
-  })
+  return apiFetch(`/i8/coding-candidates${queryString(query)}`)
 }
 
 // --- Helpers --------------------------------------------------------------
