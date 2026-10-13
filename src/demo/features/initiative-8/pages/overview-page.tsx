@@ -1,15 +1,14 @@
 "use client"
 
-import Link from "next/link"
 import { useMemo, useState, type ReactNode } from "react"
-import { ChevronRight, Download } from "lucide-react"
+import { Download } from "lucide-react"
 
 import { ChartCard } from "@demo/components/shared/chart-card"
 import { ClearFiltersButton } from "@demo/components/shared/clear-filters-button"
 import { FilterBar } from "@demo/components/shared/filter-bar"
 import { KPIStatCard } from "@demo/components/shared/kpi-stat-card"
 import { PageHeader } from "@demo/components/shared/page-header"
-import { Button, buttonVariants } from "@demo/components/ui/button"
+import { Button } from "@demo/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -47,8 +46,7 @@ import {
 } from "@demo/features/initiative-8/model/metrics"
 import { useI08Snapshot } from "@demo/features/initiative-8/state/snapshot-store"
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
-import { UNKNOWN } from "@demo/features/initiative-8/utils/status"
-import { cn, downloadCsv, formatCount, formatZAR, formatZARCompact } from "@demo/lib/utils"
+import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
 
 const DESCRIPTION =
   "Repair register, condition attestation and reservation-time compliance for 80-series spares."
@@ -56,11 +54,6 @@ const DESCRIPTION =
 const PLANT_OPTIONS = I8_PLANTS.map((p) => ({ value: p.plantId, label: p.name }))
 const VENDOR_OPTIONS = REPAIR_VENDORS.map((v) => ({ value: v, label: v }))
 const CRITICALITY_FILTER_OPTIONS = CRITICALITY_OPTIONS.map((c) => ({ value: c, label: c }))
-
-/** "15 Jul 2026" -> "15 Jul": the year is the reference date's, and the hints are short. */
-function dayMonth(date: string): string {
-  return date.replace(/\s+\d{4}$/, "")
-}
 
 /** Open repair lines per vendor — a count, not a turnaround. */
 function openLinesByVendor(chains: RepairChain[], limit = 10) {
@@ -77,10 +70,6 @@ function openLinesByVendor(chains: RepairChain[], limit = 10) {
     vendorCount: ranked.length,
     otherLines: ranked.slice(limit).reduce((sum, v) => sum + v.count, 0),
   }
-}
-
-function percentLabel(ratio: Ratio): string {
-  return ratio.percent === undefined ? UNKNOWN : `${ratio.percent}%`
 }
 
 function filterLabel(value: string, options: { value: string; label: string }[], all: string) {
@@ -150,7 +139,6 @@ export function RefurbishableSparesOverviewPage() {
   const turnaround = useMemo(() => vendorTurnaround(slice.lines), [slice])
 
   const turnaroundLines = turnaround.reduce((sum, v) => sum + v.lines, 0)
-  const justifiedAtReservation = slice.justifications.filter((j) => j.source === "ASSISTANT").length
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const unjustified = metrics.openByType.UNJUSTIFIED_ACQUISITION
 
@@ -252,75 +240,6 @@ export function RefurbishableSparesOverviewPage() {
         </div>
 
         <Section
-          title="Compliance"
-          description="The FR-10 rates, measured from the day each control went live, and the purchases the assistant's advice avoided (FRS §8)."
-        >
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <ComplianceTile
-              label="Declaration compliance"
-              ratio={metrics.declarationCompliance}
-              hint={`repair lines since ${dayMonth(ATTESTATION_CUTOVER)} with a declaration`}
-            />
-            <ComplianceTile
-              label="Session compliance"
-              ratio={metrics.sessionCompliance}
-              hint={`80-series reservations since ${dayMonth(ASSISTANT_CUTOVER)} carrying a valid session ID`}
-            />
-            <ComplianceTile
-              label="Justification compliance"
-              ratio={metrics.justificationCompliance}
-              hint="new units bought while a repairable one existed, with a reason"
-            />
-            {/* The benefit FRS §8 attributes: only sessions where the requester
-                took the advice count, valued at the MBEW unit price. */}
-            <div title={`${formatZAR(metrics.avoided.value)} at MBEW unit value`}>
-              <KPIStatCard
-                label="Purchases avoided"
-                value={formatZARCompact(metrics.avoided.value)}
-                hint={`${formatCount(metrics.avoided.sessions)} ${metrics.avoided.sessions === 1 ? "session" : "sessions"} chose repair after the assistant's advice · ${formatCount(metrics.avoided.units)} ${metrics.avoided.units === 1 ? "unit" : "units"}`}
-                className="h-full"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Strip
-              href="/repairable-spares/exceptions"
-              action="Open exception queue"
-              text={
-                <>
-                  Exception queue:{" "}
-                  <strong className="text-foreground">{formatCount(metrics.openExceptions)}</strong>{" "}
-                  open —{" "}
-                  {formatCount(metrics.openByType.OVERDUE_REPAIR)} overdue{" "}
-                  {plural(metrics.openByType.OVERDUE_REPAIR, "repair")},{" "}
-                  {formatCount(metrics.openByType.MISSING_ATTESTATION)} missing{" "}
-                  {plural(metrics.openByType.MISSING_ATTESTATION, "attestation")},{" "}
-                  {formatCount(metrics.openByType.MISSING_SESSION_ID)} missing session{" "}
-                  {plural(metrics.openByType.MISSING_SESSION_ID, "ID")} and{" "}
-                  {formatCount(unjustified)} unjustified{" "}
-                  {plural(unjustified, "acquisition")}.
-                </>
-              }
-            />
-            {/* The justification log (FR-7) is the other side of the benefit
-                above: the cases where the advice was not taken. */}
-            <Strip
-              href="/repairable-spares/justifications"
-              action="Open justifications"
-              text={
-                <>
-                  Justifications:{" "}
-                  <strong className="text-foreground">{formatCount(slice.justifications.length)}</strong>{" "}
-                  new units bought against the assistant&apos;s advice with a reason recorded,{" "}
-                  {formatCount(justifiedAtReservation)} of them at reservation time.
-                </>
-              }
-            />
-          </div>
-        </Section>
-
-        <Section
           title="Repairs"
           description="Where the repair lines stand, how long they have been out, and how quickly each vendor sends them back."
         >
@@ -392,10 +311,6 @@ export function RefurbishableSparesOverviewPage() {
   )
 }
 
-function plural(count: number, noun: string): string {
-  return count === 1 ? noun : `${noun}s`
-}
-
 /** A small h2 with a one-line description, then the section's content. */
 function Section({
   title,
@@ -414,36 +329,6 @@ function Section({
       </div>
       {children}
     </section>
-  )
-}
-
-/**
- * One FR-10 rate: the percentage, with the count behind it leading the hint
- * ("10 of 12 repair lines since 15 Jul with a declaration"). A dash, not 0%,
- * when nothing in the view can be measured.
- */
-function ComplianceTile({ label, ratio, hint }: { label: string; ratio: Ratio; hint: string }) {
-  return (
-    <KPIStatCard
-      label={label}
-      value={percentLabel(ratio)}
-      trend="flat"
-      trendLabel={`${formatCount(ratio.count)} of ${formatCount(ratio.total)}`}
-      hint={hint}
-    />
-  )
-}
-
-/** A one-line summary with the way into the screen that holds the detail. */
-function Strip({ text, href, action }: { text: ReactNode; href: string; action: string }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted-foreground">{text}</p>
-      <Link href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>
-        {action}
-        <ChevronRight className="size-3.5" />
-      </Link>
-    </div>
   )
 }
 
