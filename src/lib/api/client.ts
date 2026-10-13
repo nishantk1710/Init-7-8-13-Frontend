@@ -170,8 +170,15 @@ async function readErrorBody(response: Response): Promise<ErrorBody> {
  * ~5-minute header timeout and then failed with a bare "fetch failed". POSTs
  * get no default timeout: every one writes to an append-only table, and giving
  * up on a write that may have landed is worse than waiting for it.
+ *
+ * 60 s by default. 20 s was too tight: on 13 Oct 2026 the I13 summary answered
+ * in 1 s one moment and 24 s the next while Azure SQL was busy, and every
+ * slow-but-healthy answer showed as "the live backend is not responding".
+ * Azure App Service cuts any request at 230 s, so going much higher buys
+ * nothing. Set at build time (NEXT_PUBLIC_*): repository variable
+ * API_GET_TIMEOUT_MS in deploy.yml.
  */
-export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS ?? 20000)
+export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS || 60000)
 
 /**
  * The backend answers 503 with `Retry-After` while an I08 or I13 snapshot is
