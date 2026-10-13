@@ -145,16 +145,24 @@ export type LiveDeclarations = {
   /**
    * True when the page loop stopped before reading everything.
    *
-   * Reported rather than hidden, for the same reason the coding screen
-   * reports `wasTruncated`: a queue that quietly shows the first 2,000 of
-   * 9,000 rows reads as a complete queue, and somebody will work it to the
-   * bottom and believe they are done.
+   * Kept, and now expected to be false: the loop follows pages to the end, so
+   * this is only true if the backend reports a total it will not serve. It
+   * stays because a queue that quietly shows part of itself reads as a
+   * complete queue, and somebody will work it to the bottom and believe they
+   * are done.
    */
   truncated: boolean
 }
 
-/** How many rows the screen will load before it stops and says so. */
-const MAX_ROWS = 2000
+// No row cap. There was one -- 2,000 -- and it was the only reason this
+// screen ever showed the "partial queue" banner: every row in the register is
+// currently undeclared, so the queue is the whole register and the cap cut it
+// in half. The register screen has never had a cap and loads the same rows at
+// the same page size, so the ceiling was this screen's alone rather than
+// anything the browser or the API could not take.
+//
+// 500 is the backend's max_page_size, so this is as few round trips as the
+// API allows.
 const PAGE_SIZE = 500
 
 /**
@@ -181,7 +189,10 @@ export async function loadLiveDeclarations(
 
     rows.push(...body.items.map(toRow))
 
-    if (rows.length >= total || body.items.length === 0 || rows.length >= MAX_ROWS) break
+    // Stops on the total, or on an empty page -- never on a row count of its
+    // own. `body.items.length === 0` is the guard that keeps a backend
+    // misreporting `total` from looping forever.
+    if (rows.length >= total || body.items.length === 0) break
     page += 1
   }
 
