@@ -2,7 +2,7 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
-import { ArrowRight, Clock3 } from "lucide-react"
+import { ArrowRight, Clock3, FileText } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { PageHeader } from "@/components/shared/page-header"
@@ -154,6 +154,15 @@ export async function UtilisationDashboardPage({
                   : "Computation time not recorded"}
               </span>
               {watch && <NonMoverExport rows={watch.rows} />}
+              {dashboard.reportEnabled && (
+                <Link
+                  href="/oar-utilization/report"
+                  className={buttonVariants({ size: "sm", variant: "outline" })}
+                >
+                  <FileText className="size-3.5" />
+                  Summary report
+                </Link>
+              )}
             </div>
           }
         />

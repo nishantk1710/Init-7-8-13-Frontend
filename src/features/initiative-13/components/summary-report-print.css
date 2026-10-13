@@ -1,0 +1,85 @@
+/* Print styles for the I13 summary report PDF (summary-report-print.tsx).
+ *
+ * On screen the print copy does not exist. In print it is the only thing that
+ * does: every other child of <body> -- the app shell, the sidebar, the on-screen
+ * copy of the report -- is hidden.
+ *
+ * Scoped with :has() so these rules only act on a page that has mounted the
+ * I13 print copy. CSS imported by a route stays loaded after client-side
+ * navigation, and an unscoped `body > * { display: none }` would blank the PDF
+ * of every other screen printed later in the same session.
+ *
+ * Plain ink rather than theme tokens: a report is printed and photocopied, and
+ * mid-tone text on tinted cards is the first thing to become unreadable.
+ */
+
+.i13-print-portal {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm 16mm;
+  }
+
+  body:has(> .i13-print-portal) > *:not(.i13-print-portal) {
+    display: none !important;
+  }
+
+  body > .i13-print-portal {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+    opacity: 1 !important;
+    z-index: auto !important;
+    color: #000;
+    background: #fff;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  .i13-print-portal * {
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .i13-print-portal .report-document {
+    gap: 12pt;
+  }
+
+  .i13-print-portal .report-stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .i13-print-portal .report-stat,
+  .i13-print-portal .report-table,
+  .i13-print-portal .report-headline {
+    background: #fff !important;
+    border-color: #999 !important;
+  }
+
+  .i13-print-portal .report-headline {
+    border-left: 3pt solid #000 !important;
+  }
+
+  .i13-print-portal .report-table th {
+    background: #eee !important;
+  }
+
+  .i13-print-portal .report-section,
+  .i13-print-portal .report-stat,
+  .i13-print-portal tr {
+    break-inside: avoid;
+  }
+
+  .i13-print-portal .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .i13-print-portal .report-footer {
+    color: #444 !important;
+  }
+}
