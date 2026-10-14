@@ -69,6 +69,15 @@ function Quantity({ value }: { value: number | null }) {
   )
 }
 
+/**
+ * A line is one PO item (or one PR item not yet on a PO), so its documents
+ * identify it. Not `ledgerId`: the backend builds that from the PR item alone,
+ * and a PR item ordered on several PO lines gives them all the same id.
+ */
+function rowKey(entry: UtilisationLedgerEntry): string {
+  return [entry.poNumber, entry.poItem, entry.prNumber, entry.prItem].map((v) => v ?? "").join("|")
+}
+
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   const events: TimelineEvent[] = [
     {
@@ -210,7 +219,6 @@ export function UtilizationLedgerTable({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8" />
-                <TableHead>Ledger ID</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
                 <TableHead>Reservation</TableHead>
@@ -225,12 +233,13 @@ export function UtilizationLedgerTable({
             </TableHeader>
             <TableBody>
               {filtered.map((entry) => {
-                const isExpanded = expandedId === entry.ledgerId
+                const key = rowKey(entry)
+                const isExpanded = expandedId === key
                 return (
-                  <Fragment key={entry.ledgerId}>
+                  <Fragment key={key}>
                     <TableRow
                       className="cursor-pointer"
-                      onClick={() => setExpandedId(isExpanded ? null : entry.ledgerId)}
+                      onClick={() => setExpandedId(isExpanded ? null : key)}
                       aria-expanded={isExpanded}
                     >
                       <TableCell>
@@ -241,7 +250,6 @@ export function UtilizationLedgerTable({
                           )}
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-foreground">{entry.ledgerId}</TableCell>
                       <TableCell className="text-foreground">
                         <div className="flex max-w-[240px] flex-col gap-0.5">
                           {entry.materialDescription ? (
@@ -313,7 +321,7 @@ export function UtilizationLedgerTable({
                     </TableRow>
                     <TableRow className="hover:bg-transparent">
                       <TableCell className="p-0" />
-                      <TableCell colSpan={11} className="p-0">
+                      <TableCell colSpan={10} className="p-0">
                         <div
                           className={cn(
                             "grid transition-[grid-template-rows] duration-300 ease-out",

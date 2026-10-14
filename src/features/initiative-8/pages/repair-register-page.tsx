@@ -73,7 +73,12 @@ export async function RepairRegisterPage() {
 
   return (
     <Shell
-      description={registerDescription(live.meta, live.referenceDate, live.sourceLoadedAt)}
+      description={registerDescription(
+        live.meta,
+        live.referenceDate,
+        live.sourceLoadedAt,
+        live.unlistedLines,
+      )}
       chains={attachLineExceptions(live.chains, await exceptionRows)}
       plantOptions={live.plantOptions}
       vendorOptions={live.vendorOptions}
@@ -105,7 +110,7 @@ function Shell({
 }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-[1920px] flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <PageHeader title="Repair Register" description={description} />
         <RepairRegisterTable
           chains={chains}

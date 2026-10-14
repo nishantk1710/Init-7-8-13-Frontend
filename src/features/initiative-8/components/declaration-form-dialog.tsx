@@ -58,6 +58,20 @@ export type DeclarationTarget = {
    * the old one, which stays readable forever. The chain is the audit trail.
    */
   supersedes?: string
+  /**
+   * The repair line this declaration is for, when it is for one.
+   *
+   * FR-4's link to the repair PO. Set by every entry point that opens from a
+   * line; absent only for "Declare a part", where nothing has been raised yet
+   * and there is genuinely no line to name.
+   *
+   * Carrying it is what makes the declaration land: without it the backend
+   * falls back to matching on material, plant and a ±30-day window, and the
+   * repair lines here are years old, so the line would stay "Required" however
+   * many declarations were recorded against it.
+   */
+  repairDocument?: string
+  repairItem?: string
 }
 
 export type DeclarationFormDialogProps = {
@@ -142,6 +156,10 @@ export function DeclarationFormDialog({
         // audit record reads as "the serial number is empty".
         serialNumber: serialNumber.trim() || undefined,
         supersedes: target.supersedes,
+        // Both or neither -- the API refuses half a key, and a target that
+        // carries one without the other is a bug worth failing loudly on.
+        repairDocument: target.repairDocument,
+        repairItem: target.repairItem,
       })
 
       // The API's own words about what the write covered.

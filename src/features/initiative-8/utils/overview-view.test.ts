@@ -7,10 +7,14 @@ import {
   filterOverview,
   openLinesByVendor,
   overviewSummaryRows,
+  repairStatusBuckets,
   stockByPlant,
   summariseOverview,
+  THIN_TURNAROUND_SAMPLE,
+  turnaroundBars,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
+import type { ApiVendorTurnaround } from "@/lib/api/i8"
 
 /**
  * The dashboard's aggregations and FR-10 filters.
@@ -198,18 +202,17 @@ describe("filterOverview", () => {
 })
 
 describe("overviewSummaryRows", () => {
-  it("names the slice the figures came from, and the two that never narrow", () => {
+  it("names the slice the figures came from, and the one that never narrows", () => {
     const metrics = summariseOverview({ chains: [chain()], universe: [universeRow()] })
     const rows = overviewSummaryRows(
       metrics,
       { plant: "Gamsberg", vendor: "All vendors", criticality: "All criticalities" },
-      { referenceDate: "2026-10-12", pendingDeclarations: 5155, unjustifiedAcquisitions: 0 },
+      { referenceDate: "2026-10-12", pendingDeclarations: 5155 },
     )
     const byLabel = new Map(rows.map((r) => [String(r[0]), r[1]]))
     expect(byLabel.get("Plant filter")).toBe("Gamsberg")
     expect(byLabel.get("Vendor filter (repair lines only)")).toBe("All vendors")
     expect(byLabel.get("Pending declarations (whole register, unfiltered)")).toBe(5155)
-    expect(byLabel.get("Unjustified new purchases (whole register, unfiltered)")).toBe(0)
   })
 
   it("exports a figure the backend could not give as words, never as a number", () => {
@@ -227,5 +230,126 @@ describe("overviewSummaryRows", () => {
 describe("ALL", () => {
   it("is the same sentinel the register filters use", () => {
     expect(NO_OVERVIEW_FILTERS.plant).toBe(ALL)
+  })
+})
+
+describe("repairStatusBuckets", () => {
+  it("counts Received and Closed as one bar", () => {
+    const buckets = repairStatusBuckets([
+      chain({ repairStatus: "Closed" }),
+      chain({ repairStatus: "Closed" }),
+      chain({ repairStatus: "Received" }),
+    ])
+
+    expect(buckets).toEqual([
+      { label: "Received / Closed", count: 3, color: "var(--chart-3)" },
+    ])
+  })
+
+  it("drops a stage nothing is in, so no empty bar is drawn", () => {
+    // The deployed shape on 13-Oct-2026: nothing at the requisition stage, and
+    // nothing in the Received corner either. Three bars, not five.
+    const buckets = repairStatusBuckets([
+      chain({ repairStatus: "PO Issued" }),
+      chain({ repairStatus: "At Vendor" }),
+      chain({ repairStatus: "Closed" }),
+    ])
+
+    expect(buckets.map((b) => b.label)).toEqual([
+      "PO Issued",
+      "At Vendor",
+      "Received / Closed",
+    ])
+  })
+
+  it("keeps the lifecycle order rather than ordering by size", () => {
+    const buckets = repairStatusBuckets([
+      ...Array.from({ length: 9 }, () => chain({ repairStatus: "Closed" })),
+      chain({ repairStatus: "PO Issued" }),
+    ])
+
+    // Closed is far bigger and still comes last: the chart reads as a journey.
+    expect(buckets.map((b) => b.label)).toEqual(["PO Issued", "Received / Closed"])
+  })
+
+  it("still draws a requisition stage if one ever arrives", () => {
+    // PR Raised is absent today because the register is built from PO lines,
+    // not because this function excludes it.
+    const buckets = repairStatusBuckets([chain({ repairStatus: "PR Raised" })])
+
+    expect(buckets.map((b) => b.label)).toEqual(["PR Raised"])
+  })
+})
+
+describe("turnaroundBars", () => {
+  function vendor(overrides: Partial<ApiVendorTurnaround> = {}): ApiVendorTurnaround {
+    return {
+      vendor: "400709",
+      vendorName: "Acme Repairs",
+      totalLines: 4,
+      openCount: 1,
+      overdueCount: 0,
+      receivedCount: 3,
+      avgTurnaroundDays: 12,
+      minTurnaroundDays: 8,
+      maxTurnaroundDays: 20,
+      turnaroundSample: 3,
+      onTimeRate: null,
+      avgDaysOpen: null,
+      ...overrides,
+    }
+  }
+
+  it("drops vendors with no measurable average but still counts them", () => {
+    const result = turnaroundBars([
+      vendor({ vendor: "A", vendorName: "A" }),
+      vendor({
+        vendor: "B",
+        vendorName: "B",
+        avgTurnaroundDays: null,
+        minTurnaroundDays: null,
+        maxTurnaroundDays: null,
+        turnaroundSample: 0,
+      }),
+    ])
+
+    expect(result.bars.map((b) => b.vendor)).toEqual(["A"])
+    // The footnote needs both numbers: a vendor absent from the chart must not
+    // read as a vendor with no repairs.
+    expect(result.measurable).toBe(1)
+    expect(result.total).toBe(2)
+  })
+
+  it("puts the slowest vendor first", () => {
+    const result = turnaroundBars([
+      vendor({ vendor: "fast", vendorName: "Fast", avgTurnaroundDays: 5 }),
+      vendor({ vendor: "slow", vendorName: "Slow", avgTurnaroundDays: 90 }),
+    ])
+
+    expect(result.bars.map((b) => b.vendor)).toEqual(["Slow", "Fast"])
+  })
+
+  it("shows an unnamed vendor's code rather than inventing a name", () => {
+    const result = turnaroundBars([vendor({ vendor: "400709", vendorName: null })])
+
+    expect(result.bars[0]?.vendor).toBe("400709")
+  })
+
+  it("reports what it had to leave off the card", () => {
+    const many = Array.from({ length: 14 }, (_, i) =>
+      vendor({ vendor: `v${i}`, vendorName: `V${i}`, avgTurnaroundDays: i + 1 }),
+    )
+
+    const result = turnaroundBars(many, 10)
+
+    expect(result.bars).toHaveLength(10)
+    expect(result.hidden).toBe(4)
+  })
+
+  it("keeps the sample size, so a mean of one can be marked as one", () => {
+    const result = turnaroundBars([vendor({ turnaroundSample: 1 })])
+
+    expect(result.bars[0]?.sample).toBe(1)
+    expect(THIN_TURNAROUND_SAMPLE).toBeGreaterThan(1)
   })
 })

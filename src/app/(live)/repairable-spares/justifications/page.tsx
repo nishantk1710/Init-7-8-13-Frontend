@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ChevronRight } from "lucide-react"
 import { connection } from "next/server"
 
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
@@ -8,12 +6,15 @@ import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
 import { listJustifications } from "@/lib/api/assistant"
 import { getExceptions } from "@/lib/api/i8"
-import { buttonVariants } from "@/components/ui/button"
-import { cn, formatCount } from "@/lib/utils"
+import { formatCount } from "@/lib/utils"
 import { fromAssistant } from "@/lib/assistant/justifications"
 
 /** Shown on a tile whose source could not be read -- never a 0. */
 const NOT_LOADED = "Could not be loaded"
+
+/** A check the backend does not run. Distinct from a failed fetch, and from a
+ *  genuine zero -- see the three states where the tiles are computed. */
+const UNKNOWN = "—"
 
 export const metadata: Metadata = {
   title: "New-acquisition justifications — Spares AI",
@@ -65,11 +66,28 @@ export default async function I08JustificationsPage() {
 
   const recorded = entries?.items.length ?? 0
   const linkedToSession = entries?.items.filter((e) => e.sessionId).length ?? 0
-  const stillUnjustified = exceptionMeta?.byType?.UNJUSTIFIED_ACQUISITION ?? null
+  // THREE states, and they are three different claims. `byType` is built by
+  // counting items, so a check that found NOTHING has no key at all -- and
+  // reading that absence as "could not be loaded" reported a clean result as
+  // a failure. Measured on the deployed API 13-Oct-2026: the check had run
+  // over 6,837 new purchases and found zero unjustified, and both tiles below
+  // said "Could not be loaded" instead of 0 and 100%.
+  //
+  //   null       the exception check could not be read at all
+  //   undefined  the check is not running, so a 0 would be a lie
+  //   a number   the check ran; an absent key means it found none
+  const checkRuns =
+    exceptionMeta?.typesRaised?.includes("UNJUSTIFIED_ACQUISITION") ?? false
+  const stillUnjustified =
+    exceptionMeta === null
+      ? null
+      : checkRuns
+        ? (exceptionMeta.byType?.UNJUSTIFIED_ACQUISITION ?? 0)
+        : undefined
   // Of the new purchases the check looked at, how many carry a reason.
   const checked = exceptionMeta?.acquisitionsChecked ?? null
   const compliance =
-    checked && checked > 0 && stillUnjustified !== null
+    checked && checked > 0 && typeof stillUnjustified === "number"
       ? Math.round(((checked - stillUnjustified) / checked) * 100)
       : null
 
@@ -78,7 +96,7 @@ export default async function I08JustificationsPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title="New-acquisition justifications"
-          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
+          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation."
         />
 
         {/* Counts over the whole log, not the page. "Purchases avoided" is
@@ -94,12 +112,28 @@ export default async function I08JustificationsPage() {
           />
           <KPIStatCard
             label="Purchases still unjustified"
-            value={stillUnjustified === null ? NOT_LOADED : formatCount(stillUnjustified)}
-            hint="bought while a repair was open, no reason given"
+            value={
+              stillUnjustified === null
+                ? NOT_LOADED
+                : stillUnjustified === undefined
+                  ? UNKNOWN
+                  : formatCount(stillUnjustified)
+            }
+            hint={
+              stillUnjustified === undefined
+                ? "this check is not running on this backend"
+                : "bought while a repair was open, no reason given"
+            }
           />
           <KPIStatCard
             label="Justification compliance"
-            value={compliance === null ? NOT_LOADED : `${compliance}%`}
+            value={
+              compliance === null
+                ? stillUnjustified === undefined
+                  ? UNKNOWN
+                  : NOT_LOADED
+                : `${compliance}%`
+            }
             hint={
               checked === null
                 ? undefined
@@ -113,22 +147,20 @@ export default async function I08JustificationsPage() {
           />
         </div>
 
-        {/* The other side of this log. A purchase with no reason recorded is
-            raised there; recording the reason is what closes it and adds it
-            here, so the two screens are one loop and each says so. */}
-        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        {/* Where the reason comes from, now that it is not chased afterwards.
+            This box used to point at Repair Exceptions, where an unjustified
+            purchase was raised as an item to work; that check came off the
+            queue on 14-Oct-2026 because FR-5b asks for the reason at the
+            reservation itself. The two tiles above still report what the
+            backend's check finds -- the number has a home, it is just not a
+            work queue. */}
+        <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm">
           <p className="text-muted-foreground">
-            A new unit bought while a repair was already open, with no reason
-            recorded, is raised on the exception queue as an unjustified
-            acquisition.
+            The reason is asked for at the reservation, by the Spares
+            Assistant, before a new unit is ordered against an open repair —
+            which is why most entries below carry a session. It is not raised
+            afterwards as something to chase.
           </p>
-          <Link
-            href="/repairable-spares/exceptions?type=UNJUSTIFIED_ACQUISITION"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-          >
-            Open exception queue
-            <ChevronRight className="size-3.5" />
-          </Link>
         </div>
 
         {entries === null ? (

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
 import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
+import { formatApiDateTime } from "@/lib/api/format"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import {
   kindLabel,
@@ -257,8 +258,14 @@ export function JustificationLog({
               >
                 {sourceLabel(entry.source)}
               </span>
+              {/* The house format (`en-ZA`, "12 Oct 2026, 14:42"), not a bare
+                  toLocaleString(). That renders in whatever locale the VIEWER's
+                  browser is set to, so the same record read "10/12/2026" on one
+                  machine and "12/10/2026" on another -- ambiguous anywhere, and
+                  actively wrong for a reader who writes the day first. Every
+                  other date in this folder already goes through this helper. */}
               <span className="ml-auto text-muted-foreground">
-                {new Date(entry.recordedAt).toLocaleString()}
+                {formatApiDateTime(entry.recordedAt)}
               </span>
             </div>
 

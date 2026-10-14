@@ -33,17 +33,21 @@ export const initiative8Manifest: InitiativeManifest = {
       {
         // Distinct from Justifications' clipboard below: one records a
         // condition that WAS assessed, the other a purchase made anyway.
-        label: "Declarations",
+        label: "Repair Declarations",
         icon: "check-circle",
         href: "/repairable-spares/declarations",
       },
       {
-        label: "Exception Queue",
+        label: "Repair Exceptions",
         icon: "alert-triangle",
         href: "/repairable-spares/exceptions",
       },
       {
-        label: "Coding Candidates",
+        // FR-2's miscoding screen: materials whose requisition, order or
+        // movement text talks about repair but which are not 80-series coded.
+        // Renamed from "Coding Candidates" on 14-Oct-2026; the route keeps the
+        // old word because several links point at it and a URL is not a name.
+        label: "Repair Candidates",
         icon: "search",
         href: "/repairable-spares/coding-candidates",
       },

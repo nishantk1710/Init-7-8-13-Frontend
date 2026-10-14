@@ -9,10 +9,9 @@
  *   universe      `GET /api/i8/universe` — how many repairable materials exist,
  *                 and the stock they hold, by plant
  *   declarations  `GET /api/i8/declarations` — its `meta` only
- *   exceptions    `GET /api/i8/exceptions` — its `meta` only
  *   turnaround    `GET /api/i8/vendors/turnaround` — dispatch to goods receipt
  *
- * The register is the page: if it fails, the overview says so. The other four
+ * The register is the page: if it fails, the overview says so. The other three
  * are best-effort, and a failure shows as "could not be loaded" on the tiles
  * that needed it rather than taking the page down or, worse, as a zero.
  *
@@ -28,14 +27,12 @@ import { loadLiveRegister, type LiveRegister } from "@/features/initiative-8/dat
 import type { UniverseRow } from "@/features/initiative-8/utils/overview-view"
 import type {
   ApiDeclarationMeta,
-  ApiExceptionMeta,
   ApiUniverseItem,
   ApiUniverseMeta,
   ApiVendorTurnaround,
 } from "@/lib/api/i8"
 import {
   getDeclarations,
-  getExceptions,
   getUniverse,
   getVendorTurnaround,
   toNumber,
@@ -61,20 +58,6 @@ export function toUniverseRows(items: ApiUniverseItem[]): UniverseRow[] {
   }))
 }
 
-/**
- * The unjustified-purchase count: UNJUSTIFIED_ACQUISITION exceptions.
- *
- * `undefined` — not 0 — when the backend does not raise that type at all. A
- * zero from a check that never ran would read as "no unjustified purchases",
- * which is the one answer this screen must never give by accident.
- */
-export function unjustifiedAcquisitions(
-  meta: Pick<ApiExceptionMeta, "byType" | "typesRaised">,
-): number | undefined {
-  if (!meta.typesRaised.includes("UNJUSTIFIED_ACQUISITION")) return undefined
-  return meta.byType.UNJUSTIFIED_ACQUISITION ?? 0
-}
-
 export type LiveUniverse = {
   meta: ApiUniverseMeta
   rows: UniverseRow[]
@@ -98,7 +81,6 @@ export type LiveOverview = {
   /** Null when that source could not be read — shown as such, never as 0. */
   universe: LiveUniverse | null
   declarations: ApiDeclarationMeta | null
-  exceptions: ApiExceptionMeta | null
   /**
    * Vendor turnaround -- dispatch to goods receipt, over COMPLETED repairs.
    *
@@ -112,19 +94,16 @@ export type LiveOverview = {
 
 /** Throws only if the register fails; the rest degrade to null. */
 export async function loadLiveOverview(): Promise<LiveOverview> {
-  const [register, universe, declarations, exceptions, vendorTurnaround] =
+  const [register, universe, declarations, vendorTurnaround] =
     await Promise.all([
       loadLiveRegister(),
       loadUniverse().catch(() => null),
       getDeclarations({ pageSize: 1 })
         .then((body) => body.meta)
         .catch(() => null),
-      getExceptions({ pageSize: 1 })
-        .then((body) => body.meta)
-        .catch(() => null),
       getVendorTurnaround()
         .then((body) => body.items)
         .catch(() => null),
     ])
-  return { register, universe, declarations, exceptions, vendorTurnaround }
+  return { register, universe, declarations, vendorTurnaround }
 }

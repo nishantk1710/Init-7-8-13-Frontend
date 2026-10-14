@@ -73,5 +73,14 @@ export function targetOf(chain: RepairChain, supersedes?: string): DeclarationTa
     defaultQuantity: defaultAttestationQuantity(chain.qtyUnderRepair),
     qtyUnderRepair: chain.qtyUnderRepair,
     supersedes,
+    // FR-4's link to the repair PO. The id was already in the label as prose;
+    // this sends it as data, which is what makes the line read as declared
+    // rather than waiting on a date window it cannot satisfy.
+    //
+    // Taken from `repairPO` rather than splitting `chain.id`: the backend
+    // builds both from the same EBELN/EBELP, and splitting a string on a
+    // hyphen guesses at a document number that may one day contain one.
+    repairDocument: chain.repairPO?.documentNumber,
+    repairItem: chain.repairPO?.line,
   }
 }

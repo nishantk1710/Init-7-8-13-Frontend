@@ -10,12 +10,23 @@
  * carries `actionable` (total less pre-automation) alongside `total`. Quoting
  * either one on its own misleads, in opposite directions.
  *
- * ## Paged, and honest when it stops
+ * `preAutomation` depends on `attestationCutoverDate`, which is unset on the
+ * deployed backend -- so every row currently reads as actionable, and
+ * `actionable === total`. Hiding pre-automation rows, on this screen, hides
+ * nothing today. It stays applied because it is correct and will matter the
+ * day VZI supplies the date (FRS open item, audit §10 item 5's sibling), but
+ * it must not be read as a way to make this fetch shorter right now.
  *
- * The backend caps a page, and the queue can run to thousands of rows. The
- * loop below stops at `MAX_ROWS` and reports that it did. A queue that
- * silently shows the first slice reads as a complete queue, and somebody will
- * work it to the bottom and believe they are finished.
+ * ## Paged, to the end
+ *
+ * The backend caps a page at `maxPageSize` (500), and the queue can run to
+ * thousands of rows. The loop below follows pages until it has everything,
+ * the same way `live-register.ts` and `live-declarations.ts` do. There used
+ * to be a `MAX_ROWS` ceiling here, and it is why this screen showed "first
+ * 2,000 of 5,975" -- a limit this file imposed on itself, not one the API or
+ * the browser required. Removed 13-Oct-2026 for the same reason it came out
+ * of the declaration queue: a cap with a caption still shows a partial queue,
+ * and the caption does not make that true.
  */
 
 import type {
@@ -121,8 +132,69 @@ export type LiveExceptions = {
   truncated: boolean
 }
 
-const MAX_ROWS = 2000
 const PAGE_SIZE = 500
+
+/**
+ * Checks the queue no longer carries.
+ *
+ * `UNJUSTIFIED_ACQUISITION` — "bought new while a repair was open, with no
+ * justification" — came out on 14-Oct-2026. FR-5b asks the requester for that
+ * reason at the moment of the reservation, and the Spares Assistant is where
+ * it is asked, so a purchase that reaches this queue unjustified is the case
+ * the control upstream exists to prevent. Raising it again afterwards gives
+ * nobody work they do not already have.
+ *
+ * The backend still runs the check and still serves its count. The
+ * Justifications screen is where that number belongs — beside the reasons
+ * themselves and the share of purchases that carry one — rather than in a
+ * queue somebody is meant to work through.
+ *
+ * Dropped here rather than in the table so that everything reading this
+ * loader agrees about what the queue holds: the summary band, the type
+ * filter, the CSV export, and the register's per-line exception chips.
+ */
+const DROPPED_TYPES: ReadonlySet<string> = new Set(["UNJUSTIFIED_ACQUISITION"])
+
+/**
+ * The summary, describing the rows that are left.
+ *
+ * Subtracted from the backend's own counts rather than recomputed from the
+ * rows: `linesChecked`, `linesCovered` and the window settings are facts about
+ * the run that no amount of row counting reproduces, and `total` has to keep
+ * meaning what the band above the table says it means.
+ *
+ * `acquisitionsChecked` and `justificationWindowDays` are left alone. They
+ * describe the justification check, which still runs — the Justifications
+ * screen reads them from the same meta and reports them there.
+ */
+function withoutDroppedTypes(
+  summary: ExceptionQueueSummary,
+  dropped: ExceptionQueueRow[],
+): ExceptionQueueSummary {
+  const preAutomation = dropped.filter((row) => row.preAutomation).length
+  const bySeverity = { ...summary.bySeverity }
+  for (const row of dropped) {
+    if (bySeverity[row.severity] !== undefined) {
+      bySeverity[row.severity] = Math.max(0, bySeverity[row.severity] - 1)
+    }
+  }
+
+  return {
+    ...summary,
+    total: Math.max(0, summary.total - dropped.length),
+    actionable: Math.max(0, summary.actionable - (dropped.length - preAutomation)),
+    preAutomation: Math.max(0, summary.preAutomation - preAutomation),
+    byType: Object.fromEntries(
+      Object.entries(summary.byType).filter(([type]) => !DROPPED_TYPES.has(type)),
+    ),
+    bySeverity,
+    // Out of `typesRaised` too, and this is the half that shows today: the
+    // deployed backend raises none of these but still declares the check, so
+    // the type sat in the filter dropdown and in "How each check works" with
+    // nothing behind it either way.
+    typesRaised: summary.typesRaised.filter((type) => !DROPPED_TYPES.has(type)),
+  }
+}
 
 /**
  * Fetch the exception queue, following pages.
@@ -150,26 +222,38 @@ export async function loadLiveExceptions(
 
     rows.push(...body.items.map(toRow))
 
-    if (rows.length >= total || body.items.length === 0 || rows.length >= MAX_ROWS)
-      break
+    // Stops on the total, or on an empty page -- never on a row count of its
+    // own, which is what let the fetch stop short of everything before.
+    if (rows.length >= total || body.items.length === 0) break
     page += 1
   }
 
+  // Truncation is measured on what was FETCHED against what the backend said
+  // it had, before anything is dropped -- the dropped rows arrived, they are
+  // just not shown, and counting them as missing would raise the partial-queue
+  // banner on a complete queue.
+  const truncated = rows.length < total
+  const kept = rows.filter((row) => !DROPPED_TYPES.has(row.type))
+  const dropped = rows.filter((row) => DROPPED_TYPES.has(row.type))
+
   return {
-    rows,
-    summary: summary ?? {
-      total: 0,
-      actionable: 0,
-      preAutomation: 0,
-      byType: {},
-      bySeverity: {},
-      linesChecked: 0,
-      linesCovered: 0,
-      typesRaised: [],
-      attestationWindowDays: 0,
-    },
+    rows: kept,
+    summary: withoutDroppedTypes(
+      summary ?? {
+        total: 0,
+        actionable: 0,
+        preAutomation: 0,
+        byType: {},
+        bySeverity: {},
+        linesChecked: 0,
+        linesCovered: 0,
+        typesRaised: [],
+        attestationWindowDays: 0,
+      },
+      dropped,
+    ),
     referenceDate,
-    truncated: rows.length < total,
+    truncated,
   }
 }
 

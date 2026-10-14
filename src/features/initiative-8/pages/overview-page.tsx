@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { OverviewDashboard } from "@/features/initiative-8/components/overview-dashboard"
 import {
   loadLiveOverview,
-  unjustifiedAcquisitions,
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
 import { formatApiDateTime } from "@/lib/api/format"
@@ -30,10 +29,11 @@ const DESCRIPTION =
  * The register is required; the other sources are best-effort, and a tile
  * whose source failed says so instead of showing a number.
  *
- * The exception check's result shows here as the Unjustified new purchases
- * tile and per line in the register. The Exception Queue screen it links to
- * came back on 12-Oct-2026, after the 09-Oct FRS audit found FR-8, FR-9,
- * FR-11 and acceptance criteria 5 and 11 had nothing rendering them.
+ * The exception checks do not show here any more. The "Unjustified new
+ * purchases" tile came off on 14-Oct-2026 with the check itself -- FR-5b asks
+ * for the reason at the reservation, so the Justifications screen reports it
+ * -- and this page stopped fetching the exception meta with it. The findings
+ * that remain are rendered per line in the register, and on Repair Exceptions.
  */
 export async function RefurbishableSparesOverviewPage() {
   // Not statically prerendered: every figure here moves as attestations and
@@ -68,7 +68,7 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, declarations, exceptions, vendorTurnaround } = live
+  const { register, universe, declarations, vendorTurnaround } = live
 
   return (
     <Shell
@@ -88,8 +88,6 @@ export async function RefurbishableSparesOverviewPage() {
         agingBands={register.agingBands}
         universe={universe}
         pendingDeclarations={declarations?.outstanding}
-        unjustifiedAcquisitions={exceptions ? unjustifiedAcquisitions(exceptions) : undefined}
-        exceptionsLoaded={exceptions !== null}
         vendorTurnaround={vendorTurnaround}
         plantOptions={register.plantOptions}
         vendorOptions={register.vendorOptions}
@@ -103,7 +101,7 @@ export async function RefurbishableSparesOverviewPage() {
 function Shell({ description, children }: { description: string; children: ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <PageHeader title="Repairable Spares" description={description} />
         {children}
       </div>

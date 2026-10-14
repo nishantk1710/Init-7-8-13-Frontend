@@ -7,6 +7,7 @@ import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -25,16 +26,21 @@ import {
 import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
+  RepairStatus,
 } from "@/features/initiative-8/types/repair"
-import {
-  DECLARATION_STATUSES,
-  DECLARATION_STATUS_TONE,
-} from "@/features/initiative-8/utils/status"
+import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
-import { downloadCsv } from "@/lib/utils"
+import { cn, downloadCsv, formatCount } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
+
+/**
+ * The repair lifecycle, in order, so the status filter offers PR Raised before
+ * Closed rather than in whatever order the rows happened to arrive. Taken from
+ * the tone map so there is one list of repair statuses in this module, not two.
+ */
+const REPAIR_STATUS_ORDER = Object.keys(REPAIR_STATUS_TONE) as RepairStatus[]
 
 export type DeclarationsTableProps = {
   rows: DeclarationQueueRow[]
@@ -63,9 +69,13 @@ export function DeclarationsTable({
   // against a different part.
   const [formKey, setFormKey] = useState(0)
 
-  const [status, setStatus] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
-  const [outstandingOnly, setOutstandingOnly] = useState(false)
+  // Where the REPAIR stands, not the declaration: every row here is
+  // undeclared, and a part still at the vendor is a different kind of
+  // outstanding from one already back on the shelf.
+  const [repairStatus, setRepairStatus] = useState<string>(ALL)
+  const [vendor, setVendor] = useState<string>(ALL)
+  const [search, setSearch] = useState("")
 
   // FR-10 asks for a plant filter on every screen, and the register is the
   // only one that had one. Built from the rows rather than hard-coded: the
@@ -79,50 +89,108 @@ export function DeclarationsTable({
     return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b))
   }, [rows])
 
+  // Only the statuses the queue actually holds, for the same reason the plant
+  // list is built from the rows: a filter offering a value that matches
+  // nothing reads as a broken filter.
+  const repairStatuses = useMemo(() => {
+    const seen = new Set(rows.map((row) => row.repairStatus).filter(Boolean) as RepairStatus[])
+    return REPAIR_STATUS_ORDER.filter((status) => seen.has(status))
+  }, [rows])
+
+  // Name when LFA1 gave one, else the code -- whatever the row carries. Rows
+  // with neither (no PO header on the repair line) match no vendor and drop
+  // out once one is picked, which is the honest answer: the vendor is not
+  // known from this data rather than being some other vendor.
+  const vendors = useMemo(() => {
+    const seen = new Set(rows.map((row) => row.vendor).filter(Boolean) as string[])
+    return [...seen].sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  // Outstanding only, and not as a default somebody can switch off.
+  //
+  // The heading above this table says "still owed a declaration", and since
+  // 13-Oct the columns carry no declaration status at all. A Completed row
+  // would be indistinguishable from an undeclared one and would still offer a
+  // "Declare condition" button, which is why this is a scope rather than a
+  // filter.
+  //
+  // "Outstanding" is the backend's own test -- Required or Flagged, anything
+  // not Completed -- so this table and the "Repair lines undeclared" tile
+  // above it count the same rows. A Flagged line was declared NOT repairable
+  // and sent for repair anyway; it still wants somebody's attention, and the
+  // tile already counts it.
+  const scoped = useMemo(() => rows.filter((row) => row.status !== "Completed"), [rows])
+
   const filtered = useMemo(() => {
-    return rows.filter((row) => {
-      if (status !== ALL && row.status !== status) return false
+    const needle = search.trim().toLowerCase()
+    return scoped.filter((row) => {
       if (plant !== ALL && row.plant?.plantId !== plant) return false
-      if (outstandingOnly && row.status === "Completed") return false
+      if (repairStatus !== ALL && row.repairStatus !== repairStatus) return false
+      if (vendor !== ALL && row.vendor !== vendor) return false
+      // Material code and description because that is what somebody is
+      // holding a part number for; repair line and requisition because that
+      // is what somebody arrives from a spreadsheet with.
+      if (
+        needle &&
+        ![
+          row.material.materialCode,
+          row.material.description,
+          row.relatedRepairId,
+          row.purchaseRequisition,
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(needle))
+      ) {
+        return false
+      }
       return true
     })
-  }, [rows, status, plant, outstandingOnly])
+  }, [scoped, plant, repairStatus, vendor, search])
 
   function exportCsv() {
     downloadCsv(
       "i08-declaration-queue.csv",
+      // Wider than the table on purpose, the same way the register's export
+      // is: the screen is for working the queue, the file is for somebody
+      // slicing it in Excel, and the repair line and requisition are what
+      // they need to join it to anything else.
       [
         "Material",
         "Description",
         "Plant",
+        "Vendor",
+        "Repair Status",
         "Repair Line",
         "Requisition",
         "Requester Code",
-        "Status",
-        "Condition",
-        "Declared By",
-        "Declared At",
-        "Next Action",
+        "Declaration Status",
+        "Raised",
       ],
       filtered.map((row) => [
         row.material.materialCode,
         row.material.description ?? "",
         row.plant?.name ?? row.plant?.plantId ?? "",
+        row.vendor ?? "",
+        row.repairStatus ?? "",
         row.relatedRepairId,
         row.purchaseRequisition ?? "",
         row.requester ?? "",
         row.status,
-        row.condition ?? "",
-        row.declaredBy ?? "",
-        row.declaredAt ?? "",
-        row.nextAction,
+        row.createdAt ?? "",
       ])
     )
   }
 
-  const activeFilters = [status !== ALL, plant !== ALL, outstandingOnly].filter(
-    Boolean
-  ).length
+  const activeFilters =
+    [plant, repairStatus, vendor].filter((v) => v !== ALL).length +
+    (search.trim() === "" ? 0 : 1)
+
+  function clearFilters() {
+    setPlant(ALL)
+    setRepairStatus(ALL)
+    setVendor(ALL)
+    setSearch("")
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,73 +222,49 @@ export function DeclarationsTable({
           className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-foreground"
         >
           Showing the first {rows.length} of {summary.total} rows. This is a
-          partial queue, not an empty one — narrow by plant or status to see the
-          rest.
+          partial queue, not an empty one — narrow by plant to see the rest.
         </div>
       )}
 
       <FilterBar>
-        <Select value={status} onValueChange={(v) => setStatus(v ?? ALL)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All statuses">
-              {(value: string) => (value === ALL ? "All statuses" : value)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
-            {DECLARATION_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All plants">
-              {(value: string) =>
-                value === ALL
-                  ? "All plants"
-                  : (plants.find(([id]) => id === value)?.[1] ?? value)
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All plants</SelectItem>
-            {plants.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={outstandingOnly ? "yes" : ALL}
-          onValueChange={(v) => setOutstandingOnly(v === "yes")}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All declarations">
-              {(value: string) =>
-                value === "yes" ? "Outstanding only" : "All declarations"
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All declarations</SelectItem>
-            <SelectItem value="yes">Outstanding only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <ClearFiltersButton
-          activeCount={activeFilters}
-          onClear={() => {
-            setStatus(ALL)
-            setPlant(ALL)
-            setOutstandingOnly(false)
-          }}
+        <FilterSelect
+          value={plant}
+          onChange={setPlant}
+          allLabel="All plants"
+          options={plants.map(([id, name]) => ({ value: id, label: name }))}
+          className="sm:w-44"
         />
+        <FilterSelect
+          value={repairStatus}
+          onChange={setRepairStatus}
+          allLabel="All repair statuses"
+          options={repairStatuses.map((s) => ({ value: s, label: s }))}
+          className="sm:w-44"
+        />
+        <FilterSelect
+          value={vendor}
+          onChange={setVendor}
+          allLabel="All vendors"
+          options={vendors.map((v) => ({ value: v, label: v }))}
+          className="sm:w-52"
+        />
+
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search material, repair line, PR…"
+          aria-label="Search the declaration queue"
+          className="h-9 w-full sm:w-64"
+        />
+
+        <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
+
+        {/* How much of the queue is in front of you. The counts in the band
+            above are over the whole queue on purpose, so without this a
+            filtered view gives no number at all. */}
+        <span className="text-xs text-muted-foreground sm:ml-auto">
+          {formatCount(filtered.length)} of {formatCount(scoped.length)} rows
+        </span>
       </FilterBar>
 
       {filtered.length === 0 ? (
@@ -234,12 +278,9 @@ export function DeclarationsTable({
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead>Repair Line</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Condition</TableHead>
-                <TableHead>Declared By</TableHead>
-                <TableHead>Declared At</TableHead>
-                <TableHead>Next Action</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Repair Status</TableHead>
+                <TableHead>Raised</TableHead>
                 <TableHead className="text-right">
                   <span className="sr-only">Action</span>
                 </TableHead>
@@ -257,54 +298,42 @@ export function DeclarationsTable({
                   <TableCell className="text-muted-foreground">
                     {row.plant?.name ?? row.plant?.plantId ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.relatedRepairId}
-                    {row.hasActiveRepair && (
-                      <StatusBadge tone="warning" className="ml-2">
-                        Open
+                  {/* Name when LFA1 gave one, else the code, else neither.
+                      455 repair lines carry no PO header, so "not known from
+                      this data" is a real answer and gets said. */}
+                  <TableCell className="max-w-[180px] truncate text-muted-foreground">
+                    {row.vendor ?? "—"}
+                  </TableCell>
+                  {/* The REPAIR's status, not the declaration's. Whether the
+                      part is still out changes how urgent an undeclared line
+                      is, and every row here is undeclared by definition. */}
+                  <TableCell>
+                    {row.repairStatus ? (
+                      <StatusBadge tone={REPAIR_STATUS_TONE[row.repairStatus]}>
+                        {row.repairStatus}
                       </StatusBadge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={DECLARATION_STATUS_TONE[row.status]}>
-                      {row.status}
-                    </StatusBadge>
-                  </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {row.condition ?? "—"}
-                  </TableCell>
-                  {/* No sign-in exists, so this is whatever the server stamped
-                      -- UNAUTHENTICATED_LOCAL_USER on every row written so far
-                      (audit §11.3). Shown as recorded rather than prettied up. */}
-                  <TableCell className="text-muted-foreground">
-                    {row.declaredBy ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.declaredAt ?? "—"}
-                  </TableCell>
-                  <TableCell
-                    className="max-w-[320px] truncate text-muted-foreground"
-                    title={row.nextAction}
-                  >
-                    {row.nextAction}
+                    {row.createdAt ?? "—"}
                   </TableCell>
                   {/* Declare it from here. The form used to live only on the
                       repair detail page, which meant working this queue was a
                       round trip per row: open the repair, declare, come back,
                       find your place again. */}
                   <TableCell className="text-right">
-                    {row.status !== "Completed" && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => {
-                          setFormKey((k) => k + 1)
-                          setDeclaring(row)
-                        }}
-                      >
-                        Declare condition
-                      </Button>
-                    )}
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        setFormKey((k) => k + 1)
+                        setDeclaring(row)
+                      }}
+                    >
+                      Declare condition
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -323,10 +352,61 @@ export function DeclarationsTable({
             plantId: declaring.plant?.plantId,
             label: `${declaring.material.materialCode} - ${declaring.material.description} at ${declaring.plant?.name ?? "an unknown plant"} (repair ${declaring.relatedRepairId})`,
             defaultQuantity: "1",
+            // FR-4's link to the repair PO. Working a queue row declares THAT
+            // line, so it is named outright rather than left to a date window
+            // that these lines are far too old to satisfy.
+            repairDocument: declaring.repairPO?.documentNumber,
+            repairItem: declaring.repairPO?.line,
           }}
           faultCategories={faultCategories}
         />
       )}
     </div>
+  )
+}
+
+/**
+ * One filter dropdown, with "all" as a first-class option rather than an empty
+ * value.
+ *
+ * A near-copy of the register's control of the same name. It is copied rather
+ * than imported because that one is private to `repair-register-table.tsx`,
+ * and lifting it out would put this change into a file it otherwise has no
+ * business in -- the two should be merged into `components/shared/` the next
+ * time either is touched for its own sake.
+ */
+function FilterSelect({
+  value,
+  onChange,
+  allLabel,
+  options,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  allLabel: string
+  options: { value: string; label: string }[]
+  className?: string
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
+      <SelectTrigger className={cn("h-9 w-full", className)}>
+        <SelectValue placeholder={allLabel}>
+          {(selected: string) =>
+            selected === ALL
+              ? allLabel
+              : (options.find((o) => o.value === selected)?.label ?? selected)
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{allLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

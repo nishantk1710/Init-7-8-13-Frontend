@@ -33,7 +33,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch, apiPost } from "@/lib/api/client"
+import { apiFetch, apiPost, type ApiRequestInit } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -392,6 +392,15 @@ export type ApiDeclarationItem = {
   requester: string | null
   hasActiveRepair: boolean
   relatedRepairId: string
+  /** The same repair line, unjoined — so the declaration form can send FR-4's
+   *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
+  repairPo?: ApiSAPDocumentReference | null
+  /** Vendor code; null where the repair line carries no PO header. */
+  vendor?: string | null
+  /** LFA1's name for that vendor, where one was delivered. */
+  vendorName?: string | null
+  /** Where the REPAIR stands — not the declaration status, which is `status`. */
+  repairStatus?: string | null
   /**
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
    * has no approval step — an attestation is recorded or it is not.
@@ -581,6 +590,20 @@ export type AttestationRequest = {
   /** The attestation this one amends. Attestations are never edited: an
    *  amendment is a new record pointing at the one it replaces. */
   supersedes?: string
+  /**
+   * The repair line being declared against — `EKPO.EBELN` and `EKPO.EBELP`.
+   *
+   * FR-4's "link … to the repair PR or PO". Send both whenever the screen
+   * knows which line it is declaring, which is every entry point except
+   * "Declare a part". The backend then covers that line outright instead of
+   * guessing from material + plant + a ±30-day window — a guess that matches
+   * nothing on this data, because the repair lines are years old and a
+   * declaration is stamped today.
+   *
+   * Both or neither: half a key identifies no line and is refused with a 422.
+   */
+  repairDocument?: string
+  repairItem?: string
 }
 
 // --- Query parameters -----------------------------------------------------
@@ -935,9 +958,30 @@ export type CodingCandidatesQuery = {
  */
 export function getCodingCandidates(
   query: CodingCandidatesQuery = {},
+  init?: ApiRequestInit,
 ): Promise<ApiCodingCandidateResponse> {
-  return apiFetch(`/i8/coding-candidates${queryString(query)}`)
+  return apiFetch(`/i8/coding-candidates${queryString(query)}`, init)
 }
+
+/**
+ * How many materials one `screen=true` call may judge.
+ *
+ * Measured against the deployed backend on 13-Oct-2026: about 5.5 seconds of
+ * model time per material, strictly sequential. Ten is roughly a minute --
+ * comfortably inside both the timeout below and Azure's own ~230-second
+ * ceiling, and small enough that a failure costs one batch rather than ten
+ * minutes of work.
+ *
+ * Nothing is re-bought when a batch is repeated: a verdict is stored against
+ * the exact text it judged, so raising the limit screens only what is new.
+ * That is what makes the whole pass resumable (and what a single unbounded
+ * call could never be -- all 113 materials is about ten minutes, and the
+ * platform would have killed it at four).
+ */
+export const CODING_SCREEN_BATCH = 10
+
+/** Headroom for one batch. Well under Azure's ~230s, well over 10 x 5.5s. */
+export const CODING_SCREEN_TIMEOUT_MS = 150_000
 
 // --- Helpers --------------------------------------------------------------
 

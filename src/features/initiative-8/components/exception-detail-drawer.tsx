@@ -211,14 +211,6 @@ export function ExceptionDetailDrawer({
               makes the check stop finding this item, and it resolves itself with
               the declaration in its history.
             </>
-          ) : item.type === "UNJUSTIFIED_ACQUISITION" ? (
-            <>
-              A justification naming this purchase resolves the item. The{" "}
-              <Link href="/repairable-spares/justifications" className="text-primary hover:underline">
-                justification log
-              </Link>{" "}
-              is where those are recorded.
-            </>
           ) : (
             "This item resolves itself when the data it was raised on changes — a goods receipt, a declaration, or a justification."
           )}

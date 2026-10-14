@@ -170,8 +170,31 @@ async function readErrorBody(response: Response): Promise<ErrorBody> {
  * ~5-minute header timeout and then failed with a bare "fetch failed". POSTs
  * get no default timeout: every one writes to an append-only table, and giving
  * up on a write that may have landed is worse than waiting for it.
+ *
+ * 60 s by default. 20 s was too tight: on 13 Oct 2026 the I13 summary answered
+ * in 1 s one moment and 24 s the next while Azure SQL was busy, and every
+ * slow-but-healthy answer showed as "the live backend is not responding".
+ * Azure App Service cuts any request at 230 s, so going much higher buys
+ * nothing. Set at build time (NEXT_PUBLIC_*): repository variable
+ * API_GET_TIMEOUT_MS in deploy.yml.
  */
-export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS ?? 20000)
+export const API_GET_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_GET_TIMEOUT_MS || 60000)
+
+/**
+ * `RequestInit` plus a per-call timeout.
+ *
+ * The default suits a read that should be quick, and most of them are. One is
+ * not: the coding screen's model pass is seconds of model time PER MATERIAL,
+ * and it is opted into deliberately. Rather than raise the global ceiling for
+ * every read -- which would turn a dead backend into a long wait everywhere --
+ * that one caller asks for the headroom it needs.
+ *
+ * **There is a ceiling above this one that we do not own.** Azure App Service
+ * ends a request at about 230 seconds and answers 504 itself, so no value here
+ * buys more than that. A call that cannot finish inside it has to be split,
+ * not given a bigger number.
+ */
+export type ApiRequestInit = RequestInit & { timeoutMs?: number }
 
 /**
  * The backend answers 503 with `Retry-After` while an I08 or I13 snapshot is
@@ -204,11 +227,16 @@ function unavailableMessage(response: Response, body: ErrorBody): string {
   )
 }
 
-async function request(path: string, init?: RequestInit): Promise<Response> {
+async function request(path: string, init?: ApiRequestInit): Promise<Response> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
   const method = init?.method ?? "GET"
+  // A caller's own timeout wins over the global GET default. Carried as a
+  // NUMBER rather than as a ready-made signal so the error message below can
+  // quote the limit that actually bit -- a call given 180 seconds reporting
+  // "did not respond within 60 seconds" sends the reader after the wrong bug.
+  const timeoutMs = init?.timeoutMs ?? (method === "GET" ? API_GET_TIMEOUT_MS : 0)
   const signal =
-    init?.signal ?? (method === "GET" && API_GET_TIMEOUT_MS > 0 ? AbortSignal.timeout(API_GET_TIMEOUT_MS) : undefined)
+    init?.signal ?? (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
 
   let response: Response
   try {
@@ -225,7 +253,7 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
       throw new ApiError(
-        `The backend did not respond within ${Math.round(API_GET_TIMEOUT_MS / 1000)} seconds (${method} ${url}).`,
+        `The backend did not respond within ${Math.round(timeoutMs / 1000)} seconds (${method} ${url}).`,
         504
       )
     }
@@ -253,7 +281,7 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
  * it on read routes too (the ACT routes log who looked), and a header that is
  * only sometimes present is harder to reason about than one that always is.
  */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const response = await request(path, init)
 
   // 204 has no body. Nothing in this API returns one today, but a JSON parse of
@@ -279,7 +307,7 @@ export type ApiList<T> = {
  * shape changed) and report the unpaged total in that header, which is what
  * lets a screen say "1,000 of 42,649" instead of "there may be more".
  */
-export async function apiFetchList<T>(path: string, init?: RequestInit): Promise<ApiList<T>> {
+export async function apiFetchList<T>(path: string, init?: ApiRequestInit): Promise<ApiList<T>> {
   const response = await request(path, init)
   const items = (await response.json()) as T[]
   const header = response.headers.get("X-Total-Count")
