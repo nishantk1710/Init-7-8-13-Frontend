@@ -627,8 +627,11 @@ export interface ReservationLedgerRow {
   prNumber: string | null
   poNumber: string | null
   poItem: string | null
+  /** PO line's ordered quantity; null with no PO or when SAP gave none. */
+  orderedQuantity: number | null
   receivedQuantity: number | null
   issuedQuantity: number | null
+  firstGrDate: string | null
   lastGrDate: string | null
   lastIssueDate: string | null
   lifecycleStatus: string

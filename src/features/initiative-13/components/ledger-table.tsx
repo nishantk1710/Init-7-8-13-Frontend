@@ -4,6 +4,8 @@ import { Fragment, useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 
 import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
+import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
+import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -225,6 +227,7 @@ export function UtilizationLedgerTable({
                 <TableHead>PR</TableHead>
                 <TableHead>PO</TableHead>
                 <TableHead className="text-right">Received</TableHead>
+                <TableHead>Delivered on</TableHead>
                 <TableHead className="text-right">Issued</TableHead>
                 <TableHead className="text-right">Open</TableHead>
                 <TableHead>Procurement</TableHead>
@@ -306,6 +309,15 @@ export function UtilizationLedgerTable({
                           arrived" are different findings on this table, and the
                           adapter keeps them apart precisely so this cell can. */}
                       <Quantity value={entry.receivedQuantity} />
+                      <DeliveredOnCell
+                        status={deliveryStatusFromProcurement({
+                          hasPo: Boolean(entry.poNumber),
+                          procurementStatus: entry.procurementStatus,
+                          firstGrDate: entry.firstGrDate,
+                          latestGrDate: entry.latestGrDate,
+                        })}
+                        receivedQuantity={entry.receivedQuantity}
+                      />
                       <Quantity value={entry.issuedQuantity} />
                       <Quantity value={entry.openQuantity} />
                       <TableCell>
@@ -321,7 +333,7 @@ export function UtilizationLedgerTable({
                     </TableRow>
                     <TableRow className="hover:bg-transparent">
                       <TableCell className="p-0" />
-                      <TableCell colSpan={10} className="p-0">
+                      <TableCell colSpan={11} className="p-0">
                         <div
                           className={cn(
                             "grid transition-[grid-template-rows] duration-300 ease-out",
