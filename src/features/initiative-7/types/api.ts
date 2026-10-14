@@ -291,6 +291,24 @@ export interface ApiApprovalHistoryResponse {
 // elsewhere in this file -- adoption tracking is the one place those three
 // distinct backend values are shown as themselves.
 
+/** One field an adoption check looked at: what was approved, what SAP held
+ * before and holds now, and when it changed. */
+export interface ApiAdoptionFieldRow {
+  key: string
+  label: string
+  expected: string | null
+  before: string | null
+  now: string | null
+  /** ISO date (YYYY-MM-DD) of the latest change. */
+  changed_on: string | null
+  /** HH:MM, null when the extract carried no usable time. */
+  changed_time: string | null
+  /** Whole days from approval (else the recommendation date) to the change. */
+  days_after: number | null
+  /** null when SAP recorded nothing about this field. */
+  matched: boolean | null
+}
+
 export interface ApiAdoptionListItem {
   recommendation_id: string
   sap_material_number: string
@@ -298,6 +316,13 @@ export interface ApiAdoptionListItem {
   status: string
   is_conversion_adoption: boolean
   detail: string
+  check_type?: string
+  fields?: ApiAdoptionFieldRow[]
+  approved_on?: string | null
+  window_ends_on?: string | null
+  window_open?: boolean
+  /** UNKNOWN while the tracking window is still open -- waiting for SAP. */
+  pending?: boolean
 }
 
 export interface ApiAdoptionListResponse {
@@ -335,6 +360,12 @@ export interface ApiAdoptionResponse {
   matched_fields: string[]
   mismatched_fields: string[]
   detail: string
+  check_type?: string
+  fields?: ApiAdoptionFieldRow[]
+  approved_on?: string | null
+  window_ends_on?: string | null
+  window_open?: boolean
+  pending?: boolean
   is_conversion_adoption: boolean
 }
 

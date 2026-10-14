@@ -14,9 +14,12 @@ import {
   generateQuarterlyReport,
   mapDetailToRecommendation,
   mapStatus,
+  adoptionPageStatus,
+  mapAdoptionListItem,
   mapSummaryToRecommendation,
 } from "./i7-api"
 import type {
+  ApiAdoptionListItem,
   ApiQuarterlyReport,
   ApiQuarterlyReportListItem,
   ApiQuarterlyReportListResponse,
@@ -146,6 +149,83 @@ describe("cold-start (OAR) recommendations show what the backend did not send as
 
   it("flags nothing when a standard recommendation carries every value", () => {
     expect(mapDetailToRecommendation(detailFixture()).unavailable).toEqual([])
+  })
+})
+
+describe("adoption tracking rows", () => {
+  const adoptionRow = (overrides: Partial<ApiAdoptionListItem> = {}): ApiAdoptionListItem => ({
+    recommendation_id: "REC-STD-1000000000-1300",
+    sap_material_number: "1000000000",
+    sap_plant_code: "1300",
+    status: "UNKNOWN",
+    is_conversion_adoption: false,
+    detail: "No change recorded in SAP yet.",
+    ...overrides,
+  })
+
+  it("shows no SAP evidence as Pending while the window is open, and 'No change recorded' after", () => {
+    expect(mapAdoptionListItem(adoptionRow({ pending: true, window_open: true })).pageStatus).toBe("Pending")
+    expect(mapAdoptionListItem(adoptionRow({ pending: false, window_open: false })).pageStatus).toBe(
+      "No change recorded",
+    )
+    // The status the Overview filter uses is untouched: still "Unknown".
+    expect(mapAdoptionListItem(adoptionRow({ pending: true })).status).toBe("Unknown")
+  })
+
+  it("never turns a real result into Pending", () => {
+    expect(adoptionPageStatus("Adopted", true)).toBe("Adopted")
+    expect(adoptionPageStatus("Not adopted", true)).toBe("Not adopted")
+    expect(adoptionPageStatus("Partially adopted", false)).toBe("Partially adopted")
+  })
+
+  it("carries the checked fields, the dates and the days after approval", () => {
+    const row = mapAdoptionListItem(
+      adoptionRow({
+        status: "PARTIALLY_ADOPTED",
+        check_type: "Reorder point · Max stock",
+        approved_on: "2026-10-11",
+        window_ends_on: "2026-10-26",
+        window_open: true,
+        detail: "Reorder point: 0 → 435 on 14 Oct 2026, 10:32 (3 days after the approval).",
+        fields: [
+          {
+            key: "reorder_point",
+            label: "Reorder point",
+            expected: "435",
+            before: "0",
+            now: "435",
+            changed_on: "2026-10-14",
+            changed_time: "10:32",
+            days_after: 3,
+            matched: true,
+          },
+        ],
+      }),
+    )
+    expect(row.checkType).toBe("Reorder point · Max stock")
+    expect(row.pageStatus).toBe("Partially adopted")
+    expect(row.approvedOn).toBe("2026-10-11")
+    expect(row.fields).toEqual([
+      {
+        key: "reorder_point",
+        label: "Reorder point",
+        expected: "435",
+        before: "0",
+        now: "435",
+        changedOn: "2026-10-14",
+        changedTime: "10:32",
+        daysAfter: 3,
+        matched: true,
+      },
+    ])
+  })
+
+  it("still maps a backend that does not send the field breakdown yet", () => {
+    const row = mapAdoptionListItem(adoptionRow({ is_conversion_adoption: true }))
+    expect(row.checkType).toBe("Min-Max conversion")
+    expect(row.fields).toEqual([])
+    expect(row.windowOpen).toBe(true)
+    expect(mapAdoptionListItem(adoptionRow()).checkType).toBe("Planning parameters")
   })
 })
 

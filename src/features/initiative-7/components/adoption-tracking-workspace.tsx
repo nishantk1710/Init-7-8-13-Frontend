@@ -5,12 +5,18 @@
 // "Implemented" label before any component could see the distinction. This
 // page shows the real, unreduced reconciliation result per recommendation.
 //
-// UNKNOWN is the honest, expected result on the current SAP extract: the
-// staged raw_cdpos table has zero MATERIAL/MARC change-document rows (see
-// app/initiatives/i7/recommendations/sap_change_documents.py's module
-// docstring), so there is no SAP evidence to reconcile against for any
-// material-plant today. UNKNOWN is never displayed as NOT_ADOPTED -- absence
-// of evidence is not evidence of non-adoption.
+// The backend's UNKNOWN (no SAP evidence) is the honest, expected result on the
+// current SAP extract: the staged raw_cdpos table has zero MATERIAL/MARC
+// change-document rows (see app/initiatives/i7/recommendations/
+// sap_change_documents.py's module docstring), so there is no SAP evidence to
+// reconcile against for any material-plant today. It is shown as "Pending"
+// while the tracking window is open and as "No change recorded" after it --
+// never as "Not adopted": absence of evidence is not evidence of non-adoption.
+//
+// Check type names the SAP fields checked (reorder point, safety stock, max
+// stock, MRP type); Detail has one line per field with the old and new value,
+// when it changed in SAP and how many days after approval. Both are written by
+// the backend so the page and the API can never word the same result twice.
 
 "use client"
 
@@ -39,23 +45,25 @@ import {
 } from "@/components/ui/table"
 import { formatCount } from "@/lib/utils"
 import { useLiveAdoption } from "@/features/initiative-7/hooks/use-live-adoption"
-import type { AdoptionDisplayStatus } from "@/features/initiative-7/services/i7-api"
+import type { AdoptionPageStatus } from "@/features/initiative-7/services/i7-api"
 
 const ALL = "all"
 const PAGE_SIZE = 20
 
-const STATUS_OPTIONS: AdoptionDisplayStatus[] = [
+const STATUS_OPTIONS: AdoptionPageStatus[] = [
   "Adopted",
   "Partially adopted",
   "Not adopted",
-  "Unknown",
+  "Pending",
+  "No change recorded",
 ]
 
-const STATUS_TONE: Record<AdoptionDisplayStatus, "default" | "success" | "warning" | "danger"> = {
+const STATUS_TONE: Record<AdoptionPageStatus, "default" | "success" | "warning" | "danger"> = {
   Adopted: "success",
   "Partially adopted": "warning",
   "Not adopted": "danger",
-  Unknown: "default",
+  Pending: "default",
+  "No change recorded": "default",
 }
 
 export function AdoptionTrackingWorkspace() {
@@ -68,7 +76,7 @@ export function AdoptionTrackingWorkspace() {
   const visible = useMemo(() => {
     const search = query.trim().toLowerCase()
     return (items ?? []).filter((row) => {
-      if (statusFilter !== ALL && row.status !== statusFilter) return false
+      if (statusFilter !== ALL && row.pageStatus !== statusFilter) return false
       if (search) {
         const haystack = `${row.materialId} ${row.plantId}`.toLowerCase()
         if (!haystack.includes(search)) return false
@@ -145,19 +153,19 @@ export function AdoptionTrackingWorkspace() {
               <TableRow key={row.recommendationId}>
                 <TableCell className="font-medium text-foreground">{row.materialId}</TableCell>
                 <TableCell className="text-muted-foreground">{row.plantId}</TableCell>
-                <TableCell className="text-accent-foreground">
-                  {row.isConversionAdoption ? "OAR conversion (ND/PD → VB)" : "Planning-field parameters"}
-                </TableCell>
+                <TableCell className="text-accent-foreground">{row.checkType}</TableCell>
                 <TableCell>
-                  <StatusBadge tone={STATUS_TONE[row.status]}>{row.status}</StatusBadge>
+                  <StatusBadge tone={STATUS_TONE[row.pageStatus]}>{row.pageStatus}</StatusBadge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{row.detail}</TableCell>
+                <TableCell className="text-muted-foreground whitespace-pre-line">{row.detail}</TableCell>
               </TableRow>
             ))}
             {visible.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                  No adoption checks match this filter.
+                  {total === 0
+                    ? "No approved recommendations to track yet. A recommendation appears here once it has been approved."
+                    : "No adoption checks match this filter."}
                 </TableCell>
               </TableRow>
             )}
