@@ -53,9 +53,8 @@ export function RepairStatusChart({ chains }: { chains: RepairChain[] }) {
             axisLine={false}
             fontSize={11}
             interval={0}
-            angle={-15}
-            textAnchor="end"
-            height={44}
+            textAnchor="middle"
+            height={28}
           />
           <YAxis
             stroke="var(--muted-foreground)"

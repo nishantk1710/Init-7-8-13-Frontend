@@ -29,7 +29,6 @@ import type {
   CodingCandidateSource,
 } from "@/features/initiative-8/types/repair"
 import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE } from "@/features/initiative-8/utils/status"
-import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
 import {
   CODING_SCREEN_BATCH,
   CODING_SCREEN_TIMEOUT_MS,
@@ -91,18 +90,15 @@ export type CodingCandidatesTableProps = {
   /** Rows to render. There is no fixture data for this screen (see the
    *  page component) — this is only ever fed live results. */
   candidates?: CodingCandidate[]
-  meta?: ApiCodingCandidateMeta | null
   loadError?: string | null
 }
 
 export function CodingCandidatesTable({
   candidates: initialCandidates = [],
-  meta: initialMeta = null,
   loadError = null,
 }: CodingCandidatesTableProps = {}) {
   const { openMaterial360 } = useMaterial360()
   const [candidates, setCandidates] = useState(initialCandidates)
-  const [meta, setMeta] = useState(initialMeta)
   const [screening, setScreening] = useState(false)
   const [screenProgress, setScreenProgress] = useState<{ done: number; total: number } | null>(null)
   const [screenError, setScreenError] = useState<string | null>(null)
@@ -276,7 +272,6 @@ export function CodingCandidatesTable({
         }
         const merged = [...byMaterial.values()]
         setCandidates(merged)
-        setMeta(body.meta)
 
         const judged = merged.filter((c) => c.verdict !== UNSCREENED).length
         // Nothing new came back. A backend that ignores `limit`, or a batch
@@ -313,54 +308,35 @@ export function CodingCandidatesTable({
     )
   }
 
-  const isUnscreened = meta ? meta.provider === "" || meta.provider === "stub" : true
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Before a screen has run there is nothing to report, so the button
-          stands alone; after one, what it found sits beside it. */}
-      <div
-        className={
-          isUnscreened
-            ? "flex justify-end"
-            : "flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between"
-        }
-      >
-        {!isUnscreened && (
-          <div className="text-sm text-muted-foreground">
-            Screened by <strong>{meta?.provider}</strong>
-            {meta?.model ? ` (${meta.model})` : ""}. {meta?.corroborated ?? 0} candidate
-            {meta?.corroborated === 1 ? "" : "s"} corroborated by an 80-series twin.
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={exportCsv}>
-            Export CSV
+      <div className="flex items-center justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={exportCsv}>
+          Export CSV
+        </Button>
+        {/* Progress, not a guess. The old label said "~4 min", calibrated
+            when the pool was 41 materials; it is 113 now and the estimate
+            was quietly wrong by six minutes. A count of what is actually
+            done cannot go stale that way. */}
+        {screening ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              stopRef.current = true
+            }}
+          >
+            {screenProgress
+              ? `Stop (${formatCount(screenProgress.done)} of ${formatCount(screenProgress.total)})`
+              : "Stop"}
           </Button>
-          {/* Progress, not a guess. The old label said "~4 min", calibrated
-              when the pool was 41 materials; it is 113 now and the estimate
-              was quietly wrong by six minutes. A count of what is actually
-              done cannot go stale that way. */}
-          {screening ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                stopRef.current = true
-              }}
-            >
-              {screenProgress
-                ? `Stop (${formatCount(screenProgress.done)} of ${formatCount(screenProgress.total)})`
-                : "Stop"}
-            </Button>
-          ) : (
-            <Button size="sm" onClick={() => void runScreen()} disabled={unscreenedCount === 0}>
-              {unscreenedCount === 0
-                ? "All screened"
-                : `Run AI screen (${formatCount(unscreenedCount)} left)`}
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button size="sm" onClick={() => void runScreen()} disabled={unscreenedCount === 0}>
+            {unscreenedCount === 0
+              ? "All screened"
+              : `Run AI screen (${formatCount(unscreenedCount)} left)`}
+          </Button>
+        )}
       </div>
 
       {screenError && (

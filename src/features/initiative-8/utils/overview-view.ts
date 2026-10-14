@@ -220,9 +220,8 @@ const STATUS_BUCKETS: { label: string; statuses: RepairStatus[]; color: string }
  *
  * An empty bar is a claim that the stage is tracked and nothing reached it.
  * For `PR Raised` neither half of that is true — the register is built from PO
- * lines, so nothing produces it — and the card's footnote says so in words
- * instead. It stays a bucket rather than being deleted so that a
- * requisition-stage row, if one ever arrives, draws itself.
+ * lines, so nothing produces it. It stays a bucket rather than being deleted
+ * so that a requisition-stage row, if one ever arrives, draws itself.
  */
 export function repairStatusBuckets(chains: RepairChain[]): StatusBucket[] {
   return STATUS_BUCKETS.map((bucket) => ({
@@ -257,9 +256,9 @@ export type TurnaroundBar = {
  * on the same line. Most vendors on the live register have neither, and a
  * vendor missing from a turnaround chart reads as "this vendor has no
  * repairs", which is a different and wrong claim. So the unmeasurable ones are
- * counted here and named in the card's footnote rather than silently dropped.
+ * counted here rather than silently dropped.
  *
- * Returns `measurable` and `total` alongside the bars so the footnote is
+ * Returns `measurable` and `total` alongside the bars so the card's subtitle is
  * written from the same numbers that drew them and the two cannot disagree.
  */
 export function turnaroundBars(

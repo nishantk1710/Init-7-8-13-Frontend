@@ -34,27 +34,22 @@ import {
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import { NO_CRITICALITY, UNKNOWN, UNKNOWN_VENDOR } from "@/features/initiative-8/utils/status"
+import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
 import type { ApiUniverseMeta, ApiVendorTurnaround } from "@/lib/api/i8"
 import { cn, downloadCsv, formatCount } from "@/lib/utils"
-
-/** Shown on a tile whose source could not be read — never a 0. */
-const NOT_LOADED = "Could not be loaded"
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
   agingBands: string[]
-  /** Null when the universe fetch failed: its tiles and chart say so. */
+  /** Null when the universe fetch failed: its tiles show a dash, its chart says so. */
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
   /** Outstanding declarations over the whole register. Not filterable. */
   pendingDeclarations?: number
   /**
    * Unjustified acquisitions over the whole register. `undefined` means the
-   * backend does not run that check; null means the fetch failed. The two show
-   * differently, and neither shows as 0.
+   * backend does not run that check, and shows as a dash rather than a 0.
    */
   unjustifiedAcquisitions?: number
-  exceptionsLoaded: boolean
   vendorTurnaround: ApiVendorTurnaround[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
@@ -78,8 +73,8 @@ export type OverviewDashboardProps = {
  * says so on screen rather than leaving someone to infer it.
  *
  * Two tiles cannot be filtered at all: pending declarations and unjustified
- * new purchases come from a `meta` the backend computes over everything. They
- * are labelled on the tile and in the export rather than silently narrowing.
+ * new purchases come from a `meta` the backend computes over everything. The
+ * strip under the filters and the export say so rather than silently narrowing.
  */
 export function OverviewDashboard({
   chains,
@@ -87,7 +82,6 @@ export function OverviewDashboard({
   universe,
   pendingDeclarations,
   unjustifiedAcquisitions,
-  exceptionsLoaded,
   vendorTurnaround,
   plantOptions,
   vendorOptions,
@@ -140,8 +134,6 @@ export function OverviewDashboard({
       ),
     )
   }
-
-  const unknownStockRows = metrics.stock.unknownRows
 
   return (
     <>
@@ -199,22 +191,12 @@ export function OverviewDashboard({
         <KPIStatCard
           label="Repairable materials monitored"
           value={universe ? formatCount(metrics.universeMaterials) : UNKNOWN}
-          hint={
-            universe
-              ? `80-series · ${formatCount(metrics.universeRows)} material-plant rows across ${formatCount(metrics.universePlants)} plants`
-              : NOT_LOADED
-          }
         />
         <KPIStatCard
           label="Qty currently under repair"
           value={formatCount(metrics.qtyUnderRepair)}
-          hint="units on open repair lines"
         />
-        <KPIStatCard
-          label="Open repair lines"
-          value={formatCount(metrics.openLines)}
-          hint={`of ${formatCount(metrics.totalLines)} in the register`}
-        />
+        <KPIStatCard label="Open repair lines" value={formatCount(metrics.openLines)} />
         {/* UNJUSTIFIED_ACQUISITION: a new unit bought while a repair of the
             same part was open, with no justification on record. A dash, not
             a 0, when the backend does not run that check. */}
@@ -225,45 +207,18 @@ export function OverviewDashboard({
               ? UNKNOWN
               : formatCount(unjustifiedAcquisitions)
           }
-          trend={unjustifiedAcquisitions ? "down" : "flat"}
-          trendLabel={unjustifiedAcquisitions ? "Unjustified" : undefined}
-          hint={
-            !exceptionsLoaded
-              ? NOT_LOADED
-              : unjustifiedAcquisitions === undefined
-                ? "check not running on this backend yet"
-                : "new units bought while a repair was open · whole register"
-          }
         />
         <KPIStatCard
           label="Pending declarations"
           value={pendingDeclarations === undefined ? UNKNOWN : formatCount(pendingDeclarations)}
-          hint={pendingDeclarations === undefined ? NOT_LOADED : "Required + Flagged · whole register"}
         />
-        <KPIStatCard
-          label="Repairs overdue"
-          value={formatCount(metrics.overdueLines)}
-          trend={metrics.overdueLines > 0 ? "down" : "flat"}
-          trendLabel={metrics.overdueLines > 0 ? "Past promised return" : undefined}
-          hint={`${formatCount(metrics.noDueDateLines)} with no due date`}
-        />
+        <KPIStatCard label="Repairs overdue" value={formatCount(metrics.overdueLines)} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <ChartCard
           title="Repair status distribution"
           subtitle={`All ${formatCount(metrics.totalLines)} repair lines, by current lifecycle stage`}
-          footnote={
-            <>
-              Received and Closed are counted together: both mean the unit is
-              back, and the only thing separating them is SAP&rsquo;s
-              delivery-complete flag, which is set on about nine lines in ten
-              whether or not anything has been received. The register&rsquo;s
-              Repair Status column still tells them apart. There is no
-              requisition stage — the register is built from purchase order
-              lines, so a repair appears once it has been ordered.
-            </>
-          }
           span={6}
         >
           <RepairStatusChart chains={slice.chains} />
@@ -274,19 +229,6 @@ export function OverviewDashboard({
             vendors.vendorCount > vendors.top.length
               ? `Open repair lines — top ${vendors.top.length} of ${vendors.vendorCount} vendors`
               : "Open repair lines per vendor"
-          }
-          footnote={
-            <>
-              A count of open lines, not a turnaround.
-              {vendors.otherLines > 0 &&
-                ` The other ${vendors.vendorCount - vendors.top.length} vendors hold ${formatCount(vendors.otherLines)} open lines.`}
-              {/* Only said when it is true of the data on screen. Every line
-                  currently carries a PO header, so the group is empty and a
-                  standing sentence about it described a case that no longer
-                  occurs. */}
-              {vendors.top.some((v) => v.vendor === UNKNOWN_VENDOR) &&
-                " Lines with no purchase-order header are grouped as Unknown vendor."}
-            </>
           }
           span={6}
         >
@@ -302,26 +244,6 @@ export function OverviewDashboard({
             turnaround && turnaround.bars.length > 0
               ? `Average days, dispatch to goods receipt — slowest ${turnaround.bars.length} of ${turnaround.measurable} measurable vendors`
               : "Dispatch to goods receipt, over closed repairs only"
-          }
-          footnote={
-            <>
-              Measured from the first 541 to the first goods receipt on the same
-              line.{" "}
-              {turnaround && (
-                <>
-                  <strong>
-                    {turnaround.measurable} of {turnaround.total} vendors
-                  </strong>{" "}
-                  have at least one repair with both a dispatch and a receipt;
-                  the rest hold repairs that cannot be timed yet and are not
-                  drawn — that is not the same as having no repairs.{" "}
-                </>
-              )}
-              A line still at a vendor has no turnaround yet and is counted
-              under &ldquo;Repairs by vendor&rdquo; instead. Computed by the
-              backend over the whole register, so the filters above do not
-              narrow it.
-            </>
           }
           span={6}
         >
@@ -341,14 +263,6 @@ export function OverviewDashboard({
         <ChartCard
           title="Aging by stage"
           subtitle="Open repair lines, by days in their CURRENT stage"
-          footnote={
-            <>
-              Days open runs from the PO line&rsquo;s creation date; this runs
-              from the line entering the stage it is in now. A line 200 days
-              open but 3 days at the vendor is a different problem from one 200
-              days open and 190 at the vendor.
-            </>
-          }
           span={6}
         >
           <StageAgingChart chains={slice.chains} bands={agingBands} />
@@ -363,11 +277,6 @@ export function OverviewDashboard({
         <ChartCard
           title="Repairable stock by plant"
           subtitle="Stock on hand across the repairable universe (every 80-series material and plant)"
-          footnote={
-            universe && unknownStockRows > 0
-              ? `${formatCount(unknownStockRows)} material-plant rows have no stock record and add nothing to the bars.`
-              : undefined
-          }
           span={6}
         >
           {universe ? (

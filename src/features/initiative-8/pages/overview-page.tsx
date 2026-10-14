@@ -89,7 +89,6 @@ export async function RefurbishableSparesOverviewPage() {
         universe={universe}
         pendingDeclarations={declarations?.outstanding}
         unjustifiedAcquisitions={exceptions ? unjustifiedAcquisitions(exceptions) : undefined}
-        exceptionsLoaded={exceptions !== null}
         vendorTurnaround={vendorTurnaround}
         plantOptions={register.plantOptions}
         vendorOptions={register.vendorOptions}
@@ -103,7 +102,7 @@ export async function RefurbishableSparesOverviewPage() {
 function Shell({ description, children }: { description: string; children: ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <PageHeader title="Repairable Spares" description={description} />
         {children}
       </div>

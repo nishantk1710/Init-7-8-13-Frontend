@@ -93,7 +93,7 @@ export default async function I08DeclarationsPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title="Condition declarations"
-          description="Every repair line, and whether the part was assessed before it was sent away (FR-4). Advisory — the platform records and reports this, it cannot block a dispatch."
+          description="Every repair line, and whether the part was assessed before it was sent away. Advisory — the platform records and reports this, it cannot block a dispatch."
           actions={
             plantOptions.length > 0 ? (
               <DeclarePartButton plantOptions={plantOptions} faultCategories={categories} />
