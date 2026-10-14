@@ -31,7 +31,6 @@ import type {
 import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE } from "@/features/initiative-8/utils/status"
 import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
 import { getCodingCandidates } from "@/lib/api/i8"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { downloadCsv } from "@/lib/utils"
 
 const ALL = "all"
@@ -92,7 +91,6 @@ export function CodingCandidatesTable({
   meta: initialMeta = null,
   loadError = null,
 }: CodingCandidatesTableProps = {}) {
-  const { openMaterial360 } = useMaterial360()
   const [candidates, setCandidates] = useState(initialCandidates)
   const [meta, setMeta] = useState(initialMeta)
   const [screening, setScreening] = useState(false)
@@ -107,9 +105,6 @@ export function CodingCandidatesTable({
   /** Materials whose evidence is open. Collapsed by default: the table is a
    *  ranked list first, and 20 expanded rows of SAP free text is not one. */
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [actionableOnly, setActionableOnly] = useState(false)
-  const [corroboratedOnly, setCorroboratedOnly] = useState(false)
-  const [meetsThresholdOnly, setMeetsThresholdOnly] = useState(false)
 
   // FR-10 asks for a plant filter on every screen and this one had none.
   // Built from the rows rather than hard-coded: the plant scope is a backend
@@ -148,12 +143,9 @@ export function CodingCandidatesTable({
       // candidates found solely there: the question is "what did PR text turn
       // up", and a material corroborated by two sources still answers it.
       if (source !== ALL && !c.lines.some((line) => line.source === source)) return false
-      if (actionableOnly && !c.isActionable) return false
-      if (corroboratedOnly && !c.isCorroborated) return false
-      if (meetsThresholdOnly && !c.meetsConfidenceThreshold) return false
       return true
     })
-  }, [candidates, verdict, plant, source, actionableOnly, corroboratedOnly, meetsThresholdOnly])
+  }, [candidates, verdict, plant, source])
 
   /**
    * Export what is on screen.
@@ -294,51 +286,6 @@ export function CodingCandidatesTable({
           </SelectContent>
         </Select>
 
-        <Select
-          value={actionableOnly ? "yes" : ALL}
-          onValueChange={(v) => setActionableOnly(v === "yes")}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Actionable">
-              {(value: string) => (value === "yes" ? "Actionable only" : "All candidates")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Actionable only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={corroboratedOnly ? "yes" : ALL}
-          onValueChange={(v) => setCorroboratedOnly(v === "yes")}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-48">
-            <SelectValue placeholder="Corroborated">
-              {(value: string) => (value === "yes" ? "Corroborated only" : "All candidates")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Corroborated only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={meetsThresholdOnly ? "yes" : ALL}
-          onValueChange={(v) => setMeetsThresholdOnly(v === "yes")}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-56">
-            <SelectValue placeholder="Confidence threshold">
-              {(value: string) => (value === "yes" ? "Meets confidence threshold" : "All candidates")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All candidates</SelectItem>
-            <SelectItem value="yes">Meets confidence threshold</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All plants">
@@ -383,18 +330,12 @@ export function CodingCandidatesTable({
               verdict !== ALL,
               plant !== ALL,
               source !== ALL,
-              actionableOnly,
-              corroboratedOnly,
-              meetsThresholdOnly,
             ].filter(Boolean).length
           }
           onClear={() => {
             setVerdict(ALL)
             setPlant(ALL)
             setSource(ALL)
-            setActionableOnly(false)
-            setCorroboratedOnly(false)
-            setMeetsThresholdOnly(false)
           }}
         />
       </FilterBar>
@@ -426,12 +367,31 @@ export function CodingCandidatesTable({
             <TableBody>
               {filtered.map((c) => (
                 <Fragment key={c.material.materialId}>
-                <TableRow>
+                {/* The whole row opens the evidence, not only the chevron at
+                    the end -- so the row is the control, and carries the aria
+                    state the chevron button used to. The material cell used to
+                    open the Material 360 drawer instead, which on a coding
+                    candidate has nothing to show: these materials are raised
+                    from PO, PR and movement text, not from the shared
+                    catalogue, so the drawer opened on "no catalog record". */}
+                <TableRow
+                  tabIndex={0}
+                  aria-expanded={expanded.has(c.material.materialId)}
+                  aria-label={`${expanded.has(c.material.materialId) ? "Hide" : "Show"} the text behind ${c.material.materialCode}`}
+                  onClick={() => toggleExpanded(c.material.materialId)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return
+                    // Space scrolls the page otherwise, and here it opens a row.
+                    event.preventDefault()
+                    toggleExpanded(c.material.materialId)
+                  }}
+                  className="cursor-pointer aria-expanded:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                >
                   <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                     {rankOf.get(c.material.materialId)}
                   </TableCell>
                   <TableCell>
-                    <MaterialIdentity material={c.material} onOpen={openMaterial360} />
+                    <MaterialIdentity material={c.material} />
                   </TableCell>
                   <TableCell>
                     <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
@@ -451,10 +411,7 @@ export function CodingCandidatesTable({
                     <div className="flex flex-wrap gap-1">
                       {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
                       {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
-                      {c.meetsConfidenceThreshold && (
-                        <StatusBadge tone="default">Meets threshold</StatusBadge>
-                      )}
-                      {!c.isCorroborated && !c.isActionable && !c.meetsConfidenceThreshold && (
+                      {!c.isCorroborated && !c.isActionable && (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
@@ -483,19 +440,18 @@ export function CodingCandidatesTable({
                     {formatScreenedAt(c.screenedAt)}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      aria-expanded={expanded.has(c.material.materialId)}
-                      aria-label={`${expanded.has(c.material.materialId) ? "Hide" : "Show"} the text behind ${c.material.materialCode}`}
-                      onClick={() => toggleExpanded(c.material.materialId)}
+                    {/* A marker now, not a second control: the row takes the
+                        click, and a button inside it would toggle twice. */}
+                    <span
+                      aria-hidden="true"
+                      className="flex size-6 items-center justify-center text-muted-foreground"
                     >
                       {expanded.has(c.material.materialId) ? (
                         <ChevronDown className="size-3.5" />
                       ) : (
                         <ChevronRight className="size-3.5" />
                       )}
-                    </Button>
+                    </span>
                   </TableCell>
                 </TableRow>
                 {expanded.has(c.material.materialId) && (
