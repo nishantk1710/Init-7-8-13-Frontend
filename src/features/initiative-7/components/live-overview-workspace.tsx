@@ -112,10 +112,14 @@ const ADOPTION_PLANTS: { code: string; name: string }[] = [
  * param, not something the sidebar selection could drive for free. */
 function AdoptionRateCard({
   summary,
+  loading = false,
+  failed = false,
   plant,
   onPlantChange,
 }: {
   summary: AdoptionSummaryResult | null
+  loading?: boolean
+  failed?: boolean
   plant: string
   onPlantChange: (plant: string) => void
 }) {
@@ -141,27 +145,31 @@ function AdoptionRateCard({
     </div>
   )
 
-  if (!summary || summary.totalEvaluated === 0) {
-    return (
-      <div className="flex flex-col">
-        {plantPicker}
-        <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-          <p>No recommendations with values to track yet.</p>
-          <p className="max-w-xs">
-            A material appears here once a recommendation with recommended values has been generated.
-          </p>
-        </div>
-      </div>
-    )
+  // The chart is always drawn, with zero bars when there is nothing to count, so the
+  // card keeps its shape; a line under it says why the counts are empty.
+  const shown: AdoptionSummaryResult = summary ?? {
+    totalEvaluated: 0,
+    adoptedCount: 0,
+    partiallyAdoptedCount: 0,
+    notAdoptedCount: 0,
+    unknownCount: 0,
+    adoptionRatePercentage: null,
   }
+  const emptyReason = loading
+    ? "Loading adoption counts..."
+    : failed
+      ? "Could not load the adoption counts from the backend."
+      : shown.totalEvaluated === 0
+        ? "No recommendations with values to track yet."
+        : null
 
-  const rateKnown = summary.adoptionRatePercentage !== null
+  const rateKnown = shown.adoptionRatePercentage !== null
 
   const statusCounts = [
-    { status: "Adopted", count: summary.adoptedCount, color: "var(--chart-3)" },
-    { status: "Partially adopted", count: summary.partiallyAdoptedCount, color: "var(--chart-4)" },
-    { status: "Not adopted", count: summary.notAdoptedCount, color: "var(--destructive)" },
-    { status: "Pending", count: summary.unknownCount, color: "var(--muted-foreground)" },
+    { status: "Adopted", count: shown.adoptedCount, color: "var(--chart-3)" },
+    { status: "Partially adopted", count: shown.partiallyAdoptedCount, color: "var(--chart-4)" },
+    { status: "Not adopted", count: shown.notAdoptedCount, color: "var(--destructive)" },
+    { status: "Pending", count: shown.unknownCount, color: "var(--muted-foreground)" },
   ]
   // A real but zero count renders as a zero-width bar -- invisible, and
   // indistinguishable from the color simply being wrong. displayCount gives
@@ -178,7 +186,7 @@ function AdoptionRateCard({
       {plantPicker}
       <div className="text-center">
         <div className="text-lg font-semibold text-foreground">
-          {rateKnown ? `${summary.adoptionRatePercentage}% adoption rate` : "Not yet measured"}
+          {rateKnown ? `${shown.adoptionRatePercentage}% adoption rate` : "Not yet measured"}
         </div>
         <div className="text-xs text-muted-foreground">
           {rateKnown
@@ -223,7 +231,7 @@ function AdoptionRateCard({
         ))}
       </div>
       <p className="text-center text-[11px] text-muted-foreground">
-        {summary.totalEvaluated} recommendation(s) tracked. Pending means SAP has recorded no change yet.
+        {emptyReason ?? `${shown.totalEvaluated} recommendation(s) tracked. Pending means SAP has recorded no change yet.`}
       </p>
     </div>
   )
@@ -239,7 +247,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // a dedicated backend param rather than reading it off the sidebar
   // selection: the ledger has no plant column of its own).
   const [adoptionPlant, setAdoptionPlant] = useState<string>(ALL_FILTER)
-  const { summary: adoptionSummary } = useLiveAdoptionSummary(
+  const { summary: adoptionSummary, loading: adoptionLoading, error: adoptionError } = useLiveAdoptionSummary(
     adoptionPlant === ALL_FILTER ? undefined : adoptionPlant,
   )
   // Adoption is a separate reconciliation, keyed by recommendation id, not a
@@ -250,7 +258,12 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // scope), so a row absent from this map has no adoption status to filter
   // on at all -- treated as "Unknown" below, the same value a genuinely
   // evaluated-but-no-evidence row gets, since neither has anything to show.
-  const { items: adoptionItems } = useLiveAdoption({ pageSize: LIVE_OVERVIEW_PAGE_SIZE })
+  // Only needed to filter the page by SAP adoption: fetching 200 adoption rows on every
+  // visit would look each one up in SAP's change history for nothing.
+  const { items: adoptionItems } = useLiveAdoption(
+    { pageSize: LIVE_OVERVIEW_PAGE_SIZE },
+    { enabled: filters.sapAdoption !== ALL_FILTER },
+  )
   const adoptionByRecommendationId = useMemo(() => {
     const map = new Map<string, string>()
     for (const row of adoptionItems ?? []) map.set(row.recommendationId, row.status)
@@ -415,6 +428,8 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             >
               <AdoptionRateCard
                 summary={adoptionSummary}
+                loading={adoptionLoading}
+                failed={adoptionError !== null}
                 plant={adoptionPlant}
                 onPlantChange={setAdoptionPlant}
               />
