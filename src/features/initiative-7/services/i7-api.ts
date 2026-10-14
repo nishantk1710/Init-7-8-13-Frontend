@@ -148,12 +148,14 @@ const DEMAND_MAP: Record<string, DemandPattern> = {
   LUMPY: "Lumpy",
   INTERMITTENT: "Intermittent",
   SLOW: "Slow-Moving",
-  UNCLASSIFIED: "Intermittent",
+  // Under the backend's history gate: nothing to classify, so OAR similarity
+  // sizes it. Not "Intermittent" -- that is a claim about demand it never made.
+  UNCLASSIFIED: "Cold start",
 }
 
 function mapDemandPattern(raw: string | null): DemandPattern {
-  if (!raw) return "Intermittent"
-  return DEMAND_MAP[raw.toUpperCase()] ?? "Intermittent"
+  if (!raw) return "Unclassified"
+  return DEMAND_MAP[raw.toUpperCase()] ?? "Unclassified"
 }
 
 /** A circuit the frontend's Circuit union recognises, or "Unassigned" --
@@ -267,6 +269,8 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     leadTimeDays: 0,
     leadTimeVarianceDays: 0,
     serviceLevelTarget: 0,
+    // The list endpoint carries none of these; the detail mapper fills them in.
+    unavailable: ["leadTime", "serviceLevel", "consumption"],
     unitPrice: toNumber(row.unit_price) ?? 0,
     currency: row.currency ?? null,
     annualConsumption: 0,
@@ -330,6 +334,11 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     leadTimeVarianceDays: toNumber(detail.lead_time.variance_days) ?? 0,
     serviceLevelTarget: toNumber(detail.service_level.service_level) ?? 0,
     zFactor: toNumber(detail.service_level.z_factor),
+    unavailable: [
+      ...(toNumber(detail.lead_time.days) == null ? (["leadTime"] as const) : []),
+      ...(toNumber(detail.service_level.service_level) == null ? (["serviceLevel"] as const) : []),
+      ...(toNumber(detail.demand.forecast_rate) == null ? (["consumption"] as const) : []),
+    ],
     unitPrice: toNumber(detail.unit_price) ?? 0,
     currency: detail.currency ?? null,
     annualConsumption: (toNumber(detail.demand.forecast_rate) ?? 0) * 12,

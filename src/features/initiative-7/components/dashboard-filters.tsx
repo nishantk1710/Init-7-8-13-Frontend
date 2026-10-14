@@ -130,6 +130,7 @@ export function DashboardFilters({
   plantOptions,
   showRecommendationFilter = false,
   showSapAdoptionFilter = false,
+  showCircuitFilter = true,
 }: {
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
@@ -148,6 +149,9 @@ export function DashboardFilters({
    * fetch keyed by recommendation id, see use-live-adoption.ts); the
    * scenario dataset carries no such field at all. */
   showSapAdoptionFilter?: boolean
+  /** False hides the Circuit dropdown -- for a page whose rows have no real
+   * circuit, where every option would filter to nothing. */
+  showCircuitFilter?: boolean
 }) {
   function set<K extends keyof DashboardFilterState>(key: K, next: string) {
     onChange({ ...value, [key]: next })
@@ -209,21 +213,23 @@ export function DashboardFilters({
         </Select>
       </FilterField>
 
-      <FilterField label="Circuit">
-        <Select value={value.circuit} onValueChange={(v) => set("circuit", v ?? ALL_FILTER)}>
-          <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All</SelectItem>
-            {CIRCUITS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterField>
+      {showCircuitFilter && (
+        <FilterField label="Circuit">
+          <Select value={value.circuit} onValueChange={(v) => set("circuit", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {CIRCUITS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
 
       <FilterField label="Criticality">
         <Select value={value.criticality} onValueChange={(v) => set("criticality", v ?? ALL_FILTER)}>

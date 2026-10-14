@@ -42,6 +42,11 @@ export type DemandPattern =
   | "Slow-Moving"
   | "Lumpy"
   | "Intermittent"
+  /** Too little history to classify (the backend's UNCLASSIFIED: under the
+   * history gate, so OAR similarity handles the material instead). */
+  | "Cold start"
+  /** The backend sent no demand class at all, or one this app does not know. */
+  | "Unclassified"
 
 export const DEMAND_PATTERNS: DemandPattern[] = [
   "Smooth",
@@ -49,6 +54,7 @@ export const DEMAND_PATTERNS: DemandPattern[] = [
   "Slow-Moving",
   "Lumpy",
   "Intermittent",
+  "Cold start",
 ]
 
 export const DEMAND_PATTERN_NOTE: Record<DemandPattern, string> = {
@@ -57,6 +63,8 @@ export const DEMAND_PATTERN_NOTE: Record<DemandPattern, string> = {
   "Slow-Moving": "infrequent withdrawals, low variability when they occur",
   Lumpy: "infrequent withdrawals with high variability in quantity — the hardest pattern to forecast",
   Intermittent: "sporadic, low-volume withdrawals separated by long gaps",
+  "Cold start": "too little consumption history to classify — sized from similar materials (OAR)",
+  Unclassified: "no demand class available",
 }
 
 export type RecommendationStatus =
@@ -160,6 +168,11 @@ export interface Recommendation {
   leadTimeDays: number
   leadTimeVarianceDays: number
   serviceLevelTarget: number
+  /** Live-API only: which of the numeric fields below the backend sent no
+   * value for. They still hold 0 so existing arithmetic keeps working, but 0
+   * is not a real service level, lead time or consumption -- readers must show
+   * "Not available", never the 0. */
+  unavailable?: Array<"leadTime" | "serviceLevel" | "consumption">
   /** Backend-computed Z-factor for serviceLevelTarget (Phase 5's own
    * inventory.service_level.resolve() result), read verbatim. Only present
    * on live-API recommendations; when absent, callers fall back to the

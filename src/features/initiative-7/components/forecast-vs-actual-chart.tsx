@@ -126,10 +126,10 @@ export function ForecastVsActualChart({
   if (data.length === 0) {
     return (
       <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-        <p>No consumption history available.</p>
+        <p>No usage history to show.</p>
         <p className="max-w-xs">
-          The backend does not currently return a consumption time series per recommendation — this chart has
-          nothing to plot until that data is added to the API.
+          No usage has been recorded for this material at this plant, so there is nothing to chart. Materials
+          without history are sized from similar materials instead.
         </p>
       </div>
     )
