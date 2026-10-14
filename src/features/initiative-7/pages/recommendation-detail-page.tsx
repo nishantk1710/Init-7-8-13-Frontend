@@ -133,7 +133,6 @@ function RecommendationDetailView({
                 live ? (
                   <LiveDecisionActions
                     recommendationId={recommendation.id}
-                    status={recommendation.status}
                     onChanged={() => onLiveChanged?.()}
                   />
                 ) : (
