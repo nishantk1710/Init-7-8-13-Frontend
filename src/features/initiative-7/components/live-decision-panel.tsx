@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils"
 import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7/hooks/use-live-approval"
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
+import { decisionPanelMode } from "@/features/initiative-7/utils/decision-panel-mode"
 
 /** Stand-in for a real signed-in identity (see the AUTHENTICATION LIMITATION
  * note above) -- one fixed demo user/role, exactly like the scenario chain's
@@ -51,11 +52,9 @@ const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
  */
 export function LiveDecisionActions({
   recommendationId,
-  status,
   onChanged,
 }: {
   recommendationId: string
-  status: string
   onChanged: () => void
 }) {
   const { submitting, error, act, submit } = useLiveApproval(recommendationId, onChanged)
@@ -68,7 +67,18 @@ export function LiveDecisionActions({
     setComment("")
   }
 
-  if (status === "NOT_EVALUABLE") {
+  if (workflowLoading) {
+    return <p className="text-[13px] text-muted-foreground">Loading workflow state…</p>
+  }
+
+  // Decided from the backend's own status, never from the display label the table shows
+  // ("Pending Review"): see utils/decision-panel-mode.ts.
+  const rawStatus = workflow?.status ?? ""
+  const pendingRole = workflow?.pending_role ?? null
+  const mode = decisionPanelMode(rawStatus, pendingRole)
+  const canAct = !submitting && pendingRole === DEMO_ACTOR_ROLE
+
+  if (mode === "not-reviewable") {
     return (
       <p className="text-[13px] text-muted-foreground">
         Not reviewable yet — the backend has not computed a safety stock/ROP for this material-plant (see the
@@ -77,19 +87,7 @@ export function LiveDecisionActions({
     )
   }
 
-  if (workflowLoading) {
-    return <p className="text-[13px] text-muted-foreground">Loading workflow state…</p>
-  }
-
-  const pendingRole = workflow?.pending_role ?? null
-  // READY_FOR_REVIEW is the one status that precedes submission -- route is
-  // already populated at that point too (routing is decided by criticality/
-  // OAR, not by submission state), so status is the correct signal here, not
-  // an empty route.
-  const notYetSubmitted = workflow?.status === "READY_FOR_REVIEW"
-  const canAct = !submitting && pendingRole === DEMO_ACTOR_ROLE
-
-  if (notYetSubmitted) {
+  if (mode === "ready-to-submit") {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[13px] text-muted-foreground">
@@ -104,11 +102,19 @@ export function LiveDecisionActions({
     )
   }
 
-  if (pendingRole === null) {
+  if (mode === "rejected") {
+    return <StatusBadge tone="danger">Rejected</StatusBadge>
+  }
+
+  if (mode === "chain-complete") {
+    return <StatusBadge tone="success">Chain complete</StatusBadge>
+  }
+
+  if (mode === "no-pending-step") {
     return (
-      <StatusBadge tone={status === "REJECTED" ? "danger" : "success"}>
-        {status === "REJECTED" ? "Rejected" : "Chain complete"}
-      </StatusBadge>
+      <p className="text-[13px] text-muted-foreground">
+        No approval step is waiting on this recommendation{rawStatus ? ` (status ${rawStatus})` : ""}.
+      </p>
     )
   }
 

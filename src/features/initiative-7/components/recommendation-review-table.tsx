@@ -149,7 +149,7 @@ function LiveExpandedRecommendationPanel({
   return (
     <RecommendationReviewPanel
       rec={detail}
-      action={<LiveDecisionActions recommendationId={detail.id} status={detail.status} onChanged={refetch} />}
+      action={<LiveDecisionActions recommendationId={detail.id} onChanged={refetch} />}
     />
   )
 }
