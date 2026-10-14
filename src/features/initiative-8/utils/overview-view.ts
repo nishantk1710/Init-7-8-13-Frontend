@@ -330,8 +330,8 @@ export const OVERVIEW_SUMMARY_HEADERS = ["Metric", "Value"]
  * The figures on the page as a two-column CSV, with the filters that produced
  * them on top: a summary pasted into a report has to say which slice it is.
  *
- * The three figures the backend only reports over the whole dataset are
- * labelled as such rather than quietly exported as though they were filtered.
+ * The figures the backend only reports over the whole dataset are labelled as
+ * such rather than quietly exported as though they were filtered.
  */
 export function overviewSummaryRows(
   metrics: OverviewMetrics,
@@ -339,7 +339,6 @@ export function overviewSummaryRows(
   wholeDataset: {
     referenceDate: string
     pendingDeclarations?: number
-    unjustifiedAcquisitions?: number
   },
 ): (string | number)[][] {
   const unfiltered = (value: number | undefined) => (value === undefined ? "not available" : value)
@@ -360,13 +359,9 @@ export function overviewSummaryRows(
       (p): (string | number)[] => [`Stock on hand — ${p.plant}`, p.stock],
     ),
     ["Universe rows with no stock record", metrics.stock.unknownRows],
-    // Named as whole-dataset figures. Both come from a `meta` the backend
-    // computes over everything, so a filtered export must not imply they
+    // Named as a whole-dataset figure: it comes from a `meta` the backend
+    // computes over everything, so a filtered export must not imply it
     // narrowed with the rest.
     ["Pending declarations (whole register, unfiltered)", unfiltered(wholeDataset.pendingDeclarations)],
-    [
-      "Unjustified new purchases (whole register, unfiltered)",
-      unfiltered(wholeDataset.unjustifiedAcquisitions),
-    ],
   ]
 }
