@@ -45,6 +45,12 @@ interface BarDatum extends PositionBar {
   name: string
 }
 
+/** "Black Mountain (1300)" -> "Black Mountain": three full names do not fit under the bars of a
+ * narrow card, and the tooltip still carries the full name and plant code. */
+export function shortAxisName(name: string): string {
+  return name.replace(/\s*\(\d+\)$/, "")
+}
+
 function toData(bars: PositionBar[]): BarDatum[] {
   return bars.map((bar) => ({ ...bar, name: bar.scope === "ALL" ? "All plants" : SCOPE_NAME[bar.scope] }))
 }
@@ -109,7 +115,15 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 20, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="var(--border)" />
-            <XAxis dataKey="name" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={11} />
+            <XAxis
+              dataKey="name"
+              stroke="var(--muted-foreground)"
+              tickLine={false}
+              axisLine={false}
+              fontSize={11}
+              interval={0}
+              tickFormatter={shortAxisName}
+            />
             <YAxis
               stroke="var(--muted-foreground)"
               tickLine={false}

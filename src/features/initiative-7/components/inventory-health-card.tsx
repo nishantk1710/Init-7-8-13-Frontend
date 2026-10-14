@@ -103,7 +103,10 @@ export function InventoryHealthCard({
   const heightsPx = segmentHeightsPx(counts, total)
 
   return (
-    <div className="flex items-center gap-4">
+    // Container query: below 16rem the bar sits above the legend, so a tier's name and its count
+    // both fit instead of the name being cut to "Cri..." or to nothing at all.
+    <div className="@container">
+    <div className="flex flex-col items-center gap-3 @[16rem]:flex-row @[16rem]:gap-4">
       {/* One continuous column, most severe tier at the top. Every non-zero
           tier gets at least MIN_SEGMENT_PX so a small-but-real tier (e.g.
           Critical at 96 of 226,930) still shows as a visible colored band,
@@ -128,7 +131,7 @@ export function InventoryHealthCard({
           />
         ))}
       </div>
-      <div className="flex flex-1 flex-col gap-2">
+      <div className="flex w-full flex-1 flex-col gap-2">
         {counts.map(({ level, count }) => (
           <button
             key={level}
@@ -143,7 +146,7 @@ export function InventoryHealthCard({
           >
             <span className={cn("flex min-w-0 items-center gap-2 font-medium", RISK_TEXT_CLASS[level])}>
               <span className={cn("size-2.5 shrink-0 rounded-full", RISK_COLOR_CLASS[level])} />
-              <span className="truncate">{RISK_LABEL[level]}</span>
+              <span className="whitespace-nowrap">{RISK_LABEL[level]}</span>
             </span>
             <span className="shrink-0 tabular-nums text-muted-foreground">
               {formatCount(count)} ({pct(count, total)}%)
@@ -151,6 +154,7 @@ export function InventoryHealthCard({
           </button>
         ))}
       </div>
+    </div>
     </div>
   )
 }
