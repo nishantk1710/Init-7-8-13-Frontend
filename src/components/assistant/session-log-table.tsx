@@ -4,8 +4,10 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Download } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -34,6 +36,9 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * offer the parameter. `flow` it does offer, but refetching on every toggle
  * would spend a round trip on a list already in hand. If the log outgrows one
  * page, `flow` moves server-side and `outcome` stays here.
+ *
+ * The search box works the same way: it matches the rows already loaded, so it
+ * finds a session only if it is in that page.
  */
 export function SessionLogTable({
   sessions,
@@ -46,16 +51,36 @@ export function SessionLogTable({
 }) {
   const [flow, setFlow] = useState<string>("all")
   const [outcome, setOutcome] = useState<string>("all")
+  const [search, setSearch] = useState("")
 
-  const filtered = useMemo(
-    () =>
-      sessions.filter(
-        (session) =>
-          (flow === "all" || session.flow === flow) &&
-          (outcome === "all" || session.outcome === outcome)
-      ),
-    [sessions, flow, outcome]
-  )
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return sessions.filter((session) => {
+      if (flow !== "all" && session.flow !== flow) return false
+      if (outcome !== "all" && session.outcome !== outcome) return false
+      if (
+        needle &&
+        // The plant label as well as the code, so "Black Mountain" finds 1300.
+        ![
+          session.sessionId,
+          session.materialId,
+          session.materialDescription,
+          session.plant,
+          sapPlantLabel(session.plant),
+          session.requestedFor,
+          session.department,
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(needle))
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [sessions, flow, outcome, search])
+
+  const activeFilters =
+    (flow !== "all" ? 1 : 0) + (outcome !== "all" ? 1 : 0) + (search.trim() ? 1 : 0)
 
   function exportCsv() {
     // Exports what is on screen, not the whole log. A file that silently
@@ -98,6 +123,13 @@ export function SessionLogTable({
   return (
     <div className="ai-scope flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-4">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search reference, material, requester…"
+          aria-label="Search sessions"
+          className="h-9 w-full sm:w-72"
+        />
         <FilterGroup
           label="Flow"
           value={flow}
@@ -118,6 +150,15 @@ export function SessionLogTable({
             { value: "OPEN", label: "Open" },
             { value: "ABANDONED", label: "Abandoned" },
           ]}
+        />
+
+        <ClearFiltersButton
+          activeCount={activeFilters}
+          onClear={() => {
+            setFlow("all")
+            setOutcome("all")
+            setSearch("")
+          }}
         />
 
         <Button
@@ -151,6 +192,7 @@ export function SessionLogTable({
             <caption className="sr-only">
               Assistant sessions{flow === "all" ? "" : `, ${flowLabel(flow)} only`}
               {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
+              {search.trim() ? `, matching "${search.trim()}"` : ""}
             </caption>
             <TableHeader>
               <TableRow>
