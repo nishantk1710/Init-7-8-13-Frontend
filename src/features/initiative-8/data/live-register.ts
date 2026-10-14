@@ -48,6 +48,7 @@ import {
   DEFAULT_AGING_BUCKETS,
   NO_CRITICALITY,
   REPAIR_STATUS_ORDER,
+  isPartiallyReceived,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import type { ApiRepairChain, ApiRegisterMeta, ApiRepairJustification } from "@/lib/api/i8"
@@ -309,7 +310,12 @@ export function buildRegisterOptions(chains: RepairChain[]): RegisterOptions {
 export function registerDescription(
   meta: ApiRegisterMeta,
   referenceDate: string,
-  sourceLoadedAt?: string | null
+  sourceLoadedAt?: string | null,
+  /** Lines the register does not list — see `isListedInRegister`. Named here
+   *  for exactly the reason in this function's note: 5,155 in the caption over
+   *  5,063 in the table, with nothing to explain the gap, is how a number
+   *  stops being trusted. */
+  unlistedLines?: number
 ): string {
   let text =
     `${meta.totalLines.toLocaleString()} repair lines — ` +
@@ -317,8 +323,17 @@ export function registerDescription(
   if (meta.excludedDeletedLines) {
     text += ` ${meta.excludedDeletedLines.toLocaleString()} lines deleted in SAP are excluded.`
   }
+  if (unlistedLines) {
+    text +=
+      unlistedLines === 1
+        ? " 1 PO-issued line blocked in SAP or partly received is not listed."
+        : ` ${unlistedLines.toLocaleString()} PO-issued lines blocked in SAP or partly received are not listed.`
+  }
   if (meta.blockedLines) {
-    text += ` ${meta.blockedLines.toLocaleString()} blocked in SAP are included and flagged.`
+    text +=
+      meta.blockedLines === 1
+        ? " 1 line blocked in SAP is included and flagged."
+        : ` ${meta.blockedLines.toLocaleString()} lines blocked in SAP are included and flagged.`
   }
   if (sourceLoadedAt) {
     text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`
@@ -326,8 +341,61 @@ export function registerDescription(
   return text
 }
 
+/**
+ * Whether the register lists this line.
+ *
+ * Since 14-Oct-2026 it does not list a PO-issued line that is blocked in SAP,
+ * or that has already come back in part: what the register is being read for
+ * is the lines a PO has gone out on and nothing has happened to yet, and a
+ * line held up in SAP or half-returned is a different conversation with a
+ * different owner.
+ *
+ * Scoped to `PO Issued` deliberately, because that is the stage the request
+ * named. A partially received line At Vendor, or a blocked line already
+ * Closed, stays listed and keeps its flag — on live data that is two lines of
+ * 5,155, and dropping them would be this filter deciding something nobody
+ * asked it to decide.
+ *
+ * Nothing is deleted. The line is still in SAP, still on the backend's own
+ * counts, and still reachable at its own detail page; it is this one listing
+ * that leaves it out, and the register's caption says so.
+ */
+export function isListedInRegister(
+  chain: Pick<RepairChain, "repairStatus" | "receiptStatus" | "poBlocked">,
+): boolean {
+  if (chain.repairStatus !== "PO Issued") return true
+  return !chain.poBlocked && !isPartiallyReceived(chain)
+}
+
+/**
+ * The backend's counts, restated over the lines the register lists.
+ *
+ * `meta` is computed over every line the API sent, the dropped ones included,
+ * and the caption is built from it. Left alone it would describe a register
+ * nobody can see — "5,155 repair lines, 824 still open" over a table holding
+ * 5,063 and 732. Every dropped line is PO-issued and therefore open on the
+ * backend's own count, which is what makes both subtractions safe.
+ */
+function metaForListed(
+  meta: ApiRegisterMeta,
+  listed: RepairChain[],
+  unlisted: number,
+): ApiRegisterMeta {
+  return {
+    ...meta,
+    totalLines: Math.max(0, meta.totalLines - unlisted),
+    openLines: Math.max(0, meta.openLines - unlisted),
+    // The flags as they stand in what is listed. `undefined` rather than 0 so
+    // the caption drops the clause entirely rather than announcing a zero.
+    blockedLines: listed.filter((chain) => chain.poBlocked).length || undefined,
+    partiallyReceivedLines: listed.filter(isPartiallyReceived).length,
+  }
+}
+
 export type LiveRegister = RegisterOptions & {
   chains: RepairChain[]
+  /** How many lines `isListedInRegister` left out, for the caption to name. */
+  unlistedLines: number
   /** The currently configured aging bands (`GET /api/i8/snapshot`'s
    *  `rules.agingBands`), for the chart and the filter dropdown to render
    *  instead of a hard-coded list. Falls back to `DEFAULT_AGING_BUCKETS` if
@@ -389,11 +457,18 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     // The caption drops its freshness clause rather than guessing at one.
   }
 
+  // Dropped before anything is derived from the rows, so the filter options,
+  // the table's own count and the caption all describe one register rather
+  // than three overlapping ones.
+  const listed = chains.filter(isListedInRegister)
+  const unlistedLines = chains.length - listed.length
+
   return {
-    chains,
-    ...buildRegisterOptions(chains),
+    chains: listed,
+    unlistedLines,
+    ...buildRegisterOptions(listed),
     agingBands,
-    meta: meta!,
+    meta: metaForListed(meta!, listed, unlistedLines),
     referenceDate,
     sourceLoadedAt,
   }

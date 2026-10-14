@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildRegisterOptions,
+  isListedInRegister,
   registerDescription,
   toRepairChain,
 } from "@/features/initiative-8/data/live-register"
@@ -494,19 +495,67 @@ describe("overdueStatusOf and isOpenRepair", () => {
   })
 })
 
+describe("isListedInRegister", () => {
+  /**
+   * The register stopped listing PO-issued lines that are blocked in SAP or
+   * already partly back, on 14-Oct-2026. On live data that is 92 lines of
+   * 5,155: 89 blocked and 3 partly received.
+   */
+  const listed = (overrides: Partial<ApiRepairChain> = {}) =>
+    isListedInRegister(toRepairChain(apiRow({ repairStatus: "PO Issued", ...overrides })))
+
+  it("lists a PO-issued line with nothing against it", () => {
+    expect(listed()).toBe(true)
+  })
+
+  it("does not list one blocked in SAP", () => {
+    expect(listed({ poBlocked: true })).toBe(false)
+  })
+
+  it("does not list one that has already come back in part", () => {
+    expect(listed({ receiptStatus: "Partially Received" })).toBe(false)
+  })
+
+  it("leaves every other stage alone, flags and all", () => {
+    // Scoped to the stage the request named. Two live lines sit here -- one
+    // Closed and blocked, one At Vendor and partly received -- and dropping
+    // them would be this filter deciding something nobody asked it to.
+    const atVendor = apiRow({ repairStatus: "At Vendor", receiptStatus: "Partially Received" })
+    const closed = apiRow({ repairStatus: "Closed", poBlocked: true })
+    expect(isListedInRegister(toRepairChain(atVendor))).toBe(true)
+    expect(isListedInRegister(toRepairChain(closed))).toBe(true)
+  })
+})
+
 describe("registerDescription", () => {
   const meta = { totalLines: 1181, openLines: 744 } as ApiRegisterMeta
 
   it("says how many deleted lines were left out, and how many blocked ones kept", () => {
     const text = registerDescription({ ...meta, excludedDeletedLines: 44, blockedLines: 72 }, "2026-09-24")
     expect(text).toContain("44 lines deleted in SAP are excluded")
-    expect(text).toContain("72 blocked in SAP are included and flagged")
+    expect(text).toContain("72 lines blocked in SAP are included and flagged")
+  })
+
+  it("names the lines the register does not list, so the counts can be reconciled", () => {
+    // 5,155 in the caption over 5,063 in the table, with nothing to explain
+    // the gap, is how a number stops being trusted.
+    const text = registerDescription(meta, "2026-09-24", null, 92)
+    expect(text).toContain(
+      "92 PO-issued lines blocked in SAP or partly received are not listed",
+    )
+  })
+
+  it("reads as one line, not as '1 lines'", () => {
+    expect(registerDescription({ ...meta, blockedLines: 1 }, "2026-09-24", null, 1)).toContain(
+      "1 PO-issued line blocked in SAP or partly received is not listed. 1 line blocked in SAP is included and flagged.",
+    )
   })
 
   it("says nothing about exclusions a backend does not report", () => {
     const text = registerDescription(meta, "2026-09-24")
     expect(text).not.toContain("deleted")
     expect(text).not.toContain("blocked")
+    expect(text).not.toContain("not listed")
   })
 
   // The caption used to open "1,181 repair lines from the July extract" in
