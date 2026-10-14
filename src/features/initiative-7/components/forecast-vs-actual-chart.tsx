@@ -50,6 +50,37 @@ function ForecastTooltip({ active, payload, label }: TooltipContentProps) {
   )
 }
 
+/** A cold-start (OAR) material has no forecast: its reorder point, safety stock and max stock
+ * are estimated from similar materials, not from its own usage. Drawing a "Forecast" line at
+ * zero for it would say the model predicts no demand, which it never did -- so the chart hides
+ * the line instead. Only decided for a single material; several in view keep the flat line. */
+export function hasNoForecast(recommendations: Recommendation[]): boolean {
+  if (recommendations.length !== 1) return false
+  const [only] = recommendations
+  return only.oarColdStart != null || only.demandPattern === "Cold start"
+}
+
+export interface ChartPoint {
+  period: string
+  actual: number | null
+  forecast: number | null
+}
+
+/** The flat-line fallback series: the actual monthly usage, with the backend's single forecast
+ * rate drawn flat across it -- or no forecast value at all when `noForecast`, so the point is
+ * missing rather than zero. */
+export function flatSeries(
+  actuals: { period: string; qty: number }[],
+  forecastRate: number,
+  noForecast: boolean,
+): ChartPoint[] {
+  return actuals.map((p) => ({
+    period: p.period,
+    actual: p.qty,
+    forecast: noForecast ? null : Math.round(forecastRate * 10) / 10,
+  }))
+}
+
 /** Aggregate consumption for whichever recommendations are in view.
  *
  * This must NOT recompute a forecast client-side: the backend's real model
@@ -98,6 +129,8 @@ export function ForecastVsActualChart({
 
   const usingRealHistory = Boolean(soleRecommendationId && liveHistory && liveHistory.points.length > 0)
 
+  const noForecast = hasNoForecast(recommendations)
+
   const data = useMemo(() => {
     const series = aggregateConsumption(recommendations).slice(-Number(windowSize))
 
@@ -107,7 +140,7 @@ export function ForecastVsActualChart({
       return liveHistory.points.slice(-Number(windowSize)).map((p) => ({
         period: p.period,
         actual: p.actual,
-        forecast: p.predicted,
+        forecast: noForecast ? null : p.predicted,
       }))
     }
 
@@ -116,12 +149,8 @@ export function ForecastVsActualChart({
     // back to the honest flat reference line: the real forecast_rate that
     // drove the recommendation, never a fabricated month-by-month curve.
     const forecastRate = recommendations.reduce((sum, r) => sum + r.avgDailyConsumption, 0)
-    return series.map((p) => ({
-      period: p.period,
-      actual: p.qty,
-      forecast: Math.round(forecastRate * 10) / 10,
-    }))
-  }, [recommendations, windowSize, soleRecommendationId, liveHistory])
+    return flatSeries(series, forecastRate, noForecast)
+  }, [recommendations, windowSize, soleRecommendationId, liveHistory, noForecast])
 
   if (data.length === 0) {
     return (
@@ -139,7 +168,9 @@ export function ForecastVsActualChart({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[11px] text-muted-foreground">
-        {usingRealHistory
+        {noForecast
+          ? "Actual monthly usage. There is no forecast for this material: its reorder point, safety stock and max stock are estimated from similar materials, not from its own usage."
+          : usingRealHistory
           ? `Real model output (${liveHistory?.modelName ?? "champion model"}): each point is that model's own rolling-origin prediction against what actually happened, never recomputed.`
           : "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve. (No persisted backtest history yet for this view.)"}
       </p>
@@ -185,17 +216,19 @@ export function ForecastVsActualChart({
               activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
               isAnimationActive={false}
             />
-            <Line
-              type="monotone"
-              dataKey="forecast"
-              name="Forecast"
-              stroke={FORECAST_COLOR}
-              strokeWidth={2}
-              strokeDasharray="4 3"
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
-              isAnimationActive={false}
-            />
+            {!noForecast && (
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                name="Forecast"
+                stroke={FORECAST_COLOR}
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
+                isAnimationActive={false}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -205,13 +238,15 @@ export function ForecastVsActualChart({
           <span className="inline-block h-0.5 w-3 shrink-0" style={{ backgroundColor: ACTUAL_COLOR }} />
           Actual
         </div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-block w-3 shrink-0 border-t-2 border-dashed"
-            style={{ borderColor: FORECAST_COLOR }}
-          />
-          Forecast
-        </div>
+        {!noForecast && (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-3 shrink-0 border-t-2 border-dashed"
+              style={{ borderColor: FORECAST_COLOR }}
+            />
+            Forecast
+          </div>
+        )}
       </div>
     </div>
   )
