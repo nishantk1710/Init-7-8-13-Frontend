@@ -355,9 +355,11 @@ function FieldInput({
         {/* An explicit empty option so the control does not open already
             showing a category nobody chose. A pre-selected reason on a
             justification is a reason nobody gave. */}
-        <option value="">Choose one…</option>
+        <option value="" className={OPTION_COLOURS}>
+          Choose one…
+        </option>
         {field.options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} className={OPTION_COLOURS}>
             {option.label}
           </option>
         ))}
@@ -413,6 +415,28 @@ function FieldInput({
 
 /** The assistant's accent on a focused field. */
 const FOCUS_ACCENT = "focus-visible:border-ai-2 focus-visible:ring-ai-2/20"
+
+/*
+ * Colours for the reason dropdown's options, stated rather than inherited.
+ *
+ * The popup a native <select> opens is painted by the browser, and Chromium
+ * takes its background from the SELECT's computed background-color. This one
+ * is `bg-transparent dark:bg-input/30` -- never opaque -- so the popup fell
+ * back to the browser's white canvas while the options kept inheriting the
+ * page's near-white foreground. White on white: the reasons were there and
+ * unreadable, which is how a planner ends up picking whichever row the mouse
+ * happened to highlight.
+ *
+ * `color-scheme: dark` on `.dark` is already declared in globals.css and is
+ * not enough on its own for a select with no opaque background of its own.
+ * The two other native selects in the app (uat-reservation-tools,
+ * summary-report-actions) never showed this because both set `bg-background`.
+ *
+ * The popover tokens are the right pair here: they are what every other
+ * floating surface in the app already uses, and they flip with the theme, so
+ * light mode keeps the dark-on-white it always had.
+ */
+const OPTION_COLOURS = "bg-popover text-popover-foreground"
 
 function StepButton({
   label,
