@@ -16,6 +16,7 @@ import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api/client"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type {
+  ApiAdoptionListItem,
   ApiAdoptionListResponse,
   ApiAdoptionResponse,
   ApiAdoptionSummary,
@@ -711,14 +712,52 @@ export function mapAdoptionStatus(raw: string): AdoptionDisplayStatus {
   return ADOPTION_STATUS_MAP[raw] ?? "Unknown"
 }
 
+/** What the Adoption Tracking page shows in its status column. The backend's
+ * UNKNOWN (no SAP evidence) reads as "Pending" while the tracking window is
+ * still open, and as "No change recorded" once it has passed. Kept separate
+ * from AdoptionDisplayStatus, which the Overview's SAP-adoption filter also
+ * uses and which keeps "Unknown". */
+export type AdoptionPageStatus =
+  | "Adopted"
+  | "Partially adopted"
+  | "Not adopted"
+  | "Pending"
+  | "No change recorded"
+
+export function adoptionPageStatus(status: AdoptionDisplayStatus, pending: boolean): AdoptionPageStatus {
+  if (status !== "Unknown") return status
+  return pending ? "Pending" : "No change recorded"
+}
+
+export interface AdoptionFieldLine {
+  key: string
+  label: string
+  expected: string | null
+  before: string | null
+  now: string | null
+  changedOn: string | null
+  changedTime: string | null
+  daysAfter: number | null
+  matched: boolean | null
+}
+
 export interface AdoptionListRow {
   recommendationId: string
   materialId: string
   plantId: string
   status: AdoptionDisplayStatus
+  /** What the page shows: Unknown becomes Pending or "No change recorded". */
+  pageStatus: AdoptionPageStatus
   rawStatus: string
   isConversionAdoption: boolean
   detail: string
+  /** The fields the check looked at, e.g. "Reorder point · Max stock". */
+  checkType: string
+  fields: AdoptionFieldLine[]
+  approvedOn: string | null
+  windowEndsOn: string | null
+  windowOpen: boolean
+  pending: boolean
 }
 
 export interface AdoptionListResult {
@@ -764,6 +803,41 @@ export async function fetchAdoptionDetail(recommendationId: string): Promise<Ado
   }
 }
 
+/** One backend adoption row as the page uses it. An older backend that does
+ * not send the field breakdown still maps: the check type falls back to the
+ * old wording and the field list is empty. */
+export function mapAdoptionListItem(row: ApiAdoptionListItem): AdoptionListRow {
+  const status = mapAdoptionStatus(row.status)
+  const pending = row.pending ?? false
+  return {
+    recommendationId: row.recommendation_id,
+    materialId: row.sap_material_number,
+    plantId: row.sap_plant_code,
+    status,
+    pageStatus: adoptionPageStatus(status, pending),
+    rawStatus: row.status,
+    isConversionAdoption: row.is_conversion_adoption,
+    detail: row.detail,
+    checkType:
+      row.check_type || (row.is_conversion_adoption ? "Min-Max conversion" : "Planning parameters"),
+    fields: (row.fields ?? []).map((field) => ({
+      key: field.key,
+      label: field.label,
+      expected: field.expected,
+      before: field.before,
+      now: field.now,
+      changedOn: field.changed_on,
+      changedTime: field.changed_time,
+      daysAfter: field.days_after,
+      matched: field.matched,
+    })),
+    approvedOn: row.approved_on ?? null,
+    windowEndsOn: row.window_ends_on ?? null,
+    windowOpen: row.window_open ?? true,
+    pending,
+  }
+}
+
 /** GET /api/v1/i7/recommendations/adoption -- portfolio-wide, paginated.
  * Accepts the same filter subset as the recommendations list (page/pageSize
  * plus status/plant/material/demandClass/isOar/confidence/criticality);
@@ -775,15 +849,7 @@ export async function fetchAdoptionList(
     `${I7_BASE}/recommendations/adoption${toQueryString(params)}`,
   )
   return {
-    items: response.items.map((row) => ({
-      recommendationId: row.recommendation_id,
-      materialId: row.sap_material_number,
-      plantId: row.sap_plant_code,
-      status: mapAdoptionStatus(row.status),
-      rawStatus: row.status,
-      isConversionAdoption: row.is_conversion_adoption,
-      detail: row.detail,
-    })),
+    items: response.items.map(mapAdoptionListItem),
     total: response.total,
     page: response.page,
     pageSize: response.page_size,
