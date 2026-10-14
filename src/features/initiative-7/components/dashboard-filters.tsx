@@ -146,6 +146,7 @@ export function DashboardFilters({
   showSapAdoptionFilter = false,
   showCircuitFilter = true,
   showTypeFilter = false,
+  typeFilterLabel = "Type",
 }: {
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
@@ -169,6 +170,8 @@ export function DashboardFilters({
   showCircuitFilter?: boolean
   /** Live Recommendations page: adds the Type filter (OAR / Declining / Normal). */
   showTypeFilter?: boolean
+  /** The label above that dropdown. The Recommendations page calls it "Recommendation". */
+  typeFilterLabel?: string
 }) {
   function set<K extends keyof DashboardFilterState>(key: K, next: string) {
     onChange({ ...value, [key]: next })
@@ -213,7 +216,7 @@ export function DashboardFilters({
       )}
 
       {showTypeFilter && (
-        <FilterField label="Type">
+        <FilterField label={typeFilterLabel}>
           <Select value={value.type} onValueChange={(v) => set("type", v ?? ALL_FILTER)}>
             <SelectTrigger className="h-8 w-full">
               <SelectValue placeholder="All">

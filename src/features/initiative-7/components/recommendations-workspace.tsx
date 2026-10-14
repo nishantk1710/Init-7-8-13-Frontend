@@ -13,20 +13,19 @@ import {
   ALL_FILTER,
   DashboardFilters,
   EMPTY_DASHBOARD_FILTERS,
-  RECOMMENDATION_FILTER_CALCULATED,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { formatCount } from "@/lib/utils"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 
-// The backend's own page-size ceiling (see app/api/i7/recommendations.py's
-// MAX_PAGE_SIZE) -- fetched once and filtered client-side below, exactly
-// like the existing scenario/generated modes, so every existing filter stays
-// untouched rather than being re-implemented as backend query params.
-const LIVE_PAGE_SIZE = 200
+// Rows per page. The backend pages and counts (see app/api/i7/recommendations.py); the
+// criticality, demand pattern, status, risk and material filters still narrow the rows of
+// the page in view, as they did before.
+const PAGE_SIZE = 50
 
 /** Repeated pipeline runs during testing can leave more than one
  * recommendation row per material-plant (see recommendation_id not being a
@@ -69,22 +68,29 @@ function LiveRecommendationsWorkspace({
   filters: DashboardFilterState
   setFilters: (filters: DashboardFilterState) => void
 }) {
-  // Both the plant and the calculated-only filters are pushed to the backend
-  // rather than applied client-side: at ~113k rows, only a handful of which
-  // ever reach READY_FOR_REVIEW, filtering one fetched page would show zero
-  // matches even though qualifying rows exist elsewhere in the full set. The
-  // existing "Recommendation Status" filter can't express calculated-vs-
-  // blocked either -- READY_FOR_REVIEW and NOT_EVALUABLE both map to the same
-  // "Pending Review" display label (see i7-api.ts's STATUS_MAP).
-  const onlyCalculated = filters.recommendation === RECOMMENDATION_FILTER_CALCULATED
+  // The one "Recommendation" dropdown: All, or one of OAR / Declining / Normal. A chosen
+  // group lists only the recommendations that have been calculated (backend status
+  // READY_FOR_REVIEW); All lists everything, including those not yet calculated. Plant and
+  // the group are pushed to the backend rather than applied to one fetched page: filtering a
+  // page would miss most of the catalogue. (READY_FOR_REVIEW and NOT_EVALUABLE both read
+  // "Pending Review" in the display statuses, so the status filter cannot say this.)
+  const onlyCalculated = filters.type !== ALL_FILTER
+
+  // Page number, reset to 1 whenever the group or plant changes. Derived during render --
+  // not in an effect -- the way the live hooks do it.
+  const filterKey = `${filters.type}|${filters.plant}`
+  const [pageState, setPageState] = useState({ key: filterKey, page: 1 })
+  const page = pageState.key === filterKey ? pageState.page : 1
+  const setPage = (next: number) => setPageState({ key: filterKey, page: next })
 
   // Part 27: newest-first, not the backend's default oldest-first ordering
   // -- at this row count an unsorted first page is effectively a random slice
   // of the oldest rows and will almost never include a material generated in
   // the most recent pipeline run. sort_desc is the existing Part 22
   // capability; no new backend behaviour is introduced.
-  const { data, loading, error, refetch } = useLiveRecommendations({
-    pageSize: LIVE_PAGE_SIZE,
+  const { data, total, loading, error, refetch } = useLiveRecommendations({
+    page,
+    pageSize: PAGE_SIZE,
     sort: "generated_at",
     sortDesc: true,
     status: onlyCalculated ? "READY_FOR_REVIEW" : undefined,
@@ -151,8 +157,8 @@ function LiveRecommendationsWorkspace({
         onChange={setFilters}
         layout="bar"
         plantOptions={plantOptions}
-        showRecommendationFilter
         showTypeFilter
+        typeFilterLabel="Recommendation"
         showCircuitFilter={hasRealCircuit(data ?? [])}
       />
       {loading ? (
@@ -173,7 +179,33 @@ function LiveRecommendationsWorkspace({
           }
         />
       ) : (
-        <RecommendationReviewTable recommendations={filtered} />
+        <>
+          <RecommendationReviewTable recommendations={filtered} />
+          {total > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                Showing {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount(Math.min(total, page * PAGE_SIZE))} of{" "}
+                {formatCount(total)}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page * PAGE_SIZE >= total}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
