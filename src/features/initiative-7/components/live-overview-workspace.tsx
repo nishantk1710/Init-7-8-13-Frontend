@@ -50,6 +50,7 @@ import {
   StockoutPositionCard,
 } from "@/features/initiative-7/components/plant-position-cards"
 import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
+import { correctMoneyTotal, isCorrectedEstimate } from "@/features/initiative-7/utils/source-scale-correction"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -351,13 +352,17 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             ? {
                 count: summary.excessInventoryCandidatesCount,
                 total: summary.total,
-                opportunity: summary.excessInventoryOpportunity,
+                opportunity: correctMoneyTotal(summary.excessInventoryOpportunity),
               }
             : undefined
         }
         workingCapitalOverride={
           summary
-            ? { amount: summary.netSafetyStockValueImpact, currency: summary.currency }
+            ? {
+                amount: correctMoneyTotal(summary.netSafetyStockValueImpact),
+                currency: summary.currency,
+                estimated: isCorrectedEstimate(summary.netSafetyStockValueImpact),
+              }
             : undefined
         }
       />
