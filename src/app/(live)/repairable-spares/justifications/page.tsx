@@ -99,7 +99,7 @@ export default async function I08JustificationsPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title="New-acquisition justifications"
-          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation (FR-7)."
+          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation."
         />
 
         {/* Counts over the whole log, not the page. "Purchases avoided" is

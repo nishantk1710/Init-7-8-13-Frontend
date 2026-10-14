@@ -5,11 +5,10 @@ import { PageHeader } from "@/components/shared/page-header"
 import { CodingCandidatesTable } from "@/features/initiative-8/components/coding-candidates-table"
 import { loadLiveCodingCandidates } from "@/features/initiative-8/data/live-coding-candidates"
 import type { CodingCandidate } from "@/features/initiative-8/types/repair"
-import type { ApiCodingCandidateMeta } from "@/lib/api/i8"
 
 const DESCRIPTION =
   "Materials whose purchase-requisition, purchase-order or goods-movement free " +
-  "text talks about repair but are not 80-series coded (FR-2). Ranked, each " +
+  "text talks about repair but are not 80-series coded. Ranked, each " +
   "row opening on the text that triggered it and the AI's reason. Advisory " +
   "only — nothing here changes SAP."
 
@@ -36,19 +35,16 @@ export async function CodingCandidatesPage() {
   await connection()
 
   let candidates: CodingCandidate[] = []
-  let meta: ApiCodingCandidateMeta | null = null
   let loadError: string | null = null
   try {
-    const live = await loadLiveCodingCandidates()
-    candidates = live.candidates
-    meta = live.meta
+    candidates = (await loadLiveCodingCandidates()).candidates
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
 
   return (
     <Shell description={DESCRIPTION}>
-      <CodingCandidatesTable candidates={candidates} meta={meta} loadError={loadError} />
+      <CodingCandidatesTable candidates={candidates} loadError={loadError} />
     </Shell>
   )
 }
@@ -62,7 +58,7 @@ function Shell({
 }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <PageHeader title="Coding Candidates" description={description} />
         {children}
       </div>

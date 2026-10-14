@@ -93,7 +93,7 @@ export default async function I08ExceptionsPage({
       <div className="flex flex-col gap-5">
         <PageHeader
           title="Exception queue"
-          description="Repair lines sent away with no condition declaration, and new units bought while a repair was already open with no justification on record (FR-8, FR-11)."
+          description="Repair lines sent away with no condition declaration, and new units bought while a repair was already open with no justification on record."
         />
 
         {data === null ? (
