@@ -45,6 +45,10 @@ import { PortfolioForecastVsActualChart } from "@/features/initiative-7/componen
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
+import {
+  ExcessInventoryTrendCard,
+  StockoutRiskTrendCard,
+} from "@/features/initiative-7/components/recommendation-trend-cards"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -56,17 +60,6 @@ import type { Circuit, RecommendationStatus } from "@/features/initiative-7/type
 // same as the recommendations workspace/table -- see that component's own
 // note on why the whole set (not one page) is needed for these KPIs/charts.
 const LIVE_OVERVIEW_PAGE_SIZE = 200
-
-function UnavailableTrendCard({ label }: { label: string }) {
-  return (
-    <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-      <p>{label} is not available from the backend.</p>
-      <p className="max-w-xs">
-        No API currently exposes a monthly historical time series for this metric.
-      </p>
-    </div>
-  )
-}
 
 function AdoptionStatusTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null
@@ -410,15 +403,19 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                 statusOverride={statusOverride}
               />
             </ChartCard>
-            <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={4}>
-              <UnavailableTrendCard label="Stockout risk trend" />
+            <ChartCard
+              title="Stockout risk trend"
+              subtitle="Material-plants below their recommended reorder point, at each recommendation run."
+              span={4}
+            >
+              <StockoutRiskTrendCard />
             </ChartCard>
             <ChartCard
               title="Excess inventory opportunity"
-              subtitle="Cumulative working-capital opportunity identified, by month."
+              subtitle="Estimated opportunity if stock were cut to the recommended maximum, at each run."
               span={4}
             >
-              <UnavailableTrendCard label="Excess inventory trend" />
+              <ExcessInventoryTrendCard />
             </ChartCard>
 
             <ChartCard

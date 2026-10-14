@@ -241,6 +241,33 @@ export interface ApiForecastVsActualResponse {
   points: ApiForecastVsActualPoint[]
 }
 
+/** GET /recommendations/trends -- see app/schemas/i7/recommendations.py (TrendPoint). */
+export interface ApiTrendPoint {
+  captured_at: string
+  source: "captured" | "reconstructed"
+  inventory_run_id: number | null
+  oar_run_id: number | null
+  forecast_run_id: number | null
+  feature_run_id: number | null
+  total_count: number
+  /** Null where the on-hand stock of that day was not recorded -- never 0. */
+  stockout_risk_count: number | null
+  excess_count: number
+  excess_opportunity: string | number | null
+  net_safety_stock_value_impact: string | number | null
+  currency: string | null
+}
+
+export interface ApiRecommendationTrendsResponse {
+  plant: "ALL" | "1300" | "1500"
+  points: ApiTrendPoint[]
+  has_stockout_history: boolean
+  has_excess_history: boolean
+  captured_count: number
+  reconstructed_count: number
+  definition_note: string
+}
+
 export interface ApiForecastHistoryResponse {
   sap_material_number: string
   sap_plant_code: string

@@ -18,6 +18,7 @@ import type { RiskLevel } from "@/components/shared/risk-badge"
 import type {
   ApiAdoptionListItem,
   ApiForecastVsActualResponse,
+  ApiRecommendationTrendsResponse,
   ApiAdoptionListResponse,
   ApiAdoptionResponse,
   ApiAdoptionSummary,
@@ -616,6 +617,59 @@ export async function fetchForecastVsActual(plant?: string, months = 12): Promis
     })),
     materialsWithHistory: response.materials_with_history_count,
     materialsInScope: response.materials_in_scope_count,
+  }
+}
+
+// --- Trend history ----------------------------------------------------
+
+export type TrendPlant = "ALL" | "1300" | "1500"
+
+export interface TrendPoint {
+  /** ISO timestamp the figures describe. */
+  capturedAt: string
+  /** captured: recorded when a run finished. reconstructed: rebuilt later from stored rows. */
+  source: "captured" | "reconstructed"
+  totalCount: number
+  /** null where the on-hand stock of that day was not recorded. Never 0. */
+  stockoutRiskCount: number | null
+  excessCount: number
+  /** null when no excess row had a price. Never 0. */
+  excessOpportunity: number | null
+  currency: string | null
+}
+
+export interface RecommendationTrends {
+  plant: TrendPlant
+  /** Oldest first. Empty -- never filled in -- until a run has been recorded. */
+  points: TrendPoint[]
+  hasStockoutHistory: boolean
+  hasExcessHistory: boolean
+  capturedCount: number
+  reconstructedCount: number
+  definitionNote: string
+}
+
+/** GET /recommendations/trends -- the snapshots saved when each recommendation run finished. */
+export async function fetchRecommendationTrends(plant: TrendPlant = "ALL"): Promise<RecommendationTrends> {
+  const response = await apiFetch<ApiRecommendationTrendsResponse>(
+    `${I7_BASE}/recommendations/trends?${new URLSearchParams({ plant })}`,
+  )
+  return {
+    plant: response.plant,
+    points: response.points.map((point) => ({
+      capturedAt: point.captured_at,
+      source: point.source,
+      totalCount: point.total_count,
+      stockoutRiskCount: point.stockout_risk_count,
+      excessCount: point.excess_count,
+      excessOpportunity: toNumber(point.excess_opportunity),
+      currency: point.currency,
+    })),
+    hasStockoutHistory: response.has_stockout_history,
+    hasExcessHistory: response.has_excess_history,
+    capturedCount: response.captured_count,
+    reconstructedCount: response.reconstructed_count,
+    definitionNote: response.definition_note,
   }
 }
 
