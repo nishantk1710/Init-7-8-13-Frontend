@@ -7,6 +7,7 @@ import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -25,13 +26,21 @@ import {
 import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
+  RepairStatus,
 } from "@/features/initiative-8/types/repair"
 import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
-import { downloadCsv } from "@/lib/utils"
+import { cn, downloadCsv, formatCount } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
+
+/**
+ * The repair lifecycle, in order, so the status filter offers PR Raised before
+ * Closed rather than in whatever order the rows happened to arrive. Taken from
+ * the tone map so there is one list of repair statuses in this module, not two.
+ */
+const REPAIR_STATUS_ORDER = Object.keys(REPAIR_STATUS_TONE) as RepairStatus[]
 
 export type DeclarationsTableProps = {
   rows: DeclarationQueueRow[]
@@ -61,6 +70,12 @@ export function DeclarationsTable({
   const [formKey, setFormKey] = useState(0)
 
   const [plant, setPlant] = useState<string>(ALL)
+  // Where the REPAIR stands, not the declaration: every row here is
+  // undeclared, and a part still at the vendor is a different kind of
+  // outstanding from one already back on the shelf.
+  const [repairStatus, setRepairStatus] = useState<string>(ALL)
+  const [vendor, setVendor] = useState<string>(ALL)
+  const [search, setSearch] = useState("")
 
   // FR-10 asks for a plant filter on every screen, and the register is the
   // only one that had one. Built from the rows rather than hard-coded: the
@@ -72,6 +87,23 @@ export function DeclarationsTable({
       if (row.plant) seen.set(row.plant.plantId, row.plant.name ?? row.plant.plantId)
     }
     return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }, [rows])
+
+  // Only the statuses the queue actually holds, for the same reason the plant
+  // list is built from the rows: a filter offering a value that matches
+  // nothing reads as a broken filter.
+  const repairStatuses = useMemo(() => {
+    const seen = new Set(rows.map((row) => row.repairStatus).filter(Boolean) as RepairStatus[])
+    return REPAIR_STATUS_ORDER.filter((status) => seen.has(status))
+  }, [rows])
+
+  // Name when LFA1 gave one, else the code -- whatever the row carries. Rows
+  // with neither (no PO header on the repair line) match no vendor and drop
+  // out once one is picked, which is the honest answer: the vendor is not
+  // known from this data rather than being some other vendor.
+  const vendors = useMemo(() => {
+    const seen = new Set(rows.map((row) => row.vendor).filter(Boolean) as string[])
+    return [...seen].sort((a, b) => a.localeCompare(b))
   }, [rows])
 
   // Outstanding only, and not as a default somebody can switch off.
@@ -87,13 +119,33 @@ export function DeclarationsTable({
   // above it count the same rows. A Flagged line was declared NOT repairable
   // and sent for repair anyway; it still wants somebody's attention, and the
   // tile already counts it.
+  const scoped = useMemo(() => rows.filter((row) => row.status !== "Completed"), [rows])
+
   const filtered = useMemo(() => {
-    return rows.filter((row) => {
-      if (row.status === "Completed") return false
+    const needle = search.trim().toLowerCase()
+    return scoped.filter((row) => {
       if (plant !== ALL && row.plant?.plantId !== plant) return false
+      if (repairStatus !== ALL && row.repairStatus !== repairStatus) return false
+      if (vendor !== ALL && row.vendor !== vendor) return false
+      // Material code and description because that is what somebody is
+      // holding a part number for; repair line and requisition because that
+      // is what somebody arrives from a spreadsheet with.
+      if (
+        needle &&
+        ![
+          row.material.materialCode,
+          row.material.description,
+          row.relatedRepairId,
+          row.purchaseRequisition,
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(needle))
+      ) {
+        return false
+      }
       return true
     })
-  }, [rows, plant])
+  }, [scoped, plant, repairStatus, vendor, search])
 
   function exportCsv() {
     downloadCsv(
@@ -129,7 +181,16 @@ export function DeclarationsTable({
     )
   }
 
-  const activeFilters = plant !== ALL ? 1 : 0
+  const activeFilters =
+    [plant, repairStatus, vendor].filter((v) => v !== ALL).length +
+    (search.trim() === "" ? 0 : 1)
+
+  function clearFilters() {
+    setPlant(ALL)
+    setRepairStatus(ALL)
+    setVendor(ALL)
+    setSearch("")
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,30 +227,44 @@ export function DeclarationsTable({
       )}
 
       <FilterBar>
-        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All plants">
-              {(value: string) =>
-                value === ALL
-                  ? "All plants"
-                  : (plants.find(([id]) => id === value)?.[1] ?? value)
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All plants</SelectItem>
-            {plants.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <ClearFiltersButton
-          activeCount={activeFilters}
-          onClear={() => setPlant(ALL)}
+        <FilterSelect
+          value={plant}
+          onChange={setPlant}
+          allLabel="All plants"
+          options={plants.map(([id, name]) => ({ value: id, label: name }))}
+          className="sm:w-44"
         />
+        <FilterSelect
+          value={repairStatus}
+          onChange={setRepairStatus}
+          allLabel="All repair statuses"
+          options={repairStatuses.map((s) => ({ value: s, label: s }))}
+          className="sm:w-44"
+        />
+        <FilterSelect
+          value={vendor}
+          onChange={setVendor}
+          allLabel="All vendors"
+          options={vendors.map((v) => ({ value: v, label: v }))}
+          className="sm:w-52"
+        />
+
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search material, repair line, PR…"
+          aria-label="Search the declaration queue"
+          className="h-9 w-full sm:w-64"
+        />
+
+        <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
+
+        {/* How much of the queue is in front of you. The counts in the band
+            above are over the whole queue on purpose, so without this a
+            filtered view gives no number at all. */}
+        <span className="text-xs text-muted-foreground sm:ml-auto">
+          {formatCount(filtered.length)} of {formatCount(scoped.length)} rows
+        </span>
       </FilterBar>
 
       {filtered.length === 0 ? (
@@ -287,5 +362,51 @@ export function DeclarationsTable({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * One filter dropdown, with "all" as a first-class option rather than an empty
+ * value.
+ *
+ * A near-copy of the register's control of the same name. It is copied rather
+ * than imported because that one is private to `repair-register-table.tsx`,
+ * and lifting it out would put this change into a file it otherwise has no
+ * business in -- the two should be merged into `components/shared/` the next
+ * time either is touched for its own sake.
+ */
+function FilterSelect({
+  value,
+  onChange,
+  allLabel,
+  options,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  allLabel: string
+  options: { value: string; label: string }[]
+  className?: string
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
+      <SelectTrigger className={cn("h-9 w-full", className)}>
+        <SelectValue placeholder={allLabel}>
+          {(selected: string) =>
+            selected === ALL
+              ? allLabel
+              : (options.find((o) => o.value === selected)?.label ?? selected)
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{allLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

@@ -156,14 +156,14 @@ export default async function I08JustificationsPage() {
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <p className="text-muted-foreground">
             A new unit bought while a repair was already open, with no reason
-            recorded, is raised on the exception queue as an unjustified
+            recorded, is raised on Repair Exceptions as an unjustified
             acquisition.
           </p>
           <Link
             href="/repairable-spares/exceptions?type=UNJUSTIFIED_ACQUISITION"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
           >
-            Open exception queue
+            Open Repair Exceptions
             <ChevronRight className="size-3.5" />
           </Link>
         </div>

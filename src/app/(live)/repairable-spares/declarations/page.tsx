@@ -14,7 +14,7 @@ import { formatCount } from "@/lib/utils"
 const NOT_LOADED = "Could not be loaded"
 
 export const metadata: Metadata = {
-  title: "Condition declarations — Spares AI",
+  title: "Repair Declarations — Spares AI",
 }
 
 /**
@@ -92,7 +92,7 @@ export default async function I08DeclarationsPage() {
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
         <PageHeader
-          title="Condition declarations"
+          title="Repair Declarations"
           description="Every repair line, and whether the part was assessed before it was sent away. Advisory — the platform records and reports this, it cannot block a dispatch."
           actions={
             plantOptions.length > 0 ? (
