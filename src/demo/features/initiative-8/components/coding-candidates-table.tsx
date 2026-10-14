@@ -25,11 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@demo/components/ui/table"
-import {
-  CODING_CONFIDENCE_THRESHOLD,
-  CODING_SCREEN,
-  I8_PLANTS,
-} from "@demo/features/initiative-8/data/config"
+import { CODING_SCREEN, I8_PLANTS } from "@demo/features/initiative-8/data/config"
 import { ALL } from "@demo/features/initiative-8/model/metrics"
 import { snapshotStore, useI08Snapshot } from "@demo/features/initiative-8/state/snapshot-store"
 import type {
@@ -46,7 +42,6 @@ import {
   UNKNOWN,
   codeLabel,
 } from "@demo/features/initiative-8/utils/status"
-import { useMaterial360 } from "@demo/lib/material-360-context"
 import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
 
 const SOURCES = Object.keys(CODING_SOURCE_LABEL) as CodingTextSource[]
@@ -72,23 +67,7 @@ function flagsOf(c: RankedCodingCandidate): string[] {
   return [
     c.isCorroborated && "Twin found",
     c.isActionable && "Actionable",
-    c.meetsConfidenceThreshold && "Meets threshold",
   ].filter((flag): flag is string => !!flag)
-}
-
-/** Toggle state for the three "only" filters. */
-interface OnlyFilters {
-  actionable: boolean
-  corroborated: boolean
-  threshold: boolean
-}
-
-const NO_ONLY: OnlyFilters = { actionable: false, corroborated: false, threshold: false }
-
-const ONLY_LABEL: Record<keyof OnlyFilters, string> = {
-  actionable: "Actionable only",
-  corroborated: "Corroborated only",
-  threshold: "Meets threshold only",
 }
 
 /**
@@ -106,13 +85,11 @@ const ONLY_LABEL: Record<keyof OnlyFilters, string> = {
  * "Run AI screen" moves the screening time on; the kept verdicts do not change.
  */
 export function CodingCandidatesTable() {
-  const { openMaterial360 } = useMaterial360()
   const candidates = useI08Snapshot().codingCandidates
   const [screening, setScreening] = useState(false)
   const [verdict, setVerdict] = useState<string>(ALL)
   const [source, setSource] = useState<string>(ALL)
   const [plant, setPlant] = useState<string>(ALL)
-  const [only, setOnly] = useState<OnlyFilters>(NO_ONLY)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
 
   const filtered = useMemo(
@@ -121,12 +98,9 @@ export function CodingCandidatesTable() {
         if (verdict !== ALL && c.verdict !== verdict) return false
         if (source !== ALL && !c.sources.includes(source as CodingTextSource)) return false
         if (plant !== ALL && !c.plants.some((p) => p.plantId === plant)) return false
-        if (only.actionable && !c.isActionable) return false
-        if (only.corroborated && !c.isCorroborated) return false
-        if (only.threshold && !c.meetsConfidenceThreshold) return false
         return true
       }),
-    [candidates, verdict, source, plant, only]
+    [candidates, verdict, source, plant]
   )
 
   const corroborated = candidates.filter((c) => c.isCorroborated).length
@@ -134,9 +108,7 @@ export function CodingCandidatesTable() {
     (latest, c) => (!latest || instantOf(c.screenedAt) > instantOf(latest) ? c.screenedAt : latest),
     undefined
   )
-  const activeFilters =
-    [verdict, source, plant].filter((v) => v !== ALL).length +
-    Object.values(only).filter(Boolean).length
+  const activeFilters = [verdict, source, plant].filter((v) => v !== ALL).length
 
   function runScreen() {
     setScreening(true)
@@ -160,7 +132,6 @@ export function CodingCandidatesTable() {
     setVerdict(ALL)
     setSource(ALL)
     setPlant(ALL)
-    setOnly(NO_ONLY)
   }
 
   function exportCsv() {
@@ -203,10 +174,9 @@ export function CodingCandidatesTable() {
         <p className="text-sm text-muted-foreground">
           Screened by <strong className="text-foreground">{CODING_SCREEN.provider}</strong> (
           {CODING_SCREEN.model}) · last screened{" "}
-          <strong className="text-foreground">{lastScreened ?? UNKNOWN}</strong> · confidence
-          threshold: <strong className="text-foreground">{CODING_CONFIDENCE_THRESHOLD}</strong>{" "}
-          (configuration) · {formatCount(corroborated)} corroborated by an 80-series twin · text
-          sources: PR, PO and movement text
+          <strong className="text-foreground">{lastScreened ?? UNKNOWN}</strong> ·{" "}
+          {formatCount(corroborated)} corroborated by an 80-series twin · text sources: PR, PO
+          and movement text
         </p>
         <Button size="sm" onClick={runScreen} disabled={screening} className="shrink-0">
           <Sparkles className={cn("size-3.5", screening && "animate-pulse")} />
@@ -269,19 +239,6 @@ export function CodingCandidatesTable() {
           </SelectContent>
         </Select>
 
-        {(Object.keys(ONLY_LABEL) as (keyof OnlyFilters)[]).map((key) => (
-          <Button
-            key={key}
-            size="sm"
-            variant={only[key] ? "secondary" : "outline"}
-            aria-pressed={only[key]}
-            onClick={() => setOnly((prev) => ({ ...prev, [key]: !prev[key] }))}
-            className={cn("h-9", only[key] && "border border-primary/40")}
-          >
-            {ONLY_LABEL[key]}
-          </Button>
-        ))}
-
         <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
 
         <div className="flex items-center gap-3 sm:ml-auto">
@@ -298,7 +255,7 @@ export function CodingCandidatesTable() {
       {filtered.length === 0 ? (
         <EmptyState
           title="No coding candidates match these filters."
-          description="Widen the verdict, source or plant, or drop an 'only' filter."
+          description="Widen the verdict, source or plant filter."
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
@@ -326,12 +283,31 @@ export function CodingCandidatesTable() {
                 const flags = flagsOf(c)
                 return (
                   <Fragment key={id}>
-                    <TableRow className="align-top">
+                    {/* The whole row opens the evidence, not only the chevron
+                        at the end -- so the row is the control, and carries
+                        the aria state the chevron button used to. The material
+                        cell used to open the Material 360 drawer instead,
+                        which on a coding candidate has nothing to show: these
+                        materials are raised from PR, PO and movement text, not
+                        from the shared catalogue. */}
+                    <TableRow
+                      tabIndex={0}
+                      aria-expanded={open}
+                      aria-label={`${open ? "Hide" : "Show"} evidence for ${id}`}
+                      onClick={() => toggleRow(id)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return
+                        // Space scrolls the page otherwise, and here it opens a row.
+                        event.preventDefault()
+                        toggleRow(id)
+                      }}
+                      className="cursor-pointer align-top aria-expanded:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                    >
                       <TableCell className="text-right align-top font-medium tabular-nums text-foreground">
                         {c.rank}
                       </TableCell>
                       <TableCell className="align-top">
-                        <MaterialIdentity material={c.material} onOpen={openMaterial360} />
+                        <MaterialIdentity material={c.material} />
                       </TableCell>
                       <TableCell className="align-top">
                         <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
@@ -347,9 +323,6 @@ export function CodingCandidatesTable() {
                         <div className="flex max-w-[180px] flex-wrap gap-1">
                           {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
                           {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
-                          {c.meetsConfidenceThreshold && (
-                            <StatusBadge tone="default">Meets threshold</StatusBadge>
-                          )}
                           {flags.length === 0 && (
                             <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
                           )}
@@ -376,15 +349,15 @@ export function CodingCandidatesTable() {
                         {formatCount(c.lines.length)}
                       </TableCell>
                       <TableCell className="align-top">
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-expanded={open}
-                          aria-label={`${open ? "Hide" : "Show"} evidence for ${id}`}
-                          onClick={() => toggleRow(id)}
+                        {/* A marker now, not a second control: the row takes
+                            the click, and a button inside it would toggle
+                            twice. */}
+                        <span
+                          aria-hidden="true"
+                          className="flex size-8 items-center justify-center text-muted-foreground"
                         >
                           {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                        </Button>
+                        </span>
                       </TableCell>
                     </TableRow>
                     {open && (
