@@ -148,4 +148,28 @@
   html {
     @apply font-sans;
   }
+  /*
+   * Every native <select>, so this stops coming back.
+   *
+   * The popup a <select> opens is painted by the browser, not by the markup
+   * inside it, and Chromium takes its background from the SELECT's computed
+   * background-color. A select with a transparent or translucent background
+   * therefore gets the browser's white popup canvas, while its options go on
+   * inheriting the page's near-white foreground. White on white: the choices
+   * are there, selectable, and unreadable until one is hovered.
+   *
+   * `color-scheme: dark` above is necessary and is NOT sufficient -- it does
+   * not cover a select with no opaque background of its own. The assistant's
+   * reason dropdown was fixed that way once and regressed, which is why the
+   * rule lives here now rather than on one call site: a new native select
+   * inherits the fix instead of rediscovering the bug.
+   *
+   * The popover tokens are deliberate -- the popup IS a floating surface, and
+   * these are what dialog and dropdown-menu already use. They flip with the
+   * theme, so light mode keeps the dark-on-white it always had.
+   */
+  select option,
+  select optgroup {
+    @apply bg-popover text-popover-foreground;
+  }
 }
