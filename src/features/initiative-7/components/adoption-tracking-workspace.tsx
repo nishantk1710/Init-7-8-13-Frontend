@@ -124,7 +124,9 @@ export function AdoptionTrackingWorkspace() {
         </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? ALL)}>
           <SelectTrigger className="h-8 w-full sm:w-44">
-            <SelectValue placeholder="All statuses" />
+            <SelectValue placeholder="All statuses">
+              {(v: string) => (v === ALL ? "All statuses" : v)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
@@ -164,7 +166,7 @@ export function AdoptionTrackingWorkspace() {
               <TableRow>
                 <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                   {total === 0
-                    ? "No approved recommendations to track yet. A recommendation appears here once it has been approved."
+                    ? "No recommended values to track yet. A material appears here once a recommendation with values has been generated."
                     : "No adoption checks match this filter."}
                 </TableCell>
               </TableRow>

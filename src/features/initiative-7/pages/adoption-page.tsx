@@ -7,7 +7,7 @@ export function InventoryAdoptionPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Adoption Tracking"
-          description="Whether an approved recommendation's values were actually changed in SAP"
+          description="Whether the recommended values were actually changed in SAP"
         />
         <AdoptionTrackingWorkspace />
       </div>
