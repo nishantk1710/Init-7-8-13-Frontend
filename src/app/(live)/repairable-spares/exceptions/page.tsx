@@ -6,7 +6,7 @@ import { ExceptionsTable } from "@/features/initiative-8/components/exceptions-t
 import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
 
 export const metadata: Metadata = {
-  title: "Exception queue — Spares AI",
+  title: "Repair Exceptions — Spares AI",
 }
 
 /**
@@ -92,7 +92,7 @@ export default async function I08ExceptionsPage({
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
         <PageHeader
-          title="Exception queue"
+          title="Repair Exceptions"
           description="Repair lines sent away with no condition declaration, and new units bought while a repair was already open with no justification on record."
         />
 

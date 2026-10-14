@@ -396,7 +396,7 @@ export function RepairRegisterTable({
                         <Link
                           href={`/repairable-spares/exceptions?repair=${encodeURIComponent(c.id)}`}
                           className="flex flex-wrap items-center gap-1"
-                          title={`Open the exception queue filtered to ${c.id}`}
+                          title={`Open Repair Exceptions filtered to ${c.id}`}
                         >
                           {c.exceptions.map((exception) => (
                             <StatusBadge
