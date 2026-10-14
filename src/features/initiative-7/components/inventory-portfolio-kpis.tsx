@@ -150,7 +150,7 @@ export function InventoryPortfolioKpis({
    * unit price, a current and a recommended safety stock together -- shown as
    * "Not available". Without this, the KPI sums only the rows that happen to be on
    * the fetched page, which is a handful of the newest rows and not the portfolio. */
-  workingCapitalOverride?: { amount: number | null; currency: string | null }
+  workingCapitalOverride?: { amount: number | null; currency: string | null; estimated?: boolean }
 }) {
   const total = recommendations.length
   const stockoutRisk = stockoutRiskOverride?.count ?? countAtStockoutRisk(recommendations)
@@ -194,9 +194,7 @@ export function InventoryPortfolioKpis({
         caption={
           netImpact === null
             ? "needs a unit price and a calculated safety stock"
-            : netImpact >= 0
-              ? "Net release"
-              : "Net additional investment"
+            : `${netImpact >= 0 ? "Net release" : "Net additional investment"}${workingCapitalOverride?.estimated ? " · estimate" : ""}`
         }
         captionMuted={netImpact === null}
       />
