@@ -17,6 +17,7 @@ import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type {
   ApiAdoptionListItem,
+  ApiForecastVsActualResponse,
   ApiAdoptionListResponse,
   ApiAdoptionResponse,
   ApiAdoptionSummary,
@@ -44,6 +45,7 @@ import type {
   Recommendation,
   RecommendationFactor,
   RecommendationStatus,
+  RecommendationType,
 } from "@/features/initiative-7/types/inventory"
 
 const I7_BASE = "/v1/i7"
@@ -154,6 +156,14 @@ const DEMAND_MAP: Record<string, DemandPattern> = {
   UNCLASSIFIED: "Cold start",
 }
 
+/** The backend's OAR / DECLINING / NORMAL as the display words. An absent value
+ * (an older backend) reads as Normal, which is what it was before the split. */
+export function mapDemandType(raw: string | undefined): RecommendationType {
+  if (raw === "OAR") return "OAR"
+  if (raw === "DECLINING") return "Declining"
+  return "Normal"
+}
+
 function mapDemandPattern(raw: string | null): DemandPattern {
   if (!raw) return "Unclassified"
   return DEMAND_MAP[raw.toUpperCase()] ?? "Unclassified"
@@ -254,6 +264,7 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     circuit: "Unassigned",
     criticality,
     demandPattern: mapDemandPattern(row.demand_class),
+    demandType: mapDemandType(row.demand_type),
     risk: deriveRisk(row.criticality, status),
     status,
     current: {
@@ -409,6 +420,8 @@ export interface RecommendationListParams {
   material?: string
   demandClass?: string
   isOar?: boolean
+  /** oar | declining | normal -- the Type filter, applied in SQL. */
+  type?: "oar" | "declining" | "normal"
   confidence?: string
   criticality?: string
   /** Inclusive lower bound on generated_at, ISO 8601 -- e.g. a report
@@ -437,6 +450,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.material) search.set("material", params.material)
   if (params.demandClass) search.set("demand_class", params.demandClass)
   if (params.isOar !== undefined) search.set("is_oar", String(params.isOar))
+  if (params.type) search.set("type", params.type)
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.generatedFrom) search.set("generated_from", params.generatedFrom)
@@ -563,6 +577,33 @@ export async function fetchForecastHistory(id: string): Promise<ForecastHistory>
       predicted: toNumber(p.predicted),
       actual: toNumber(p.actual),
     })),
+  }
+}
+
+export interface ForecastVsActual {
+  points: { period: string; predicted: number; actual: number; materialCount: number }[]
+  /** Material-plants whose backtests are summed into the points. */
+  materialsWithHistory: number
+  /** Material-plants forecast by the latest run -- the denominator for the caption. */
+  materialsInScope: number
+}
+
+/** GET /forecast-vs-actual -- the portfolio's champion backtests summed per month,
+ * for one plant or every plant. `points` is `[]` (never fabricated) when the latest
+ * run has no backtested material-plant in scope. */
+export async function fetchForecastVsActual(plant?: string, months = 12): Promise<ForecastVsActual> {
+  const search = new URLSearchParams({ months: String(months) })
+  if (plant) search.set("plant", plant)
+  const response = await apiFetch<ApiForecastVsActualResponse>(`${I7_BASE}/forecast-vs-actual?${search}`)
+  return {
+    points: response.points.map((point) => ({
+      period: point.forecast_period,
+      predicted: toNumber(point.predicted) ?? 0,
+      actual: toNumber(point.actual) ?? 0,
+      materialCount: point.material_count,
+    })),
+    materialsWithHistory: response.materials_with_history_count,
+    materialsInScope: response.materials_in_scope_count,
   }
 }
 

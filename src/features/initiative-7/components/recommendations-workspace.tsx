@@ -89,6 +89,7 @@ function LiveRecommendationsWorkspace({
     sortDesc: true,
     status: onlyCalculated ? "READY_FOR_REVIEW" : undefined,
     plant: filters.plant !== ALL_FILTER ? filters.plant : undefined,
+    type: filters.type !== ALL_FILTER ? (filters.type as "oar" | "declining" | "normal") : undefined,
   })
   // Plant is filtered in SQL above, so it is excluded from the client-side
   // pass -- leaving it in would re-test the same predicate against a page
@@ -151,6 +152,7 @@ function LiveRecommendationsWorkspace({
         layout="bar"
         plantOptions={plantOptions}
         showRecommendationFilter
+        showTypeFilter
         showCircuitFilter={hasRealCircuit(data ?? [])}
       />
       {loading ? (

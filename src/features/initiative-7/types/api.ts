@@ -103,6 +103,8 @@ export interface ApiRecommendationSummary {
   plant: string
   status: string
   is_oar: boolean | null
+  /** OAR, DECLINING or NORMAL -- three groups that never overlap. */
+  demand_type?: string
   demand_class: string | null
   criticality: string | null
   confidence: string | null
@@ -221,6 +223,22 @@ export interface ApiForecastHistoryPoint {
   forecast_period: string
   predicted: ApiDecimal
   actual: ApiDecimal
+}
+
+/** GET /v1/i7/forecast-vs-actual -- per month, the SUM of the champion models'
+ * one-step-ahead predictions and of actual demand, across the material-plants
+ * with a persisted backtest in the latest succeeded forecast run. */
+export interface ApiForecastVsActualPoint {
+  forecast_period: string
+  predicted: ApiDecimal
+  actual: ApiDecimal
+  material_count: number
+}
+
+export interface ApiForecastVsActualResponse {
+  materials_with_history_count: number
+  materials_in_scope_count: number
+  points: ApiForecastVsActualPoint[]
 }
 
 export interface ApiForecastHistoryResponse {
