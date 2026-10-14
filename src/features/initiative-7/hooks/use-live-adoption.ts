@@ -25,7 +25,9 @@ export interface LiveAdoptionState {
 /** GET /recommendations/adoption, refetched whenever `params` changes. */
 export function useLiveAdoption(
   params: Omit<RecommendationListParams, "sort" | "sortDesc"> = {},
+  options: { enabled?: boolean } = {},
 ): LiveAdoptionState {
+  const enabled = options.enabled ?? true
   const [items, setItems] = useState<AdoptionListRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -41,6 +43,14 @@ export function useLiveAdoption(
   }
 
   useEffect(() => {
+    // Each adoption row costs a lookup in SAP's change history, so a page that
+    // does not need the rows does not ask for them.
+    if (!enabled) {
+      setItems(null)
+      setTotal(0)
+      setLoading(false)
+      return
+    }
     let cancelled = false
 
     fetchAdoptionList(JSON.parse(paramsKey) as RecommendationListParams)
@@ -60,7 +70,7 @@ export function useLiveAdoption(
     return () => {
       cancelled = true
     }
-  }, [paramsKey, tick])
+  }, [paramsKey, tick, enabled])
 
   const refetch = useCallback(() => setTick((t) => t + 1), [])
 
