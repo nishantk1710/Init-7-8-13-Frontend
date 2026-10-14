@@ -15,17 +15,23 @@ import {
   EMPTY_DASHBOARD_FILTERS,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
+import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
+import {
+  listFilterKey,
+  listParamsFromFilters,
+  RECOMMENDATIONS_PAGE_SIZE,
+} from "@/features/initiative-7/utils/recommendation-list-query"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 
-// Rows per page. The backend pages and counts (see app/api/i7/recommendations.py); the
-// criticality, demand pattern, status, risk and material filters still narrow the rows of
-// the page in view, as they did before.
-const PAGE_SIZE = 50
+// Every filter below is sent to the backend (utils/recommendation-list-query.ts), which searches
+// the whole catalogue and returns one page and the true total. Only Circuit still narrows the
+// page in view, and the Circuit filter is offered only when the data carries real circuits.
+const PAGE_SIZE = RECOMMENDATIONS_PAGE_SIZE
 
 /** Repeated pipeline runs during testing can leave more than one
  * recommendation row per material-plant (see recommendation_id not being a
@@ -44,21 +50,9 @@ function dedupeByMaterialPlant(recommendations: Recommendation[]): Recommendatio
   return result
 }
 
-function applyFilters(recommendations: Recommendation[], filters: DashboardFilterState): Recommendation[] {
-  const query = filters.material.trim().toLowerCase()
-  return recommendations.filter((r) => {
-    if (filters.plant !== ALL_FILTER && r.plantId !== filters.plant) return false
-    if (filters.circuit !== ALL_FILTER && r.circuit !== filters.circuit) return false
-    if (filters.criticality !== ALL_FILTER && r.criticality !== filters.criticality) return false
-    if (filters.demandPattern !== ALL_FILTER && r.demandPattern !== filters.demandPattern) return false
-    if (filters.status !== ALL_FILTER && r.status !== filters.status) return false
-    if (filters.risk !== ALL_FILTER && r.risk !== filters.risk) return false
-    if (query) {
-      const haystack = `${r.material.materialId} ${r.material.description}`.toLowerCase()
-      if (!haystack.includes(query)) return false
-    }
-    return true
-  })
+/** The one filter the backend does not take: the page's own circuit column. */
+function applyCircuitFilter(recommendations: Recommendation[], circuit: string): Recommendation[] {
+  return circuit === ALL_FILTER ? recommendations : recommendations.filter((r) => r.circuit === circuit)
 }
 
 function LiveRecommendationsWorkspace({
@@ -68,44 +62,27 @@ function LiveRecommendationsWorkspace({
   filters: DashboardFilterState
   setFilters: (filters: DashboardFilterState) => void
 }) {
+  // The Material box asks the backend once typing pauses, not on every keystroke; every other
+  // filter applies at once. The inputs themselves keep updating as the person types.
+  const searchText = useDebouncedValue(filters.material)
+  const queryFilters = { ...filters, material: searchText }
+
   // The one "Recommendation" dropdown: All, or one of OAR / Declining / Normal. A chosen
-  // group lists only the recommendations that have been calculated (backend status
-  // READY_FOR_REVIEW); All lists everything, including those not yet calculated. Plant and
-  // the group are pushed to the backend rather than applied to one fetched page: filtering a
-  // page would miss most of the catalogue. (READY_FOR_REVIEW and NOT_EVALUABLE both read
-  // "Pending Review" in the display statuses, so the status filter cannot say this.)
+  // group lists only the recommendations that have been calculated (see listParamsFromFilters).
   const onlyCalculated = filters.type !== ALL_FILTER
 
-  // Page number, reset to 1 whenever the group or plant changes. Derived during render --
-  // not in an effect -- the way the live hooks do it.
-  const filterKey = `${filters.type}|${filters.plant}`
+  // Page number, back to 1 whenever any filter that decides the rows changes. Derived during
+  // render -- not in an effect -- the way the live hooks do it.
+  const filterKey = listFilterKey(queryFilters)
   const [pageState, setPageState] = useState({ key: filterKey, page: 1 })
   const page = pageState.key === filterKey ? pageState.page : 1
   const setPage = (next: number) => setPageState({ key: filterKey, page: next })
 
-  // Part 27: newest-first, not the backend's default oldest-first ordering
-  // -- at this row count an unsorted first page is effectively a random slice
-  // of the oldest rows and will almost never include a material generated in
-  // the most recent pipeline run. sort_desc is the existing Part 22
-  // capability; no new backend behaviour is introduced.
-  const { data, total, loading, error, refetch } = useLiveRecommendations({
-    page,
-    pageSize: PAGE_SIZE,
-    sort: "generated_at",
-    sortDesc: true,
-    status: onlyCalculated ? "READY_FOR_REVIEW" : undefined,
-    plant: filters.plant !== ALL_FILTER ? filters.plant : undefined,
-    type: filters.type !== ALL_FILTER ? (filters.type as "oar" | "declining" | "normal") : undefined,
-  })
-  // Plant is filtered in SQL above, so it is excluded from the client-side
-  // pass -- leaving it in would re-test the same predicate against a page
-  // that is already scoped to that plant.
+  // Newest first (Part 27): the latest pipeline run is on page 1.
+  const { data, total, loading, error, refetch } = useLiveRecommendations(listParamsFromFilters(queryFilters, page))
   const filtered = useMemo(
-    () =>
-      data
-        ? applyFilters(dedupeByMaterialPlant(data), { ...filters, plant: ALL_FILTER })
-        : [],
-    [data, filters],
+    () => (data ? applyCircuitFilter(dedupeByMaterialPlant(data), filters.circuit) : []),
+    [data, filters.circuit],
   )
 
   // The real SAP plant codes present in the data. The app-side PLANTS list
