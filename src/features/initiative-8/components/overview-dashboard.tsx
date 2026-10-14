@@ -45,11 +45,6 @@ export type OverviewDashboardProps = {
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
   /** Outstanding declarations over the whole register. Not filterable. */
   pendingDeclarations?: number
-  /**
-   * Unjustified acquisitions over the whole register. `undefined` means the
-   * backend does not run that check, and shows as a dash rather than a 0.
-   */
-  unjustifiedAcquisitions?: number
   vendorTurnaround: ApiVendorTurnaround[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
@@ -81,7 +76,6 @@ export function OverviewDashboard({
   agingBands,
   universe,
   pendingDeclarations,
-  unjustifiedAcquisitions,
   vendorTurnaround,
   plantOptions,
   vendorOptions,
@@ -129,7 +123,6 @@ export function OverviewDashboard({
         {
           referenceDate,
           pendingDeclarations,
-          unjustifiedAcquisitions,
         },
       ),
     )
@@ -182,12 +175,12 @@ export function OverviewDashboard({
           )}
         >
           Plant and criticality narrow every figure. Vendor narrows the repair-line figures
-          only — the repairable universe has no vendor. Pending declarations and unjustified
-          new purchases are counted over the whole register and never narrow.
+          only — the repairable universe has no vendor. Pending declarations are counted over
+          the whole register and never narrow.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <KPIStatCard
           label="Repairable materials monitored"
           value={universe ? formatCount(metrics.universeMaterials) : UNKNOWN}
@@ -197,17 +190,10 @@ export function OverviewDashboard({
           value={formatCount(metrics.qtyUnderRepair)}
         />
         <KPIStatCard label="Open repair lines" value={formatCount(metrics.openLines)} />
-        {/* UNJUSTIFIED_ACQUISITION: a new unit bought while a repair of the
-            same part was open, with no justification on record. A dash, not
-            a 0, when the backend does not run that check. */}
-        <KPIStatCard
-          label="Unjustified new purchases"
-          value={
-            unjustifiedAcquisitions === undefined
-              ? UNKNOWN
-              : formatCount(unjustifiedAcquisitions)
-          }
-        />
+        {/* No "Unjustified new purchases" tile since 14-Oct-2026. The reason
+            for a new purchase is asked for at the reservation (FR-5b), and
+            the count of purchases that carry one is reported on the
+            Justifications screen, next to the reasons themselves. */}
         <KPIStatCard
           label="Pending declarations"
           value={pendingDeclarations === undefined ? UNKNOWN : formatCount(pendingDeclarations)}

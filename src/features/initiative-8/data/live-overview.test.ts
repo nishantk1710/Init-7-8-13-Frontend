@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  toUniverseRows,
-  unjustifiedAcquisitions,
-} from "@/features/initiative-8/data/live-overview"
+import { toUniverseRows } from "@/features/initiative-8/data/live-overview"
 import type { ApiUniverseItem } from "@/lib/api/i8"
 
 /**
  * What this module still owns after the dashboard's filters landed: adapting
- * the API's universe rows, and reading the exception meta.
+ * the API's universe rows.
  *
  * The aggregations the tiles and charts are built from moved to
  * `utils/overview-view.ts`, where the filters live — see its own tests.
@@ -59,33 +56,5 @@ describe("toUniverseRows", () => {
       plantId: "",
       plantName: "Unknown plant",
     })
-  })
-})
-
-describe("unjustifiedAcquisitions", () => {
-  it("is unknown — not zero — when the backend does not run the check", () => {
-    expect(
-      unjustifiedAcquisitions({ byType: { MISSING_ATTESTATION: 1181 }, typesRaised: ["MISSING_ATTESTATION"] }),
-    ).toBeUndefined()
-  })
-
-  it("is zero when the check runs and finds nothing", () => {
-    // The deployed backend on 12-Oct-2026: the check ran over 6,837
-    // acquisitions, raised none, and omits the key from `byType` entirely.
-    expect(
-      unjustifiedAcquisitions({
-        byType: { MISSING_ATTESTATION: 1181 },
-        typesRaised: ["MISSING_ATTESTATION", "UNJUSTIFIED_ACQUISITION"],
-      }),
-    ).toBe(0)
-  })
-
-  it("reads the count when there is one", () => {
-    expect(
-      unjustifiedAcquisitions({
-        byType: { UNJUSTIFIED_ACQUISITION: 7 },
-        typesRaised: ["UNJUSTIFIED_ACQUISITION"],
-      }),
-    ).toBe(7)
   })
 })

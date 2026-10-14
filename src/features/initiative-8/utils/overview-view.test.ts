@@ -202,18 +202,17 @@ describe("filterOverview", () => {
 })
 
 describe("overviewSummaryRows", () => {
-  it("names the slice the figures came from, and the two that never narrow", () => {
+  it("names the slice the figures came from, and the one that never narrows", () => {
     const metrics = summariseOverview({ chains: [chain()], universe: [universeRow()] })
     const rows = overviewSummaryRows(
       metrics,
       { plant: "Gamsberg", vendor: "All vendors", criticality: "All criticalities" },
-      { referenceDate: "2026-10-12", pendingDeclarations: 5155, unjustifiedAcquisitions: 0 },
+      { referenceDate: "2026-10-12", pendingDeclarations: 5155 },
     )
     const byLabel = new Map(rows.map((r) => [String(r[0]), r[1]]))
     expect(byLabel.get("Plant filter")).toBe("Gamsberg")
     expect(byLabel.get("Vendor filter (repair lines only)")).toBe("All vendors")
     expect(byLabel.get("Pending declarations (whole register, unfiltered)")).toBe(5155)
-    expect(byLabel.get("Unjustified new purchases (whole register, unfiltered)")).toBe(0)
   })
 
   it("exports a figure the backend could not give as words, never as a number", () => {

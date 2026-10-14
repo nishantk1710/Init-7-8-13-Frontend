@@ -73,7 +73,12 @@ export async function RepairRegisterPage() {
 
   return (
     <Shell
-      description={registerDescription(live.meta, live.referenceDate, live.sourceLoadedAt)}
+      description={registerDescription(
+        live.meta,
+        live.referenceDate,
+        live.sourceLoadedAt,
+        live.unlistedLines,
+      )}
       chains={attachLineExceptions(live.chains, await exceptionRows)}
       plantOptions={live.plantOptions}
       vendorOptions={live.vendorOptions}
