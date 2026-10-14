@@ -424,6 +424,14 @@ export interface RecommendationListParams {
   type?: "oar" | "declining" | "normal"
   confidence?: string
   criticality?: string
+  /** Part of a material number or description, searched across the whole catalogue. */
+  search?: string
+  /** Critical | High | Medium | Low -- the level the table shows, not the raw tier. */
+  criticalityLevel?: string
+  /** The status as the table shows it (Pending Review, In Approval, ...). */
+  statusGroup?: string
+  /** critical | high | medium | low -- the stockout risk the table shows. */
+  risk?: string
   /** Inclusive lower bound on generated_at, ISO 8601 -- e.g. a report
    * period's start, so a material table can be scoped to the same quarter
    * the report itself was generated for. */
@@ -453,6 +461,10 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.type) search.set("type", params.type)
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.criticality) search.set("criticality", params.criticality)
+  if (params.search) search.set("search", params.search)
+  if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
+  if (params.statusGroup) search.set("status_group", params.statusGroup)
+  if (params.risk) search.set("risk", params.risk)
   if (params.generatedFrom) search.set("generated_from", params.generatedFrom)
   if (params.generatedTo) search.set("generated_to", params.generatedTo)
   const query = search.toString()
