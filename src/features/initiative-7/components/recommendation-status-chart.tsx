@@ -76,7 +76,11 @@ export function RecommendationStatusChart({
   const pieData = legendData.filter((d) => d.count > 0)
 
   return (
-    <div className="flex min-w-0 items-center gap-4">
+    // A container query, not a viewport breakpoint: the card is a third of the page behind a filter
+    // rail, so its own width -- not the window's -- decides whether the donut fits beside the legend.
+    // Narrower than 24rem the donut sits above the legend instead of pushing the counts out of the card.
+    <div className="@container min-w-0">
+      <div className="flex min-w-0 flex-col items-center gap-4 @[24rem]:flex-row">
       <div className="h-[160px] w-[160px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -114,7 +118,7 @@ export function RecommendationStatusChart({
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex w-full min-w-0 flex-1 flex-col gap-2">
         {legendData.map((d) => (
           <button
             key={d.status}
@@ -137,6 +141,7 @@ export function RecommendationStatusChart({
             <span className="shrink-0 tabular-nums text-muted-foreground">{formatCount(d.count)}</span>
           </button>
         ))}
+      </div>
       </div>
     </div>
   )
