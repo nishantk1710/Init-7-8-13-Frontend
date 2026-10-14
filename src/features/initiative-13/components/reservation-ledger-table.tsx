@@ -4,6 +4,8 @@ import Link from "next/link"
 import { MessagesSquare } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
+import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
+import { deliveryStatus } from "@/features/initiative-13/utils/delivery-status"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -53,6 +55,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
             <TableHead className="text-right">Qty</TableHead>
             <TableHead>PR / PO</TableHead>
             <TableHead className="text-right">Received</TableHead>
+            <TableHead>Delivered on</TableHead>
             <TableHead className="text-right">Issued</TableHead>
             <TableHead>Lifecycle</TableHead>
             <TableHead>Session (item text)</TableHead>
@@ -91,6 +94,17 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                 </div>
               </TableCell>
               <TableCell className="text-right text-foreground">{qty(row.receivedQuantity)}</TableCell>
+              <DeliveredOnCell
+                status={deliveryStatus({
+                  hasPo: Boolean(row.poNumber),
+                  receivedQuantity: row.receivedQuantity,
+                  orderedQuantity: row.orderedQuantity,
+                  firstGrDate: row.firstGrDate,
+                  latestGrDate: row.lastGrDate,
+                })}
+                receivedQuantity={row.receivedQuantity}
+                orderedQuantity={row.orderedQuantity}
+              />
               <TableCell className="text-right text-foreground">{qty(row.issuedQuantity)}</TableCell>
               <TableCell>
                 <StatusBadge>{row.lifecycleStatus.replaceAll("_", " ")}</StatusBadge>
