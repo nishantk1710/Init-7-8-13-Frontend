@@ -45,6 +45,11 @@ import { PortfolioForecastVsActualChart } from "@/features/initiative-7/componen
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
+import {
+  ExcessPositionCard,
+  StockoutPositionCard,
+} from "@/features/initiative-7/components/plant-position-cards"
+import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -56,17 +61,6 @@ import type { Circuit, RecommendationStatus } from "@/features/initiative-7/type
 // same as the recommendations workspace/table -- see that component's own
 // note on why the whole set (not one page) is needed for these KPIs/charts.
 const LIVE_OVERVIEW_PAGE_SIZE = 200
-
-function UnavailableTrendCard({ label }: { label: string }) {
-  return (
-    <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-      <p>{label} is not available from the backend.</p>
-      <p className="max-w-xs">
-        No API currently exposes a monthly historical time series for this metric.
-      </p>
-    </div>
-  )
-}
 
 function AdoptionStatusTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null
@@ -241,6 +235,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
   const { data, loading, error, refetch } = useLiveRecommendations({ pageSize: LIVE_OVERVIEW_PAGE_SIZE })
   const { summary } = useLiveRecommendationSummary()
+  const plantPositions = usePlantPositions()
   // Own plant filter, independent of the sidebar's Plant filter -- lets
   // someone compare adoption by plant without changing what the rest of the
   // page shows (see get_adoption_summary's own docstring for why this needs
@@ -410,15 +405,19 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                 statusOverride={statusOverride}
               />
             </ChartCard>
-            <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={4}>
-              <UnavailableTrendCard label="Stockout risk trend" />
-            </ChartCard>
             <ChartCard
-              title="Excess inventory opportunity"
-              subtitle="Cumulative working-capital opportunity identified, by month."
+              title="Stockout risk by plant"
+              subtitle="Material-plants below their recommended reorder point, now."
               span={4}
             >
-              <UnavailableTrendCard label="Excess inventory trend" />
+              <StockoutPositionCard state={plantPositions} />
+            </ChartCard>
+            <ChartCard
+              title="Excess inventory by plant"
+              subtitle="Material-plants above their recommended maximum stock, now."
+              span={4}
+            >
+              <ExcessPositionCard state={plantPositions} />
             </ChartCard>
 
             <ChartCard
