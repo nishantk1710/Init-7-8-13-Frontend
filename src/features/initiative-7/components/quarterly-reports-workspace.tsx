@@ -45,7 +45,7 @@ import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
 import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
-import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
+import { PortfolioForecastVsActualChart } from "@/features/initiative-7/components/portfolio-forecast-vs-actual-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -729,9 +729,8 @@ export function QuarterlyReportsWorkspace() {
                 <ChartCard
                   title="Forecast vs Actual Demand"
                   span={7}
-                  footnote={`Actual = consumption for the ${chartRecommendations?.length ?? 0} material(s) in view. Forecast = one-step-ahead exponential smoothing on that same series, so each point uses only prior months.`}
                 >
-                  <ForecastVsActualChart recommendations={chartRecommendations ?? []} />
+                  <PortfolioForecastVsActualChart />
                 </ChartCard>
 
                 <ChartCard title="SAP adoption" subtitle="Whether approved recommendations were applied in SAP." span={5}>
@@ -742,10 +741,9 @@ export function QuarterlyReportsWorkspace() {
                   {adoptionSummary && adoptionSummary.totalEvaluated > 0 && (
                     <div className="mt-3 border-t border-border/60 pt-3 text-center">
                       <p className="text-[11px] text-muted-foreground">
-                        FR-9 ledger (all quarters): {adoptionSummary.adoptedCount} adopted ·{" "}
-                        {adoptionSummary.partiallyAdoptedCount} partial · {adoptionSummary.notAdoptedCount} not
-                        adopted · {adoptionSummary.unknownCount} unknown, of {adoptionSummary.totalEvaluated}{" "}
-                        reconciled.
+                        {adoptionSummary.adoptedCount} adopted · {adoptionSummary.partiallyAdoptedCount} partial ·{" "}
+                        {adoptionSummary.notAdoptedCount} not adopted · {adoptionSummary.unknownCount} pending, of{" "}
+                        {adoptionSummary.totalEvaluated} recommendations tracked.
                       </p>
                     </div>
                   )}

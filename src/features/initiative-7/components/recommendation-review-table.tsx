@@ -248,7 +248,10 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                       {getPlantById(rec.plantId)?.name ?? rec.plantId}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
+                        {rec.demandType === "Declining" && <StatusBadge tone="warning">Declining</StatusBadge>}
+                      </div>
                     </TableCell>
                     {showCircuit && <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>}
                     <TableCell>

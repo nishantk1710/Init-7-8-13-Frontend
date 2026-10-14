@@ -60,6 +60,12 @@ export interface DashboardFilterState {
    * same "Pending Review" label (see i7-api.ts STATUS_MAP), so that filter
    * cannot express "has a real calculated value". */
   recommendation: string
+  /** Live mode (Recommendations page). How the recommendation was worked out:
+   * "oar" (sized from similar materials), "declining" (demand has been falling,
+   * so TSB is used) or "normal". Pushed to the backend as the `type` query param --
+   * the three never overlap, and a client-side filter over one fetched page would
+   * miss most of the catalogue. Separate from `recommendation` (calculated or not). */
+  type: string
   /** Live mode only. Reconciliation result against SAP change-document
    * evidence (see use-live-adoption.ts) -- "Adopted" / "Partially adopted" /
    * "Not adopted" / "Unknown", the same 4 values Adoption Tracking's table
@@ -70,6 +76,13 @@ export interface DashboardFilterState {
 }
 
 export const RECOMMENDATION_FILTER_CALCULATED = "calculated"
+
+/** The Type filter's options: the three groups the backend splits the catalogue into. */
+export const RECOMMENDATION_TYPE_OPTIONS = [
+  { value: "oar", label: "OAR" },
+  { value: "declining", label: "Declining" },
+  { value: "normal", label: "Normal" },
+] as const
 
 export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopted", "Unknown"] as const
 
@@ -85,6 +98,7 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   // carry a real computed value, so defaulting to "All" shows page after page
   // of "not yet computed" rows and buries the ones a planner can act on.
   recommendation: RECOMMENDATION_FILTER_CALCULATED,
+  type: ALL_FILTER,
   sapAdoption: ALL_FILTER,
 }
 
@@ -131,6 +145,7 @@ export function DashboardFilters({
   showRecommendationFilter = false,
   showSapAdoptionFilter = false,
   showCircuitFilter = true,
+  showTypeFilter = false,
 }: {
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
@@ -152,6 +167,8 @@ export function DashboardFilters({
   /** False hides the Circuit dropdown -- for a page whose rows have no real
    * circuit, where every option would filter to nothing. */
   showCircuitFilter?: boolean
+  /** Live Recommendations page: adds the Type filter (OAR / Declining / Normal). */
+  showTypeFilter?: boolean
 }) {
   function set<K extends keyof DashboardFilterState>(key: K, next: string) {
     onChange({ ...value, [key]: next })
@@ -190,6 +207,26 @@ export function DashboardFilters({
             <SelectContent>
               <SelectItem value={RECOMMENDATION_FILTER_CALCULATED}>Calculated only</SelectItem>
               <SelectItem value={ALL_FILTER}>All materials</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
+
+      {showTypeFilter && (
+        <FilterField label="Type">
+          <Select value={value.type} onValueChange={(v) => set("type", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">
+                {(v: string) => RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "All"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {RECOMMENDATION_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </FilterField>
@@ -309,7 +346,7 @@ export function DashboardFilters({
               <SelectItem value={ALL_FILTER}>All</SelectItem>
               {SAP_ADOPTION_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {s === "Unknown" ? "Pending" : s}
                 </SelectItem>
               ))}
             </SelectContent>

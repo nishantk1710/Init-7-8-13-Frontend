@@ -117,6 +117,7 @@ export function InventoryPortfolioKpis({
   pendingApprovalOverride,
   stockoutRiskOverride,
   excessInventoryOverride,
+  workingCapitalOverride,
 }: {
   recommendations?: Recommendation[]
   /** Part 35 -- portfolio-wide { count, total } for "Pending Approval",
@@ -143,6 +144,13 @@ export function InventoryPortfolioKpis({
    * see RecommendationSummaryStats.excess_inventory_opportunity's docstring
    * on the backend. */
   excessInventoryOverride?: { count: number; total: number; opportunity: number | null }
+  /** Portfolio-wide net working-capital impact, from GET /recommendations/summary's
+   * net_safety_stock_value_impact: positive releases working capital, negative ties
+   * more up. `amount` is `null` (never a fabricated 0) when no recommendation has a
+   * unit price, a current and a recommended safety stock together -- shown as
+   * "Not available". Without this, the KPI sums only the rows that happen to be on
+   * the fetched page, which is a handful of the newest rows and not the portfolio. */
+  workingCapitalOverride?: { amount: number | null; currency: string | null }
 }) {
   const total = recommendations.length
   const stockoutRisk = stockoutRiskOverride?.count ?? countAtStockoutRisk(recommendations)
@@ -151,11 +159,14 @@ export function InventoryPortfolioKpis({
   const excessTotal = excessInventoryOverride?.total ?? total
   const awaiting = pendingApprovalOverride?.count ?? countAwaitingApproval(recommendations)
   const awaitingTotal = pendingApprovalOverride?.total ?? total
-  // Working Capital Impact is unchanged in this pass -- still derived from
-  // `recommendations` (the fetched page), same caveat pendingApprovalOverride's
-  // docstring notes for the other un-overridden KPIs. Wiring
-  // net_safety_stock_value_impact here is a separate, not-yet-requested change.
-  const netImpact = netWorkingCapitalImpact(recommendations)
+  // From the backend's portfolio total when given; otherwise (the scenario
+  // dataset) from the recommendations passed in.
+  const netImpact = workingCapitalOverride
+    ? workingCapitalOverride.amount
+    : netWorkingCapitalImpact(recommendations)
+  const impactCurrency = workingCapitalOverride
+    ? workingCapitalOverride.currency
+    : commonCurrency(recommendations.map((r) => r.currency))
 
   return (
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
@@ -179,8 +190,15 @@ export function InventoryPortfolioKpis({
         title="Working Capital Impact"
         icon={<Wallet className="size-3.5" />}
         tone="success"
-        value={formatCompactSigned(netImpact, commonCurrency(recommendations.map((r) => r.currency)))}
-        caption={netImpact >= 0 ? "Net release" : "Net additional investment"}
+        value={netImpact === null ? "Not available" : formatCompactSigned(netImpact, impactCurrency)}
+        caption={
+          netImpact === null
+            ? "needs a unit price and a calculated safety stock"
+            : netImpact >= 0
+              ? "Net release"
+              : "Net additional investment"
+        }
+        captionMuted={netImpact === null}
       />
       <PortfolioKpiCard
         title="Pending Approval"

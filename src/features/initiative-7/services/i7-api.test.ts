@@ -9,6 +9,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  fetchForecastVsActual,
+  fetchRecommendations,
+  mapDemandType,
   fetchQuarterlyReport,
   fetchQuarterlyReports,
   generateQuarterlyReport,
@@ -919,5 +922,82 @@ describe("fetchQuarterlyReport", () => {
 
       expect(result.metadata.quarter).toBe("Q3 2026")
     })
+  })
+})
+
+describe("fetchForecastVsActual", () => {
+  it("maps the monthly sums and the counts behind the caption", async () => {
+    stubFetchJson({
+      materials_with_history_count: 5662,
+      materials_in_scope_count: 6075,
+      points: [
+        { forecast_period: "2026-01-01", predicted: "111.500", actual: "104", material_count: 3 },
+        { forecast_period: "2026-02-01", predicted: "222", actual: "231", material_count: 3 },
+      ],
+    })
+    const result = await fetchForecastVsActual()
+    expect(result.materialsWithHistory).toBe(5662)
+    expect(result.materialsInScope).toBe(6075)
+    expect(result.points).toEqual([
+      { period: "2026-01-01", predicted: 111.5, actual: 104, materialCount: 3 },
+      { period: "2026-02-01", predicted: 222, actual: 231, materialCount: 3 },
+    ])
+  })
+
+  it("asks for one plant when given one, and for every plant otherwise", async () => {
+    const calls: string[] = []
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url))
+      return new Response(
+        JSON.stringify({ materials_with_history_count: 0, materials_in_scope_count: 0, points: [] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      )
+    })
+    await fetchForecastVsActual("1300", 6)
+    await fetchForecastVsActual()
+    expect(calls[0]).toContain("/forecast-vs-actual?months=6&plant=1300")
+    expect(calls[1]).toContain("/forecast-vs-actual?months=12")
+    expect(calls[1]).not.toContain("plant=")
+  })
+
+  it("returns no points, never a fabricated line, when nothing is backtested", async () => {
+    stubFetchJson({ materials_with_history_count: 0, materials_in_scope_count: 12, points: [] })
+    const result = await fetchForecastVsActual("1500")
+    expect(result.points).toEqual([])
+    expect(result.materialsInScope).toBe(12)
+  })
+})
+
+describe("the Type filter (OAR / Declining / Normal)", () => {
+  it("reads the backend's three groups as display words", () => {
+    expect(mapDemandType("OAR")).toBe("OAR")
+    expect(mapDemandType("DECLINING")).toBe("Declining")
+    expect(mapDemandType("NORMAL")).toBe("Normal")
+  })
+
+  it("reads a missing value (an older backend) as Normal, as it was before the split", () => {
+    expect(mapDemandType(undefined)).toBe("Normal")
+    expect(mapDemandType("SOMETHING_NEW")).toBe("Normal")
+  })
+
+  it("puts the group on each recommendation row", () => {
+    expect(mapSummaryToRecommendation(summaryFixture({ demand_type: "DECLINING" })).demandType).toBe("Declining")
+    expect(mapSummaryToRecommendation(summaryFixture({ demand_type: "OAR" })).demandType).toBe("OAR")
+    expect(mapSummaryToRecommendation(summaryFixture()).demandType).toBe("Normal")
+  })
+
+  it("sends the chosen type to the backend, so the filter works across the whole catalogue", async () => {
+    const calls: string[] = []
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 200 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    })
+    await fetchRecommendations({ type: "declining", pageSize: 200 })
+    await fetchRecommendations({ pageSize: 200 })
+    expect(calls[0]).toContain("type=declining")
+    expect(calls[1]).not.toContain("type=")
   })
 })

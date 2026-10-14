@@ -128,8 +128,9 @@ export function ForecastVsActualChart({
       <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
         <p>No usage history to show.</p>
         <p className="max-w-xs">
-          No usage has been recorded for this material at this plant, so there is nothing to chart. Materials
-          without history are sized from similar materials instead.
+          {recommendations.length === 1
+            ? "No usage has been recorded for this material at this plant, so there is nothing to chart. Materials without history are sized from similar materials instead."
+            : "These materials carry no monthly history in this view. Use the portfolio Forecast vs Actual chart for the whole portfolio."}
         </p>
       </div>
     )

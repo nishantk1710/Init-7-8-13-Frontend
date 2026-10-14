@@ -41,7 +41,7 @@ import {
   EMPTY_DASHBOARD_FILTERS,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
-import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
+import { PortfolioForecastVsActualChart } from "@/features/initiative-7/components/portfolio-forecast-vs-actual-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
@@ -146,9 +146,9 @@ function AdoptionRateCard({
       <div className="flex flex-col">
         {plantPicker}
         <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-          <p>No recommendations have been reconciled against SAP yet.</p>
+          <p>No recommendations with values to track yet.</p>
           <p className="max-w-xs">
-            The ledger fills in as recommendations are viewed through the Adoption Tracking screen.
+            A material appears here once a recommendation with recommended values has been generated.
           </p>
         </div>
       </div>
@@ -161,7 +161,7 @@ function AdoptionRateCard({
     { status: "Adopted", count: summary.adoptedCount, color: "var(--chart-3)" },
     { status: "Partially adopted", count: summary.partiallyAdoptedCount, color: "var(--chart-4)" },
     { status: "Not adopted", count: summary.notAdoptedCount, color: "var(--destructive)" },
-    { status: "Unknown", count: summary.unknownCount, color: "var(--muted-foreground)" },
+    { status: "Pending", count: summary.unknownCount, color: "var(--muted-foreground)" },
   ]
   // A real but zero count renders as a zero-width bar -- invisible, and
   // indistinguishable from the color simply being wrong. displayCount gives
@@ -183,7 +183,7 @@ function AdoptionRateCard({
         <div className="text-xs text-muted-foreground">
           {rateKnown
             ? "adopted or partially adopted, of recommendations with SAP evidence"
-            : "no SAP change-document evidence observed for any evaluated recommendation"}
+            : "no SAP change-document evidence observed for any tracked recommendation"}
         </div>
       </div>
       <div className="h-[200px] w-full">
@@ -223,7 +223,7 @@ function AdoptionRateCard({
         ))}
       </div>
       <p className="text-center text-[11px] text-muted-foreground">
-        {summary.totalEvaluated} recommendation(s) reconciled so far.
+        {summary.totalEvaluated} recommendation(s) tracked. Pending means SAP has recorded no change yet.
       </p>
     </div>
   )
@@ -347,6 +347,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
               }
             : undefined
         }
+        workingCapitalOverride={
+          summary
+            ? { amount: summary.netSafetyStockValueImpact, currency: summary.currency }
+            : undefined
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
@@ -405,7 +410,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
 
             <ChartCard
               title="SAP adoption"
-              subtitle="Recommendations reconciled against SAP change history, by ledger status."
+              subtitle="Recommendations with values, checked against SAP change history."
               span={12}
             >
               <AdoptionRateCard
@@ -418,9 +423,9 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             <ChartCard
               title="Forecast vs Actual Demand"
               span={12}
-              footnote={`Actual = consumption for the ${filtered.length} material(s) in view. Forecast = one-step-ahead exponential smoothing on that same series, so each point uses only prior months.`}
+              subtitle="The champion models' one-month-ahead forecast against actual demand, summed per month."
             >
-              <ForecastVsActualChart recommendations={filtered} />
+              <PortfolioForecastVsActualChart />
             </ChartCard>
           </div>
         </div>

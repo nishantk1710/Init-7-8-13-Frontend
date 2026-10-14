@@ -48,6 +48,11 @@ export type DemandPattern =
   /** The backend sent no demand class at all, or one this app does not know. */
   | "Unclassified"
 
+/** How a recommendation was worked out: OAR (sized from similar materials),
+ * Declining (demand has been falling, so TSB is used) or Normal. The three
+ * never overlap; this is the split the Type filter makes. */
+export type RecommendationType = "OAR" | "Declining" | "Normal"
+
 export const DEMAND_PATTERNS: DemandPattern[] = [
   "Smooth",
   "Erratic",
@@ -159,6 +164,8 @@ export interface Recommendation {
   circuit: Circuit
   criticality: Criticality
   demandPattern: DemandPattern
+  /** Live API only; absent on the scenario fixtures. */
+  demandType?: RecommendationType
   risk: RiskLevel
   status: RecommendationStatus
   current: StockParameters
