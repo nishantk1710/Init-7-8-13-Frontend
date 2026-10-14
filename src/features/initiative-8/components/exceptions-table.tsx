@@ -36,7 +36,7 @@ import {
   EXCEPTION_STATUS_TONE,
   exceptionTypeLabel as labelFor,
 } from "@/features/initiative-8/utils/status"
-import { downloadCsv } from "@/lib/utils"
+import { downloadExcel } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
@@ -155,9 +155,9 @@ export function ExceptionsTable({
 
   const selected = selectedId ? rows.find((r) => r.id === selectedId) : undefined
 
-  function exportCsv() {
-    downloadCsv(
-      "i08-exception-queue.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-exception-queue.xlsx",
       [
         "Type",
         "Severity",
@@ -233,8 +233,8 @@ export function ExceptionsTable({
             </span>
           )}
         </div>
-        <Button size="sm" variant="outline" onClick={exportCsv}>
-          Export CSV
+        <Button size="sm" variant="outline" onClick={exportExcel}>
+          Export Excel
         </Button>
       </div>
 

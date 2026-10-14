@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeclarationLogRow } from "@/features/initiative-8/data/live-declarations"
-import { cn, downloadCsv } from "@/lib/utils"
+import { cn, downloadExcel } from "@/lib/utils"
 
 /** The "no filter" value every dropdown here uses. */
 const ALL = "all"
@@ -104,9 +104,9 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
     inForceOnly,
   ].filter(Boolean).length
 
-  function exportCsv() {
-    downloadCsv(
-      "i08-declaration-log.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-declaration-log.xlsx",
       [
         "Declared At",
         "Material",
@@ -194,8 +194,8 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
             {rows.length}
             {rows.length === allRows.length ? "" : ` of ${allRows.length}`} shown
           </span>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
-            Export CSV
+          <Button size="sm" variant="outline" onClick={exportExcel} disabled={rows.length === 0}>
+            Export Excel
           </Button>
         </div>
       </FilterBar>

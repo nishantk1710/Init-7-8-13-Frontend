@@ -48,7 +48,7 @@ import {
 import { useI08Snapshot } from "@demo/features/initiative-8/state/snapshot-store"
 import type { RepairChain } from "@demo/features/initiative-8/types/repair"
 import { UNKNOWN } from "@demo/features/initiative-8/utils/status"
-import { cn, downloadCsv, formatCount, formatZAR, formatZARCompact } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount, formatZAR, formatZARCompact } from "@demo/lib/utils"
 
 const DESCRIPTION =
   "Repair register, condition attestation and reservation-time compliance for 80-series spares."
@@ -159,7 +159,7 @@ export function RefurbishableSparesOverviewPage() {
   }
 
   function exportSummary() {
-    downloadCsv("i08-overview-summary.csv", ["Metric", "Value"], summaryRows(metrics, filters))
+    downloadExcel("i08-overview-summary.xlsx", ["Metric", "Value"], summaryRows(metrics, filters))
   }
 
   return (

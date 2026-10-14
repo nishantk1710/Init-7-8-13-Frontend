@@ -30,7 +30,7 @@ import type {
 } from "@/features/initiative-8/types/repair"
 import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
-import { cn, downloadCsv, formatCount } from "@/lib/utils"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 const ALL = "all"
@@ -147,9 +147,9 @@ export function DeclarationsTable({
     })
   }, [scoped, plant, repairStatus, vendor, search])
 
-  function exportCsv() {
-    downloadCsv(
-      "i08-declaration-queue.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-declaration-queue.xlsx",
       // Wider than the table on purpose, the same way the register's export
       // is: the screen is for working the queue, the file is for somebody
       // slicing it in Excel, and the repair line and requisition are what
@@ -211,8 +211,8 @@ export function DeclarationsTable({
             Matched within ±{summary.attestationWindowDays} days of the repair line.
           </span>
         </div>
-        <Button size="sm" variant="outline" onClick={exportCsv}>
-          Export CSV
+        <Button size="sm" variant="outline" onClick={exportExcel}>
+          Export Excel
         </Button>
       </div>
 

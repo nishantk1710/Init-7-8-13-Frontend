@@ -34,7 +34,7 @@ import {
   CODING_SCREEN_TIMEOUT_MS,
   getCodingCandidates,
 } from "@/lib/api/i8"
-import { downloadCsv, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 
 const ALL = "all"
 
@@ -163,9 +163,9 @@ export function CodingCandidatesTable({
    * a repairable" is not a case -- the words somebody typed on a specific
    * document are.
    */
-  function exportCsv() {
-    downloadCsv(
-      "i08-coding-candidates.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-coding-candidates.xlsx",
       [
         "Material",
         "Verdict",
@@ -303,8 +303,8 @@ export function CodingCandidatesTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={exportCsv}>
-          Export CSV
+        <Button size="sm" variant="outline" onClick={exportExcel}>
+          Export Excel
         </Button>
         {/* Progress, not a guess. The old label said "~4 min", calibrated
             when the pool was 41 materials; it is 113 now and the estimate

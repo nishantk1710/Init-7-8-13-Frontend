@@ -42,7 +42,7 @@ import {
   UNKNOWN,
   codeLabel,
 } from "@demo/features/initiative-8/utils/status"
-import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount } from "@demo/lib/utils"
 
 const SOURCES = Object.keys(CODING_SOURCE_LABEL) as CodingTextSource[]
 
@@ -134,9 +134,9 @@ export function CodingCandidatesTable() {
     setPlant(ALL)
   }
 
-  function exportCsv() {
-    downloadCsv(
-      "i08-coding-candidates.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-coding-candidates.xlsx",
       [
         "Rank",
         "Material",
@@ -245,9 +245,9 @@ export function CodingCandidatesTable() {
           <span className="text-xs text-muted-foreground">
             {formatCount(filtered.length)} of {formatCount(candidates.length)} materials
           </span>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button size="sm" variant="outline" onClick={exportExcel} disabled={filtered.length === 0}>
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

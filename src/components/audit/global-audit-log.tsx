@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table"
 import { formatWhen } from "@/lib/api/format"
 import type { AuditEvent, InitiativeId } from "@/lib/domain/contracts"
-import { cn, downloadCsv } from "@/lib/utils"
+import { cn, downloadExcel } from "@/lib/utils"
 
 const ALL_FILTER = "all"
 const INITIATIVES: InitiativeId[] = ["initiative-7", "initiative-8", "initiative-13"]
@@ -80,12 +80,12 @@ export function GlobalAuditLog({
   const lastShown = (page - 1) * pageSize + events.length
   const filtered = Boolean(filters.initiative || filters.from || filters.to)
 
-  function handleExport() {
-    downloadCsv(
-      "spares-ai-audit-trail.csv",
+  async function handleExport() {
+    const ok = await downloadExcel(
+      "spares-ai-audit-trail.xlsx",
       ["Timestamp", "Initiative", "Record", "Event", "Actor", "Description"],
       events.map((e) => [
-        // The ISO value, not the display string: a CSV bound for Excel should sort.
+        // The ISO value, not the display string, so it lands as a sortable date.
         e.timestamp,
         INITIATIVE_NAME[e.initiative],
         e.entityId,
@@ -94,7 +94,7 @@ export function GlobalAuditLog({
         e.description,
       ])
     )
-    toast.success(`Exported ${events.length} audit events on this page to CSV`)
+    if (ok) toast.success(`Exported ${events.length} audit events on this page to Excel`)
   }
 
   return (
@@ -161,7 +161,7 @@ export function GlobalAuditLog({
 
         <Button variant="outline" size="sm" className="ml-auto h-9" onClick={handleExport}>
           <Download className="size-3.5" />
-          Export page to CSV
+          Export page to Excel
         </Button>
       </div>
 

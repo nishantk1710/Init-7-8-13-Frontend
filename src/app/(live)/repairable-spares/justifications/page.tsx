@@ -173,7 +173,7 @@ export default async function I08JustificationsPage() {
         ) : (
           <JustificationLog
             entries={entries.items.map(fromAssistant)}
-            csvFilename="i08-new-acquisition-justifications.csv"
+            exportFilename="i08-new-acquisition-justifications.xlsx"
             filterable
           />
         )}

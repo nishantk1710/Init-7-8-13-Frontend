@@ -4,13 +4,13 @@ import { Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { WatchMetric } from "@/lib/api/i13"
-import { downloadCsv } from "@/lib/utils"
+import { downloadExcel } from "@/lib/utils"
 
 /**
- * CSV export of the full WATCH set — FR-10's "with filters and export".
+ * Excel export of the full WATCH set — FR-10's "with filters and export".
  *
  * A one-button client component so the dashboard around it can stay a server
- * component: `downloadCsv` builds a blob and clicks an anchor, which is browser
+ * component: `downloadExcel` builds a workbook and clicks an anchor, which is browser
  * work. Exporting the rows the page already holds means the export always
  * matches what is on screen, including the current filters.
  */
@@ -20,8 +20,8 @@ export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
       size="sm"
       variant="outline"
       onClick={() =>
-        downloadCsv(
-          "oar-consumption-tracking.csv",
+        downloadExcel(
+          "oar-consumption-tracking.xlsx",
           [
             "Material",
             "Plant",

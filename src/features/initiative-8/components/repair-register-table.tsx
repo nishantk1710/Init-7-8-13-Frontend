@@ -52,7 +52,7 @@ import {
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { cn, downloadCsv, formatCount } from "@/lib/utils"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
 /** A plant the filter can offer. Structurally `PlantReference`, but the live
  *  plants come from the data rather than from `lib/shared-data/plants`, whose
@@ -127,10 +127,10 @@ export function RepairRegisterTable({
   // server-side filter parameters can wait.
   const filtered = useMemo(() => filterRegister(chains, filters), [chains, filters])
 
-  function exportCsv() {
+  function exportExcel() {
     // Every row the filters match, not a page of them -- and nothing the
     // filters exclude. The file is the view it came from.
-    downloadCsv("i08-repair-register.csv", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
+    downloadExcel("i08-repair-register.xlsx", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
   }
 
   /**
@@ -250,11 +250,11 @@ export function RepairRegisterTable({
           <Button
             size="sm"
             variant="outline"
-            onClick={exportCsv}
+            onClick={exportExcel}
             disabled={filtered.length === 0}
           >
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

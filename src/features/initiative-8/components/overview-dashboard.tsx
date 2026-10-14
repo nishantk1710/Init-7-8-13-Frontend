@@ -36,7 +36,7 @@ import {
 } from "@/features/initiative-8/utils/overview-view"
 import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
 import type { ApiUniverseMeta, ApiVendorTurnaround } from "@/lib/api/i8"
-import { cn, downloadCsv, formatCount } from "@/lib/utils"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
@@ -110,8 +110,8 @@ export function OverviewDashboard({
   }
 
   function exportSummary() {
-    downloadCsv(
-      "i08-overview-summary.csv",
+    downloadExcel(
+      "i08-overview-summary.xlsx",
       OVERVIEW_SUMMARY_HEADERS,
       overviewSummaryRows(
         metrics,
