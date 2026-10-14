@@ -63,18 +63,24 @@ const DEFAULT_STATUS: ExceptionStatus = "OPEN"
 const HOW_IT_WORKS: Record<string, string> = {
   MISSING_ATTESTATION:
     "A repair PO line with no condition declaration linked to it, matched on the same material and plant within the window below.",
-  UNJUSTIFIED_ACQUISITION:
-    "A new 80-series unit bought while a repair of the same part was open at that plant, with no justification naming the purchase.",
   MISSING_SESSION_ID:
     "An 80-series reservation whose item text (SGTXT) carries no valid Spares Assistant session for that part -- blank, an ID nobody issued, or another part's session.",
   OVERDUE_REPAIR:
     "A repair PO line past its EKET delivery date plus the grace period, with units still at the vendor.",
 }
 
-/** The four FR-8 / acceptance-criterion-11 checks, in the order they read. */
+/**
+ * The FR-8 checks this queue carries, in the order they read.
+ *
+ * `UNJUSTIFIED_ACQUISITION` is deliberately not among them since
+ * 14-Oct-2026: the reason for a new purchase is asked for at the reservation,
+ * by the Spares Assistant (FR-5b), so it is a control rather than a queue
+ * item. The rows and the type are dropped in `live-exceptions.ts`, which
+ * carries the reasoning; this list is kept in step so the screen does not
+ * explain a check it no longer shows.
+ */
 const ALL_CHECKS = [
   "MISSING_ATTESTATION",
-  "UNJUSTIFIED_ACQUISITION",
   "OVERDUE_REPAIR",
   "MISSING_SESSION_ID",
 ] as const
