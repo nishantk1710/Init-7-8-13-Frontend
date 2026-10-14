@@ -32,7 +32,7 @@ import {
   codeLabel,
 } from "@demo/features/initiative-8/utils/status"
 import type { SAPDocumentReference } from "@demo/lib/domain/contracts"
-import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount } from "@demo/lib/utils"
 
 const SOURCES: JustificationSource[] = ["ASSISTANT", "EXCEPTION"]
 
@@ -131,9 +131,9 @@ export function JustificationLog({
     setSource(ALL)
   }
 
-  function exportCsv() {
-    downloadCsv(
-      "i08-new-acquisition-justifications.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i08-new-acquisition-justifications.xlsx",
       [
         "Justification",
         "Captured",
@@ -245,9 +245,9 @@ export function JustificationLog({
             {formatCount(filtered.length)} of {formatCount(rows.length)} · {formatCount(atReservation)}{" "}
             at reservation time, {formatCount(filtered.length - atReservation)} chasing an exception
           </span>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button size="sm" variant="outline" onClick={exportExcel} disabled={filtered.length === 0}>
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

@@ -41,7 +41,7 @@ import {
   isOpenException,
 } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
-import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount } from "@demo/lib/utils"
 
 const ALL = "all"
 
@@ -163,10 +163,10 @@ export function ExceptionQueueTable({
     setRepair(undefined)
   }
 
-  function exportCsv() {
+  function exportExcel() {
     // The filtered rows, all of them: the file is the view it came from.
-    downloadCsv(
-      "i08-exception-queue.csv",
+    downloadExcel(
+      "i08-exception-queue.xlsx",
       [
         "ID",
         "Type",
@@ -316,9 +316,9 @@ export function ExceptionQueueTable({
           <span className="text-xs text-muted-foreground">
             {formatCount(filtered.length)} of {formatCount(exceptions.length)} · {formatCount(openCount)} open
           </span>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button size="sm" variant="outline" onClick={exportExcel} disabled={filtered.length === 0}>
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

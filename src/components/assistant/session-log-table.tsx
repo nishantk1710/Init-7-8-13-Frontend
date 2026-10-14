@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
-import { cn, downloadCsv } from "@/lib/utils"
+import { cn, downloadExcel } from "@/lib/utils"
 import { FLOW_LABEL, flowLabel } from "@/lib/assistant/flow-labels"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -82,12 +82,12 @@ export function SessionLogTable({
   const activeFilters =
     (flow !== "all" ? 1 : 0) + (outcome !== "all" ? 1 : 0) + (search.trim() ? 1 : 0)
 
-  function exportCsv() {
+  function exportExcel() {
     // Exports what is on screen, not the whole log. A file that silently
     // contains more rows than the view it came from is a different document
     // from the one somebody thinks they are sending on.
-    downloadCsv(
-      "assistant-sessions.csv",
+    downloadExcel(
+      "assistant-sessions.xlsx",
       [
         "Reference",
         "Flow",
@@ -107,7 +107,7 @@ export function SessionLogTable({
         session.materialId,
         session.plant,
         // The person the part was for, not whoever operated the assistant.
-        // Blank rather than a placeholder: a CSV cell is read without the
+        // Blank rather than a placeholder: an exported cell is read without the
         // column's caveats beside it.
         session.requestedFor ?? "",
         session.department ?? "",
@@ -165,11 +165,11 @@ export function SessionLogTable({
           variant="outline"
           size="sm"
           className="ml-auto"
-          onClick={exportCsv}
+          onClick={exportExcel}
           disabled={filtered.length === 0}
         >
           <Download className="size-3.5" />
-          Export CSV
+          Export Excel
         </Button>
       </div>
 

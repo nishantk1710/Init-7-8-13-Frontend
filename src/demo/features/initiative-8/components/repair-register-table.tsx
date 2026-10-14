@@ -70,7 +70,7 @@ import {
   justificationCellOf,
   overdueStatusOf,
 } from "@demo/features/initiative-8/utils/status"
-import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount } from "@demo/lib/utils"
 
 /** The repair detail page for one register line. */
 export function repairHref(chain: Pick<RepairChain, "id">): string {
@@ -130,8 +130,8 @@ export function RepairRegisterTable() {
 
   const filtered = useMemo(() => filterRegister(chains, filters), [chains, filters])
 
-  function exportCsv() {
-    downloadCsv("i08-repair-register.csv", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
+  function exportExcel() {
+    downloadExcel("i08-repair-register.xlsx", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
   }
 
   /**
@@ -235,11 +235,11 @@ export function RepairRegisterTable() {
           <Button
             size="sm"
             variant="outline"
-            onClick={exportCsv}
+            onClick={exportExcel}
             disabled={filtered.length === 0}
           >
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

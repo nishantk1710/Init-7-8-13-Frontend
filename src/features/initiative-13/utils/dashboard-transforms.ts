@@ -63,10 +63,10 @@ export function buildLastRefreshedAt(rows: { calculatedAt: string | null }[]): s
   return timestamps.reduce((latest, current) => (current > latest ? current : latest))
 }
 
-// --- CSV row builders -----------------------------------------------------
+// --- Export row builders -----------------------------------------------------
 //
 // Each returns exactly the rows handed to it (already filtered by the
-// caller) as flat string/number tuples for `downloadCsv` -- no re-filtering,
+// caller) as flat string/number tuples for `downloadExcel` -- no re-filtering,
 // no aggregation.
 
 export function nonMoverRowsToCsv(rows: NonMoverRow[]): (string | number)[][] {

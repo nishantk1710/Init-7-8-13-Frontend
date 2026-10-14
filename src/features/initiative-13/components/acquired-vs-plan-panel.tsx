@@ -22,7 +22,7 @@ import {
   PLAN_STATUS_LABEL,
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
-import { downloadCsv, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -32,9 +32,9 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
   const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(rows)
 
-  function exportCsv() {
-    downloadCsv(
-      "i13-acquired-vs-plan.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i13-acquired-vs-plan.xlsx",
       ["Material", "Plant", "Planned qty", "Received (acquired) qty", "Issued qty", "Variance qty", "Variance %", "Status"],
       acquiredVsPlanRowsToCsv(rows)
     )
@@ -48,9 +48,9 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} position{rows.length === 1 ? "" : "s"}</p>
-        <Button size="sm" variant="outline" onClick={exportCsv}>
+        <Button size="sm" variant="outline" onClick={exportExcel}>
           <Download className="size-3.5" />
-          Export CSV
+          Export Excel
         </Button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">

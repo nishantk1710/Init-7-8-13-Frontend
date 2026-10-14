@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@demo/components/ui/table"
 import type { AuditEvent, InitiativeId } from "@demo/lib/domain/contracts"
-import { downloadCsv } from "@demo/lib/utils"
+import { downloadExcel } from "@demo/lib/utils"
 import { RECOMMENDATIONS } from "@demo/features/initiative-7/data/recommendations"
 import { liveDecisionEvents, useInventoryWorkflow } from "@demo/features/initiative-7/context/workflow-context"
 import { initiative7Manifest } from "@demo/features/initiative-7/manifest"
@@ -68,9 +68,9 @@ export function GlobalAuditLog({ events }: { events: AuditEvent[] }) {
     [allEvents, initiative]
   )
 
-  function handleExport() {
-    downloadCsv(
-      "spares-ai-audit-trail.csv",
+  async function handleExport() {
+    const ok = await downloadExcel(
+      "spares-ai-audit-trail.xlsx",
       ["Timestamp", "Initiative", "Entity", "Event type", "Actor", "Description"],
       filtered.map((e) => [
         e.timestamp,
@@ -81,7 +81,7 @@ export function GlobalAuditLog({ events }: { events: AuditEvent[] }) {
         e.description,
       ])
     )
-    toast.success(`Exported ${filtered.length} audit events to CSV`)
+    if (ok) toast.success(`Exported ${filtered.length} audit events to Excel`)
   }
 
   return (
@@ -110,7 +110,7 @@ export function GlobalAuditLog({ events }: { events: AuditEvent[] }) {
 
         <Button variant="outline" size="sm" onClick={handleExport}>
           <Download className="size-3.5" />
-          Export to CSV
+          Export to Excel
         </Button>
       </div>
 

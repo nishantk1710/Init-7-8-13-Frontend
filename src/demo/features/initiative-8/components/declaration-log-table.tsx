@@ -48,7 +48,7 @@ import {
   codeLabel,
 } from "@demo/features/initiative-8/utils/status"
 import { useMaterial360 } from "@demo/lib/material-360-context"
-import { cn, downloadCsv, formatCount } from "@demo/lib/utils"
+import { cn, downloadExcel, formatCount } from "@demo/lib/utils"
 
 /** The repair detail page for a line. */
 function lineHref(id: string): string {
@@ -95,9 +95,9 @@ export function DeclarationLogTable({
     [filters.plant, filters.condition, filters.link].filter((v) => v !== ALL).length +
     (filters.search.trim() ? 1 : 0)
 
-  function exportCsv() {
+  function exportExcel() {
     // The filtered rows, all of them: the file is the view it came from.
-    downloadCsv("i08-declarations.csv", DECLARATION_CSV_HEADERS, declarationRowsToCsv(filtered, linesById))
+    downloadExcel("i08-declarations.xlsx", DECLARATION_CSV_HEADERS, declarationRowsToCsv(filtered, linesById))
   }
 
   function openAmend(record: DeclarationRecord) {
@@ -142,9 +142,9 @@ export function DeclarationLogTable({
           <span className="text-xs text-muted-foreground">
             {formatCount(filtered.length)} of {formatCount(records.length)} declarations
           </span>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button size="sm" variant="outline" onClick={exportExcel} disabled={filtered.length === 0}>
             <Download className="size-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </FilterBar>

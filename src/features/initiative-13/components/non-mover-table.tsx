@@ -18,7 +18,7 @@ import { DashboardPagination } from "@/features/initiative-13/components/dashboa
 import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
 import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
-import { downloadCsv, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -59,9 +59,9 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
   )
   const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(sorted)
 
-  function exportCsv() {
-    downloadCsv(
-      "i13-non-movers.csv",
+  function exportExcel() {
+    downloadExcel(
+      "i13-non-movers.xlsx",
       ["Material", "Plant", "Aging band", "Days since movement", "Stock on hand", "Consumption (12m)", "Critical impact"],
       nonMoverRowsToCsv(rows)
     )
@@ -80,9 +80,9 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-[11px] text-muted-foreground">{formatCount(rows.length)} non-moving position{rows.length === 1 ? "" : "s"}, longest idle first</p>
-        <Button size="sm" variant="outline" onClick={exportCsv}>
+        <Button size="sm" variant="outline" onClick={exportExcel}>
           <Download className="size-3.5" />
-          Export CSV
+          Export Excel
         </Button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">

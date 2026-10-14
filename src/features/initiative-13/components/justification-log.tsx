@@ -24,7 +24,7 @@ import {
   sourceLabel,
   type UnifiedJustification,
 } from "@/lib/assistant/justifications"
-import { downloadCsv, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -52,13 +52,13 @@ const ALL = "all"
  */
 export function JustificationLog({
   entries,
-  csvFilename = "i13-justifications.csv",
+  exportFilename = "i13-justifications.xlsx",
   filterable = false,
 }: {
   entries: UnifiedJustification[]
   /** The export's filename. Initiative 08's justification page renders this
    *  log too, and a file of I08 records should not be named for I13. */
-  csvFilename?: string
+  exportFilename?: string
   /**
    * Show the search and the plant/reason/captured dropdowns.
    *
@@ -112,9 +112,9 @@ export function JustificationLog({
     Boolean,
   ).length
 
-  function exportCsv() {
-    downloadCsv(
-      csvFilename,
+  function exportExcel() {
+    downloadExcel(
+      exportFilename,
       [
         "Captured",
         "Kind",
@@ -225,9 +225,9 @@ export function JustificationLog({
           justification(s) · {fromAssistant} at reservation time,{" "}
           {filtered.length - fromAssistant} chasing an exception
         </p>
-        <Button size="sm" variant="outline" onClick={exportCsv}>
+        <Button size="sm" variant="outline" onClick={exportExcel}>
           <Download className="size-3.5" />
-          Export CSV
+          Export Excel
         </Button>
       </div>
 

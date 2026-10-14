@@ -29,10 +29,10 @@ function Loading({ what }: { what: string }) {
 /** Justifications recorded in demo conversations, of the given kinds. */
 export function DemoJustifications({
   kinds,
-  csvFilename,
+  exportFilename,
 }: {
   kinds: ApiJustificationKind[]
-  csvFilename?: string
+  exportFilename?: string
 }) {
   const runs = useDemoRuns()
   const entries = useMemo(
@@ -45,7 +45,7 @@ export function DemoJustifications({
     [runs, kinds]
   )
   if (runs === null) return <Loading what="justifications" />
-  return <JustificationLog entries={entries} csvFilename={csvFilename} />
+  return <JustificationLog entries={entries} exportFilename={exportFilename} />
 }
 
 /** Consumption plans captured in demo conversations. */
