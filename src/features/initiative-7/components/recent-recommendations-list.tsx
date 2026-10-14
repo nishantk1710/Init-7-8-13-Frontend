@@ -82,7 +82,8 @@ function RecentRecommendationsListView({
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{r.material.description}</div>
               <div className="mt-0.5 text-[11px] text-muted-foreground">
-                {r.material.materialId} · {getPlantById(r.plantId)?.name ?? r.plantId} · {r.circuit}
+                {r.material.materialId} · {getPlantById(r.plantId)?.name ?? r.plantId}
+                {r.circuit !== "Unassigned" && ` · ${r.circuit}`}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

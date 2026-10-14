@@ -108,6 +108,47 @@ function detailFixture(overrides: Partial<ApiRecommendationDetail> = {}): ApiRec
   }
 }
 
+describe("cold-start (OAR) recommendations show what the backend did not send as unavailable", () => {
+  const oarDetail = () =>
+    detailFixture({
+      demand: { demand_class: "UNCLASSIFIED", history_status: "NO_HISTORY", model: null, forecast_rate: null, consumption_history: [] },
+      lead_time: { method: null, days: null, variance_days: null },
+      service_level: { service_level: null, z_factor: null },
+    })
+
+  it("does not call an unclassified material Intermittent", () => {
+    expect(mapDetailToRecommendation(oarDetail()).demandPattern).toBe("Cold start")
+    expect(mapSummaryToRecommendation(summaryFixture({ demand_class: "UNCLASSIFIED" })).demandPattern).toBe("Cold start")
+  })
+
+  it("keeps a missing or unknown demand class distinct from a real one", () => {
+    expect(mapSummaryToRecommendation(summaryFixture({ demand_class: null })).demandPattern).toBe("Unclassified")
+    expect(mapSummaryToRecommendation(summaryFixture({ demand_class: "SOMETHING_NEW" })).demandPattern).toBe("Unclassified")
+  })
+
+  it("flags lead time, service level and consumption as unavailable instead of presenting 0", () => {
+    const mapped = mapDetailToRecommendation(oarDetail())
+    expect(mapped.unavailable).toEqual(["leadTime", "serviceLevel", "consumption"])
+  })
+
+  it("flags only what is missing: a tier service level without a lead time", () => {
+    const mapped = mapDetailToRecommendation(
+      detailFixture({
+        lead_time: { method: null, days: null, variance_days: null },
+        service_level: { service_level: 0.85, z_factor: 1.036 },
+        demand: { demand_class: "UNCLASSIFIED", history_status: "NO_HISTORY", model: null, forecast_rate: null, consumption_history: [] },
+      }),
+    )
+    expect(mapped.unavailable).toEqual(["leadTime", "consumption"])
+    expect(mapped.serviceLevelTarget).toBe(0.85)
+    expect(mapped.zFactor).toBe(1.036)
+  })
+
+  it("flags nothing when a standard recommendation carries every value", () => {
+    expect(mapDetailToRecommendation(detailFixture()).unavailable).toEqual([])
+  })
+})
+
 describe("mapStatus", () => {
   it("maps every backend LifecycleStatus to a value the existing RecommendationStatus type accepts", () => {
     const backendStatuses = [

@@ -21,6 +21,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 
 const COLUMN_COUNT = 9
 
@@ -182,6 +183,12 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
     setLiveDetails((prev) => (prev[detail.id] === detail ? prev : { ...prev, [detail.id]: detail }))
   }, [])
 
+  // MARC carries no circuit for most of the extract, so every row reads
+  // "Unassigned". A column of one repeated word is noise; it comes back by
+  // itself the moment any row has a real circuit.
+  const showCircuit = hasRealCircuit(recommendations)
+  const columnCount = showCircuit ? COLUMN_COUNT : COLUMN_COUNT - 1
+
   if (recommendations.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -200,7 +207,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead>Criticality - Demand pattern</TableHead>
-              <TableHead>Circuit</TableHead>
+              {showCircuit && <TableHead>Circuit</TableHead>}
               <TableHead>Stockout risk</TableHead>
               <TableHead className="text-right">Value change</TableHead>
               <TableHead className="text-right">ROP change</TableHead>
@@ -243,7 +250,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                     <TableCell>
                       <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
+                    {showCircuit && <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>}
                     <TableCell>
                       <RiskBadge level={rec.risk} />
                     </TableCell>
@@ -264,7 +271,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                   {isExpanded && (
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
-                      <TableCell colSpan={COLUMN_COUNT - 1} className="bg-muted/30 py-4 whitespace-normal">
+                      <TableCell colSpan={columnCount - 1} className="bg-muted/30 py-4 whitespace-normal">
                         <ExpandedRecommendationPanel rec={rec} onDetail={recordDetail} />
                       </TableCell>
                     </TableRow>

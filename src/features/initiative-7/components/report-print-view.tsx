@@ -45,6 +45,7 @@ import { InventoryHealthCard } from "@/features/initiative-7/components/inventor
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { formatCount } from "@/lib/utils"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import type {
   ApiDecimal,
   ApiForecastAccuracyMetric,
@@ -201,6 +202,9 @@ export function ReportPrintView({
 }: ReportPrintViewProps) {
   const meta = report.metadata
   const generatedAt = new Date(meta.generated_at)
+  // Every live row reads "Unassigned" when MARC supplies no circuit; a column
+  // of one repeated word is left out of the PDF.
+  const showCircuit = hasRealCircuit(materials)
 
   return (
     <div className="print-root" data-testid="report-print-view" data-quarter={meta.quarter}>
@@ -477,13 +481,21 @@ export function ReportPrintView({
               )} recommendations, most recent first. This is a subset, not the full set, and it is not ranked by reorder-point change — the backend has no such ranking. These rows come from the live recommendations endpoint and are not scoped to this quarter.`}
         </p>
         <Table
-          headers={["Material", "Plant", "Circuit", "Criticality", "Demand pattern", "ROP (current → recommended)", "Status"]}
+          headers={[
+            "Material",
+            "Plant",
+            ...(showCircuit ? ["Circuit"] : []),
+            "Criticality",
+            "Demand pattern",
+            "ROP (current → recommended)",
+            "Status",
+          ]}
           rows={materials.map((m) => [
             <span key="m" className="print-mono">
               {m.material.materialCode}
             </span>,
             m.plantId,
-            m.circuit,
+            ...(showCircuit ? [m.circuit] : []),
             m.criticality,
             m.demandPattern,
             // Current -> recommended, the same pairing the on-screen table
@@ -517,13 +529,15 @@ export function ReportPrintView({
               <p className="print-chart-caption">Where each change sits in the approval flow.</p>
               <RecommendationStatusChart recommendations={chartRecommendations} />
             </div>
-            <div className="print-chart">
-              <h3 className="print-subheading">Critical circuit exposure</h3>
-              <p className="print-chart-caption">
-                Recommendations per circuit, split by stockout-risk exposure.
-              </p>
-              <CircuitExposureChart recommendations={chartRecommendations} />
-            </div>
+            {hasRealCircuit(chartRecommendations) && (
+              <div className="print-chart">
+                <h3 className="print-subheading">Critical circuit exposure</h3>
+                <p className="print-chart-caption">
+                  Recommendations per circuit, split by stockout-risk exposure.
+                </p>
+                <CircuitExposureChart recommendations={chartRecommendations} />
+              </div>
+            )}
           </div>
         </section>
       )}

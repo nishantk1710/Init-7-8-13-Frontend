@@ -17,6 +17,7 @@ import {
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
+import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -150,6 +151,7 @@ function LiveRecommendationsWorkspace({
         layout="bar"
         plantOptions={plantOptions}
         showRecommendationFilter
+        showCircuitFilter={hasRealCircuit(data ?? [])}
       />
       {loading ? (
         <div className="flex flex-col gap-2">

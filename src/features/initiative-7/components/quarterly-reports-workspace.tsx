@@ -62,6 +62,7 @@ import type {
 } from "@/features/initiative-7/types/api"
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
+import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
  * three previous, in reverse chronological order. There is no backend
@@ -366,6 +367,11 @@ export function QuarterlyReportsWorkspace() {
     report ? { pageSize: 200 } : {},
   )
 
+  // No circuit in the data means every row reads "Unassigned": the table
+  // column and the exposure chart would each be one repeated word.
+  const showCircuit = hasRealCircuit(materials ?? [])
+  const showCircuitChart = hasRealCircuit(chartRecommendations ?? [])
+
   // The PDF's material table: 50 rows, fetched only once a print has been
   // requested so an ordinary page view never pays for it. Same unscoped,
   // newest-first fetch as the on-screen preview -- deliberately the same
@@ -630,7 +636,7 @@ export function QuarterlyReportsWorkspace() {
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
                               <TableHead>Material</TableHead>
                               <TableHead>Plant</TableHead>
-                              <TableHead>Circuit</TableHead>
+                              {showCircuit && <TableHead>Circuit</TableHead>}
                               <TableHead>Crit.</TableHead>
                               <TableHead>Demand pattern</TableHead>
                               <TableHead className="text-right">Recommended ROP</TableHead>
@@ -646,7 +652,7 @@ export function QuarterlyReportsWorkspace() {
                                   </Link>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
-                                <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>
+                                {showCircuit && <TableCell className="text-muted-foreground">{rec.circuit}</TableCell>}
                                 <TableCell>
                                   <span className={cn("text-xs font-medium", CRITICALITY_TIER_TEXT_COLOR[rec.criticality as Criticality])}>
                                     {CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}
@@ -701,15 +707,17 @@ export function QuarterlyReportsWorkspace() {
                   )}
                 </ChartCard>
 
-                <ChartCard
-                  title="Critical circuit exposure"
-                  subtitle="Recommendations per circuit, split by stockout-risk exposure."
-                  span={7}
-                >
-                  <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
-                </ChartCard>
+                {showCircuitChart && (
+                  <ChartCard
+                    title="Critical circuit exposure"
+                    subtitle="Recommendations per circuit, split by stockout-risk exposure."
+                    span={7}
+                  >
+                    <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
+                  </ChartCard>
+                )}
 
-                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={5}>
+                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={showCircuitChart ? 5 : 12}>
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <AvailabilityValue status={report.management_summary.stockout_risk_trend.status} />
                     <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">

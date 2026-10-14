@@ -92,7 +92,7 @@ function RecommendationDetailView({
 
         <PageHeader
           title={recommendation.material.description}
-          description={`${recommendation.material.materialId} · ${plant?.name ?? recommendation.plantId} · ${recommendation.circuit} circuit`}
+          description={`${recommendation.material.materialId} · ${plant?.name ?? recommendation.plantId}${recommendation.circuit === "Unassigned" ? "" : ` · ${recommendation.circuit} circuit`}`}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <RiskBadge level={recommendation.risk} />

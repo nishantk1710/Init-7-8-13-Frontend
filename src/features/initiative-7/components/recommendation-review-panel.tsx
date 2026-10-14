@@ -27,6 +27,8 @@ export const DEMAND_CODE: Record<DemandPattern, string> = {
   Intermittent: "Y",
   Erratic: "Z",
   Lumpy: "Z",
+  "Cold start": "—",
+  Unclassified: "—",
 }
 
 /** Splits a rationale's free text into individual bullet lines. The v2 prompt
@@ -53,18 +55,29 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-const CONVERSION_ELIGIBILITY_TONE: Record<string, "success" | "warning" | "default"> = {
+/** A figure the backend has no value for. Never a 0 or an estimate in its place. */
+function NotAvailable() {
+  return <span className="text-muted-foreground">Not available</span>
+}
+
+const CONVERSION_ELIGIBILITY_TONE:Record<string, "success" | "warning" | "default"> = {
   ELIGIBLE: "success",
   NOT_ELIGIBLE: "default",
   UNKNOWN: "warning",
 }
 
 const CONVERSION_TRIGGER_LABEL: Record<string, string> = {
-  CONSUMPTION_FREQUENCY: "Consumption",
-  PRODUCTION_IMPACT: "Criticality",
-  I13_HOD_APPROVED_REQUEST: "HOD-approved request",
-  NONE: "None",
-  UNKNOWN: "Unknown",
+  CONSUMPTION_FREQUENCY: "how often it is used",
+  PRODUCTION_IMPACT: "its criticality level",
+  I13_HOD_APPROVED_REQUEST: "a department-head request",
+  NONE: "none",
+  UNKNOWN: "not known",
+}
+
+const CONVERSION_ELIGIBILITY_LABEL: Record<string, string> = {
+  ELIGIBLE: "Can move to Min-Max",
+  NOT_ELIGIBLE: "Stays on OAR",
+  UNKNOWN: "Not known yet",
 }
 
 /**
@@ -83,29 +96,26 @@ function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
     <div className="rounded-lg border border-border bg-background p-3">
       <h4 className="flex items-center gap-1.5 text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
         <ArrowRightLeft className="size-3.5" />
-        OAR → Min-Max conversion
+        Move from OAR to Min-Max ordering
       </h4>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "default"}>
-          {eligibility ? eligibility.replace(/_/g, " ") : "Unknown"}
+          {eligibility ? (CONVERSION_ELIGIBILITY_LABEL[eligibility] ?? eligibility) : "Not known yet"}
         </StatusBadge>
-        {trigger && trigger !== "NONE" && (
+        {trigger && trigger !== "NONE" && trigger !== "UNKNOWN" && (
           <span className="text-[11px] text-muted-foreground">
-            Trigger: {CONVERSION_TRIGGER_LABEL[trigger] ?? trigger}
+            Because of: {CONVERSION_TRIGGER_LABEL[trigger] ?? trigger}
           </span>
         )}
       </div>
       <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-        <Fact label="Consumption (12M)">
+        <Fact label="Times used, last 12 months">
           {oar.consumptionCount12m ?? "—"}
           {oar.consumptionCountThreshold != null && (
-            <span className="text-muted-foreground"> / threshold {oar.consumptionCountThreshold}</span>
+            <span className="text-muted-foreground"> (needs more than {oar.consumptionCountThreshold})</span>
           )}
         </Fact>
-        <Fact label="Demand class">{oar.demandClass ?? "—"}</Fact>
-        <Fact label="I13 HOD approved">
-          {oar.i13HodApproved === null ? "Unknown" : oar.i13HodApproved ? "Yes" : "No"}
-        </Fact>
+        <Fact label="Usage pattern">{oar.demandClass === "UNCLASSIFIED" ? "Not enough history" : (oar.demandClass ?? "—")}</Fact>
       </dl>
       {oar.conversionDetail && (
         <div className="mt-2.5 border-t border-border pt-2.5">
@@ -230,7 +240,7 @@ export function RecommendationReviewPanel({
                 ))}
               </ul>
               <span className="self-start text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-                {rec.rationale.source === "AI_GENERATED" ? "AI-generated" : "Deterministic (rule-based)"}
+                {rec.rationale.source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"}
               </span>
             </div>
           ) : (
@@ -248,11 +258,25 @@ export function RecommendationReviewPanel({
           </Fact>
           <Fact label="Demand pattern">{rec.demandPattern}</Fact>
           <Fact label="Lead time">
-            {rec.leadTimeDays}d <span className="text-muted-foreground">(±{rec.leadTimeVarianceDays}d)</span>
+            {rec.unavailable?.includes("leadTime") ? (
+              <NotAvailable />
+            ) : (
+              <>
+                {rec.leadTimeDays}d <span className="text-muted-foreground">(±{rec.leadTimeVarianceDays}d)</span>
+              </>
+            )}
           </Fact>
-          <Fact label="Service level">{Math.round(rec.serviceLevelTarget * 100)}% target</Fact>
+          <Fact label="Service level">
+            {rec.unavailable?.includes("serviceLevel") ? (
+              <NotAvailable />
+            ) : (
+              <>{Math.round(rec.serviceLevelTarget * 100)}% target</>
+            )}
+          </Fact>
           <Fact label="Z-factor">
-            {rec.zFactor != null ? (
+            {rec.unavailable?.includes("serviceLevel") ? (
+              <NotAvailable />
+            ) : rec.zFactor != null ? (
               rec.zFactor.toFixed(2)
             ) : (
               <>
@@ -262,7 +286,9 @@ export function RecommendationReviewPanel({
             )}
           </Fact>
           <Fact label="Unit price">{formatMoney(rec.unitPrice, rec.currency)}</Fact>
-          <Fact label="Annual consumption">{formatCount(rec.annualConsumption)} units</Fact>
+          <Fact label="Annual consumption">
+            {rec.unavailable?.includes("consumption") ? <NotAvailable /> : <>{formatCount(rec.annualConsumption)} units</>}
+          </Fact>
           <Fact label="Working capital">
             <span className={capital > 0 ? "font-medium text-success" : "font-medium text-warning"}>
               {capital > 0 ? "−" : "+"}
