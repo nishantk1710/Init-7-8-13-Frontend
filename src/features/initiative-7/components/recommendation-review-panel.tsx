@@ -254,7 +254,13 @@ export function RecommendationReviewPanel({
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border pt-3 sm:grid-cols-3">
           <Fact label="Category">
-            {CRITICALITY_CODE[rec.criticality]} – {rec.criticality}
+            {rec.criticalityTier === undefined ? (
+              <>
+                {CRITICALITY_CODE[rec.criticality]} – {rec.criticality}
+              </>
+            ) : (
+              (rec.criticalityTier ?? "Not recorded")
+            )}
           </Fact>
           <Fact label="Demand pattern">{rec.demandPattern}</Fact>
           <Fact label="Lead time">

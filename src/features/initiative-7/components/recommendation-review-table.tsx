@@ -38,11 +38,16 @@ const STATUS_LABEL: Partial<Record<Recommendation["status"], string>> = {
   "Pending Review": "Needs review",
 }
 
-/** Criticality and demand pattern, in plain words -- not the ABC-XYZ shorthand
- * (A/B/C/D-X/Y/Z) this used to show, which needed a legend to read. Same two
- * facts, just spelled out so the table needs no separate key. */
+/** The material's criticality tier and demand pattern, in plain words -- not
+ * the ABC-XYZ shorthand this used to show. For live rows the tier is the
+ * material's own (NORMAL / INSURANCE / IMPACT / CRITICAL / OBSOLETE), the same
+ * words the Criticality filter offers; `rec.criticality` is only a derived
+ * Low-to-Critical display scale and reads like a risk grade, which this column
+ * is not. Scenario rows have no tier, so they keep the ordinal. */
 function segmentLabel(rec: Recommendation): string {
-  return `${rec.criticality} - ${rec.demandPattern}`
+  const criticality =
+    rec.criticalityTier === undefined ? rec.criticality : (rec.criticalityTier ?? "Not recorded")
+  return `${criticality} - ${rec.demandPattern}`
 }
 
 /** True only for a live-backend recommendation the backend has not actually

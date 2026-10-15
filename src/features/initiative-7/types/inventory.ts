@@ -163,6 +163,12 @@ export interface Recommendation {
   plantId: string
   circuit: Circuit
   criticality: Criticality
+  /** Live API only: the material's own ZMM065 tier as the backend sent it
+   * (CRITICAL / IMPACT / INSURANCE / NORMAL / OBSOLETE), upper-cased. `null` =
+   * the material has no recorded tier. `undefined` = scenario fixture, which
+   * only has the ordinal `criticality` above. Display this, not `criticality`,
+   * wherever the user is asked to read a material's criticality. */
+  criticalityTier?: string | null
   demandPattern: DemandPattern
   /** Live API only; absent on the scenario fixtures. */
   demandType?: RecommendationType
