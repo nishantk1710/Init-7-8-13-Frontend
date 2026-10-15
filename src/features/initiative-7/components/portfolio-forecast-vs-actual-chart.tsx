@@ -16,6 +16,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn, formatCount } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { useForecastVsActual } from "@/features/initiative-7/hooks/use-forecast-vs-actual"
+import {
+  availableRange,
+  filterToPeriod,
+  monthsToCoverPeriod,
+  type ForecastPeriod,
+} from "@/features/initiative-7/utils/forecast-period"
 
 const ACTUAL_COLOR = "var(--chart-3)"
 const FORECAST_COLOR = "var(--chart-1)"
@@ -63,12 +69,19 @@ function Tooltip_({ active, payload, label }: TooltipContentProps) {
  * Material-plants with no backtest are not in the lines -- cold-start materials
  * (no history) and the declining-demand ones, which use TSB directly and are not
  * backtested by design. The caption says how many are in.
+ *
+ * With `period` (a Quarterly Report), only the months of that period are drawn -- Q3 shows July,
+ * August and September -- instead of the latest twelve months.
  */
-export function PortfolioForecastVsActualChart({ months = 12 }: { months?: number }) {
+export function PortfolioForecastVsActualChart({ months = 12, period }: { months?: number; period?: ForecastPeriod }) {
   const [plant, setPlant] = useState<string | undefined>(undefined)
-  const { data, loading, error } = useForecastVsActual(plant, months)
+  const requestMonths = period ? monthsToCoverPeriod(period.start) : months
+  const { data, loading, error } = useForecastVsActual(plant, requestMonths)
 
-  const points = (data?.points ?? []).map((point) => ({
+  const visiblePoints = period ? filterToPeriod(data?.points ?? [], period) : (data?.points ?? [])
+  const history = availableRange(data?.points ?? [])
+
+  const points = visiblePoints.map((point) => ({
     period: monthLabel(point.period),
     actual: point.actual,
     forecast: point.predicted,
@@ -105,10 +118,14 @@ export function PortfolioForecastVsActualChart({ months = 12 }: { months?: numbe
         </div>
       ) : points.length === 0 ? (
         <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-          <p>No forecast history to show{plant ? ` for ${sapPlantLabel(plant)}` : ""}.</p>
+          <p>
+            No forecast history to show{period?.label ? ` for ${period.label}` : ""}
+            {plant ? ` for ${sapPlantLabel(plant)}` : ""}.
+          </p>
           <p className="max-w-xs">
-            The latest forecast run has no backtested material-plants here. The chart fills in once a run with
-            backtests is available.
+            {period && history
+              ? `Forecast history exists for ${monthLabel(history.first)} to ${monthLabel(history.last)}, none of it inside this period.`
+              : "The latest forecast run has no backtested material-plants here. The chart fills in once a run with backtests is available."}
           </p>
         </div>
       ) : (
