@@ -57,9 +57,7 @@ import {
   materialsCsv,
   meanParams,
   pageCount,
-  PROVENANCE_LABEL,
   pageOf,
-  provenanceItems,
   riskDistribution,
   toggled,
   type QuarterlySnapshot,
@@ -735,26 +733,6 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
             excess release, the net is <b className="text-foreground">{formatZar(snapshot.wc_inscope)}</b> against{" "}
             {formatZar(snapshot.inv_value)} of spares inventory on hand.
           </p>
-
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="text-sm font-medium text-foreground">Where these numbers come from</div>
-            <p className="mt-0.5 text-xs text-muted-foreground">Read this before the report leaves the room.</p>
-            <ul className="mt-3 flex flex-col gap-2 text-xs text-foreground">
-              {provenanceItems(snapshot).map((item, i) => (
-                <li key={i} className="flex gap-2">
-                  <span
-                    className={cn(
-                      "mt-px h-fit shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold tracking-wide",
-                      item.tag === "real" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive",
-                    )}
-                  >
-                    {PROVENANCE_LABEL[item.tag]}
-                  </span>
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </>
       )}
 

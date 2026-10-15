@@ -19,7 +19,7 @@ const workspace = read(`${FEATURE}/components/quarterly-reports-workspace.tsx`)
 
 describe("the Q2 report is opened like any other quarter", () => {
   it("is offered on the landing grid and opens its own view", () => {
-    expect(workspace).toContain("withSnapshotQuarters(")
+    expect(workspace).toContain("landingQuarters(")
     expect(workspace).toContain("<QuarterlySnapshotReport")
   })
 
@@ -46,6 +46,10 @@ describe("what it leaves out", () => {
   it("has no circuit exposure chart and no criticality tier cards", () => {
     expect(report).not.toMatch(/Critical circuit exposure/i)
     expect(report).not.toMatch(/Material criticality/i)
+  })
+
+  it("has no 'Where these numbers come from' card", () => {
+    expect(report).not.toMatch(/Where these numbers come from/i)
   })
 
   it("uses theme colours, not hex", () => {
@@ -88,10 +92,14 @@ describe("the PDF", () => {
 
   it("shows SAP adoption as 0", async () => {
     const html = await pdf()
-    const adoption = html.slice(html.indexOf("SAP Adoption"), html.indexOf("Where These Numbers Come From"))
+    const adoption = html.slice(html.indexOf("SAP Adoption"))
     for (const name of ["Adopted", "Partial", "Not adopted"]) {
       expect(adoption).toMatch(new RegExp(`${name}</td><td>0</td>`))
     }
+  })
+
+  it("has no 'Where these numbers come from' section", async () => {
+    expect(await pdf()).not.toMatch(/Where These Numbers Come From/i)
   })
 
   it("has no circuit exposure and no criticality tier section", async () => {

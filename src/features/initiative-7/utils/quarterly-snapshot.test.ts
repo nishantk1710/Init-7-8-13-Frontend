@@ -5,6 +5,8 @@ import {
   displayStatusCounts,
   EMPTY_FILTER,
   filterMaterials,
+  HIDDEN_QUARTERS,
+  landingQuarters,
   formatPercent,
   formatZar,
   loadQuarterlySnapshot,
@@ -197,5 +199,20 @@ describe("the Q2 snapshot data", () => {
     const snapshot = await loadQuarterlySnapshot()
     const total = Object.values(snapshot.status).reduce((a, b) => a + b, 0)
     expect(total).toBe(snapshot.recs)
+  })
+})
+
+describe("landingQuarters", () => {
+  it("always offers the Q2 snapshot, even when no report was generated", () => {
+    expect(landingQuarters([])).toEqual(["Q2 2026"])
+  })
+
+  it("leaves Q3 2026 off the grid", () => {
+    expect(HIDDEN_QUARTERS).toContain("Q3 2026")
+    expect(landingQuarters(["Q3 2026"])).toEqual(["Q2 2026"])
+  })
+
+  it("lists the other generated quarters newest first, with Q2 in its place and no duplicate", () => {
+    expect(landingQuarters(["Q1 2026", "Q2 2026", "Q3 2026", "Q4 2025"])).toEqual(["Q2 2026", "Q1 2026", "Q4 2025"])
   })
 })

@@ -15,8 +15,6 @@ import {
   formatPercent,
   formatZar,
   meanParams,
-  PROVENANCE_LABEL,
-  provenanceItems,
   riskDistribution,
   type QuarterlySnapshot,
 } from "@/features/initiative-7/utils/quarterly-snapshot"
@@ -142,16 +140,6 @@ export function QuarterlySnapshotPrintView({ snapshot }: { snapshot: QuarterlySn
           {formatCount(snapshot.recs)} recommended materials had a material-master change document in the quarter;
           change-document coverage ends {snapshot.cd_coverage}.
         </p>
-      </Section>
-
-      <Section number={9} title="Where These Numbers Come From">
-        <ul className="print-list">
-          {provenanceItems(snapshot).map((item, i) => (
-            <li key={i}>
-              <strong>{PROVENANCE_LABEL[item.tag]}</strong> — {item.text}
-            </li>
-          ))}
-        </ul>
       </Section>
 
       <footer className="print-footer-note">
