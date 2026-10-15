@@ -70,7 +70,7 @@ function percent(value: ApiDecimal): string {
   return formatted === null ? NONE : `${formatted}%`
 }
 
-function Section({
+export function Section({
   number,
   title,
   subtitle,
@@ -94,7 +94,7 @@ function Section({
 
 /** A label/value pair. `value` is pre-formatted by the caller so this never
  * decides how to render an absent number. */
-function Row({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
+export function Row({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
   return (
     <div className="print-row">
       <span className="print-row-label">
@@ -158,7 +158,7 @@ function UndefinedRow({ label, metric }: { label: string; metric: ApiUndefinedMa
   )
 }
 
-function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+export function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   if (rows.length === 0) {
     return <p className="print-empty">No rows.</p>
   }

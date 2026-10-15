@@ -50,6 +50,8 @@ import { InventoryHealthCard } from "@/features/initiative-7/components/inventor
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
+import { KpiCard } from "@/features/initiative-7/components/report-kpi-card"
+import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quarterly-snapshot-report"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
@@ -70,6 +72,7 @@ import {
   pagedFooterText,
   pagedTableView,
 } from "@/features/initiative-7/utils/paged-table-state"
+import { SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
  * three previous, in reverse chronological order. There is no backend
@@ -91,6 +94,16 @@ function candidateQuarters(): string[] {
   }
   return out
 }
+/** The generated reports' quarters plus the Q2 snapshot, newest first. The snapshot is always offered: it is
+ * not generated, so it is not in the list the backend returns. */
+function withSnapshotQuarters(generated: string[]): string[] {
+  const key = (quarter: string) => {
+    const [q, year] = quarter.replace("Q", "").split(" ")
+    return Number(year) * 10 + Number(q)
+  }
+  return Array.from(new Set([...generated, SNAPSHOT_QUARTER])).sort((a, b) => key(b) - key(a))
+}
+
 /** Text-color-only treatment for the material table's Crit. column, keyed on
  * the app's mapped Criticality (not the raw ZMM065 tier), applied as plain
  * colored text rather than a tinted badge to match the reference table's
@@ -139,46 +152,6 @@ function UndefinedKpiCard({
       </div>
       <AvailabilityValue status={metric.status} />
       <p className="text-[11px] leading-relaxed text-muted-foreground">{metric.reason}</p>
-    </div>
-  )
-}
-
-/** A real-number KPI card in the mockup's shape -- label + corner icon on
- * top, a large number, a sublabel, and an optional colored footnote line
- * (e.g. "48.0% of recommendations"). Solid border distinguishes it from
- * UndefinedKpiCard's dashed "not configured" shell. */
-function KpiCard({
-  label,
-  icon,
-  value,
-  sublabel,
-  footnote,
-  footnoteTone = "muted",
-}: {
-  label: string
-  icon: React.ReactNode
-  value: string
-  sublabel: string
-  footnote?: string
-  footnoteTone?: "muted" | "warning" | "success" | "destructive"
-}) {
-  const footnoteClass = {
-    muted: "text-muted-foreground",
-    warning: "text-warning",
-    success: "text-success",
-    destructive: "text-destructive",
-  }[footnoteTone]
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[13px] text-muted-foreground">{label}</span>
-        {icon}
-      </div>
-      <div>
-        <div className="text-2xl font-semibold text-foreground">{value}</div>
-        <div className="text-xs text-muted-foreground">{sublabel}</div>
-      </div>
-      {footnote && <p className={cn("text-xs", footnoteClass)}>{footnote}</p>}
     </div>
   )
 }
@@ -267,8 +240,10 @@ export function QuarterlyReportsWorkspace() {
   const [selectedQuarter, setSelectedQuarter] = useState<string>(quarters[0] ?? "")
   const [tab, setTab] = useState<GenerationTab>("landing")
   const [materialsPage, setMaterialsPage] = useState(1)
+  // Q2 2026 is a fixed snapshot with its own view; there is no generated report to fetch for it.
+  const isSnapshot = tab === "report" && selectedQuarter === SNAPSHOT_QUARTER
   const { data: report, loading, error, status, refetch, generate, generating, generationError } =
-    useQuarterlyReport(tab === "report" ? selectedQuarter || null : null)
+    useQuarterlyReport(tab === "report" && !isSnapshot ? selectedQuarter || null : null)
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [pdfState, setPdfState] = useState<"idle" | "preparing">("idle")
   const [pdfError, setPdfError] = useState<string | null>(null)
@@ -458,7 +433,7 @@ export function QuarterlyReportsWorkspace() {
     <div className="flex flex-col gap-4">
       {tab === "landing" && (
         <QuarterlyLandingGrid
-          quarters={(existingReports ?? []).map((r) => r.quarter)}
+          quarters={withSnapshotQuarters((existingReports ?? []).map((r) => r.quarter))}
           existingReports={existingReports ?? []}
           onView={openReport}
           onGenerateLatest={handleGenerateLatest}
@@ -467,7 +442,9 @@ export function QuarterlyReportsWorkspace() {
         />
       )}
 
-      {tab === "report" && (
+      {isSnapshot && <QuarterlySnapshotReport onBack={() => setTab("landing")} />}
+
+      {tab === "report" && !isSnapshot && (
         <>
           {/* --- Controls -------------------------------------------------- */}
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
@@ -882,7 +859,7 @@ function QuarterlyLandingGrid({
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {quarters.map((quarter) => {
           const existing = byQuarter.get(quarter)
-          const completed = existing?.status === "COMPLETED"
+          const completed = existing?.status === "COMPLETED" || quarter === SNAPSHOT_QUARTER
           const failed = existing?.status === "FAILED"
           return (
             <div key={quarter} className="rounded-xl border border-border bg-card p-4">
@@ -891,10 +868,13 @@ function QuarterlyLandingGrid({
                 {completed && <StatusBadge tone="success">Completed</StatusBadge>}
                 {failed && <StatusBadge tone="danger">Failed</StatusBadge>}
               </div>
-              {existing && (
+              {existing && quarter !== SNAPSHOT_QUARTER && (
                 <p className="mb-3.5 text-xs text-muted-foreground">
                   Generated {new Date(existing.generatedAt).toLocaleDateString()}
                 </p>
+              )}
+              {quarter === SNAPSHOT_QUARTER && (
+                <p className="mb-3.5 text-xs text-muted-foreground">{SNAPSHOT_CAPTION}</p>
               )}
               <Button size="sm" variant="outline" className="w-full" onClick={() => onView(quarter)}>
                 View report
