@@ -384,3 +384,53 @@ describe("the circuit exposure chart is not in the report", () => {
     expect(html).not.toContain("Recommendations per circuit")
   })
 })
+
+describe("the source activity section (report version 1.1)", () => {
+  const sourceActivity = {
+    months: [
+      {
+        month: "2026-07-01", status: "AVAILABLE" as const, material_plants_with_movements: 2, material_plants_with_demand: 2,
+        materials_with_movements: 2, issue_transactions: 5, reversal_transactions: 0,
+      },
+      {
+        month: "2026-09-01", status: "NOT_COVERED" as const, material_plants_with_movements: null,
+        material_plants_with_demand: null, materials_with_movements: null, issue_transactions: null,
+        reversal_transactions: null,
+      },
+    ],
+    totals: {
+      material_plants_with_movements: 2, material_plants_with_demand_in_any_month: 2, materials_with_movements: 2,
+      issue_transactions: 5, reversal_transactions: 0, months_available: 1, months_no_activity: 0, months_not_covered: 1,
+    },
+    staged_data_first_month: "2025-01-01",
+    staged_data_last_month: "2026-08-01",
+    quantity_status: "NOT_AVAILABLE" as const,
+    quantity_note: "Consumption quantities are not reported for the staged source data yet.",
+    latest_recommendation_generated_at: "2026-10-14T09:00:00Z",
+    recommendations_generated_in_period: 0,
+    output_note: "No recommendations were generated inside this period.",
+  }
+
+  it("is in the PDF, with each month and its data status, when the report carries it", () => {
+    const html = render(reportFixture({ source_activity: sourceActivity }))
+    expect(html).toContain("Source Activity")
+    expect(html).toContain("July 2026")
+    expect(html).toContain("Data present")
+    expect(html).toContain("Not in the data")
+    expect(html).toContain("No recommendations were generated inside this period.")
+  })
+
+  it("shows a month the data does not cover with dashes, not zeros", () => {
+    const html = render(reportFixture({ source_activity: sourceActivity }))
+    const september = html.match(/September 2026[\s\S]*?<\/div><\/div>/)?.[0] ?? ""
+    expect(september).toContain("— material-plants · — issues · — reversals")
+  })
+
+  it("is absent, without breaking anything else, from a report stored before it existed", () => {
+    const html = render(reportFixture())
+    expect(html).not.toContain("Source Activity")
+    for (const heading of ["Executive Summary", "Approval", "Limitations &amp; Dependencies"]) {
+      expect(html).toContain(heading)
+    }
+  })
+})

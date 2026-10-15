@@ -146,11 +146,9 @@ export function HistoryBody({
 function Uploader({ actor }: { actor: string | null }) {
   if (!actor) return <span className="text-muted-foreground">—</span>
   if (!isPlaceholderActor(actor)) return <>{actor}</>
-  return (
-    <span className="text-muted-foreground">
-      <span className="italic">{actor}</span> (no sign-in — provisional)
-    </span>
-  )
+  // No one signed in, so the id is a placeholder (UNAUTHENTICATED-FRONTEND and the like). Show that
+  // plainly as "Unauthorized" instead of the placeholder's technical name.
+  return <span className="text-muted-foreground">Unauthorized</span>
 }
 
 function PlantChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

@@ -663,6 +663,47 @@ export interface ApiLimitationsSection {
   items: string[]
 }
 
+/** Why a calendar month of source data can or cannot be reported
+ * (app/schemas/i7/reports.py::SourceMonthStatus). */
+export type ApiSourceMonthStatus = "AVAILABLE" | "NO_ACTIVITY" | "NOT_COVERED" | "NO_SOURCE_DATA"
+
+/** One calendar month of the report's period, read from the staged SAP consumption. The counts are
+ * `null` -- never 0 -- unless the month is AVAILABLE or a confirmed NO_ACTIVITY (0). */
+export interface ApiSourceActivityMonth {
+  month: string
+  status: ApiSourceMonthStatus
+  material_plants_with_movements: number | null
+  material_plants_with_demand: number | null
+  materials_with_movements: number | null
+  issue_transactions: number | null
+  reversal_transactions: number | null
+}
+
+export interface ApiSourceActivityTotals {
+  material_plants_with_movements: number
+  material_plants_with_demand_in_any_month: number
+  materials_with_movements: number
+  issue_transactions: number
+  reversal_transactions: number
+  months_available: number
+  months_no_activity: number
+  months_not_covered: number
+}
+
+/** Consumption by the month it happened in, independent of when I07 generated its outputs
+ * (report version 1.1). Absent on a report stored before then. */
+export interface ApiSourceActivitySection {
+  months: ApiSourceActivityMonth[]
+  totals: ApiSourceActivityTotals
+  staged_data_first_month: string | null
+  staged_data_last_month: string | null
+  quantity_status: ApiAvailabilityStatus
+  quantity_note: string
+  latest_recommendation_generated_at: string | null
+  recommendations_generated_in_period: number
+  output_note: string
+}
+
 /** GET /v1/i7/reports/quarterly/{quarter} -- the full 14-section report body,
  * mirroring app/schemas/i7/reports.py::QuarterlyReport field-for-field. */
 export interface ApiQuarterlyReport {
@@ -682,6 +723,8 @@ export interface ApiQuarterlyReport {
   baseline_comparison: ApiBaselineComparisonSection
   sap_adoption: ApiSapAdoptionSection
   limitations: ApiLimitationsSection
+  /** Report version 1.1 and later; absent on an older stored report. */
+  source_activity?: ApiSourceActivitySection | null
 }
 
 /** GET /v1/i7/approval-events -- the approval ledger across every
