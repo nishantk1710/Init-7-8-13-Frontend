@@ -72,7 +72,7 @@ import {
   pagedFooterText,
   pagedTableView,
 } from "@/features/initiative-7/utils/paged-table-state"
-import { SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
+import { landingQuarters, SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
  * three previous, in reverse chronological order. There is no backend
@@ -94,16 +94,6 @@ function candidateQuarters(): string[] {
   }
   return out
 }
-/** The generated reports' quarters plus the Q2 snapshot, newest first. The snapshot is always offered: it is
- * not generated, so it is not in the list the backend returns. */
-function withSnapshotQuarters(generated: string[]): string[] {
-  const key = (quarter: string) => {
-    const [q, year] = quarter.replace("Q", "").split(" ")
-    return Number(year) * 10 + Number(q)
-  }
-  return Array.from(new Set([...generated, SNAPSHOT_QUARTER])).sort((a, b) => key(b) - key(a))
-}
-
 /** Text-color-only treatment for the material table's Crit. column, keyed on
  * the app's mapped Criticality (not the raw ZMM065 tier), applied as plain
  * colored text rather than a tinted badge to match the reference table's
@@ -433,7 +423,7 @@ export function QuarterlyReportsWorkspace() {
     <div className="flex flex-col gap-4">
       {tab === "landing" && (
         <QuarterlyLandingGrid
-          quarters={withSnapshotQuarters((existingReports ?? []).map((r) => r.quarter))}
+          quarters={landingQuarters((existingReports ?? []).map((r) => r.quarter))}
           existingReports={existingReports ?? []}
           onView={openReport}
           onGenerateLatest={handleGenerateLatest}
