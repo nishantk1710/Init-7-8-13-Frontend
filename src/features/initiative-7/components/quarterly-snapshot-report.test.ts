@@ -84,7 +84,7 @@ describe("the PDF", () => {
     const html = await pdf()
     const status = html.slice(html.indexOf("Recommendation Status"), html.indexOf("Current SAP vs I07"))
     expect(status).toContain("Pending Review")
-    expect(status).toContain("858")
+    expect(status).toContain("1,533")
     for (const name of ["Approved", "Implemented", "Returned", "Rejected"]) {
       expect(status).toMatch(new RegExp(`${name}</td><td>0</td>`))
     }

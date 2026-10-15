@@ -59,10 +59,24 @@ export interface QuarterlySnapshot {
   materials: SnapshotMaterial[]
 }
 
+/**
+ * Every Q2 recommendation is Pending Review: the recommended values have not been adopted, so none has been
+ * approved, implemented, returned or rejected. The snapshot file carries an earlier, illustrative approval
+ * status per row; this replaces it where the data is loaded, so the table, the charts, the KPI, the CSV and the
+ * PDF all read the same status and cannot disagree.
+ */
+export function withEveryRecommendationPending(snapshot: QuarterlySnapshot): QuarterlySnapshot {
+  return {
+    ...snapshot,
+    status: { "Pending Review": snapshot.materials.length },
+    materials: snapshot.materials.map((row) => ({ ...row, status: "Pending Review" })),
+  }
+}
+
 /** Loaded on demand: a separate chunk, fetched only when the Q2 report is opened. */
 export async function loadQuarterlySnapshot(): Promise<QuarterlySnapshot> {
   const data = await import("@/features/initiative-7/data/quarterly-q2-2026.json")
-  return data.default as unknown as QuarterlySnapshot
+  return withEveryRecommendationPending(data.default as unknown as QuarterlySnapshot)
 }
 
 // --- Recommendation status ---------------------------------------------------------------------------
