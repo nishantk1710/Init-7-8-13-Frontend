@@ -248,6 +248,26 @@ export interface ApiForecastHistoryResponse {
   points: ApiForecastHistoryPoint[]
 }
 
+export interface ApiSimilarMaterial {
+  rank: number
+  material: string
+  plant: string
+  description: string | null
+  similarity: ApiDecimal | null
+  criticality: string | null
+  history_months: number | null
+  safety_stock: number | null
+  rop: number | null
+  max_stock: number | null
+  contributed: boolean
+}
+
+export interface ApiSimilarMaterialsResponse {
+  sap_material_number: string
+  sap_plant_code: string
+  neighbours: ApiSimilarMaterial[]
+}
+
 // --- Approvals --------------------------------------------------------
 
 /** Matches app.initiatives.i7.recommendations.types.ApprovalRole exactly --
