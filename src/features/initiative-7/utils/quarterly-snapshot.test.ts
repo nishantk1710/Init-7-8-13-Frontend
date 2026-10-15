@@ -200,6 +200,18 @@ describe("the Q2 snapshot data", () => {
     const total = Object.values(snapshot.status).reduce((a, b) => a + b, 0)
     expect(total).toBe(snapshot.recs)
   })
+
+  it("has every recommendation Pending Review, in the table rows and in the count", async () => {
+    const snapshot = await loadQuarterlySnapshot()
+    expect(snapshot.materials.every((row) => row.status === "Pending Review")).toBe(true)
+    expect(snapshot.status).toEqual({ "Pending Review": snapshot.recs })
+  })
+
+  it("so clicking Pending Review in the status chart finds every row", async () => {
+    const snapshot = await loadQuarterlySnapshot()
+    expect(filterMaterials(snapshot.materials, { ...EMPTY_FILTER, status: "Pending Review" })).toHaveLength(snapshot.recs)
+    expect(filterMaterials(snapshot.materials, { ...EMPTY_FILTER, status: "Approved" })).toHaveLength(0)
+  })
 })
 
 describe("landingQuarters", () => {
