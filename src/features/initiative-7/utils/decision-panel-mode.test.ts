@@ -56,3 +56,35 @@ describe("decisionPanelMode", () => {
     expect(decisionPanelMode("Rejected", null)).not.toBe("chain-complete")
   })
 })
+
+import { panelContentFor } from "./decision-panel-mode"
+
+describe("panelContentFor: sending is on the recommendation page, deciding is on the Action Center", () => {
+  it("offers Send for approval on a recommendation page, and nothing to decide", () => {
+    expect(panelContentFor("ready-to-submit", "recommendation")).toBe("submit-button")
+  })
+
+  it("never offers Send for approval on the Action Center", () => {
+    expect(panelContentFor("ready-to-submit", "action-center")).toBe("not-submitted-note")
+  })
+
+  it("gives no approval buttons on a recommendation page once it is sent: it points to the Action Center", () => {
+    expect(panelContentFor("awaiting-approval", "recommendation")).toBe("sent-notice")
+  })
+
+  it("gives the approval buttons only on the Action Center", () => {
+    expect(panelContentFor("awaiting-approval", "action-center")).toBe("decision-controls")
+  })
+
+  it("shows the same final states on both: rejected, chain complete, not reviewable, nothing pending", () => {
+    for (const mode of ["rejected", "chain-complete", "not-reviewable", "no-pending-step"] as const) {
+      expect(panelContentFor(mode, "recommendation")).toBe(mode)
+      expect(panelContentFor(mode, "action-center")).toBe(mode)
+    }
+  })
+
+  it("never puts decision controls on a recommendation page, for any state", () => {
+    const modes = ["not-reviewable", "ready-to-submit", "awaiting-approval", "rejected", "chain-complete", "no-pending-step"] as const
+    for (const mode of modes) expect(panelContentFor(mode, "recommendation")).not.toBe("decision-controls")
+  })
+})

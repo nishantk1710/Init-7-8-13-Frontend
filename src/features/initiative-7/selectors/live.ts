@@ -98,6 +98,9 @@ const ACTION_BUCKETS: { status: string; decision: boolean; verb: string }[] = [
  */
 const PER_BUCKET = 50
 
+/** Statuses where an approver is waiting: their items open in review mode, where they are decided. */
+const OPENS_IN_REVIEW = new Set(["PENDING_APPROVAL", "SENT_BACK", "HELD"])
+
 function severityFor(rec: Recommendation): ActionSeverity {
   if (rec.risk === "critical") return "critical"
   if (rec.risk === "high") return "warning"
@@ -137,7 +140,7 @@ export const getInitiative7LiveActions = cache(async (): Promise<LiveActions> =>
         entityId: rec.id,
         materialId: rec.material.materialId,
         plantId: rec.plantId,
-        href: `/inventory-planning/recommendations/${rec.id}`,
+        href: `/inventory-planning/recommendations/${rec.id}${OPENS_IN_REVIEW.has(bucket.status) ? "?review=1" : ""}`,
         createdAt: rec.generatedAt,
       }
       actions.push(action)
