@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Plus } from "lucide-react"
+import { ListChecks, Plus } from "lucide-react"
 
 import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
@@ -81,6 +81,8 @@ export function Sidebar() {
         {[
           { label: "Open the assistant", icon: MessageIcon, href: "/assistant" },
           { label: "Sessions", icon: HistoryIcon, href: "/assistant/sessions" },
+          // Demo only for now: runs on mock data in the browser.
+          { label: "Multi-material request", icon: ListChecks, href: "/assistant/requests" },
         ].map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
