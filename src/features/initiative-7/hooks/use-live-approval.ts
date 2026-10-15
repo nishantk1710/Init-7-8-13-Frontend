@@ -40,8 +40,9 @@ export interface LiveApprovalState {
 }
 
 export interface UseLiveApproval extends LiveApprovalState {
-  submit: (actorId: string) => Promise<void>
-  act: (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<void>
+  /** Resolves true when the backend accepted it, false when it failed (the error is on `error`). */
+  submit: (actorId: string) => Promise<boolean>
+  act: (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<boolean>
 }
 
 /** `onChanged` is called after a successful submit/act so the caller can
@@ -55,18 +56,20 @@ export function useLiveApproval(recommendationId: string, onChanged?: () => void
   })
 
   const run = useCallback(
-    async (call: () => Promise<ApiWorkflowStateResponse>) => {
+    async (call: () => Promise<ApiWorkflowStateResponse>): Promise<boolean> => {
       setState((prev) => ({ ...prev, submitting: true, error: null }))
       try {
         const result = await call()
         setState({ submitting: false, error: null, lastState: result })
         onChanged?.()
+        return true
       } catch (error) {
         setState({
           submitting: false,
           error: error instanceof Error ? error : new Error("Approval action failed."),
           lastState: null,
         })
+        return false
       }
     },
     [onChanged],

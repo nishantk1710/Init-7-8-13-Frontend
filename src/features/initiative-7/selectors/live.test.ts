@@ -154,8 +154,24 @@ describe("getInitiative7LiveActions", () => {
     })
     const { actions } = await getInitiative7LiveActions()
     expect(actions.map((a) => a.severity)).toEqual(["critical", "warning", "info"])
-    expect(actions[0].href).toBe("/inventory-planning/recommendations/R1")
+    // Waiting on an approver, so it opens in review mode, where it is decided.
+    expect(actions[0].href).toBe("/inventory-planning/recommendations/R1?review=1")
     expect(actions[0].createdAt).toBe("2026-09-20T08:00:00Z")
+  })
+
+  it("opens approver-waiting items in review mode, and items nobody has sent yet as a plain recommendation", async () => {
+    serve({
+      PENDING_APPROVAL: { rows: [rec("P1", "M1", "1300", "low")] },
+      SENT_BACK: { rows: [rec("S1", "M2", "1300", "low")] },
+      HELD: { rows: [rec("H1", "M3", "1300", "low")] },
+      READY_FOR_REVIEW: { rows: [rec("N1", "M4", "1300", "low")] },
+    })
+    const { actions } = await getInitiative7LiveActions()
+    const href = (id: string) => actions.find((a) => a.entityId === id)?.href
+    expect(href("P1")).toBe("/inventory-planning/recommendations/P1?review=1")
+    expect(href("S1")).toBe("/inventory-planning/recommendations/S1?review=1")
+    expect(href("H1")).toBe("/inventory-planning/recommendations/H1?review=1")
+    expect(href("N1")).toBe("/inventory-planning/recommendations/N1")
   })
 
   it("throws if any bucket fails rather than returning a partial list as complete", async () => {

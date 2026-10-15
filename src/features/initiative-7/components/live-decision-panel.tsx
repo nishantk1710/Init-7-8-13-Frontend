@@ -21,14 +21,20 @@
 
 import { useId, useState } from "react"
 import { CircleCheck, CircleX, Pause, Play, RotateCcw, Send, SlidersHorizontal } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { SentForApprovalNotice } from "@/features/initiative-7/components/sent-for-approval-notice"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { cn } from "@/lib/utils"
 import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7/hooks/use-live-approval"
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
-import { decisionPanelMode } from "@/features/initiative-7/utils/decision-panel-mode"
+import {
+  decisionPanelMode,
+  panelContentFor,
+  type DecisionSurface,
+} from "@/features/initiative-7/utils/decision-panel-mode"
 
 /** Stand-in for a real signed-in identity (see the AUTHENTICATION LIMITATION
  * note above) -- one fixed demo user/role, exactly like the scenario chain's
@@ -37,6 +43,15 @@ import { decisionPanelMode } from "@/features/initiative-7/utils/decision-panel-
  * (criticality-tier and OAR/SOP 3.1.1), so a fresh recommendation is
  * immediately actionable rather than always showing "not your turn". */
 const DEMO_ACTOR_ID = "end-user"
+
+const DECISION_TOAST: Record<"APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD", string> = {
+  APPROVE: "Approved",
+  REJECT: "Rejected",
+  SEND_BACK: "Sent back",
+  ADJUST: "Adjusted",
+  HOLD: "Put on hold",
+  RELEASE_HOLD: "Hold released",
+}
 
 /** History written before the ID lost its "demo-" prefix still reads cleanly. */
 function actorLabel(actorId: string): string {
@@ -49,22 +64,40 @@ const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
  * DEMO_ACTOR_ROLE (see above) -- never chosen per action -- and the pending
  * role comes from the backend's own workflow state, matching
  * decision-panel.tsx's "Approve as {role}" pattern instead of a role picker.
+ *
+ * `surface` decides what is offered. On a recommendation page ("recommendation", the default) the only
+ * action is Send for approval; once sent, the page shows where it is and points to the Action Center. The
+ * approve / adjust / send back / hold / reject buttons exist only on the Action Center ("action-center").
  */
 export function LiveDecisionActions({
   recommendationId,
   onChanged,
+  surface = "recommendation",
 }: {
   recommendationId: string
   onChanged: () => void
+  surface?: DecisionSurface
 }) {
-  const { submitting, error, act, submit } = useLiveApproval(recommendationId, onChanged)
-  const { state: workflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
+  const { submitting, error, act, submit, lastState } = useLiveApproval(recommendationId, onChanged)
+  const { state: loadedWorkflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
+  // The state the backend returned for the last action is the newest there is; the loaded one is from before it.
+  const workflow = lastState ?? loadedWorkflow
   const [comment, setComment] = useState("")
   const commentId = useId()
 
   async function handle(action: "APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD") {
-    await act(DEMO_ACTOR_ID, DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
+    const accepted = await act(DEMO_ACTOR_ID, DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
+    if (accepted) toast.success(DECISION_TOAST[action])
     setComment("")
+  }
+
+  async function handleSend() {
+    const accepted = await submit(DEMO_ACTOR_ID)
+    if (accepted) {
+      toast.success("Sent for approval", {
+        description: "It is now in the Action Center, where it is reviewed and approved.",
+      })
+    }
   }
 
   if (workflowLoading) {
@@ -76,9 +109,10 @@ export function LiveDecisionActions({
   const rawStatus = workflow?.status ?? ""
   const pendingRole = workflow?.pending_role ?? null
   const mode = decisionPanelMode(rawStatus, pendingRole)
+  const content = panelContentFor(mode, surface)
   const canAct = !submitting && pendingRole === DEMO_ACTOR_ROLE
 
-  if (mode === "not-reviewable") {
+  if (content === "not-reviewable") {
     return (
       <p className="text-[13px] text-muted-foreground">
         Not reviewable yet — the backend has not computed a safety stock/ROP for this material-plant (see the
@@ -87,13 +121,21 @@ export function LiveDecisionActions({
     )
   }
 
-  if (mode === "ready-to-submit") {
+  if (content === "not-submitted-note") {
+    return (
+      <p className="text-[13px] text-muted-foreground">
+        Not yet sent for approval — it is sent from its recommendation page, and then waits here to be decided.
+      </p>
+    )
+  }
+
+  if (content === "submit-button") {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[13px] text-muted-foreground">
           Not yet submitted — sending it for approval starts the chain with the first role in its route.
         </p>
-        <Button size="sm" className="self-start" disabled={submitting} onClick={() => submit(DEMO_ACTOR_ID)}>
+        <Button size="sm" className="self-start" disabled={submitting} onClick={handleSend}>
           <Send className="size-3.5" />
           Send for approval
         </Button>
@@ -102,15 +144,25 @@ export function LiveDecisionActions({
     )
   }
 
-  if (mode === "rejected") {
+  if (content === "sent-notice") {
+    return (
+      <SentForApprovalNotice
+        pendingRole={pendingRole ?? "the next approver"}
+        step={(workflow?.chain_index ?? 0) + 1}
+        steps={workflow?.route.length ?? 0}
+      />
+    )
+  }
+
+  if (content === "rejected") {
     return <StatusBadge tone="danger">Rejected</StatusBadge>
   }
 
-  if (mode === "chain-complete") {
+  if (content === "chain-complete") {
     return <StatusBadge tone="success">Chain complete</StatusBadge>
   }
 
-  if (mode === "no-pending-step") {
+  if (content === "no-pending-step") {
     return (
       <p className="text-[13px] text-muted-foreground">
         No approval step is waiting on this recommendation{rawStatus ? ` (status ${rawStatus})` : ""}.

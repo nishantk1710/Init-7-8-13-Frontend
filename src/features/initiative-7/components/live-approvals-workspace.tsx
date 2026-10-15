@@ -46,7 +46,7 @@ import {
 import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatMoney } from "@/lib/utils"
 import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
-import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
+import { CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
 
 const ALL = "all"
 
@@ -155,8 +155,10 @@ function LiveApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
         </ol>
       ) : null}
 
+      {/* ?review=1 opens the recommendation where it is decided: approve, adjust, send back, hold or
+          reject. Opened from the Recommendations pages it can only be sent for approval. */}
       <Link
-        href={`/inventory-planning/recommendations/${rec.id}`}
+        href={`/inventory-planning/recommendations/${rec.id}?review=1`}
         className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         Review this item
@@ -169,7 +171,6 @@ export function LiveApprovalsWorkspace() {
   const { openMaterial360 } = useMaterial360()
   const { recommendations, loading, error, refetch } = useLiveApprovalQueue()
   const [statusTab, setStatusTab] = useState<StatusTab>("pending")
-  const [circuit, setCircuit] = useState<string>(ALL)
   const [criticality, setCriticality] = useState<string>(ALL)
   const [sortBy, setSortBy] = useState<string>("generated")
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -183,7 +184,6 @@ export function LiveApprovalsWorkspace() {
   const rows = useMemo(() => {
     const scoped = recommendations.filter((rec) => {
       if (statusTabFor(rec) !== statusTab) return false
-      if (circuit !== ALL && rec.circuit !== circuit) return false
       if (criticality !== ALL && rec.criticality !== criticality) return false
       return true
     })
@@ -193,7 +193,7 @@ export function LiveApprovalsWorkspace() {
       if (sortBy === "risk") return RISK_ORDER[a.risk] - RISK_ORDER[b.risk]
       return new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
     })
-  }, [recommendations, statusTab, circuit, criticality, sortBy])
+  }, [recommendations, statusTab, criticality, sortBy])
 
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null
 
@@ -252,22 +252,6 @@ export function LiveApprovalsWorkspace() {
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={circuit} onValueChange={(v) => setCircuit(v ?? ALL)}>
-            <SelectTrigger className="h-8 w-full sm:w-36">
-              <SelectValue placeholder="All circuits">
-                {(v: string) => (v === ALL ? "All circuits" : v)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All circuits</SelectItem>
-              {CIRCUITS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Select value={criticality} onValueChange={(v) => setCriticality(v ?? ALL)}>
             <SelectTrigger className="h-8 w-full sm:w-40">
               <SelectValue placeholder="All criticalities">
@@ -339,7 +323,6 @@ export function LiveApprovalsWorkspace() {
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                             <StatusBadge tone="default">{rec.criticality}</StatusBadge>
-                            <span>{rec.circuit}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -362,7 +345,7 @@ export function LiveApprovalsWorkspace() {
                         </TableCell>
                         <TableCell>
                           <Link
-                            href={`/inventory-planning/recommendations/${rec.id}`}
+                            href={`/inventory-planning/recommendations/${rec.id}?review=1`}
                             className={cn(
                               buttonVariants({ size: "xs" }),
                               "bg-success text-white hover:bg-success/90"
@@ -379,7 +362,7 @@ export function LiveApprovalsWorkspace() {
             </div>
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Live backend data. Decisions are taken on the recommendation detail page.
+            Live backend data. Review opens the recommendation, where it is approved, adjusted, sent back, held or rejected.
           </p>
         </div>
 

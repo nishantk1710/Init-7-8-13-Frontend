@@ -69,10 +69,13 @@ function NotFoundView({ recommendationId }: { recommendationId: string }) {
 function RecommendationDetailView({
   recommendation,
   live = false,
+  decide = false,
   onLiveChanged,
 }: {
   recommendation: Recommendation
   live?: boolean
+  /** Opened from the Action Center to be decided: shows the approval controls. Otherwise only Send. */
+  decide?: boolean
   onLiveChanged?: () => void
 }) {
   const plant = getPlantById(recommendation.plantId)
@@ -134,6 +137,7 @@ function RecommendationDetailView({
                   <LiveDecisionActions
                     recommendationId={recommendation.id}
                     onChanged={() => onLiveChanged?.()}
+                    surface={decide ? "action-center" : "recommendation"}
                   />
                 ) : (
                   <DecisionActions recommendation={recommendation} />
@@ -155,7 +159,7 @@ function RecommendationDetailView({
   )
 }
 
-function LiveRecommendationDetailPage({ recommendationId }: { recommendationId: string }) {
+function LiveRecommendationDetailPage({ recommendationId, decide }: { recommendationId: string; decide: boolean }) {
   const { data, loading, error, refetch } = useLiveRecommendation(recommendationId)
 
   if (loading) {
@@ -195,12 +199,18 @@ function LiveRecommendationDetailPage({ recommendationId }: { recommendationId: 
     return <NotFoundView recommendationId={recommendationId} />
   }
 
-  return <RecommendationDetailView recommendation={data} live onLiveChanged={refetch} />
+  return <RecommendationDetailView recommendation={data} live decide={decide} onLiveChanged={refetch} />
 }
 
-export function RecommendationDetailPage({ recommendationId }: { recommendationId: string }) {
+export function RecommendationDetailPage({
+  recommendationId,
+  decide = false,
+}: {
+  recommendationId: string
+  decide?: boolean
+}) {
   if (USING_LIVE_DATA) {
-    return <LiveRecommendationDetailPage recommendationId={recommendationId} />
+    return <LiveRecommendationDetailPage recommendationId={recommendationId} decide={decide} />
   }
 
   const recommendation = getRecommendationById(recommendationId)

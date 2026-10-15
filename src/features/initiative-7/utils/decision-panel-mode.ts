@@ -37,3 +37,33 @@ export function decisionPanelMode(rawStatus: string, pendingRole: string | null)
   if (CHAIN_COMPLETE_STATUSES.has(rawStatus)) return "chain-complete"
   return "no-pending-step"
 }
+
+/** Where the decision panel is shown. A recommendation page only **sends** a recommendation for approval;
+ * the Action Center is where it is **decided** (approve, adjust, send back, hold, reject). */
+export type DecisionSurface = "recommendation" | "action-center"
+
+export type PanelContent =
+  | "not-reviewable"
+  /** The Send for approval button. */
+  | "submit-button"
+  /** On the Action Center: an unsubmitted item has nothing to decide yet. */
+  | "not-submitted-note"
+  /** On a recommendation page after sending: where it is, and that it is decided in the Action Center. */
+  | "sent-notice"
+  /** The approval buttons (Approve, Adjust, Send back, Hold, Release hold, Reject). */
+  | "decision-controls"
+  | "rejected"
+  | "chain-complete"
+  | "no-pending-step"
+
+/** What the panel shows for a state on a surface. Approval buttons exist only on the Action Center. */
+export function panelContentFor(mode: DecisionPanelMode, surface: DecisionSurface): PanelContent {
+  switch (mode) {
+    case "ready-to-submit":
+      return surface === "recommendation" ? "submit-button" : "not-submitted-note"
+    case "awaiting-approval":
+      return surface === "action-center" ? "decision-controls" : "sent-notice"
+    default:
+      return mode
+  }
+}
