@@ -252,6 +252,10 @@ export function SessionLogTable({
                     )}
                   >
                     {session.department ?? "not stated"}
+                    {/* Typed before the department became a code (15 Oct 2026). */}
+                    {session.department && !/^\d{5}$/.test(session.department) && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">legacy</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs">
                     {session.origin === "BADI" ? "SAP" : "platform"}

@@ -15,10 +15,15 @@ export const metadata: Metadata = {
  *
  * ## The contract, which is a deliverable for the SAP team
  *
- *     /assistant/new?material={MATNR}&plant={WERKS}&department={KOSTL}&requestedFor={NAME}&origin=BADI
+ *     /assistant/new?material={MATNR}&plant={WERKS}&department={AFNAM}&requestedFor={NAME}&origin=BADI
  *
  * `material` and `plant` are required; without both there is nothing to
  * assess.
+ *
+ * `department` is the 5-digit department code VZI keys into Requisitioner
+ * (`AFNAM`, e.g. `10100`) — not a cost centre (`KOSTL`). With `origin=BADI` it
+ * is stored as sent; without it the backend refuses a code that is not on
+ * `GET /assistant/departments`.
  *
  * `department` and `requestedFor` are **optional and must stay optional**. The
  * pop-up carries a material and a plant and cannot supply either, so a session

@@ -10,6 +10,7 @@ import {
   type MaterialPick,
 } from "@/components/assistant/material-search"
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
+import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -86,11 +87,14 @@ export function AssistantOpener({
   function choose(next: MaterialPick) {
     setPick(next)
     if (next.kind === "match") setPlant(next.match.plant)
+    // Codes are listed per plant; one picked for another plant is stale.
+    setDepartment("")
   }
 
   function changeMaterial() {
     setPick(null)
     setPlant("")
+    setDepartment("")
   }
 
   function start(event: React.FormEvent) {
@@ -136,7 +140,10 @@ export function AssistantOpener({
             <Input
               id="plant"
               value={plant}
-              onChange={(event) => setPlant(event.target.value)}
+              onChange={(event) => {
+                setPlant(event.target.value)
+                setDepartment("")
+              }}
               placeholder="1300"
               className="font-mono"
             />
@@ -157,15 +164,15 @@ export function AssistantOpener({
         </Labelled>
 
         <Labelled id="department" label="Department">
-          {/* Free text, for the same reason Plant is: nothing the platform
-              loads maps a person to a cost-bearing department, so a dropdown
-              here would invent a vocabulary VZI has not given us. */}
-          <Input
+          {/* A code from the list, never free text: the 5-digit department
+              codes VZI keys into a purchase requisition's Requisitioner
+              (EBAN.AFNAM). Keyed by plant so a plant change starts it afresh. */}
+          <DepartmentPicker
+            key={plantCode}
             id="department"
+            plant={/^\d{4}$/.test(plantCode) ? plantCode : ""}
             value={department}
-            onChange={(event) => setDepartment(event.target.value)}
-            placeholder="which department it is for"
-            maxLength={64}
+            onChange={setDepartment}
           />
         </Labelled>
       </div>
@@ -190,7 +197,7 @@ export function AssistantOpener({
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground">
-          Pick a material and fill in the requester and department to start a session.
+          Pick a material, fill in the requester and pick a department code to start a session.
         </p>
       )}
     </form>

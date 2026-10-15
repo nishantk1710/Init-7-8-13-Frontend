@@ -122,7 +122,9 @@ export type StartSessionRequest = {
   materialId: string
   plant: string
   /**
-   * Which department the part is for — the requester's, not the coordinator's.
+   * Which department the part is for — the requester's, not the coordinator's —
+   * as its 5-digit code (see `listDepartments`). From the platform the backend
+   * refuses a code that is not on that list.
    *
    * Optional, and it has to stay optional: the BAdI pop-up carries a material
    * and a plant and cannot supply this, so a session opened from SAP
@@ -404,6 +406,29 @@ export type MaterialSearchResponse = {
   note: string
 }
 
+/**
+ * One department code: the 5-digit value VZI keys into a purchase
+ * requisition's Requisitioner (`EBAN.AFNAM`). Codes only — no extract names them.
+ */
+export type ApiDepartment = {
+  code: string
+  /** Every in-scope plant with a requisition from this department. */
+  plants: string[]
+  /** Show before anything is typed. False: the other plant's, offered on search. */
+  primary: boolean
+}
+
+export type DepartmentListResponse = {
+  plant: string | null
+  /** The asked-for plant's codes first. */
+  items: ApiDepartment[]
+  /**
+   * False while the backend's list is loading or unreadable. `items` is then
+   * empty, and any 5-digit code is accepted.
+   */
+  loaded: boolean
+}
+
 // --- calls ------------------------------------------------------------------
 
 /**
@@ -484,6 +509,22 @@ export async function searchMaterials(
     `/assistant/materials${query({ q, limit: options?.limit })}`,
     { signal: options?.signal }
   )
+}
+
+/**
+ * The opener's department codes, `plant`'s own first.
+ *
+ * The demo has no list: it answers "not loaded", which lets any 5-digit code
+ * through, the same as a live backend that has not loaded one yet.
+ */
+export async function listDepartments(
+  plant: string,
+  options?: { signal?: AbortSignal }
+): Promise<DepartmentListResponse> {
+  if (ASSISTANT_DEMO) return { plant, items: [], loaded: false }
+  return apiFetch<DepartmentListResponse>(`/assistant/departments${query({ plant })}`, {
+    signal: options?.signal,
+  })
 }
 
 /** Record a justification. Shared by both initiatives. */
