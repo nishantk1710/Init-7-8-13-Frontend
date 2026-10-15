@@ -117,9 +117,19 @@ describe("the history", () => {
     expect(said).not.toContain("aug-v2.xlsx")
   })
 
-  it("marks a placeholder uploader as provisional", () => {
-    const said = render(null, [upload({ uploadedBy: "UNAUTHENTICATED-FRONTEND" })])
-    expect(said).toContain("UNAUTHENTICATED-FRONTEND (no sign-in — provisional)")
+  it("shows a placeholder uploader as just Unauthorized, not the technical placeholder name", () => {
+    for (const placeholder of ["UNAUTHENTICATED-FRONTEND", "UNAUTHENTICATED_LOCAL_USER", "unknown-actor"]) {
+      const said = render(null, [upload({ uploadedBy: placeholder })])
+      expect(said).toContain("Unauthorized")
+      expect(said).not.toContain(placeholder)
+      expect(said).not.toContain("provisional")
+    }
+  })
+
+  it("still shows a real signed-in uploader by name", () => {
+    const said = render(null, [upload({ uploadedBy: "khushi.patil" })])
+    expect(said).toContain("khushi.patil")
+    expect(said).not.toContain("Unauthorized")
   })
 
   it("says so when a plant has nothing yet, rather than showing an empty table", () => {

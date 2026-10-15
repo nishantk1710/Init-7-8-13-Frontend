@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -49,6 +50,7 @@ import { InventoryHealthCard } from "@/features/initiative-7/components/inventor
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
+import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
 import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
@@ -62,6 +64,12 @@ import type {
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
+import {
+  canGoNext,
+  canGoPrevious,
+  pagedFooterText,
+  pagedTableView,
+} from "@/features/initiative-7/utils/paged-table-state"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
  * three previous, in reverse chronological order. There is no backend
@@ -347,7 +355,7 @@ export function QuarterlyReportsWorkspace() {
   // mean computing a delta across all 113k rows -- so this uses a real,
   // indexed, whitelisted field instead of inventing a ranking. The heading
   // says "recent", not "top", because that is what the data now is.
-  const { data: materials, total: materialsTotal } = useLiveRecommendations(
+  const { data: materials, total: materialsTotal, loading: materialsLoading } = useLiveRecommendations(
     report
       ? {
           sort: "generated_at",
@@ -561,6 +569,16 @@ export function QuarterlyReportsWorkspace() {
               {/* --- Everything below in one 12-col grid, matching main's
                   QuarterlyReportsDemoWorkspace layout/spans exactly. --- */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                {report.source_activity && (
+                  <ChartCard
+                    title="Source activity by month"
+                    subtitle={`Consumption recorded in each month of ${selectedQuarter}, from the staged SAP data.`}
+                    span={12}
+                  >
+                    <QuarterlySourceActivity section={report.source_activity} />
+                  </ChartCard>
+                )}
+
                 <ChartCard title="Stockout risk distribution" span={4}>
                   <InventoryHealthCard recommendations={chartRecommendations ?? []} />
                 </ChartCard>
@@ -626,9 +644,14 @@ export function QuarterlyReportsWorkspace() {
                   subtitle="Newest first. Not ranked by reorder-point change — no such ranking exists in the backend today."
                   span={12}
                 >
-                  {materials && materials.length > 0 ? (
+                  {pagedTableView(materialsLoading, materials) === "skeleton" ? (
+                    <Skeleton className="h-48 w-full" />
+                  ) : pagedTableView(materialsLoading, materials) === "rows" && materials ? (
                     <div className="flex flex-col gap-3">
-                      <div className="overflow-x-auto rounded-lg border border-border">
+                      <div
+                        className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", materialsLoading && "opacity-50")}
+                        aria-busy={materialsLoading}
+                      >
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -672,17 +695,20 @@ export function QuarterlyReportsWorkspace() {
                       </div>
 
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground">
-                          Showing {materialsTotal === 0 ? 0 : (materialsPage - 1) * MATERIALS_PAGE_SIZE + 1}–
-                          {Math.min(materialsTotal, materialsPage * MATERIALS_PAGE_SIZE)} of{" "}
-                          {formatCount(materialsTotal)}
+                        <span className="text-xs text-muted-foreground" aria-live="polite">
+                          {pagedFooterText({
+                            loading: materialsLoading,
+                            page: materialsPage,
+                            pageSize: MATERIALS_PAGE_SIZE,
+                            total: materialsTotal,
+                          })}
                         </span>
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setMaterialsPage((p) => Math.max(1, p - 1))}
-                            disabled={materialsPage <= 1}
+                            disabled={!canGoPrevious(materialsLoading, materialsPage)}
                           >
                             Previous
                           </Button>
@@ -693,7 +719,7 @@ export function QuarterlyReportsWorkspace() {
                             variant="outline"
                             size="sm"
                             onClick={() => setMaterialsPage((p) => p + 1)}
-                            disabled={materialsPage * MATERIALS_PAGE_SIZE >= materialsTotal}
+                            disabled={!canGoNext(materialsLoading, materialsPage, MATERIALS_PAGE_SIZE, materialsTotal)}
                           >
                             Next
                           </Button>

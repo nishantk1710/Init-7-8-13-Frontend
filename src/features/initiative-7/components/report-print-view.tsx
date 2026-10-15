@@ -45,6 +45,11 @@ import { RecommendationStatusChart } from "@/features/initiative-7/components/re
 import { formatCount } from "@/lib/utils"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
+import {
+  countOrDash,
+  SOURCE_STATUS_LABEL,
+  sourceMonthLabel,
+} from "@/features/initiative-7/utils/source-activity"
 import type {
   ApiDecimal,
   ApiForecastAccuracyMetric,
@@ -599,6 +604,36 @@ export function ReportPrintView({
           </ul>
         )}
       </Section>
+
+      {/* --- 17. Source activity (report version 1.1 and later) ----------- */}
+      {report.source_activity && (
+        <Section
+          number={17}
+          title="Source Activity"
+          subtitle={`Consumption recorded in each month of ${meta.quarter}, from the staged SAP data. A dash means the month is not in the data; it is not zero.`}
+        >
+          <div className="print-rows">
+            {report.source_activity.months.map((month) => (
+              <Row
+                key={month.month}
+                label={sourceMonthLabel(month.month)}
+                note={SOURCE_STATUS_LABEL[month.status]}
+                value={`${countOrDash(month.material_plants_with_movements)} material-plants · ${countOrDash(
+                  month.issue_transactions,
+                )} issues · ${countOrDash(month.reversal_transactions)} reversals`}
+              />
+            ))}
+            <Row
+              label="Quarter"
+              value={`${countOrDash(report.source_activity.totals.material_plants_with_movements)} material-plants · ${countOrDash(
+                report.source_activity.totals.issue_transactions,
+              )} issues · ${countOrDash(report.source_activity.totals.reversal_transactions)} reversals`}
+            />
+          </div>
+          <p className="print-chart-caption">{report.source_activity.output_note}</p>
+          <p className="print-chart-caption">{report.source_activity.quantity_note}</p>
+        </Section>
+      )}
 
       <footer className="print-footer-note">
         <p>
