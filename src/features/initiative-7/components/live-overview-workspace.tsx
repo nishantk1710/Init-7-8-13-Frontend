@@ -2,7 +2,7 @@
 //
 // Live counterpart to overview-workspace.tsx's InventoryOptimizationOverviewWorkspace.
 // Every existing KPI/chart component (InventoryPortfolioKpis, InventoryHealthCard,
-// CircuitExposureChart, RecommendationStatusChart, ForecastVsActualChart) is
+// RecommendationStatusChart, ForecastVsActualChart) is
 // reused completely unchanged -- only the data source and the two authored
 // trend charts (which have no backend equivalent at all) differ.
 
@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { RiskLevel } from "@/components/shared/risk-badge"
-import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
 import {
   ALL_FILTER,
   DashboardFilters,
@@ -55,7 +54,7 @@ import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { mapStatus, type AdoptionSummaryResult } from "@/features/initiative-7/services/i7-api"
-import type { Circuit, RecommendationStatus } from "@/features/initiative-7/types/inventory"
+import type { RecommendationStatus } from "@/features/initiative-7/types/inventory"
 
 // The backend list endpoint's own MAX_PAGE_SIZE ceiling (see
 // app/api/i7/recommendations.py). Fetched once and filtered client-side,
@@ -271,7 +270,6 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     const query = filters.material.trim().toLowerCase()
     return data.filter((r) => {
       if (filters.plant !== ALL_FILTER && r.plantId !== filters.plant) return false
-      if (filters.circuit !== ALL_FILTER && r.circuit !== filters.circuit) return false
       if (filters.criticality !== ALL_FILTER && r.criticality !== filters.criticality) return false
       if (filters.demandPattern !== ALL_FILTER && r.demandPattern !== filters.demandPattern) return false
       if (filters.status !== ALL_FILTER && r.status !== filters.status) return false
@@ -288,7 +286,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     })
   }, [data, filters, adoptionByRecommendationId])
 
-  function toggle<K extends "circuit" | "status" | "risk">(key: K, value: string) {
+  function toggle<K extends "status" | "risk">(key: K, value: string) {
     setFilters((prev) => ({ ...prev, [key]: prev[key] === value ? ALL_FILTER : value }))
   }
 
@@ -334,7 +332,6 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   }
 
   const activeRisk = filters.risk !== ALL_FILTER ? (filters.risk as RiskLevel) : null
-  const activeCircuit = filters.circuit !== ALL_FILTER ? (filters.circuit as Circuit) : null
   const activeStatus = filters.status !== ALL_FILTER ? (filters.status as RecommendationStatus) : null
 
   return (
@@ -368,11 +365,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-        <DashboardFilters value={filters} onChange={setFilters} showSapAdoptionFilter />
+        <DashboardFilters value={filters} onChange={setFilters} showSapAdoptionFilter showCircuitFilter={false} />
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <ChartCard title="Stockout Risk Distribution" span={4}>
+            <ChartCard title="Stockout Risk Distribution" span={6}>
               <InventoryHealthCard
                 recommendations={filtered}
                 activeRisk={activeRisk}
@@ -390,19 +387,8 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                 }
               />
             </ChartCard>
-            <ChartCard
-              title="Critical circuit exposure"
-              subtitle="Recommendations per circuit, split by stockout-risk exposure."
-              span={8}
-            >
-              <CircuitExposureChart
-                recommendations={filtered}
-                activeCircuit={activeCircuit}
-                onCircuitClick={(circuit) => toggle("circuit", circuit)}
-              />
-            </ChartCard>
 
-            <ChartCard title="Recommendation status" span={4}>
+            <ChartCard title="Recommendation status" span={6}>
               <RecommendationStatusChart
                 recommendations={filtered}
                 activeStatus={activeStatus}
@@ -413,14 +399,14 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             <ChartCard
               title="Stockout risk by plant"
               subtitle="Material-plants below their recommended reorder point, now."
-              span={4}
+              span={6}
             >
               <StockoutPositionCard state={plantPositions} />
             </ChartCard>
             <ChartCard
               title="Excess inventory by plant"
               subtitle="Material-plants above their recommended maximum stock, now."
-              span={4}
+              span={6}
             >
               <ExcessPositionCard state={plantPositions} />
             </ChartCard>

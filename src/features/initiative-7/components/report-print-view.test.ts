@@ -376,3 +376,11 @@ describe("ReportPrintView — empty and edge states", () => {
     expect(html).toContain("No rows.")
   })
 })
+
+describe("the circuit exposure chart is not in the report", () => {
+  it("is absent from the PDF even when the recommendations carry a real circuit", () => {
+    const html = render(reportFixture(), [recommendationFixture({ circuit: "Mill" as Recommendation["circuit"] })])
+    expect(html).not.toContain("Critical circuit exposure")
+    expect(html).not.toContain("Recommendations per circuit")
+  })
+})

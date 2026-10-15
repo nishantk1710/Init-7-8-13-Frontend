@@ -44,7 +44,6 @@ import {
 import { cn, formatCount } from "@/lib/utils"
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
-import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
 import { PortfolioForecastVsActualChart } from "@/features/initiative-7/components/portfolio-forecast-vs-actual-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
@@ -370,7 +369,6 @@ export function QuarterlyReportsWorkspace() {
   // No circuit in the data means every row reads "Unassigned": the table
   // column and the exposure chart would each be one repeated word.
   const showCircuit = hasRealCircuit(materials ?? [])
-  const showCircuitChart = hasRealCircuit(chartRecommendations ?? [])
 
   // The PDF's material table: 50 rows, fetched only once a print has been
   // requested so an ordinary page view never pays for it. Same unscoped,
@@ -707,17 +705,7 @@ export function QuarterlyReportsWorkspace() {
                   )}
                 </ChartCard>
 
-                {showCircuitChart && (
-                  <ChartCard
-                    title="Critical circuit exposure"
-                    subtitle="Recommendations per circuit, split by stockout-risk exposure."
-                    span={7}
-                  >
-                    <CircuitExposureChart recommendations={chartRecommendations ?? []} activeCircuit={null} onCircuitClick={() => {}} />
-                  </ChartCard>
-                )}
-
-                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={showCircuitChart ? 5 : 12}>
+                <ChartCard title="Stockout risk trend" subtitle="Materials at high/critical risk, by month." span={12}>
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <AvailabilityValue status={report.management_summary.stockout_risk_trend.status} />
                     <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">

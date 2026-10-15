@@ -40,7 +40,6 @@
 // "we did not measure this" must not read as "this is zero".
 
 import { AvailabilityValue, formatDecimal } from "@/features/initiative-7/components/availability-value"
-import { CircuitExposureChart } from "@/features/initiative-7/components/circuit-exposure-chart"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import { RecommendationStatusChart } from "@/features/initiative-7/components/recommendation-status-chart"
 import { formatCount } from "@/lib/utils"
@@ -529,15 +528,6 @@ export function ReportPrintView({
               <p className="print-chart-caption">Where each change sits in the approval flow.</p>
               <RecommendationStatusChart recommendations={chartRecommendations} />
             </div>
-            {hasRealCircuit(chartRecommendations) && (
-              <div className="print-chart">
-                <h3 className="print-subheading">Critical circuit exposure</h3>
-                <p className="print-chart-caption">
-                  Recommendations per circuit, split by stockout-risk exposure.
-                </p>
-                <CircuitExposureChart recommendations={chartRecommendations} />
-              </div>
-            )}
           </div>
         </section>
       )}
