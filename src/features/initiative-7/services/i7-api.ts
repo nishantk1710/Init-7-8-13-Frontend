@@ -27,6 +27,7 @@ import type {
   ApiApprovalRole,
   ApiDecimal,
   ApiForecastHistoryResponse,
+  ApiSimilarMaterialsResponse,
   ApiGenerationStatusResponse,
   ApiQuarterlyReport,
   ApiQuarterlyReportListResponse,
@@ -592,6 +593,45 @@ export async function fetchForecastHistory(id: string): Promise<ForecastHistory>
       actual: toNumber(p.actual),
     })),
   }
+}
+
+export interface SimilarMaterial {
+  rank: number
+  material: string
+  plant: string
+  description: string | null
+  /** 0..1 combined similarity, or null when the engine stored none. */
+  similarity: number | null
+  /** The neighbour's own ZMM065 tier, upper-cased, or null. */
+  criticality: string | null
+  historyMonths: number | null
+  safetyStock: number | null
+  rop: number | null
+  maxStock: number | null
+  /** Whether its stock values fed the weighted estimate. */
+  contributed: boolean
+}
+
+/** GET /recommendations/{id}/similar-materials -- the neighbours an OAR
+ * recommendation was sized from, best first (up to ten). `[]` (never fabricated)
+ * when it was not sized from similarity. */
+export async function fetchSimilarMaterials(id: string): Promise<SimilarMaterial[]> {
+  const response = await apiFetch<ApiSimilarMaterialsResponse>(
+    `${I7_BASE}/recommendations/${encodeURIComponent(id)}/similar-materials`,
+  )
+  return response.neighbours.map((n) => ({
+    rank: n.rank,
+    material: n.material,
+    plant: n.plant,
+    description: n.description,
+    similarity: toNumber(n.similarity),
+    criticality: n.criticality ? n.criticality.toUpperCase() : null,
+    historyMonths: n.history_months,
+    safetyStock: n.safety_stock,
+    rop: n.rop,
+    maxStock: n.max_stock,
+    contributed: n.contributed,
+  }))
 }
 
 export interface ForecastVsActual {

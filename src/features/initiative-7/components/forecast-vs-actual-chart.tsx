@@ -29,6 +29,7 @@ const FORECAST_COLOR = "var(--chart-1)"
 const WINDOW_OPTIONS = [
   { value: "3", label: "Last 3 Months" },
   { value: "6", label: "Last 6 Months" },
+  { value: "12", label: "Last 12 Months" },
 ] as const
 type WindowValue = (typeof WINDOW_OPTIONS)[number]["value"]
 
