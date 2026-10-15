@@ -1,7 +1,7 @@
 import { connection } from "next/server"
 
 import { ActionCenterTabs } from "@/components/action-center/action-center-tabs"
-import { CappedNotice, FailureNotice } from "@/components/shared/load-status"
+import { CappedNotice } from "@/components/shared/load-status"
 import { PageHeader } from "@/components/shared/page-header"
 import { ProfileMenu } from "@/components/shared/profile-menu"
 import { combineActions, getLiveActions, INITIATIVE_IDS } from "@/lib/aggregation"
@@ -31,7 +31,10 @@ export async function ActionCenterPage() {
           description="Every open item across inventory planning, repairable spares and OAR utilization."
           actions={<ProfileMenu />}
         />
-        <FailureNotice failures={combined.failures} />
+        {/* TEMPORARY (UAT): the red "could not be loaded" banner is hidden here because
+            the I07 list call times out intermittently. Restore
+            <FailureNotice failures={combined.failures} /> once the I07 snapshot/index
+            fix is deployed. The tab still reads "(not loaded)" for the failed module. */}
         {combined.capped && (
           <CappedNotice shown={combined.actions.length} total={combined.total} noun="open items" />
         )}
