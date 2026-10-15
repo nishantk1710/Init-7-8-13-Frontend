@@ -6,7 +6,8 @@ import { ArrowRightLeft, MessageSquare, Send, ShieldCheck } from "lucide-react"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
 import { formatCount, formatMoney } from "@/lib/utils"
-import { ForecastVsActualChart } from "@/features/initiative-7/components/forecast-vs-actual-chart"
+import { ForecastVsActualChart, hasNoForecast } from "@/features/initiative-7/components/forecast-vs-actual-chart"
+import { SimilarMaterialsList } from "@/features/initiative-7/components/similar-materials-list"
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import type { Criticality, DemandPattern, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
@@ -219,6 +220,8 @@ export function RecommendationReviewPanel({
           </h4>
           <ForecastVsActualChart recommendations={[rec]} />
         </div>
+
+        {hasNoForecast([rec]) && <SimilarMaterialsList recommendationId={rec.id} />}
 
         {rec.oarConversion && <OarConversionSection oar={rec.oarConversion} />}
       </div>
