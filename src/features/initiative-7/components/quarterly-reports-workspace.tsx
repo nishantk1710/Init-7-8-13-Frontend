@@ -718,7 +718,13 @@ export function QuarterlyReportsWorkspace() {
                   title="Forecast vs Actual Demand"
                   span={7}
                 >
-                  <PortfolioForecastVsActualChart />
+                  <PortfolioForecastVsActualChart
+                    period={{
+                      start: report.metadata.period_start,
+                      end: report.metadata.period_end,
+                      label: report.metadata.quarter,
+                    }}
+                  />
                 </ChartCard>
 
                 <ChartCard title="SAP adoption" subtitle="Whether approved recommendations were applied in SAP." span={5}>
