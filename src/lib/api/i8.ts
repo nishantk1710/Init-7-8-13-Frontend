@@ -839,6 +839,25 @@ export type ApiCodingCandidateTwin = {
 }
 
 /**
+ * What a candidate costs new at one plant: MBEW's moving average price
+ * (VERPR / PEINH, ZAR). One per plant in the candidate's `plants`.
+ */
+export type ApiCodingCandidatePrice = {
+  plant: string
+  /** Decimal string. Null whenever `missing` is set -- never "0" for unknown. */
+  price: string | null
+  /** "NEW" when the material is split-valuated at this plant; null when its
+   *  one (unsplit) MBEW row was read. */
+  valuationType: string | null
+  /** Why there is no price: TOKEN_VALUE (MBEW holds a placeholder such as
+   *  R1.00), NO_NEW_VALUATION (split-valuated, no NEW row) or NOT_IN_MBEW.
+   *  A plain string: a reason added later must still render. */
+  missing: string | null
+  /** The value on the MBEW row read -- the placeholder, on TOKEN_VALUE. */
+  mbewValue: string | null
+}
+
+/**
  * One material the screen judged.
  *
  * `verdict`/`confidence` are plain strings, not a closed union: the verdict
@@ -878,6 +897,8 @@ export type ApiCodingCandidateItem = {
   provider: string
   promptVersion: number | null
   screenedAt: string | null
+  /** What the part costs new, one entry per plant in `plants`. */
+  newItemPrices: ApiCodingCandidatePrice[]
 }
 
 export type ApiCodingCandidateMeta = {
@@ -908,6 +929,9 @@ export type ApiCodingCandidateMeta = {
    *  never reads as a complete one. */
   wasTruncated: boolean
   corroborated: number
+  /** Material-plants by price state: PRICED, TOKEN_VALUE, NO_NEW_VALUATION,
+   *  NOT_IN_MBEW. */
+  newItemPriceCounts: Record<string, number>
   byVerdict: Record<string, number>
   keywords: string[]
   provider: string

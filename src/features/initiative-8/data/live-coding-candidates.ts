@@ -13,15 +13,17 @@ import type {
   CodingCandidate,
   CodingCandidateLine,
   CodingCandidateTwin,
+  NewItemPrice,
 } from "@/features/initiative-8/types/repair"
 import type {
   ApiCodingCandidateItem,
   ApiCodingCandidateLine,
   ApiCodingCandidateMeta,
+  ApiCodingCandidatePrice,
   ApiCodingCandidateTwin,
   CodingCandidatesQuery,
 } from "@/lib/api/i8"
-import { formatApiDate, getCodingCandidates } from "@/lib/api/i8"
+import { formatApiDate, getCodingCandidates, toNumber } from "@/lib/api/i8"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -43,6 +45,17 @@ function toLine(row: ApiCodingCandidateLine): CodingCandidateLine {
 
 function toTwin(row: ApiCodingCandidateTwin): CodingCandidateTwin {
   return { materialId: row.materialId, sharedText: row.sharedText }
+}
+
+/** A missing price stays `undefined`, never 0 — the same rule as `repairCost`. */
+function toNewItemPrice(row: ApiCodingCandidatePrice): NewItemPrice {
+  return {
+    plant: row.plant,
+    price: toNumber(row.price),
+    valuationType: orUndefined(row.valuationType),
+    missing: orUndefined(row.missing),
+    mbewValue: toNumber(row.mbewValue),
+  }
 }
 
 /** One API row as the `CodingCandidate` the table renders. */
@@ -70,6 +83,9 @@ export function toCodingCandidate(row: ApiCodingCandidateItem): CodingCandidate 
     model: row.model,
     provider: row.provider,
     screenedAt: orUndefined(row.screenedAt),
+    // `?? []`: a backend that predates the column serves no field at all, and
+    // the screen must still render -- every cell then reads "—".
+    newItemPrices: (row.newItemPrices ?? []).map(toNewItemPrice),
   }
 }
 

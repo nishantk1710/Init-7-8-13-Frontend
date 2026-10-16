@@ -1,13 +1,14 @@
 "use client"
 
 import { Fragment, useMemo, useRef, useState } from "react"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -28,7 +29,14 @@ import type {
   CodingCandidate,
   CodingCandidateSource,
 } from "@/features/initiative-8/types/repair"
-import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE } from "@/features/initiative-8/utils/status"
+import {
+  matchesCandidateSearch,
+  newItemPriceCell,
+  nextPriceSort,
+  sortByNewItemPrice,
+  type PriceSort,
+} from "@/features/initiative-8/utils/coding-candidates-view"
+import { CODING_CONFIDENCE_TONE, CODING_VERDICT_TONE, UNKNOWN } from "@/features/initiative-8/utils/status"
 import {
   CODING_SCREEN_BATCH,
   CODING_SCREEN_TIMEOUT_MS,
@@ -110,6 +118,11 @@ export function CodingCandidatesTable({
   // backend reads all three, so "show me only what PR text turned up" is a
   // question the screen has to be able to answer.
   const [source, setSource] = useState<string>(ALL)
+  /** Material number or any of the material's texts — see
+   *  `matchesCandidateSearch`. */
+  const [search, setSearch] = useState("")
+  /** The New Item Price column's order; `none` is the backend's ranking. */
+  const [priceSort, setPriceSort] = useState<PriceSort>("none")
   /** Materials whose evidence is open. Collapsed by default: the table is a
    *  ranked list first, and 20 expanded rows of SAP free text is not one. */
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -151,9 +164,14 @@ export function CodingCandidatesTable({
       // candidates found solely there: the question is "what did PR text turn
       // up", and a material corroborated by two sources still answers it.
       if (source !== ALL && !c.lines.some((line) => line.source === source)) return false
+      if (!matchesCandidateSearch(c, search)) return false
       return true
     })
-  }, [candidates, verdict, plant, source])
+  }, [candidates, verdict, plant, source, search])
+
+  // Sorted AFTER filtering, and only when the price column asks: the default
+  // is the backend's ranking, which the `#` column keeps showing either way.
+  const visible = useMemo(() => sortByNewItemPrice(filtered, priceSort), [filtered, priceSort])
 
   /**
    * Export what is on screen.
@@ -162,8 +180,15 @@ export function CodingCandidatesTable({
    * cataloguer takes this to the SAP team, and "material 5000094118 reads like
    * a repairable" is not a case -- the words somebody typed on a specific
    * document are.
+   *
+   * In the on-screen order, so a sort by price survives into the file. The
+   * price is one numeric column per plant -- built from the rows, like the
+   * plant filter -- so it can be summed and sorted in Excel; a missing price
+   * is an empty cell, never 0.
    */
   function exportExcel() {
+    const priceOf = (c: CodingCandidate, p: string) =>
+      c.newItemPrices.find((price) => price.plant === p)?.price
     downloadExcel(
       "i08-coding-candidates.xlsx",
       [
@@ -175,12 +200,13 @@ export function CodingCandidatesTable({
         "Plants",
         "Evidence From",
         "Lines",
+        ...plants.map((p) => `New Item Price ${p} (R)`),
         "Triggering Text",
         "Reason",
         "Provider",
         "Screened At",
       ],
-      filtered.map((c) => [
+      visible.map((c) => [
         c.material.materialCode,
         c.verdict,
         c.confidence,
@@ -189,6 +215,7 @@ export function CodingCandidatesTable({
         c.plants.join(" "),
         sourcesOf(c).map((src) => SOURCE_LABEL[src]).join(" "),
         c.lines.length,
+        ...plants.map((p) => priceOf(c, p)),
         c.distinctTexts.join(" | "),
         c.reason,
         c.provider,
@@ -399,18 +426,30 @@ export function CodingCandidatesTable({
           </SelectContent>
         </Select>
 
+        {/* Number or name. The name of a material here is the text people
+            typed on its PO and PR lines -- there is no master description. */}
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search material number or text…"
+          aria-label="Search the coding candidates by material number or text"
+          className="h-9 w-full sm:w-64"
+        />
+
         <ClearFiltersButton
           activeCount={
             [
               verdict !== ALL,
               plant !== ALL,
               source !== ALL,
+              search.trim() !== "",
             ].filter(Boolean).length
           }
           onClear={() => {
             setVerdict(ALL)
             setPlant(ALL)
             setSource(ALL)
+            setSearch("")
           }}
         />
       </FilterBar>
@@ -433,6 +472,36 @@ export function CodingCandidatesTable({
                 <TableHead>Plants</TableHead>
                 <TableHead>Evidence From</TableHead>
                 <TableHead className="text-right">Lines</TableHead>
+                <TableHead
+                  className="text-right"
+                  aria-sort={
+                    priceSort === "desc" ? "descending" : priceSort === "asc" ? "ascending" : "none"
+                  }
+                >
+                  {/* The one sortable column. A click goes highest first,
+                      lowest first, then back to the ranking. */}
+                  <button
+                    type="button"
+                    onClick={() => setPriceSort(nextPriceSort)}
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                    title={
+                      priceSort === "none"
+                        ? "Sort by new item price, highest first"
+                        : priceSort === "desc"
+                          ? "Sort by new item price, lowest first"
+                          : "Back to the ranking"
+                    }
+                  >
+                    New Item Price
+                    {priceSort === "desc" ? (
+                      <ArrowDown className="size-3.5" aria-hidden="true" />
+                    ) : priceSort === "asc" ? (
+                      <ArrowUp className="size-3.5" aria-hidden="true" />
+                    ) : (
+                      <ArrowUpDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead>Screened At</TableHead>
                 <TableHead className="w-10">
                   <span className="sr-only">Evidence</span>
@@ -440,7 +509,7 @@ export function CodingCandidatesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => (
+              {visible.map((c) => (
                 <Fragment key={c.material.materialId}>
                 {/* The whole row opens the evidence, not only the chevron at
                     the end -- so the row is the control, and carries the aria
@@ -511,6 +580,24 @@ export function CodingCandidatesTable({
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-foreground">{c.lines.length}</TableCell>
+                  {/* What the part costs new, per plant, from MBEW. Where it
+                      came from -- or why there is none -- is on hover. */}
+                  <TableCell className="text-right tabular-nums">
+                    <div className="flex flex-col items-end gap-0.5">
+                      {newItemPriceCell(c.newItemPrices).map((line, i) => (
+                        <span
+                          key={line.plant ?? i}
+                          title={line.title}
+                          className={line.label === UNKNOWN ? "text-muted-foreground" : "text-foreground"}
+                        >
+                          {line.plant && (
+                            <span className="mr-1.5 text-xs text-muted-foreground">{line.plant}</span>
+                          )}
+                          {line.label}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatScreenedAt(c.screenedAt)}
                   </TableCell>
@@ -534,7 +621,7 @@ export function CodingCandidatesTable({
                     {/* The evidence itself. Until now the only way to read the
                         text a verdict was reached on was to export the CSV,
                         which is a poor place to check a model's judgement. */}
-                    <TableCell colSpan={11} className="bg-muted/30">
+                    <TableCell colSpan={12} className="bg-muted/30">
                       <CandidateEvidence candidate={c} />
                     </TableCell>
                   </TableRow>

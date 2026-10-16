@@ -448,6 +448,24 @@ export interface CodingCandidate {
   /** WHO answered — "stub" means nothing was really judged. */
   provider: string
   screenedAt?: string
+  /** What the part costs new, one entry per plant in `plants`, from MBEW. */
+  newItemPrices: NewItemPrice[]
+}
+
+/**
+ * What a coding candidate costs new at one plant: MBEW's moving average price
+ * (VERPR / PEINH), in ZAR. A missing price is `undefined` with `missing`
+ * saying why — never 0, which would read as a free part.
+ */
+export interface NewItemPrice {
+  plant: string
+  price?: number
+  /** "NEW" when the material is split-valuated at this plant. */
+  valuationType?: string
+  /** TOKEN_VALUE / NO_NEW_VALUATION / NOT_IN_MBEW, or `undefined` when priced. */
+  missing?: string
+  /** What MBEW holds on the row read — the placeholder, on TOKEN_VALUE. */
+  mbewValue?: number
 }
 
 /**
