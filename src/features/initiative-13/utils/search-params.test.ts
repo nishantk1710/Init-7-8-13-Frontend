@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   isUnfiltered,
   mergeSearchParams,
+  pageHref,
   parseSearchParams,
 } from "@/features/initiative-13/utils/search-params"
 
@@ -74,5 +75,30 @@ describe("isUnfiltered", () => {
   it("is true only when nothing is set", () => {
     expect(isUnfiltered(parseSearchParams({}))).toBe(true)
     expect(isUnfiltered(parseSearchParams({ plant: "1300" }))).toBe(false)
+  })
+})
+
+describe("page", () => {
+  it("reads a page and ignores one that is not a page", () => {
+    expect(parseSearchParams({ page: "3" }).page).toBe(3)
+    expect(parseSearchParams({ page: "0" }).page).toBeUndefined()
+    expect(parseSearchParams({ page: "abc" }).page).toBeUndefined()
+  })
+
+  it("is not a filter", () => {
+    expect(isUnfiltered(parseSearchParams({ page: "2" }))).toBe(true)
+  })
+
+  it("links to a page keeping the filters and the view", () => {
+    const params = parseSearchParams({ plant: "1500", view: "grni", page: "4" })
+    expect(pageHref("/oar-utilization/watch", params, 5)).toBe(
+      "/oar-utilization/watch?plant=1500&view=grni&page=5"
+    )
+  })
+
+  it("drops page 1 from the link, so it matches the plain screen", () => {
+    const params = parseSearchParams({ plant: "1500", page: "2" })
+    expect(pageHref("/oar-utilization/ledger", params, 1)).toBe("/oar-utilization/ledger?plant=1500")
+    expect(pageHref("/oar-utilization/ledger", parseSearchParams({}), 1)).toBe("/oar-utilization/ledger")
   })
 })

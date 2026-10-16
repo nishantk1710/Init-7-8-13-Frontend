@@ -57,6 +57,7 @@ import {
   type Zmm065Upload,
 } from "@/lib/api/i13"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
+import { pageOffset } from "@/lib/pagination"
 
 /**
  * How many rows one screen asks the backend for.
@@ -70,6 +71,20 @@ import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
  * request every I13 list route will honour.
  */
 export const ROW_CAP = 1000
+
+/**
+ * One page of a server-paged screen. A loader given this asks for exactly that
+ * page (`limit` + `offset`); without it, it asks for the first `ROW_CAP` rows,
+ * as the dashboard still does.
+ */
+export type Paging = { page: number; pageSize: number }
+
+/** `limit`/`offset` for a page, or the first `ROW_CAP` rows. */
+function pageRequest(paging: Paging | undefined, cap: number = ROW_CAP): { limit: number; offset?: number } {
+  return paging
+    ? { limit: paging.pageSize, offset: pageOffset(paging.page, paging.pageSize) }
+    : { limit: cap }
+}
 
 export type Capped<T> = {
   rows: T[]
@@ -140,13 +155,13 @@ export type LiveWatch = Capped<WatchMetric> & {
  * dashboard needs. A plan captured through the assistant updates its material's
  * row as soon as the conversation completes.
  */
-export async function loadLiveWatch(filters: WatchFilters = {}): Promise<LiveWatch> {
+export async function loadLiveWatch(filters: WatchFilters = {}, paging?: Paging): Promise<LiveWatch> {
   const { items: rows, total } = await getI13ActUtilisationList({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     agingBand: filters.agingBand || undefined,
     acquiredVsPlanStatus: filters.acquiredVsPlanStatus || undefined,
-    limit: ROW_CAP,
+    ...pageRequest(paging),
   })
   const capped = cap(rows, total)
   return {
@@ -211,7 +226,8 @@ export type LiveActExceptions = Capped<ActException> & {
  * wired into detection, every `NO_PLAN` exception was in that state.
  */
 export async function loadLiveActExceptions(
-  filters: ActExceptionFilters = {}
+  filters: ActExceptionFilters = {},
+  paging?: Paging
 ): Promise<LiveActExceptions> {
   const [{ items: rows, total }, sessions] = await Promise.all([
     getI13ActExceptionsList({
@@ -219,7 +235,7 @@ export async function loadLiveActExceptions(
       material: filters.material || undefined,
       type: filters.type || undefined,
       status: filters.status || undefined,
-      limit: ROW_CAP,
+      ...pageRequest(paging),
     }),
     // Best-effort: the queue is the primary fetch, and the assistant being
     // unreachable should not take the exception screen down over a link.
@@ -334,7 +350,7 @@ export function loadLiveZmm065Uploads(): Promise<Zmm065Upload[]> {
 
 export type LiveGrni = Capped<GrniEntry> & {
   plantOptions: string[]
-  /** Outstanding quantity summed over the rows shown. */
+  /** Outstanding quantity summed over the rows fetched — one page when paged. */
   outstandingQuantity: number
 }
 
@@ -342,12 +358,15 @@ export type LiveGrni = Capped<GrniEntry> & {
  * Goods received and not issued for 30+ days, per reservation line, oldest
  * first — FRS FR-6, the same rule WATCH applies per material and plant.
  */
-export async function loadLiveGrni(filters: LedgerFilters & { minDays?: number } = {}): Promise<LiveGrni> {
+export async function loadLiveGrni(
+  filters: LedgerFilters & { minDays?: number } = {},
+  paging?: Paging
+): Promise<LiveGrni> {
   const { items: rows, total } = await getI13Grni({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     minDays: filters.minDays,
-    limit: ROW_CAP,
+    ...pageRequest(paging),
   })
   return {
     ...cap(rows, total),
@@ -364,20 +383,22 @@ export type LiveUsagePatterns = Capped<UsagePattern> & {
 
 /** Month-by-month goods issues per OAR material and plant, most issued first. */
 export async function loadLiveUsagePatterns(
-  filters: LedgerFilters & { agingBand?: string } = {}
+  filters: LedgerFilters & { agingBand?: string } = {},
+  paging?: Paging
 ): Promise<LiveUsagePatterns> {
   const { items: rows, total, historyMonths } = await getI13UsagePatterns({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     agingBand: filters.agingBand || undefined,
-    limit: 200,
+    // The route's own maximum is 500, below ROW_CAP.
+    ...pageRequest(paging, 200),
   })
   return { ...cap(rows, total), plantOptions: plantsOf(rows), historyMonths }
 }
 
 export type LiveReservationLedger = Capped<ReservationLedgerRow> & {
   plantOptions: string[]
-  /** Rows whose item text names an assistant session. */
+  /** Rows fetched whose item text names an assistant session — one page when paged. */
   linkedCount: number
 }
 
@@ -387,13 +408,14 @@ export type LiveReservationLedger = Capped<ReservationLedgerRow> & {
  * appears once the extract carries it (or, in UAT, once it is simulated).
  */
 export async function loadLiveReservationLedger(
-  filters: LedgerFilters & { session?: string } = {}
+  filters: LedgerFilters & { session?: string } = {},
+  paging?: Paging
 ): Promise<LiveReservationLedger> {
   const { items: rows, total } = await getI13ReservationLedgerList({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     sessionId: filters.session || undefined,
-    limit: ROW_CAP,
+    ...pageRequest(paging),
   })
   return {
     ...cap(rows, total),

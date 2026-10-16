@@ -119,7 +119,8 @@ export async function ApprovalsPage({ filter }: { filter: ApprovalsFilter }) {
                 noun="decisions"
               />
             )}
-            <ApprovalsTable approvals={approvals} incomplete={combined.failures.length > 0} />
+            {/* Keyed on the module chip, so switching module starts at page 1. */}
+            <ApprovalsTable key={filter} approvals={approvals} incomplete={combined.failures.length > 0} />
           </>
         )}
       </div>

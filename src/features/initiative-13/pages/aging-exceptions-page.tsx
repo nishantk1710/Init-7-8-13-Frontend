@@ -1,14 +1,19 @@
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { PageHeader } from "@/components/shared/page-header"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { ActExceptionsBoard } from "@/features/initiative-13/components/act-exceptions-board"
-import { LoadFailure, RowCapNote } from "@/features/initiative-13/components/load-states"
+import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { loadLiveActExceptions } from "@/features/initiative-13/data/live-loaders"
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import { listJustifications } from "@/lib/api/assistant"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { formatCount } from "@/lib/utils"
+
+const PATH = "/oar-utilization/aging-exceptions"
 
 /**
  * The ACT exception queue — FR-9, and FRS §9 acceptance criterion 6.
@@ -40,6 +45,7 @@ export async function ExceptionsPage({
 }) {
   await connection()
 
+  const page = searchParams.page ?? 1
   let live: Awaited<ReturnType<typeof loadLiveActExceptions>> | null = null
   let reasonCategories: string[] = []
   let loadError: string | null = null
@@ -49,12 +55,15 @@ export async function ExceptionsPage({
     // against the same list it serves. Fetched alongside the queue so the
     // dialog has them before anybody opens it.
     const [queue, justifications] = await Promise.all([
-      loadLiveActExceptions({
-        plant: searchParams.plant,
-        material: searchParams.material,
-        type: searchParams.type,
-        status: searchParams.status,
-      }),
+      loadLiveActExceptions(
+        {
+          plant: searchParams.plant,
+          material: searchParams.material,
+          type: searchParams.type,
+          status: searchParams.status,
+        },
+        { page, pageSize: DEFAULT_PAGE_SIZE }
+      ),
       listJustifications({ limit: 1 }).catch(() => null),
     ])
     live = queue
@@ -63,6 +72,14 @@ export async function ExceptionsPage({
     loadError = error instanceof Error ? error.message : String(error)
   }
 
+  // Past the end (a stale link, or rows confirmed away since): go to the last
+  // page rather than show an empty one. Outside the try — redirect() throws.
+  if (live?.total && page > pageCountOf(live.total, DEFAULT_PAGE_SIZE)) {
+    redirect(pageHref(PATH, searchParams, pageCountOf(live.total, DEFAULT_PAGE_SIZE)))
+  }
+
+  // Counted over this page only: the queue is paged, and the backend does not
+  // yet report an unrouted total.
   const unrouted = live ? live.count - live.ownedCount : 0
 
   return (
@@ -76,7 +93,7 @@ export async function ExceptionsPage({
         {live !== null && unrouted > 0 && (
           <AlertBanner
             tone="warning"
-            title={`${formatCount(unrouted)} of ${formatCount(live.count)} exceptions: requester not identified`}
+            title={`${formatCount(unrouted)} of the ${formatCount(live.count)} exceptions on this page: requester not identified`}
           >
             We can&rsquo;t tell who raised these reservations, so nobody has been
             asked for a reason and they cannot escalate. The requester is taken
@@ -100,7 +117,14 @@ export async function ExceptionsPage({
               reasonCategories={reasonCategories}
               sessionsByKey={live.sessionsByKey}
             />
-            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="exception" />
+            <TablePagination
+              page={page}
+              pageSize={DEFAULT_PAGE_SIZE}
+              total={live.total}
+              count={live.count}
+              noun="exceptions"
+              hrefFor={(p) => pageHref(PATH, searchParams, p)}
+            />
           </>
         )}
       </div>
