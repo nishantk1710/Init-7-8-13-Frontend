@@ -1,14 +1,12 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { PageHeader } from "@/components/shared/page-header"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { GrniTable } from "@/features/initiative-13/components/grni-table"
-import {
-  CalculatedAtNote,
-  LoadFailure,
-  RowCapNote,
-} from "@/features/initiative-13/components/load-states"
+import { CalculatedAtNote, LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
 import { WatchTable } from "@/features/initiative-13/components/watch-table"
@@ -17,7 +15,7 @@ import {
   loadLiveUsagePatterns,
   loadLiveWatch,
 } from "@/features/initiative-13/data/live-loaders"
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   WATCH_VIEWS,
   WATCH_VIEW_LABELS,
@@ -26,7 +24,51 @@ import {
   type WatchView,
 } from "@/features/initiative-13/utils/watch-view"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
+
+const PATH = "/oar-utilization/watch"
+
+/** This tab's page of rows, from the URL. */
+function pagingOf(searchParams: I13SearchParams) {
+  return { page: searchParams.page ?? 1, pageSize: DEFAULT_PAGE_SIZE }
+}
+
+/**
+ * Past the end — a stale link, or a population that shrank — goes to the last
+ * page rather than an empty one. Called outside the fetch's try: redirect()
+ * works by throwing, and that catch would report it as a failed load.
+ */
+function redirectIfPastEnd(searchParams: I13SearchParams, total: number | null | undefined) {
+  const page = searchParams.page ?? 1
+  if (total && page > pageCountOf(total, DEFAULT_PAGE_SIZE)) {
+    redirect(pageHref(PATH, searchParams, pageCountOf(total, DEFAULT_PAGE_SIZE)))
+  }
+}
+
+/** The pager under a tab's table; the tab's `view` rides along in the links. */
+function Pager({
+  searchParams,
+  total,
+  count,
+  noun,
+}: {
+  searchParams: I13SearchParams
+  total: number | null
+  count: number
+  noun: string
+}) {
+  return (
+    <TablePagination
+      page={searchParams.page ?? 1}
+      pageSize={DEFAULT_PAGE_SIZE}
+      total={total}
+      count={count}
+      noun={noun}
+      hrefFor={(p) => pageHref(PATH, searchParams, p)}
+    />
+  )
+}
 
 /**
  * WATCH — FR-1 and FR-6's metrics, per material and plant, in three tabs.
@@ -99,12 +141,15 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
     // The mart is the primary fetch; the session log is a link and must not be
     // able to take the screen down, so its failure is swallowed.
     const [watch, sessionList] = await Promise.all([
-      loadLiveWatch({
-        plant: searchParams.plant,
-        material: searchParams.material,
-        agingBand: searchParams.agingBand,
-        acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
-      }),
+      loadLiveWatch(
+        {
+          plant: searchParams.plant,
+          material: searchParams.material,
+          agingBand: searchParams.agingBand,
+          acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
+        },
+        pagingOf(searchParams)
+      ),
       listSessions({ flow: "i13", limit: 200 }).catch(() => null),
     ])
     live = watch
@@ -112,6 +157,7 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+  redirectIfPastEnd(searchParams, live?.total)
 
   const sessionsByKey = new Map<string, ApiSessionSummary[]>()
   for (const session of sessions) {
@@ -141,7 +187,7 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
       ) : (
         <>
           <WatchTable metrics={live.rows} sessionsByKey={sessionsByKey} />
-          <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="material" />
+          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="materials" />
         </>
       )}
     </>
@@ -160,10 +206,14 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
   let live: Awaited<ReturnType<typeof loadLiveGrni>> | null = null
   let loadError: string | null = null
   try {
-    live = await loadLiveGrni({ plant: searchParams.plant, material: searchParams.material })
+    live = await loadLiveGrni(
+      { plant: searchParams.plant, material: searchParams.material },
+      pagingOf(searchParams)
+    )
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+  redirectIfPastEnd(searchParams, live?.total)
 
   return (
     <>
@@ -184,9 +234,9 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
       ) : (
         <>
           <GrniTable rows={live.rows} />
-          <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="reservation line" />
+          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="reservation lines" />
           <p className="text-[11px] text-muted-foreground">
-            Outstanding across the lines shown: {formatCount(live.outstandingQuantity)} units. The
+            Outstanding across the lines on this page: {formatCount(live.outstandingQuantity)} units. The
             same rule marks a material &ldquo;GRNI&rdquo; on the Metrics tab.
           </p>
         </>
@@ -209,14 +259,18 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
   let live: Awaited<ReturnType<typeof loadLiveUsagePatterns>> | null = null
   let loadError: string | null = null
   try {
-    live = await loadLiveUsagePatterns({
-      plant: searchParams.plant,
-      material: searchParams.material,
-      agingBand: searchParams.agingBand,
-    })
+    live = await loadLiveUsagePatterns(
+      {
+        plant: searchParams.plant,
+        material: searchParams.material,
+        agingBand: searchParams.agingBand,
+      },
+      pagingOf(searchParams)
+    )
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+  redirectIfPastEnd(searchParams, live?.total)
 
   const [from, to] = live?.historyMonths?.split("..") ?? []
 
@@ -242,7 +296,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
       ) : (
         <>
           <UsagePatternTable rows={live.rows} />
-          <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="material-plant" />
+          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="material-plants" />
         </>
       )}
     </>

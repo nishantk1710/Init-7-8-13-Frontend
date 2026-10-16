@@ -1,15 +1,20 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure, RowCapNote } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ReservationLedgerTable } from "@/features/initiative-13/components/reservation-ledger-table"
 import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative-13/data/live-loaders"
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
+
+const PATH = "/oar-utilization/ledger"
 
 /**
  * The Utilization Ledger (FR-5).
@@ -82,17 +87,29 @@ function ViewToggle({ searchParams, active }: { searchParams: I13SearchParams; a
   )
 }
 
+/**
+ * Server-paged: 105k reservation items is not a list to send to a browser, and
+ * the route pages in SQL with a total.
+ */
 async function ReservationsView({ searchParams }: { searchParams: I13SearchParams }) {
+  const page = searchParams.page ?? 1
   let live: Awaited<ReturnType<typeof loadLiveReservationLedger>> | null = null
   let loadError: string | null = null
   try {
-    live = await loadLiveReservationLedger({
-      plant: searchParams.plant,
-      material: searchParams.material,
-      session: searchParams.session,
-    })
+    live = await loadLiveReservationLedger(
+      {
+        plant: searchParams.plant,
+        material: searchParams.material,
+        session: searchParams.session,
+      },
+      { page, pageSize: DEFAULT_PAGE_SIZE }
+    )
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
+  }
+  // Past the end goes to the last page. Outside the try: redirect() throws.
+  if (live?.total && page > pageCountOf(live.total, DEFAULT_PAGE_SIZE)) {
+    redirect(pageHref(PATH, searchParams, pageCountOf(live.total, DEFAULT_PAGE_SIZE)))
   }
 
   return (
@@ -114,9 +131,16 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         ) : (
           <>
             <ReservationLedgerTable rows={live.rows} />
-            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="reservation" />
+            <TablePagination
+              page={page}
+              pageSize={DEFAULT_PAGE_SIZE}
+              total={live.total}
+              count={live.count}
+              noun="reservations"
+              hrefFor={(p) => pageHref(PATH, searchParams, p)}
+            />
             <p className="text-[11px] text-muted-foreground">
-              {formatCount(live.linkedCount)} of the rows shown carry an assistant session ID in their item text.
+              {formatCount(live.linkedCount)} of the rows on this page carry an assistant session ID in their item text.
             </p>
           </>
         )}
@@ -165,7 +189,14 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           <LoadFailure what="utilization ledger" message={loadError} />
         ) : (
           <>
-            <UtilizationLedgerTable entries={live.rows} />
+            {/* Keyed on the server filters, so a new plant/material starts the
+                table over: page 1, status filters cleared. Paged in the browser
+                (not via ?page=) because its two status filters are still local
+                and must see every row loaded, not one page of them. */}
+            <UtilizationLedgerTable
+              key={`${searchParams.plant ?? ""}|${searchParams.material ?? ""}`}
+              entries={live.rows}
+            />
             <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="ledger line" />
           </>
         )}

@@ -22,6 +22,8 @@
  *     work. They write the URL; they do not hold the answer.
  */
 
+import { parsePage } from "@/lib/pagination"
+
 /** What every OAR screen can be narrowed by. Not every screen uses all of them. */
 export type I13SearchParams = {
   plant?: string
@@ -37,6 +39,8 @@ export type I13SearchParams = {
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
+  /** Server-paged screens: the 1-based page. Absent means page 1. */
+  page?: number
 }
 
 /** Next hands `searchParams` as a promise of possibly-repeated values. */
@@ -67,6 +71,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     session: single(raw.session),
     tab: single(raw.tab),
     month: single(raw.month),
+    page: parsePage(raw.page),
   }
 }
 
@@ -90,7 +95,23 @@ export function mergeSearchParams(
   return next.toString()
 }
 
-/** True when nothing is set — for an "all positions" vs "filtered" caption. */
+/** True when nothing is set — for an "all positions" vs "filtered" caption. A page is not a filter. */
 export function isUnfiltered(params: I13SearchParams): boolean {
-  return Object.values(params).every((value) => value === undefined)
+  return Object.entries(params).every(([key, value]) => key === "page" || value === undefined)
+}
+
+/**
+ * The link to one page of a server-paged screen, keeping every other parameter.
+ *
+ * Page 1 drops `page` entirely, so the plain screen and its first page are one
+ * URL — the same rule `mergeSearchParams` applies to an emptied filter.
+ */
+export function pageHref(pathname: string, params: I13SearchParams, page: number): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== "page" && value !== undefined) query.set(key, String(value))
+  }
+  if (page > 1) query.set("page", String(page))
+  const qs = query.toString()
+  return qs ? `${pathname}?${qs}` : pathname
 }

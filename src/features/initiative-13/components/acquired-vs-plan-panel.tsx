@@ -13,8 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
-import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
+import { TablePagination } from "@/components/shared/table-pagination"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import type { WatchMetric } from "@/lib/api/i13"
 import { acquiredVsPlanRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import {
@@ -30,7 +30,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * variance, rendered as-is — no tolerance/comparison rule is recreated
  * here. */
 export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
-  const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(rows)
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(rows)
 
   function exportExcel() {
     downloadExcel(
@@ -107,13 +107,12 @@ export function AcquiredVsPlanPanel({ rows }: { rows: WatchMetric[] }) {
           </TableBody>
         </Table>
       </div>
-      <DashboardPagination
+      <TablePagination
         page={page}
-        pageCount={pageCount}
-        hasPrevious={hasPrevious}
-        hasNext={hasNext}
-        onPrevious={previous}
-        onNext={next}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        onPageChange={setPage}
       />
     </div>
   )

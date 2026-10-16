@@ -8,6 +8,7 @@ import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-o
 import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -32,6 +33,7 @@ import type {
   UtilisationLedgerEntry,
   LedgerUtilisationStatus,
 } from "@/lib/api/i13"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
@@ -155,6 +157,9 @@ export function UtilizationLedgerTable({
       }),
     [entries, procurementFilter, utilisationFilter]
   )
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
+    resetKey: `${procurementFilter}|${utilisationFilter}`,
+  })
 
   if (entries.length === 0) {
     return (
@@ -235,7 +240,7 @@ export function UtilizationLedgerTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((entry) => {
+              {paged.map((entry) => {
                 const key = rowKey(entry)
                 const isExpanded = expandedId === key
                 return (
@@ -362,6 +367,14 @@ export function UtilizationLedgerTable({
           </Table>
         </div>
       )}
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        noun="loaded ledger lines"
+        onPageChange={setPage}
+      />
     </div>
   )
 }

@@ -14,8 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
-import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
+import { TablePagination } from "@/components/shared/table-pagination"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import { downloadExcel, formatCount } from "@/lib/utils"
@@ -57,7 +57,7 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
       ),
     [rows]
   )
-  const { paged, page, pageCount, hasPrevious, hasNext, previous, next } = usePaginatedRows(sorted)
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(sorted)
 
   function exportExcel() {
     downloadExcel(
@@ -119,13 +119,12 @@ export function NonMoverTable({ rows }: { rows: NonMoverRow[] }) {
           </TableBody>
         </Table>
       </div>
-      <DashboardPagination
+      <TablePagination
         page={page}
-        pageCount={pageCount}
-        hasPrevious={hasPrevious}
-        hasNext={hasNext}
-        onPrevious={previous}
-        onNext={next}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        onPageChange={setPage}
       />
     </div>
   )

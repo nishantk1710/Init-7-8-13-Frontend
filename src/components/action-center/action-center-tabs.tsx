@@ -5,7 +5,9 @@ import Link from "next/link"
 import { CircleAlert, Info, TriangleAlert } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { formatWhen } from "@/lib/api/format"
 import type { GlobalAction, InitiativeId } from "@/lib/domain/contracts"
 import { cn } from "@/lib/utils"
@@ -56,6 +58,7 @@ export function ActionCenterTabs({
     () => (tab === "all" ? actions : actions.filter((a) => a.initiative === tab)),
     [actions, tab]
   )
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, { resetKey: tab })
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,28 +89,38 @@ export function ActionCenterTabs({
       ) : filtered.length === 0 ? (
         <EmptyState title="Nothing here" description="No open actions in this module right now." />
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
-          {filtered.map((action) => {
-            const Icon = SEVERITY_ICON[action.severity]
-            return (
-              <li key={action.id}>
-                <Link
-                  href={action.href}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40"
-                >
-                  <Icon className={cn("size-4 shrink-0", SEVERITY_CLASS[action.severity])} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-foreground">{action.title}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Created {formatWhen(action.createdAt)}
-                      {action.dueAt && <> · Due {formatWhen(action.dueAt)}</>}
+        <div className="flex flex-col gap-3">
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
+            {paged.map((action) => {
+              const Icon = SEVERITY_ICON[action.severity]
+              return (
+                <li key={action.id}>
+                  <Link
+                    href={action.href}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40"
+                  >
+                    <Icon className={cn("size-4 shrink-0", SEVERITY_CLASS[action.severity])} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-foreground">{action.title}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Created {formatWhen(action.createdAt)}
+                        {action.dueAt && <> · Due {formatWhen(action.dueAt)}</>}
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            count={paged.length}
+            noun="actions"
+            onPageChange={setPage}
+          />
+        </div>
       )}
     </div>
   )

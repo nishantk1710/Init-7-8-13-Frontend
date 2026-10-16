@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DashboardPagination } from "@/features/initiative-13/components/dashboard-pagination"
-import { usePaginatedRows } from "@/features/initiative-13/hooks/use-paginated-rows"
+import { TablePagination } from "@/components/shared/table-pagination"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { formatApiDateTime } from "@/lib/api/format"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import {
@@ -105,8 +105,9 @@ export function JustificationLog({
     })
   }, [entries, filterable, search, plant, reason, source])
 
-  const { paged, page, pageCount, hasPrevious, hasNext, previous, next } =
-    usePaginatedRows(filtered)
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
+    resetKey: [search, plant, reason, source].join("|"),
+  })
 
   const activeFilters = [plant !== ALL, reason !== ALL, source !== ALL, search.trim() !== ""].filter(
     Boolean,
@@ -295,13 +296,12 @@ export function JustificationLog({
         ))}
       </div>
 
-      <DashboardPagination
+      <TablePagination
         page={page}
-        pageCount={pageCount}
-        hasPrevious={hasPrevious}
-        hasNext={hasNext}
-        onPrevious={previous}
-        onNext={next}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        onPageChange={setPage}
       />
     </div>
   )

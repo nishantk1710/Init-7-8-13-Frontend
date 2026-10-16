@@ -86,7 +86,9 @@ export function I13UrlFilters({
   const [isPending, startTransition] = useTransition()
 
   function push(patch: Record<string, string | undefined>) {
-    const query = mergeSearchParams(searchParams, patch)
+    // Any filter change starts the result over at page 1: page 40 of the old
+    // filter means nothing in the new one.
+    const query = mergeSearchParams(searchParams, { ...patch, page: undefined })
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     })
