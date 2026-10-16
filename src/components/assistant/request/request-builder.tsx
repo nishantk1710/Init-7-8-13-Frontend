@@ -6,6 +6,7 @@ import { ArrowRight, Boxes, CircleSlash, Copy, Loader2, Plus, Search, Sparkles, 
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
+import { DepartmentField } from "@/components/assistant/request/department-field"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
 import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
@@ -46,6 +47,10 @@ import { cn } from "@/lib/utils"
  * session needed" list. Every row then asks only what its flow asks, with the
  * assistant's suggestion already filled in. Submitting records the request and
  * one line per routed row, numbered `/1`, `/2` … in the order they were added.
+ *
+ * One request is for one plant: the first material added fixes it. From then
+ * on only that plant's materials can be added, and Department lists that
+ * plant's codes. Removing every row (or "Change plant") frees it again.
  */
 export function RequestBuilder() {
   const router = useRouter()
@@ -63,11 +68,20 @@ export function RequestBuilder() {
   /** Provisional `/n`: the order added, across both tables. */
   const lineNumbers = new Map(sessionRows.map((row, index) => [row.key, index + 1]))
 
+  /** Fixed by the first material added; null while the request is empty. */
+  const requestPlant = rows.length > 0 ? linePlant(rows[0]) : null
+
   const readyCount = sessionRows.filter(isReady).length
   const headerReady = requester.trim().length > 0 && department.trim().length > 0
   const canSubmit = headerReady && sessionRows.length > 0 && readyCount === sessionRows.length
 
   function add(materialId: string, plant: string) {
+    if (requestPlant && plant !== requestPlant) {
+      toast.error(`This request is for plant ${requestPlant}`, {
+        description: `${materialId} is at ${plant}. One request covers one plant -- start another for ${plant}.`,
+      })
+      return
+    }
     if (rows.length >= MAX_LINES) {
       toast.error(`A request holds up to ${MAX_LINES} materials`, {
         description: "Submit this one and start another for the rest.",
@@ -88,7 +102,15 @@ export function RequestBuilder() {
   }
 
   function remove(key: string) {
-    setRows((current) => current.filter((row) => row.key !== key))
+    const next = rows.filter((row) => row.key !== key)
+    setRows(next)
+    // The last row gone frees the plant, and the department went with it.
+    if (next.length === 0) setDepartment("")
+  }
+
+  function changePlant() {
+    setRows([])
+    setDepartment("")
   }
 
   function applyToOar(change: (row: OarLine) => OarLine) {
@@ -102,7 +124,7 @@ export function RequestBuilder() {
       setShowErrors(true)
       toast.error("Some rows still need answers", {
         description: !headerReady
-          ? "Fill in the requester and department first."
+          ? "Fill in the requester, add a material and pick the department."
           : "Each row's status says what is missing.",
       })
       return
@@ -119,7 +141,7 @@ export function RequestBuilder() {
 
       <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
         <AiEyebrow>1 · Who is it for</AiEyebrow>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
             id="req-requester"
             label="Requester"
@@ -128,19 +150,40 @@ export function RequestBuilder() {
             placeholder="who the parts are for"
             invalid={showErrors && !requester.trim()}
           />
-          <LabelledInput
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-foreground">Plant</span>
+            {requestPlant ? (
+              <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted/30 px-3 text-sm">
+                <span className="font-mono font-semibold">{requestPlant}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {DEMO_PLANTS.find((p) => p.plant === requestPlant)?.plantName}
+                </span>
+                <Button type="button" variant="ghost" size="xs" onClick={changePlant}>
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground">
+                Set by the first material you add
+              </div>
+            )}
+          </div>
+          <DepartmentField
+            key={requestPlant ?? "none"}
             id="req-department"
-            label="Department"
+            plant={requestPlant}
             value={department}
             onChange={setDepartment}
-            placeholder="e.g. 10100"
             invalid={showErrors && !department.trim()}
           />
         </div>
-        <p className="text-[11px] text-muted-foreground">Asked once for the whole request, not per material.</p>
+        <p className="text-[11px] text-muted-foreground">
+          Asked once for the whole request, not per material. One request is for one plant; the department list
+          follows it.
+        </p>
       </section>
 
-      <AddMaterials rows={rows} onAdd={add} />
+      <AddMaterials rows={rows} requestPlant={requestPlant} onAdd={add} />
 
       {rows.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -246,6 +289,10 @@ export function RequestBuilder() {
   )
 }
 
+function linePlant(row: DraftLine): string {
+  return opensSession(row) ? row.material.plant : row.plant
+}
+
 function SectionTitle({
   icon,
   title,
@@ -303,13 +350,34 @@ function LabelledInput({
 
 // --- adding materials -----------------------------------------------------------
 
-function AddMaterials({ rows, onAdd }: { rows: DraftLine[]; onAdd: (materialId: string, plant: string) => void }) {
+function AddMaterials({
+  rows,
+  requestPlant,
+  onAdd,
+}: {
+  rows: DraftLine[]
+  /** Once set, only this plant's materials can be added. */
+  requestPlant: string | null
+  onAdd: (materialId: string, plant: string) => void
+}) {
   const [query, setQuery] = useState("")
-  const [plant, setPlant] = useState<string>(DEMO_PLANTS[0].plant)
-  const matches = useMemo(() => searchRequestCatalogue(query), [query])
+  const [typedPlant, setPlant] = useState<string>(DEMO_PLANTS[0].plant)
+  const plant = requestPlant ?? typedPlant
+  const matches = useMemo(
+    () => searchRequestCatalogue(query).filter((m) => !requestPlant || m.plant === requestPlant),
+    [query, requestPlant]
+  )
   const typedNumber = /^\d{3,18}$/.test(query.replace(/[\s-]/g, "")) ? query.replace(/[\s-]/g, "") : null
 
   const added = (m: DemoRequestMaterial) => isDuplicate(rows, m.materialId, m.plant)
+  const otherPlant = (m: DemoRequestMaterial) => !!requestPlant && m.plant !== requestPlant
+
+  /** Every catalogue material at one plant -- never across plants. */
+  function addAllAt(p: string) {
+    for (const m of REQUEST_CATALOGUE) {
+      if (m.plant === p && !isDuplicate(rows, m.materialId, m.plant)) onAdd(m.materialId, m.plant)
+    }
+  }
 
   function pick(materialId: string, p: string) {
     onAdd(materialId, p)
@@ -319,6 +387,11 @@ function AddMaterials({ rows, onAdd }: { rows: DraftLine[]; onAdd: (materialId: 
   return (
     <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
       <AiEyebrow>2 · Add materials</AiEyebrow>
+      <p className="-mt-2 text-[11px] text-muted-foreground">
+        {requestPlant
+          ? `Showing plant ${requestPlant} only -- this request is for ${requestPlant}.`
+          : "The first material you add sets the request's plant."}
+      </p>
       <div className="relative flex flex-col gap-1.5">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -356,6 +429,7 @@ function AddMaterials({ rows, onAdd }: { rows: DraftLine[]; onAdd: (materialId: 
                   aria-label="Plant"
                   className={cn(SELECT_CLASS, "h-7 w-auto")}
                   value={plant}
+                  disabled={!!requestPlant}
                   onChange={(e) => setPlant(e.target.value)}
                 >
                   {DEMO_PLANTS.map((p) => (
@@ -370,7 +444,9 @@ function AddMaterials({ rows, onAdd }: { rows: DraftLine[]; onAdd: (materialId: 
               </li>
             )}
             {matches.length === 0 && !typedNumber && (
-              <li className="px-3 py-2 text-xs text-muted-foreground">No demo material matches.</li>
+              <li className="px-3 py-2 text-xs text-muted-foreground">
+                No demo material {requestPlant ? `at plant ${requestPlant} ` : ""}matches.
+              </li>
             )}
           </ul>
         )}
@@ -379,31 +455,45 @@ function AddMaterials({ rows, onAdd }: { rows: DraftLine[]; onAdd: (materialId: 
       <details className="group rounded-xl border border-dashed border-border px-4 py-3" open>
         <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
           <span>Demo materials -- one per case. Click to add.</span>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={(e) => {
-              e.preventDefault()
-              for (const m of REQUEST_CATALOGUE) if (!isDuplicate(rows, m.materialId, m.plant)) onAdd(m.materialId, m.plant)
-            }}
-          >
-            <Copy /> Add all {REQUEST_CATALOGUE.length}
-          </Button>
+          <span className="flex gap-1.5">
+            {DEMO_PLANTS.filter((p) => !requestPlant || p.plant === requestPlant).map((p) => (
+              <Button
+                key={p.plant}
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault()
+                  addAllAt(p.plant)
+                }}
+              >
+                <Copy /> Add all at {p.plant} ({REQUEST_CATALOGUE.filter((m) => m.plant === p.plant).length})
+              </Button>
+            ))}
+          </span>
         </summary>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {REQUEST_CATALOGUE.map((m) => (
             <li key={`${m.materialId}-${m.plant}`}>
               <button
                 type="button"
-                disabled={added(m)}
+                disabled={added(m) || otherPlant(m)}
+                title={otherPlant(m) ? `This request is for plant ${requestPlant}` : undefined}
                 onClick={() => onAdd(m.materialId, m.plant)}
                 className="flex w-full flex-col items-start gap-0.5 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-ai-2/40 hover:bg-muted/40 disabled:opacity-45"
               >
                 <span className="flex w-full items-center gap-2">
                   <span className="font-mono text-[11px] font-semibold">{m.materialId}</span>
                   <span className="text-[11px] text-muted-foreground">@ {m.plant}</span>
-                  <span className="ml-auto">{added(m) ? <Chip tone="muted">Added</Chip> : <Plus className="size-3.5 text-ai-2" />}</span>
+                  <span className="ml-auto">
+                    {added(m) ? (
+                      <Chip tone="muted">Added</Chip>
+                    ) : otherPlant(m) ? (
+                      <Chip tone="muted">Other plant</Chip>
+                    ) : (
+                      <Plus className="size-3.5 text-ai-2" />
+                    )}
+                  </span>
                 </span>
                 <span className="text-xs text-foreground">{m.description}</span>
                 <span className="text-[11px] text-ai-2">{m.scenario}</span>

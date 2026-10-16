@@ -276,6 +276,25 @@ export const DEMO_PLANTS = [
   { plant: "1500", plantName: GAMSBERG },
 ] as const
 
+/**
+ * Department codes per plant, for the demo's Department picker. **Mock data.**
+ *
+ * Real-looking: a sample of the 5-digit codes VZI keys into a requisition's
+ * Requisitioner (`EBAN.AFNAM`) -- live has ~76 at 1300 and ~42 at 1500 -- and,
+ * as live, a few appear at both plants (`10100`, the `107xx` group). Codes
+ * only: no extract names them.
+ */
+export const DEMO_DEPARTMENTS: Readonly<Record<string, readonly string[]>> = {
+  "1300": [
+    "10100", "10101", "10104", "10300", "10303", "10306", "10311", "10316", "10323",
+    "10401", "10500", "10501", "10502", "10600", "10604", "10701", "10709", "50106",
+  ],
+  "1500": [
+    "10100", "10709", "40100", "40101", "40103", "40105", "40200", "40301", "40400",
+    "40501", "40600", "40800",
+  ],
+}
+
 function bareNumber(materialId: string): string {
   return materialId.trim().replace(/^0+/, "")
 }
