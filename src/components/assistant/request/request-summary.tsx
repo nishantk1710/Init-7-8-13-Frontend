@@ -9,7 +9,7 @@ import { Chip, CopyReference, DemoBanner, formatDate, reasonLabel } from "@/comp
 import { useDemoRequests } from "@/components/assistant/request/use-demo-requests"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { lineReference, outcomeSentence, type RequestLine } from "@/lib/assistant/request/record"
+import { departmentsOf, lineReference, outcomeSentence, type RequestLine } from "@/lib/assistant/request/record"
 
 /** A submitted request: its reference, every line's `/n`, and a SAP link simulator. */
 export function RequestSummary({ requestId }: { requestId: string }) {
@@ -31,6 +31,9 @@ export function RequestSummary({ requestId }: { requestId: string }) {
     )
   }
 
+  // Requests saved before plant moved to the header carry none; the lines know it.
+  const plant = request.plant ?? request.lines[0]?.material.plant ?? "—"
+  const departments = departmentsOf(request)
   const procured = request.lines.filter(
     (l) =>
       (l.outcome.flow === "i13" && l.outcome.decision === "proceed") ||
@@ -52,7 +55,11 @@ export function RequestSummary({ requestId }: { requestId: string }) {
             </span>
             <CopyReference value={request.requestId} size="lg" />
             <span className="text-xs text-muted-foreground">
-              {request.requester} · department {request.department} · {new Date(request.issuedAt).toLocaleString("en-GB")}
+              {request.requester} · plant {plant} ·{" "}
+              {departments.length === 0
+                ? "no department"
+                : `${departments.length} department${departments.length === 1 ? "" : "s"} (${departments.join(", ")})`}{" "}
+              · {new Date(request.issuedAt).toLocaleString("en-GB")}
             </span>
           </div>
           <dl className="grid grid-cols-3 gap-4 text-center">
@@ -75,11 +82,12 @@ export function RequestSummary({ requestId }: { requestId: string }) {
       <section className="flex flex-col gap-3">
         <AiEyebrow>Lines</AiEyebrow>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[1080px] text-sm">
             <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
               <tr>
                 <th className="px-3 py-2 font-medium">Reference for SGTXT</th>
                 <th className="px-3 py-2 font-medium">Material</th>
+                <th className="px-3 py-2 font-medium">Department</th>
                 <th className="px-3 py-2 font-medium">Decision</th>
                 <th className="px-3 py-2 font-medium">Window · purpose</th>
                 <th className="px-3 py-2 font-medium">Reason given</th>
@@ -164,6 +172,9 @@ function LineRow({ requestId, line }: { requestId: string; line: RequestLine }) 
           <span>{line.material.description}</span>
           <span className="text-[11px] text-muted-foreground">Plant {line.material.plant}</span>
         </div>
+      </td>
+      <td className="px-3 py-3 font-mono text-sm">
+        {line.department ?? <span className="font-sans text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-1">

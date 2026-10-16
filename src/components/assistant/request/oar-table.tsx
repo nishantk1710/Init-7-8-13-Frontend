@@ -3,7 +3,7 @@
 import { Fragment } from "react"
 import { Ban, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
 
-import { Chip, JustificationFields } from "@/components/assistant/request/request-parts"
+import { Chip, DepartmentSelect, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -39,11 +39,12 @@ export function OarTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[1120px] text-sm">
+      <table className="w-full min-w-[1240px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="w-10 px-3 py-2 font-medium">#</th>
             <th className="min-w-44 px-3 py-2 font-medium">Material</th>
+            <th className="w-32 px-3 py-2 font-medium">Department</th>
             <th className="px-3 py-2 font-medium">On hand</th>
             <th className="w-44 px-3 py-2 font-medium">
               <span className="inline-flex items-center gap-1">
@@ -114,6 +115,16 @@ function OarRow({
               Plant <span className="font-mono">{row.material.plant}</span> {row.material.plantName}
             </span>
           </div>
+        </td>
+        <td className="px-3 py-3">
+          <DepartmentSelect
+            plant={row.material.plant}
+            label={`Department for ${row.material.materialId}`}
+            value={row.department}
+            disabled={declined}
+            invalid={err("department")}
+            onChange={(department) => onChange({ ...row, department })}
+          />
         </td>
         <td className="px-3 py-3 text-xs text-muted-foreground">
           <dl className="grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5">
@@ -257,7 +268,7 @@ function OarRow({
       {justify && quantity !== null && (
         <tr className="align-top">
           <td />
-          <td colSpan={7} className="px-3 pb-3">
+          <td colSpan={8} className="px-3 pb-3">
             <JustificationFields
               idPrefix={row.key}
               prompt={justificationPrompt(s, quantity)}

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { DEMO_DEPARTMENTS } from "@/lib/assistant/request/catalogue"
 import { REASON_OPTIONS, type Justification } from "@/lib/assistant/request/lines"
 import { cn } from "@/lib/utils"
 
@@ -115,6 +116,49 @@ export function JustificationFields({
         />
       </div>
     </div>
+  )
+}
+
+/**
+ * One line's department: a code from that plant's list. **Demo data**
+ * (`DEMO_DEPARTMENTS`); live it is `GET /assistant/departments?plant=`.
+ *
+ * A native select rather than the searchable `DepartmentField`: it sits inside
+ * a horizontally scrolling table, which would clip a popover. The searchable
+ * one is in the header, for setting many lines at once.
+ */
+export function DepartmentSelect({
+  plant,
+  value,
+  onChange,
+  label,
+  invalid,
+  disabled,
+}: {
+  plant: string
+  value: string
+  onChange: (code: string) => void
+  label: string
+  invalid: boolean
+  disabled?: boolean
+}) {
+  const codes = DEMO_DEPARTMENTS[plant] ?? []
+  return (
+    <select
+      aria-label={label}
+      className={cn(SELECT_CLASS, "w-28 font-mono")}
+      value={value}
+      disabled={disabled}
+      aria-invalid={invalid}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">Choose…</option>
+      {codes.map((code) => (
+        <option key={code} value={code}>
+          {code}
+        </option>
+      ))}
+    </select>
   )
 }
 

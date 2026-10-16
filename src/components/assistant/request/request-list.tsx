@@ -7,6 +7,7 @@ import { Chip, DemoBanner } from "@/components/assistant/request/request-parts"
 import { useDemoRequests } from "@/components/assistant/request/use-demo-requests"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { departmentsOf } from "@/lib/assistant/request/record"
 import { resetRequests } from "@/lib/assistant/request/store"
 
 /** Every demo request made in this browser. */
@@ -40,6 +41,7 @@ export function RequestList() {
               <tr>
                 <th className="px-3 py-2 font-medium">Reference</th>
                 <th className="px-3 py-2 font-medium">Requester</th>
+                <th className="px-3 py-2 font-medium">Plant · departments</th>
                 <th className="px-3 py-2 font-medium">Lines</th>
                 <th className="px-3 py-2 font-medium">Linked in SAP</th>
                 <th className="px-3 py-2 font-medium">Recorded</th>
@@ -62,7 +64,12 @@ export function RequestList() {
                     </td>
                     <td className="px-3 py-2">
                       {r.requester}
-                      <span className="ml-1.5 text-[11px] text-muted-foreground">dept {r.department}</span>
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      <span className="font-mono font-semibold">{r.plant ?? r.lines[0]?.material.plant ?? "—"}</span>
+                      <span className="ml-1.5 font-mono text-muted-foreground">
+                        {departmentsOf(r).join(", ") || "—"}
+                      </span>
                     </td>
                     <td className="px-3 py-2">
                       <span className="flex flex-wrap gap-1">

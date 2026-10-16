@@ -4,7 +4,7 @@ import { Fragment } from "react"
 import { Trash2 } from "lucide-react"
 
 import { RowStatus } from "@/components/assistant/request/oar-table"
-import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
+import { Chip, DepartmentSelect, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import {
   lineIssues,
@@ -36,11 +36,12 @@ export function RepairableTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[920px] text-sm">
+      <table className="w-full min-w-[1040px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="w-10 px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Material</th>
+            <th className="w-32 px-3 py-2 font-medium">Department</th>
             <th className="px-3 py-2 font-medium">What already exists</th>
             <th className="w-[18rem] px-3 py-2 font-medium">Decision</th>
             <th className="w-36 px-3 py-2 font-medium">Status</th>
@@ -99,6 +100,15 @@ function RepairableRow({
             )}
           </div>
         </td>
+        <td className="px-3 py-3">
+          <DepartmentSelect
+            plant={row.material.plant}
+            label={`Department for ${row.material.materialId}`}
+            value={row.department}
+            invalid={showErrors && issues.includes("department")}
+            onChange={(department) => onChange({ ...row, department })}
+          />
+        </td>
         <td className="px-3 py-3 text-xs">
           <ExistingUnits row={row} />
         </td>
@@ -155,7 +165,7 @@ function RepairableRow({
       {repairableNeedsJustification(row) && (
         <tr className="align-top">
           <td />
-          <td colSpan={5} className="px-3 pb-3">
+          <td colSpan={6} className="px-3 pb-3">
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"

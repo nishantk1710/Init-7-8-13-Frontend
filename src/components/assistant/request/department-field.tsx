@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils"
 type Option = { code: string; otherPlant: string | null }
 
 /**
- * The request's Department: one 5-digit code, picked from the request plant's
- * list. **Demo data** (`DEMO_DEPARTMENTS`); live it is `GET
+ * A searchable department code, picked from the request plant's list. Used
+ * in the header to fill many lines at once; each line has its own. **Demo data** (`DEMO_DEPARTMENTS`); live it is `GET
  * /assistant/departments?plant=`.
  *
  * Disabled until the first material fixes the plant. Before anything is typed
@@ -20,12 +20,14 @@ type Option = { code: string; otherPlant: string | null }
  */
 export function DepartmentField({
   id,
+  label = "Department",
   plant,
   value,
   onChange,
   invalid,
 }: {
   id: string
+  label?: string
   plant: string | null
   value: string
   onChange: (code: string) => void
@@ -78,7 +80,7 @@ export function DepartmentField({
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-foreground">
-        Department
+        {label}
       </label>
       <div className="relative">
         <Search

@@ -6,12 +6,14 @@ import {
   isReady,
   lineFor,
   lineIssues,
+  needsDepartment,
   withSuggestedWindow,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
 import { requestReferencesIn, resolveLink } from "@/lib/assistant/request/link"
 import {
+  departmentsOf,
   lineReference,
   mintRequestId,
   outcomeSentence,
@@ -100,14 +102,14 @@ describe("rows", () => {
     expect(line.quantity).toBe("4")
     expect(line.windowStart).toBe("2026-10-15")
     expect(line.windowEnd).toBe("2027-06-15")
-    expect(lineIssues(line)).toEqual(["purpose"])
+    expect(lineIssues(line)).toEqual(["department", "purpose"])
   })
 
   it("leave quantity and window blank when nothing can be suggested", () => {
     const line = lineFor("1000000812", "1300", TODAY) as OarLine
     expect(line.quantity).toBe("")
-    expect(lineIssues(line)).toEqual(["quantity", "window start", "window end", "purpose"])
-    const typed = withSuggestedWindow({ ...line, quantity: "2" }, TODAY)
+    expect(lineIssues(line)).toEqual(["department", "quantity", "window start", "window end", "purpose"])
+    const typed = withSuggestedWindow({ ...line, department: "10100", quantity: "2" }, TODAY)
     expect(lineIssues(typed)).toEqual(["reason", "explanation", "window start", "window end", "purpose"])
   })
 
@@ -120,18 +122,28 @@ describe("rows", () => {
   it("need nothing more once marked not needed", () => {
     const line = lineFor("1000000456", "1300", TODAY) as OarLine
     expect(isReady(line)).toBe(false)
+    // No department either: a part not needed is reserved for nobody.
     expect(isReady({ ...line, decision: "not_needed" })).toBe(true)
+    expect(needsDepartment({ ...line, decision: "not_needed" })).toBe(false)
   })
 
   it("ask a repairable row to decide only when a unit exists", () => {
-    const overdue = lineFor("8000005632", "1300") as RepairableLine
+    const overdue = { ...(lineFor("8000005632", "1300") as RepairableLine), department: "10300" }
     expect(lineIssues(overdue)).toEqual(["decision"])
     expect(isReady({ ...overdue, decision: "use_existing" })).toBe(true)
     expect(lineIssues({ ...overdue, decision: "proceed_new" })).toEqual(["reason", "explanation"])
 
     const none = lineFor("8000006590", "1500") as RepairableLine
     expect(none.decision).toBe("proceed_new")
-    expect(isReady(none)).toBe(true)
+    expect(lineIssues(none)).toEqual(["department"])
+    expect(isReady({ ...none, department: "40100" })).toBe(true)
+  })
+
+  it("start every line without a department -- nothing is inherited", () => {
+    for (const m of REQUEST_CATALOGUE) {
+      const line = lineFor(m.materialId, m.plant, TODAY)
+      if (line.kind === "i13" || line.kind === "i08") expect(line.department).toBe("")
+    }
   })
 
   it("refuse the same material at the same plant twice", () => {
@@ -144,15 +156,20 @@ describe("rows", () => {
 function sampleRequest(): RequestRecord {
   const oar = lineFor("1000000123", "1300", TODAY) as OarLine
   const pump = lineFor("8000005632", "1300") as RepairableLine
-  const valve = lineFor("8000006344", "1500") as RepairableLine
+  const motor = lineFor("8000006120", "1300") as RepairableLine
   return submitRequest(
     [
-      { ...oar, purpose: "Mill 3 reline" },
+      { ...oar, department: "10100", purpose: "Mill 3 reline" },
       lineFor("3000001122", "1300"),
-      { ...pump, decision: "proceed_new", justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" } },
-      { ...valve, decision: "use_existing" },
+      {
+        ...pump,
+        department: "10300",
+        decision: "proceed_new",
+        justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
+      },
+      { ...motor, department: "10100", decision: "use_existing" },
     ],
-    { requester: "J Miller", department: "10100" },
+    { requester: "J Miller", plant: "1300" },
     { requestId: requestIdFrom("7K2M4P8Q"), now: "2026-10-15T08:00:00.000Z" }
   )
 }
@@ -171,10 +188,17 @@ describe("request record", () => {
     expect(request.lines.map((l) => [l.lineNo, l.material.materialId])).toEqual([
       [1, "1000000123"],
       [2, "8000005632"],
-      [3, "8000006344"],
+      [3, "8000006120"],
     ])
     expect(request.skipped.map((s) => s.materialId)).toEqual(["3000001122"])
     expect(lineReference(request.requestId, 2)).toBe(`${request.requestId}/2`)
+  })
+
+  it("keeps each line's department, and lists the request's departments once each", () => {
+    const request = sampleRequest()
+    expect(request.plant).toBe("1300")
+    expect(request.lines.map((l) => l.department)).toEqual(["10100", "10300", "10100"])
+    expect(departmentsOf(request)).toEqual(["10100", "10300"])
   })
 
   it("records whether the suggestion was kept", () => {
@@ -212,7 +236,7 @@ describe("linking an item text to a line", () => {
   })
 
   it("flags a reservation for a line the requester declined", () => {
-    const result = resolveLink({ materialId: "8000006344", plant: "1500", sgtxt: `${id}/3` }, find)
+    const result = resolveLink({ materialId: "8000006120", plant: "1300", sgtxt: `${id}/3` }, find)
     expect(result.status).toBe("LINKED_WITH_WARNING")
     expect(result.notes.join(" ")).toMatch(/existing unit/)
   })

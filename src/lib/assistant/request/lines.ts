@@ -39,6 +39,8 @@ export type OarLine = {
   key: string
   kind: "i13"
   material: DemoRequestMaterial
+  /** Picked per line from the plant's codes. Blank until chosen -- never inherited. */
+  department: string
   facts: OarFacts
   suggestion: QuantitySuggestion
   decision: "proceed" | "not_needed"
@@ -56,6 +58,8 @@ export type RepairableLine = {
   key: string
   kind: "i08"
   material: DemoRequestMaterial
+  /** Picked per line from the plant's codes. Blank until chosen -- never inherited. */
+  department: string
   facts: RepairableFacts
   alsoMatchedOar: boolean
   /** Null until chosen. Fixed to `proceed_new` when no unit exists anywhere. */
@@ -128,6 +132,7 @@ export function lineFor(materialId: string, plant: string, today?: Date): DraftL
         key,
         kind: "i13",
         material,
+        department: "",
         facts: routing.facts,
         suggestion,
         decision: "proceed",
@@ -145,6 +150,7 @@ export function lineFor(materialId: string, plant: string, today?: Date): DraftL
         key,
         kind: "i08",
         material,
+        department: "",
         facts: routing.facts,
         alsoMatchedOar: routing.alsoMatchedOar,
         decision: repairableUnitExists(routing.facts) ? null : "proceed_new",
@@ -196,6 +202,7 @@ export function lineIssues(line: DraftLine): string[] {
     case "i13": {
       if (line.decision === "not_needed") return []
       const issues: string[] = []
+      if (!line.department) issues.push("department")
       if (parseQuantity(line.quantity) === null) issues.push("quantity")
       if (oarNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
       if (!line.windowStart) issues.push("window start")
@@ -207,12 +214,21 @@ export function lineIssues(line: DraftLine): string[] {
       return issues
     }
     case "i08": {
-      if (line.decision === null) return ["decision"]
-      return repairableNeedsJustification(line) ? justificationIssues(line.justification) : []
+      const issues: string[] = []
+      if (!line.department) issues.push("department")
+      if (line.decision === null) issues.push("decision")
+      else if (repairableNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
+      return issues
     }
     default:
       return []
   }
+}
+
+/** Lines that still need a department. A line marked not needed takes none. */
+export function needsDepartment(line: DraftLine): boolean {
+  if (line.kind === "i13") return line.decision === "proceed"
+  return line.kind === "i08"
 }
 
 export function isReady(line: DraftLine): boolean {

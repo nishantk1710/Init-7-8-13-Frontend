@@ -25,6 +25,7 @@ import {
   isDuplicate,
   isReady,
   lineFor,
+  needsDepartment,
   oarNeedsJustification,
   opensSession,
   repairableNeedsJustification,
@@ -49,13 +50,17 @@ import { cn } from "@/lib/utils"
  * one line per routed row, numbered `/1`, `/2` … in the order they were added.
  *
  * One request is for one plant: the first material added fixes it. From then
- * on only that plant's materials can be added, and Department lists that
- * plant's codes. Removing every row (or "Change plant") frees it again.
+ * on only that plant's materials can be added. Removing every row (or "Change
+ * plant") frees it again.
+ *
+ * Department is per line, from that plant's codes: one request can serve
+ * several departments. Nothing is inherited -- the header's department picker
+ * is an action that fills lines, not a default a line silently takes.
  */
 export function RequestBuilder() {
   const router = useRouter()
   const [requester, setRequester] = useState("")
-  const [department, setDepartment] = useState("")
+  const [bulkDepartment, setBulkDepartment] = useState("")
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -72,7 +77,9 @@ export function RequestBuilder() {
   const requestPlant = rows.length > 0 ? linePlant(rows[0]) : null
 
   const readyCount = sessionRows.filter(isReady).length
-  const headerReady = requester.trim().length > 0 && department.trim().length > 0
+  const headerReady = requester.trim().length > 0
+  const awaitingDepartment = sessionRows.filter((row) => needsDepartment(row) && !row.department).length
+  const departmentLines = sessionRows.filter(needsDepartment).length
   const canSubmit = headerReady && sessionRows.length > 0 && readyCount === sessionRows.length
 
   function add(materialId: string, plant: string) {
@@ -104,13 +111,25 @@ export function RequestBuilder() {
   function remove(key: string) {
     const next = rows.filter((row) => row.key !== key)
     setRows(next)
-    // The last row gone frees the plant, and the department went with it.
-    if (next.length === 0) setDepartment("")
+    // The last row gone frees the plant; the codes picked were that plant's.
+    if (next.length === 0) setBulkDepartment("")
   }
 
   function changePlant() {
     setRows([])
-    setDepartment("")
+    setBulkDepartment("")
+  }
+
+  /** Put the header's department on lines: only those without one, or all of them. */
+  function fillDepartment(onlyEmpty: boolean) {
+    if (!bulkDepartment) return
+    setRows((current) =>
+      current.map((row) =>
+        opensSession(row) && needsDepartment(row) && (!onlyEmpty || !row.department)
+          ? { ...row, department: bulkDepartment }
+          : row
+      )
+    )
   }
 
   function applyToOar(change: (row: OarLine) => OarLine) {
@@ -124,13 +143,13 @@ export function RequestBuilder() {
       setShowErrors(true)
       toast.error("Some rows still need answers", {
         description: !headerReady
-          ? "Fill in the requester, add a material and pick the department."
+          ? "Fill in the requester first."
           : "Each row's status says what is missing.",
       })
       return
     }
     setSubmitting(true)
-    const request = submitRequest(rows, { requester, department })
+    const request = submitRequest(rows, { requester, plant: requestPlant ?? "" })
     saveRequest(request)
     router.push(`/assistant/requests/${request.requestId}`)
   }
@@ -168,18 +187,41 @@ export function RequestBuilder() {
               </div>
             )}
           </div>
-          <DepartmentField
-            key={requestPlant ?? "none"}
-            id="req-department"
-            plant={requestPlant}
-            value={department}
-            onChange={setDepartment}
-            invalid={showErrors && !department.trim()}
-          />
+          <div className="flex flex-col gap-1.5">
+            <DepartmentField
+              key={requestPlant ?? "none"}
+              id="req-department"
+              label="Department for many lines"
+              plant={requestPlant}
+              value={bulkDepartment}
+              onChange={setBulkDepartment}
+              invalid={false}
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={!bulkDepartment || awaitingDepartment === 0}
+                onClick={() => fillDepartment(true)}
+              >
+                Fill {awaitingDepartment} line{awaitingDepartment === 1 ? "" : "s"} without one
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                disabled={!bulkDepartment || departmentLines === 0}
+                onClick={() => fillDepartment(false)}
+              >
+                Set on all {departmentLines}
+              </Button>
+            </div>
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Asked once for the whole request, not per material. One request is for one plant; the department list
-          follows it.
+          One request is for one plant. Each material picks its own department from that plant&rsquo;s list, so one
+          request can serve several departments. Use the picker above to fill many lines at once.
         </p>
       </section>
 

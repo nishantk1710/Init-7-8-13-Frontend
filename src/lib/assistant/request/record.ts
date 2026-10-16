@@ -80,6 +80,8 @@ export type RequestLine = {
   lineNo: number
   sessionId: string
   material: DemoRequestMaterial
+  /** Per line: one request at one plant can serve several departments. Null when not needed. */
+  department: string | null
   outcome: OarOutcome | RepairableOutcome
   links: LinkRecord[]
 }
@@ -87,7 +89,8 @@ export type RequestLine = {
 export type RequestRecord = {
   requestId: string
   requester: string
-  department: string
+  /** One request is for one plant. */
+  plant: string
   origin: "PLATFORM" | "BADI"
   issuedAt: string
   lines: RequestLine[]
@@ -105,7 +108,7 @@ function justificationOf(j: Justification): Justification {
  */
 export function submitRequest(
   rows: readonly DraftLine[],
-  header: { requester: string; department: string; origin?: "PLATFORM" | "BADI" },
+  header: { requester: string; plant: string; origin?: "PLATFORM" | "BADI" },
   { requestId = mintRequestId(), now = new Date().toISOString() }: { requestId?: string; now?: string } = {}
 ): RequestRecord {
   const lines: RequestLine[] = []
@@ -130,6 +133,7 @@ export function submitRequest(
         lineNo,
         sessionId: mintDemoSessionId(),
         material: row.material,
+        department: proceed ? row.department : null,
         links: [],
         outcome: {
           flow: "i13",
@@ -148,6 +152,7 @@ export function submitRequest(
         lineNo,
         sessionId: mintDemoSessionId(),
         material: row.material,
+        department: row.department,
         links: [],
         outcome: {
           flow: "i08",
@@ -163,12 +168,17 @@ export function submitRequest(
   return {
     requestId,
     requester: header.requester.trim(),
-    department: header.department.trim(),
+    plant: header.plant,
     origin: header.origin ?? "PLATFORM",
     issuedAt: now,
     lines,
     skipped,
   }
+}
+
+/** The distinct departments a request serves, in line order. */
+export function departmentsOf(request: RequestRecord): string[] {
+  return [...new Set(request.lines.map((l) => l.department).filter((d): d is string => !!d))]
 }
 
 /** One sentence per line for the summary: what was decided. */
