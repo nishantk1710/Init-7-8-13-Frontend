@@ -70,6 +70,16 @@ export function formatDateDMY(date: Date): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
 
+/** Formats an ISO calendar date ("2026-05-31") as "31 May 2026". Read as the calendar date it is,
+ * not as a moment, so no time zone can move it to the day before. An unreadable value comes back as
+ * it was given. */
+export function formatIsoDateDMY(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!match) return iso
+  const month = MONTHS[Number(match[2]) - 1]
+  return month ? `${Number(match[3])} ${month} ${match[1]}` : iso
+}
+
 /** Formats a Date as "10:23 AM". */
 export function formatTime12h(date: Date): string {
   const hours24 = date.getHours()

@@ -47,6 +47,41 @@ describe("Stockout Risk Distribution", () => {
   })
 })
 
+describe("Stockout Risk Distribution with Critical counted into High", () => {
+  const markup = renderToStaticMarkup(
+    createElement(InventoryHealthCard, {
+      recommendations: [],
+      mergeCriticalIntoHigh: true,
+      riskOverride: {
+        total: 18752,
+        counts: [
+          { level: "critical", count: 833 },
+          { level: "high", count: 1147 },
+          { level: "medium", count: 205 },
+          { level: "low", count: 16567 },
+        ],
+      },
+    }),
+  )
+
+  it("shows High, Medium and Low only, with High the sum of Critical and High", () => {
+    for (const label of ["High", "Medium", "Low"]) expect(markup).toContain(label)
+    expect(markup).not.toContain("Critical")
+    expect(markup).toContain("1,980") // 833 + 1,147
+    expect(markup).not.toContain("833")
+    expect(markup).not.toContain("1,147")
+  })
+
+  it("counts the same way from the rows when there is no backend override", () => {
+    const rows = ["critical", "high", "high", "low"].map((risk) => ({ risk })) as never[]
+    const local = renderToStaticMarkup(
+      createElement(InventoryHealthCard, { recommendations: rows, mergeCriticalIntoHigh: true }),
+    )
+    expect(local).toContain("3 (75.0%)")
+    expect(local).not.toContain("Critical")
+  })
+})
+
 describe("Recommendation status", () => {
   const markup = renderToStaticMarkup(
     createElement(RecommendationStatusChart, {

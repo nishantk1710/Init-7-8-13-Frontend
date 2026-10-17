@@ -5,7 +5,11 @@
 // the browser could only ever find what happened to be on it.
 
 import type { RecommendationListParams } from "@/features/initiative-7/services/i7-api"
-import { ALL_FILTER, type DashboardFilterState } from "@/features/initiative-7/components/dashboard-filters"
+import {
+  ALL_FILTER,
+  EMPTY_DASHBOARD_FILTERS,
+  type DashboardFilterState,
+} from "@/features/initiative-7/components/dashboard-filters"
 import type { DemandPattern } from "@/features/initiative-7/types/inventory"
 
 /** The demand pattern the table shows -> the backend's stored demand class. The inverse of
@@ -17,6 +21,19 @@ export const DEMAND_CLASS_FOR_PATTERN: Partial<Record<DemandPattern, string>> = 
   Intermittent: "INTERMITTENT",
   "Slow-Moving": "SLOW",
   "Cold start": "UNCLASSIFIED",
+}
+
+/** The Recommendations page starts on OAR and has no "All": it lists OAR materials or stock items, and
+ * "Clear filters" returns to this. */
+export const RECOMMENDATIONS_PAGE_FILTERS: DashboardFilterState = { ...EMPTY_DASHBOARD_FILTERS, type: "oar" }
+
+/** The filter bar's new state, kept valid for this page: the Recommendation group is always OAR or
+ * Stock item (never "All"), and a confidence only goes with OAR -- leaving OAR drops it rather than
+ * leaving a hidden filter the table cannot satisfy. */
+export function normaliseRecommendationFilters(next: DashboardFilterState): DashboardFilterState {
+  const type = next.type === "oar" || next.type === "stock_item" ? next.type : RECOMMENDATIONS_PAGE_FILTERS.type
+  const confidence = type === "oar" ? next.confidence : ALL_FILTER
+  return type === next.type && confidence === next.confidence ? next : { ...next, type, confidence }
 }
 
 /** Rows per page. */
@@ -31,6 +48,7 @@ function chosen(value: string): string | undefined {
 export function listFilterKey(filters: DashboardFilterState): string {
   return [
     filters.type,
+    filters.confidence,
     filters.plant,
     filters.criticality,
     filters.demandPattern,
@@ -61,6 +79,8 @@ export function listParamsFromFilters(filters: DashboardFilterState, page: numbe
     status: onlyCalculated && !statusDecides ? "READY_FOR_REVIEW" : undefined,
     plant: chosen(filters.plant),
     type: chosen(filters.type) as RecommendationListParams["type"],
+    // Only OAR recommendations carry a confidence, so it narrows nothing else.
+    confidence: filters.type === "oar" ? chosen(filters.confidence) : undefined,
     search: search || undefined,
     criticalityLevel: chosen(filters.criticality),
     demandClass: DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern],

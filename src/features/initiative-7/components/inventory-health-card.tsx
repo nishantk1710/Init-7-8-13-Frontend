@@ -69,7 +69,7 @@ function segmentHeightsPx(counts: { level: RiskLevel; count: number }[], total: 
   return result
 }
 
-/** Stockout-risk distribution — a single segmented bar (Critical at top down
+/** Stockout-risk distribution — a single segmented bar (highest tier at top down
  * to Low) alongside a legend giving each tier's count and share of the set.
  * Clicking a tier cross-filters the rest of the dashboard by that risk level. */
 export function InventoryHealthCard({
@@ -77,6 +77,7 @@ export function InventoryHealthCard({
   activeRisk,
   onRiskClick,
   riskOverride,
+  mergeCriticalIntoHigh = false,
 }: {
   recommendations?: Recommendation[]
   activeRisk?: RiskLevel | null
@@ -92,14 +93,27 @@ export function InventoryHealthCard({
    * locally-counted distribution entirely; the click-to-filter behaviour is
    * unchanged either way. */
   riskOverride?: { counts: { level: RiskLevel; count: number }[]; total: number }
+  /** Shows three tiers -- High, Medium, Low -- with Critical counted into High. The Overview
+   * uses this; the quarterly reports keep the four tiers they were generated with. */
+  mergeCriticalIntoHigh?: boolean
 }) {
   const total = riskOverride?.total ?? recommendations.length
-  const counts = RISK_ORDER.map((level) => ({
-    level,
-    count: riskOverride
-      ? riskOverride.counts.find((c) => c.level === level)?.count ?? 0
-      : recommendations.filter((r) => r.risk === level).length,
-  }))
+  const tiers = mergeCriticalIntoHigh ? RISK_ORDER.filter((level) => level !== "critical") : RISK_ORDER
+  const counts = tiers.map((level) => {
+    // "high" stands for critical + high when merged.
+    const sources: RiskLevel[] = mergeCriticalIntoHigh && level === "high" ? ["critical", "high"] : [level]
+    return {
+      level,
+      count: sources.reduce(
+        (sum, source) =>
+          sum +
+          (riskOverride
+            ? riskOverride.counts.find((c) => c.level === source)?.count ?? 0
+            : recommendations.filter((r) => r.risk === source).length),
+        0,
+      ),
+    }
+  })
   const heightsPx = segmentHeightsPx(counts, total)
 
   return (

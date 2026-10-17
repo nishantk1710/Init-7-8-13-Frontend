@@ -89,7 +89,7 @@ const CONVERSION_ELIGIBILITY_LABEL: Record<string, string> = {
  * only displays the backend's decision. Demand class is shown as supporting
  * confidence context, never as a fourth trigger.
  */
-function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
+function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?: ReactNode }) {
   const eligibility = oar.conversionEligibility
   const trigger = oar.conversionTrigger
 
@@ -118,10 +118,13 @@ function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
         </Fact>
         <Fact label="Usage pattern">{oar.demandClass === "UNCLASSIFIED" ? "Not enough history" : (oar.demandClass ?? "—")}</Fact>
       </dl>
-      {oar.conversionDetail && (
+      {(oar.conversionDetail || reason) && (
         <div className="mt-2.5 border-t border-border pt-2.5">
           <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">Reason</dt>
-          <dd className="mt-0.5 text-[13px] leading-relaxed text-foreground">{oar.conversionDetail}</dd>
+          <dd className="mt-0.5 text-[13px] leading-relaxed text-foreground">
+            {oar.conversionDetail && <p>{oar.conversionDetail}</p>}
+            {reason && <div className={oar.conversionDetail ? "mt-2" : undefined}>{reason}</div>}
+          </dd>
         </div>
       )}
     </div>
@@ -129,18 +132,43 @@ function OarConversionSection({ oar }: { oar: OarConversionInfo }) {
 }
 
 /**
- * Compact OAR → Min-Max label beside the rationale heading, so an approver
- * sees at a glance that this is an OAR material being proposed for Min-Max.
- * Same source and colouring as OarConversionSection: the backend's own
- * eligibility verdict, never re-derived here.
+ * Compact "OAR → Min-Max · ELIGIBLE" badge, so a reader sees at a glance that this is an OAR
+ * material and whether it could move to Min-Max. Same source and colouring as
+ * OarConversionSection: the backend's own eligibility verdict, never re-derived here. Used in
+ * the Recommendations table's Min-Max conversion column.
  */
-function OarConversionLabel({ oar }: { oar: OarConversionInfo }) {
-  const eligibility = oar.conversionEligibility
+export function OarConversionLabel({ eligibility }: { eligibility: OarConversionInfo["conversionEligibility"] | undefined }) {
   return (
-    <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "default"}>
+    <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "warning"}>
       <ArrowRightLeft className="size-3" />
-      OAR → Min-Max{eligibility ? ` · ${eligibility.replace(/_/g, " ")}` : ""}
+      OAR → Min-Max · {(eligibility ?? "UNKNOWN").replace(/_/g, " ")}
     </StatusBadge>
+  )
+}
+
+/** The recommendation's reasons as bullets: the written rationale when there is one, otherwise
+ * the recorded factors. */
+function RationaleList({ rec }: { rec: Recommendation }) {
+  if (rec.rationale?.text) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <ul className="list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
+          {rationaleBullets(rec.rationale.text).map((bullet, index) => (
+            <li key={index}>{bullet}</li>
+          ))}
+        </ul>
+        <span className="self-start text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+          {rec.rationale.source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"}
+        </span>
+      </div>
+    )
+  }
+  return (
+    <ul className="list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
+      {rec.factors.map((factor) => (
+        <li key={factor.label}>{factor.detail}</li>
+      ))}
+    </ul>
   )
 }
 
@@ -214,46 +242,35 @@ export function RecommendationReviewPanel({
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-background p-3">
-          <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
-            Consumption history &amp; forecast
-          </h4>
-          <ForecastVsActualChart recommendations={[rec]} />
-        </div>
+        {/* No usage at this plant: nothing to chart, so no card (such a material is sized from
+            similar materials, listed below). */}
+        {rec.consumptionHistory.length > 0 && (
+          <div className="rounded-lg border border-border bg-background p-3">
+            <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
+              Consumption history &amp; forecast
+            </h4>
+            <ForecastVsActualChart recommendations={[rec]} />
+          </div>
+        )}
 
         {hasNoForecast([rec]) && <SimilarMaterialsList recommendationId={rec.id} />}
-
-        {rec.oarConversion && <OarConversionSection oar={rec.oarConversion} />}
       </div>
 
       <div className="flex flex-col gap-3">
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        {rec.oarConversion ? (
+          // An OAR material's reasons sit inside its Min-Max conversion section, under Reason.
+          <OarConversionSection oar={rec.oarConversion} reason={<RationaleList rec={rec} />} />
+        ) : (
+          <div>
             <h4 className="flex items-center gap-1.5 text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
               <MessageSquare className="size-3.5" />
               Why this recommendation?
             </h4>
-            {rec.oarConversion && <OarConversionLabel oar={rec.oarConversion} />}
-          </div>
-          {rec.rationale?.text ? (
-            <div className="mt-1.5 flex flex-col gap-1.5">
-              <ul className="list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
-                {rationaleBullets(rec.rationale.text).map((bullet, index) => (
-                  <li key={index}>{bullet}</li>
-                ))}
-              </ul>
-              <span className="self-start text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-                {rec.rationale.source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"}
-              </span>
+            <div className="mt-1.5">
+              <RationaleList rec={rec} />
             </div>
-          ) : (
-            <ul className="mt-1.5 list-disc space-y-1.5 pl-4.5 text-[13px] leading-relaxed text-foreground marker:text-primary">
-              {rec.factors.map((factor) => (
-                <li key={factor.label}>{factor.detail}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+          </div>
+        )}
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border pt-3 sm:grid-cols-3">
           <Fact label="Category">

@@ -172,6 +172,9 @@ export interface Recommendation {
   demandPattern: DemandPattern
   /** Live API only; absent on the scenario fixtures. */
   demandType?: RecommendationType
+  /** Live list rows only: the backend's verdict on moving this OAR material to Min-Max
+   * ordering (see OarConversionInfo). `null` when it has none; absent off the live list. */
+  conversionEligibility?: OarConversionInfo["conversionEligibility"]
   risk: RiskLevel
   status: RecommendationStatus
   current: StockParameters

@@ -38,6 +38,7 @@ import {
   ALL_FILTER,
   DashboardFilters,
   EMPTY_DASHBOARD_FILTERS,
+  matchesRiskFilter,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import { PortfolioForecastVsActualChart } from "@/features/initiative-7/components/portfolio-forecast-vs-actual-chart"
@@ -49,12 +50,21 @@ import {
   StockoutPositionCard,
 } from "@/features/initiative-7/components/plant-position-cards"
 import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
-import { correctMoneyTotal, isCorrectedEstimate } from "@/features/initiative-7/utils/source-scale-correction"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { mapStatus, type AdoptionSummaryResult } from "@/features/initiative-7/services/i7-api"
-import type { RecommendationStatus } from "@/features/initiative-7/types/inventory"
+import type { Criticality, DemandPattern, RecommendationStatus } from "@/features/initiative-7/types/inventory"
+import { DEMAND_CLASS_FOR_PATTERN } from "@/features/initiative-7/utils/recommendation-list-query"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+
+// The ZMM065 tier behind each display level, for the summary endpoint (which filters on the raw
+// tier). Low has none: it is NORMAL, OBSOLETE or no tier at all, which one value cannot express.
+const CRITICALITY_RAW_TIER: Partial<Record<Criticality, string>> = {
+  Critical: "CRITICAL",
+  High: "IMPACT",
+  Medium: "INSURANCE",
+}
 
 // The backend list endpoint's own MAX_PAGE_SIZE ceiling (see
 // app/api/i7/recommendations.py). Fetched once and filtered client-side,
@@ -91,6 +101,10 @@ const ADOPTION_PLANTS: { code: string; name: string }[] = [
   { code: "1300", name: "Black Mountain" },
   { code: "1500", name: "Gamsberg" },
 ]
+
+// The Plant filter's options: real SAP plant codes. The default list is scenario data keyed on
+// invented ids (PLANT-GBG), which never equal a live row's plant, so choosing one matched nothing.
+const PLANT_OPTIONS = ADOPTION_PLANTS.map((p) => ({ value: p.code, label: sapPlantLabel(p.code) }))
 
 /** FR-9's adoption rate, from the persisted recommendation ledger
  * (i7_sap_adoption) -- real counts, never a fabricated rate. `null`
@@ -233,8 +247,27 @@ function AdoptionRateCard({
 
 export function LiveInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
-  const { data, loading, error, refetch } = useLiveRecommendations({ pageSize: LIVE_OVERVIEW_PAGE_SIZE })
-  const { summary } = useLiveRecommendationSummary()
+  // Plant, Criticality and Demand Pattern are asked of the backend, not applied to whichever 200
+  // rows happen to be newest: a plant or tier with no rows among them would otherwise read as
+  // "nothing matches". The KPIs and charts below take the same three, so they follow the filters too.
+  const plantParam = filters.plant !== ALL_FILTER ? filters.plant : undefined
+  const demandClassParam = DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern]
+  const criticalityLevel = filters.criticality !== ALL_FILTER ? filters.criticality : undefined
+  const { data, loading, error, refetch } = useLiveRecommendations({
+    pageSize: LIVE_OVERVIEW_PAGE_SIZE,
+    plant: plantParam,
+    demandClass: demandClassParam,
+    criticalityLevel,
+  })
+  const criticalityTier = criticalityLevel ? CRITICALITY_RAW_TIER[criticalityLevel as Criticality] : undefined
+  const { summary: scopedSummary } = useLiveRecommendationSummary({
+    plant: plantParam,
+    demandClass: demandClassParam,
+    criticality: criticalityTier,
+  })
+  // The summary cannot be narrowed to Low, so for Low it would read as the whole portfolio under a
+  // filter that says otherwise. Without it the KPIs and charts count the rows fetched above.
+  const summary = criticalityLevel && !criticalityTier ? null : scopedSummary
   const plantPositions = usePlantPositions()
   // Own plant filter, independent of the sidebar's Plant filter -- lets
   // someone compare adoption by plant without changing what the rest of the
@@ -273,7 +306,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       if (filters.criticality !== ALL_FILTER && r.criticality !== filters.criticality) return false
       if (filters.demandPattern !== ALL_FILTER && r.demandPattern !== filters.demandPattern) return false
       if (filters.status !== ALL_FILTER && r.status !== filters.status) return false
-      if (filters.risk !== ALL_FILTER && r.risk !== filters.risk) return false
+      if (!matchesRiskFilter(filters.risk, r.risk, true)) return false
       if (filters.sapAdoption !== ALL_FILTER) {
         const adoptionStatus = adoptionByRecommendationId.get(r.id) ?? "Unknown"
         if (adoptionStatus !== filters.sapAdoption) return false
@@ -306,7 +339,9 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     return Array.from(merged.entries()).map(([status, count]) => ({ status, count }))
   }, [summary])
 
-  if (loading) {
+  // Only the first load replaces the page: a filter change refetches with the filters still on
+  // screen, and the previous rows stay until the new ones arrive.
+  if (loading && !data) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-24 w-full" />
@@ -342,30 +377,45 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
           summary ? { count: summary.awaitingApprovalCount, total: summary.total } : undefined
         }
         stockoutRiskOverride={
-          summary ? { count: summary.criticalStockoutRiskCount, total: summary.total } : undefined
+          summary
+            ? {
+                count: summary.criticalStockoutRiskCount,
+                // Judged material-plants only: Insufficient Data is neither at risk nor safe, so it
+                // stays out of the share.
+                total: summary.stockoutRiskEvaluatedCount,
+                insufficient: summary.stockoutRiskInsufficientDataCount,
+                asOf: summary.stockoutRiskAsOf,
+              }
+            : undefined
         }
         excessInventoryOverride={
           summary
             ? {
                 count: summary.excessInventoryCandidatesCount,
                 total: summary.total,
-                opportunity: correctMoneyTotal(summary.excessInventoryOpportunity),
+                opportunity: summary.excessInventoryOpportunity,
               }
             : undefined
         }
         workingCapitalOverride={
           summary
             ? {
-                amount: correctMoneyTotal(summary.netSafetyStockValueImpact),
+                amount: summary.netSafetyStockValueImpact,
                 currency: summary.currency,
-                estimated: isCorrectedEstimate(summary.netSafetyStockValueImpact),
               }
             : undefined
         }
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-        <DashboardFilters value={filters} onChange={setFilters} showSapAdoptionFilter showCircuitFilter={false} />
+        <DashboardFilters
+          value={filters}
+          onChange={setFilters}
+          plantOptions={PLANT_OPTIONS}
+          showSapAdoptionFilter
+          showCircuitFilter={false}
+          mergeCriticalIntoHigh
+        />
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -374,6 +424,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                 recommendations={filtered}
                 activeRisk={activeRisk}
                 onRiskClick={(level) => toggle("risk", level)}
+                mergeCriticalIntoHigh
                 riskOverride={
                   summary
                     ? {

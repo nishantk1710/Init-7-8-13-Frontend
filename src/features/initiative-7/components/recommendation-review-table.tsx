@@ -16,14 +16,17 @@ import {
 } from "@/components/ui/table"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { cn, formatCount, formatMoney } from "@/lib/utils"
-import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
+import {
+  OarConversionLabel,
+  RecommendationReviewPanel,
+} from "@/features/initiative-7/components/recommendation-review-panel"
 import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 
-const COLUMN_COUNT = 9
+const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
 const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "warning" | "danger"> = {
   "Pending Review": "warning",
@@ -177,7 +180,15 @@ function ExpandedRecommendationPanel({
 /** Recommendation table with an expandable row per material, mirroring the
  * change-review layout: scan the impact in the row, open it for the full
  * rationale and the submit action. */
-export function RecommendationReviewTable({ recommendations }: { recommendations: Recommendation[] }) {
+export function RecommendationReviewTable({
+  recommendations,
+  showMinMaxConversion = false,
+}: {
+  recommendations: Recommendation[]
+  /** Adds the Min-Max conversion column. Meant for a list of OAR recommendations: no other
+   * recommendation has a conversion decision. */
+  showMinMaxConversion?: boolean
+}) {
   const { stateFor } = useInventoryWorkflow()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Populated only for a row that has been expanded at least once (see
@@ -192,7 +203,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
   // "Unassigned". A column of one repeated word is noise; it comes back by
   // itself the moment any row has a real circuit.
   const showCircuit = hasRealCircuit(recommendations)
-  const columnCount = showCircuit ? COLUMN_COUNT : COLUMN_COUNT - 1
+  const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
   if (recommendations.length === 0) {
     return (
@@ -217,6 +228,7 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
               <TableHead className="text-right">Value change</TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
+              {showMinMaxConversion && <TableHead>Min-Max conversion</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -275,6 +287,15 @@ export function RecommendationReviewTable({ recommendations }: { recommendations
                           : (STATUS_LABEL[rec.status] ?? rec.status)}
                       </StatusBadge>
                     </TableCell>
+                    {showMinMaxConversion && (
+                      <TableCell>
+                        {rec.demandType === "OAR" ? (
+                          <OarConversionLabel eligibility={rec.conversionEligibility} />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                   {isExpanded && (
                     <TableRow className="hover:bg-transparent">
