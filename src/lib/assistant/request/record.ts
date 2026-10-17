@@ -1,37 +1,27 @@
 /**
- * A submitted multi-material request, as it would be recorded.
+ * Helpers over a recorded request (`ApiRequest`), live or demo.
  *
- * The parent request carries its own reference -- `R` plus eight characters
- * and a check character, in the session ID's alphabet and checksum -- and each
- * row that opens a session is a line under it, shown as `R…/1`, `R…/2`. Each
- * line also gets a child session ID of its own (demo `D…`), as it would in the
- * backend, where the line is an ordinary `assistant_session` with
- * `request_id` and `line_no`.
+ * A request's reference is `R` + eight characters + a check character, in the
+ * session ID's alphabet and checksum; each line is quoted on its SAP item as
+ * `R…/n`. The backend mints it; {@link mintRequestId} is the demo's stand-in.
  */
 
-import { checkCharacter, mintDemoSessionId } from "@/lib/assistant/demo/ids"
-import type { DemoRequestMaterial } from "@/lib/assistant/request/catalogue"
-import {
-  oarNeedsJustification,
-  opensSession,
-  parseQuantity,
-  repairableNeedsJustification,
-  repairableUnitExists,
-  type DraftLine,
-  type Justification,
-  type NoSessionLine,
-} from "@/lib/assistant/request/lines"
-import type { QuantitySuggestion } from "@/lib/assistant/request/suggest"
+import { checkCharacter } from "@/lib/assistant/demo/ids"
+import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
 
 export const REQUEST_PREFIX = "R"
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 const ID_LENGTH = 10
+
+export type RequestRecord = ApiRequest
+export type RequestLine = ApiRequestLine
 
 export function requestIdFrom(payload: string): string {
   const body = REQUEST_PREFIX + payload.toUpperCase()
   return body + checkCharacter(body)
 }
 
+/** Demo only -- live, the backend mints the reference. */
 export function mintRequestId(random: () => number = Math.random): string {
   let payload = ""
   for (let i = 0; i < ID_LENGTH - REQUEST_PREFIX.length - 1; i += 1) {
@@ -45,157 +35,38 @@ export function lineReference(requestId: string, lineNo: number): string {
   return `${requestId}/${lineNo}`
 }
 
-export type OarOutcome = {
-  flow: "i13"
-  decision: "proceed" | "not_needed"
-  suggestion: QuantitySuggestion
-  quantity: number | null
-  /** The requester kept the suggested quantity unchanged. */
-  acceptedSuggestion: boolean
-  windowStart: string | null
-  windowEnd: string | null
-  purpose: string | null
-  justification: Justification | null
+/** Whether the requester declined this line in the assistant. */
+export function isDeclined(line: Pick<ApiRequestLine, "decision">): boolean {
+  return line.decision === "not_needed" || line.decision === "use_existing"
 }
 
-export type RepairableOutcome = {
-  flow: "i08"
-  decision: "use_existing" | "proceed_new"
-  unitExists: boolean
-  alsoMatchedOar: boolean
-  justification: Justification | null
-}
-
-export type LinkRecord = {
-  reservationNumber: string
-  reservationItem: string
-  sgtxt: string
-  /** The resolver's verdict, as shown when it was simulated. */
-  status: "LINKED" | "LINKED_WITH_WARNING"
-  note: string
-  linkedAt: string
-}
-
-export type RequestLine = {
-  lineNo: number
-  sessionId: string
-  material: DemoRequestMaterial
-  /** Per line: one request at one plant can serve several departments. Null when not needed. */
-  department: string | null
-  outcome: OarOutcome | RepairableOutcome
-  links: LinkRecord[]
-}
-
-export type RequestRecord = {
-  requestId: string
-  requester: string
-  /** One request is for one plant. */
-  plant: string
-  origin: "PLATFORM" | "BADI"
-  issuedAt: string
-  lines: RequestLine[]
-  /** Rows that opened no session, kept so the request shows what was asked. */
-  skipped: Omit<NoSessionLine, "key">[]
-}
-
-function justificationOf(j: Justification): Justification {
-  return { reasonCategory: j.reasonCategory, freeText: j.freeText.trim() }
-}
-
-/**
- * Turn ready rows into a request. Lines are numbered in the order they were
- * added, across both tables, so `/n` is stable however the screen groups them.
- */
-export function submitRequest(
-  rows: readonly DraftLine[],
-  header: { requester: string; plant: string; origin?: "PLATFORM" | "BADI" },
-  { requestId = mintRequestId(), now = new Date().toISOString() }: { requestId?: string; now?: string } = {}
-): RequestRecord {
-  const lines: RequestLine[] = []
-  const skipped: RequestRecord["skipped"] = []
-
-  for (const row of rows) {
-    if (!opensSession(row)) {
-      skipped.push({
-        kind: row.kind,
-        materialId: row.materialId,
-        plant: row.plant,
-        description: row.description,
-        reason: row.reason,
-      })
-      continue
-    }
-    const lineNo = lines.length + 1
-    if (row.kind === "i13") {
-      const proceed = row.decision === "proceed"
-      const quantity = proceed ? parseQuantity(row.quantity) : null
-      lines.push({
-        lineNo,
-        sessionId: mintDemoSessionId(),
-        material: row.material,
-        department: proceed ? row.department : null,
-        links: [],
-        outcome: {
-          flow: "i13",
-          decision: row.decision,
-          suggestion: row.suggestion,
-          quantity,
-          acceptedSuggestion: proceed && quantity !== null && quantity === row.suggestion.quantity,
-          windowStart: proceed ? row.windowStart : null,
-          windowEnd: proceed ? row.windowEnd : null,
-          purpose: proceed ? row.purpose.trim() : null,
-          justification: oarNeedsJustification(row) ? justificationOf(row.justification) : null,
-        },
-      })
-    } else {
-      lines.push({
-        lineNo,
-        sessionId: mintDemoSessionId(),
-        material: row.material,
-        department: row.department,
-        links: [],
-        outcome: {
-          flow: "i08",
-          decision: row.decision ?? "proceed_new",
-          unitExists: repairableUnitExists(row.facts),
-          alsoMatchedOar: row.alsoMatchedOar,
-          justification: repairableNeedsJustification(row) ? justificationOf(row.justification) : null,
-        },
-      })
-    }
-  }
-
-  return {
-    requestId,
-    requester: header.requester.trim(),
-    plant: header.plant,
-    origin: header.origin ?? "PLATFORM",
-    issuedAt: now,
-    lines,
-    skipped,
-  }
-}
-
-/** The distinct departments a request serves, in line order. */
-export function departmentsOf(request: RequestRecord): string[] {
-  return [...new Set(request.lines.map((l) => l.department).filter((d): d is string => !!d))]
+function plain(value: string | null): string {
+  if (value === null) return "—"
+  const n = Number(value)
+  return Number.isFinite(n) ? String(n) : value
 }
 
 /** One sentence per line for the summary: what was decided. */
-export function outcomeSentence(outcome: OarOutcome | RepairableOutcome): string {
-  if (outcome.flow === "i08") {
-    if (outcome.decision === "use_existing") return "Use the existing unit -- no new one reserved."
-    return outcome.unitExists
+export function outcomeSentence(line: ApiRequestLine): string {
+  if (line.flow === "i08") {
+    if (line.decision === "use_existing") return "Use the existing unit -- no new one reserved."
+    return line.justification
       ? "New unit, although one exists -- justified."
       : "New unit -- none exists in stock or on repair."
   }
-  if (outcome.decision === "not_needed") return "Not needed after the assessment."
-  const s = outcome.suggestion
-  const q = outcome.quantity ?? 0
-  if (s.quantity === null) return `Procure ${q} -- no suggestion possible, justified.`
-  if (outcome.acceptedSuggestion) return `Procure ${q} -- the suggested quantity.`
-  if (q < s.quantity) return `Procure ${q} -- below the suggested ${s.quantity}.`
-  return s.kind === "covered"
-    ? `Procure ${q} although stock covers the year -- justified.`
-    : `Procure ${q} -- above the suggested ${s.quantity}, justified.`
+  if (line.decision === "not_needed") return "Not needed after the assessment."
+  const quantity = plain(line.plannedQuantity)
+  if (line.suggestedQuantity === null) return `Procure ${quantity} -- no suggestion possible, justified.`
+  const suggested = Number(line.suggestedQuantity)
+  const planned = Number(line.plannedQuantity)
+  if (planned === suggested) return `Procure ${quantity} -- the suggested quantity.`
+  if (planned < suggested) return `Procure ${quantity} -- below the suggested ${plain(line.suggestedQuantity)}.`
+  return suggested === 0
+    ? `Procure ${quantity} although stock covers the year -- justified.`
+    : `Procure ${quantity} -- above the suggested ${plain(line.suggestedQuantity)}, justified.`
+}
+
+/** The distinct departments a request serves, in line order. */
+export function departmentsOf(request: Pick<ApiRequest, "lines">): string[] {
+  return [...new Set(request.lines.map((l) => l.department).filter((d): d is string => !!d))]
 }

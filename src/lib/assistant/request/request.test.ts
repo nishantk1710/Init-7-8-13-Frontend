@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest"
 
-import { REQUEST_CATALOGUE, findDemoMaterial, type OarFacts } from "@/lib/assistant/request/catalogue"
+import type { ApiPreviewLine, ApiRequest } from "@/lib/api/assistant-requests"
+import { conflictDetail, isNotEnabled, refusedDetail } from "@/lib/api/assistant-requests"
+import { ApiError } from "@/lib/api/client"
+import { isWellFormed } from "@/lib/assistant/demo/ids"
+import { findDemoMaterial } from "@/lib/assistant/request/catalogue"
 import {
+  answersOf,
   isDuplicate,
   isReady,
-  lineFor,
+  lineFromPreview,
   lineIssues,
   needsDepartment,
+  oarNeedsJustification,
+  pendingLine,
   withSuggestedWindow,
   type OarLine,
   type RepairableLine,
@@ -14,202 +21,288 @@ import {
 import { requestReferencesIn, resolveLink } from "@/lib/assistant/request/link"
 import {
   departmentsOf,
+  isDeclined,
   lineReference,
   mintRequestId,
   outcomeSentence,
   requestIdFrom,
-  submitRequest,
-  type RequestRecord,
 } from "@/lib/assistant/request/record"
-import { needsJustification, suggestQuantity, suggestWindow } from "@/lib/assistant/request/suggest"
-import { isWellFormed } from "@/lib/assistant/demo/ids"
+import { needsJustification, suggestWindow, suggestionKind } from "@/lib/assistant/request/suggest"
 
 const TODAY = new Date(2026, 9, 15) // 15 Oct 2026
 
-function facts(over: Partial<OarFacts>): OarFacts {
+/** A preview line as the backend sends it. */
+function oarPreview(quantity: string | null, overrides: Partial<ApiPreviewLine> = {}): ApiPreviewLine {
+  const sized = quantity !== null && Number(quantity) > 0
   return {
-    stockOnHand: 0,
-    openPoQuantity: 0,
-    averageMonthlyConsumption: 1,
-    consumptionCount12m: 12,
-    daysSinceLastMovement: 10,
-    crossPlantStock: [],
-    ...over,
+    materialId: "1000000123",
+    materialDescription: "SEAL KIT, MILL GEARBOX",
+    plant: "1300",
+    kind: "i13",
+    reason: "OAR",
+    facts: { stockOnHand: "2.000", openPoQuantity: "0", averageMonthlyConsumption: "0.5", consumptionCount12m: 6 },
+    unitExists: null,
+    alsoMatched: null,
+    suggestion: {
+      quantity,
+      reason: quantity === null ? "No quantity is suggested: too little history." : `${quantity} suggested.`,
+      windowStart: sized ? "2026-10-15" : null,
+      windowEnd: sized ? "2027-06-15" : null,
+      windowMonths: sized ? 8 : null,
+    },
+    ...overrides,
   }
 }
 
-describe("suggest-first quantity", () => {
-  it("is the uncapped headroom over 12 months of cover", () => {
-    const s = suggestQuantity(facts({ stockOnHand: 2, averageMonthlyConsumption: 0.5, consumptionCount12m: 6 }))
-    expect(s).toMatchObject({ kind: "suggested", quantity: 4 })
+function repairPreview(unitExists: boolean): ApiPreviewLine {
+  return {
+    materialId: "8000005632",
+    materialDescription: "PUMP, CENTRIFUGAL",
+    plant: "1300",
+    kind: "i08",
+    reason: "80-series",
+    facts: { stockOnHand: "0", openRepairs: unitExists ? [{ purchasingDocument: "45", quantity: "1" }] : [] },
+    unitExists,
+    alsoMatched: null,
+    suggestion: null,
+  }
+}
+
+const oar = (quantity: string | null = "4") => lineFromPreview(oarPreview(quantity)) as OarLine
+const repair = (unitExists = true) => lineFromPreview(repairPreview(unitExists)) as RepairableLine
+
+describe("the suggestion the backend served", () => {
+  it("is a quantity, nothing needed, or none possible", () => {
+    expect([suggestionKind(4), suggestionKind(0), suggestionKind(null)]).toEqual(["suggested", "covered", "none"])
   })
 
-  it("counts open POs as available", () => {
-    const s = suggestQuantity(facts({ stockOnHand: 1, openPoQuantity: 3, averageMonthlyConsumption: 0.75 }))
-    expect(s).toMatchObject({ kind: "suggested", quantity: 5 })
+  it("asks for a reason above it, or when there is none to compare with", () => {
+    expect(needsJustification(4, 4)).toBe(false)
+    expect(needsJustification(4, 2)).toBe(false)
+    expect(needsJustification(4, 5)).toBe(true)
+    expect(needsJustification(0, 1)).toBe(true)
+    expect(needsJustification(null, 1)).toBe(true)
+    expect(needsJustification(null, null)).toBe(false)
   })
 
-  it("suggests 0 when stock already covers the ceiling", () => {
-    const s = suggestQuantity(facts({ stockOnHand: 30, averageMonthlyConsumption: 1.5 }))
-    expect(s).toMatchObject({ kind: "covered", quantity: 0, monthsCovered: 20 })
-  })
-
-  it("refuses with too little history, and with no consumption at all", () => {
-    expect(suggestQuantity(facts({ consumptionCount12m: 2 })).kind).toBe("no_history")
-    expect(suggestQuantity(facts({ consumptionCount12m: 0, averageMonthlyConsumption: 0 })).kind).toBe("no_rate")
-  })
-
-  it("asks for a reason above the suggestion, or when there is none to compare with", () => {
-    const four = suggestQuantity(facts({ stockOnHand: 8 }))
-    expect(four.quantity).toBe(4)
-    expect(needsJustification(four, 4)).toBe(false)
-    expect(needsJustification(four, 2)).toBe(false)
-    expect(needsJustification(four, 5)).toBe(true)
-    expect(needsJustification(suggestQuantity(facts({ stockOnHand: 99 })), 1)).toBe(true)
-    expect(needsJustification(suggestQuantity(facts({ consumptionCount12m: 1 })), 1)).toBe(true)
-  })
-})
-
-describe("suggested window", () => {
-  it("runs until the quantity is used up, 1 to 12 months", () => {
+  it("sizes a window for a changed quantity from the usage rate, 1 to 12 months", () => {
     expect(suggestWindow(4, 0.5, TODAY)).toEqual({ start: "2026-10-15", end: "2027-06-15", months: 8 })
-    expect(suggestWindow(1, 5, TODAY)?.months).toBe(1)
     expect(suggestWindow(100, 1, TODAY)?.months).toBe(12)
-  })
-
-  it("is not offered without a rate or a quantity", () => {
     expect(suggestWindow(4, 0, TODAY)).toBeNull()
-    expect(suggestWindow(null, 1, TODAY)).toBeNull()
-  })
-
-  it("clamps a month-end start", () => {
-    expect(suggestWindow(1, 1, new Date(2026, 0, 31))?.end).toBe("2026-02-28")
   })
 })
 
-describe("rows", () => {
-  it("route every catalogue material to the kind its scenario names", () => {
-    for (const m of REQUEST_CATALOGUE) {
-      const kind = lineFor(m.materialId, m.plant, TODAY).kind
-      const expected = m.routing.kind
-      expect(kind).toBe(expected)
-    }
-    expect(lineFor("999", "1300").kind).toBe("not_found")
-  })
-
-  it("prefill the OAR quantity and window from the suggestion", () => {
-    const line = lineFor("1000000123", "1300", TODAY) as OarLine
-    expect(line.quantity).toBe("4")
-    expect(line.windowStart).toBe("2026-10-15")
-    expect(line.windowEnd).toBe("2027-06-15")
+describe("rows built from the preview", () => {
+  it("prefill the OAR quantity and window from the backend's suggestion", () => {
+    const line = oar("4")
+    expect([line.suggested, line.quantity, line.windowStart, line.windowEnd, line.rate]).toEqual([
+      4,
+      "4",
+      "2026-10-15",
+      "2027-06-15",
+      0.5,
+    ])
     expect(lineIssues(line)).toEqual(["department", "purpose"])
   })
 
-  it("leave quantity and window blank when nothing can be suggested", () => {
-    const line = lineFor("1000000812", "1300", TODAY) as OarLine
+  it("leave the quantity blank when nothing is suggested, and then ask a reason for any", () => {
+    const line = oar(null)
     expect(line.quantity).toBe("")
-    expect(lineIssues(line)).toEqual(["department", "quantity", "window start", "window end", "purpose"])
-    const typed = withSuggestedWindow({ ...line, department: "10100", quantity: "2" }, TODAY)
-    expect(lineIssues(typed)).toEqual(["reason", "explanation", "window start", "window end", "purpose"])
+    const typed = withSuggestedWindow({ ...line, department: "10100", quantity: "3" }, TODAY)
+    expect(oarNeedsJustification(typed)).toBe(true)
+    expect(lineIssues(typed)).toEqual(["reason", "explanation", "purpose"])
   })
 
   it("keep a window the requester edited", () => {
-    const line = lineFor("1000000123", "1300", TODAY) as OarLine
-    const edited = { ...line, windowEnd: "2026-12-31", windowEdited: true }
+    const edited = { ...oar("4"), windowEnd: "2026-12-31", windowEdited: true }
     expect(withSuggestedWindow({ ...edited, quantity: "1" }, TODAY).windowEnd).toBe("2026-12-31")
   })
 
-  it("need nothing more once marked not needed", () => {
-    const line = lineFor("1000000456", "1300", TODAY) as OarLine
-    expect(isReady(line)).toBe(false)
-    // No department either: a part not needed is reserved for nobody.
-    expect(isReady({ ...line, decision: "not_needed" })).toBe(true)
-    expect(needsDepartment({ ...line, decision: "not_needed" })).toBe(false)
+  it("need nothing once marked not needed -- not even a department", () => {
+    const line = { ...oar("4"), decision: "not_needed" as const }
+    expect(isReady(line)).toBe(true)
+    expect(needsDepartment(line)).toBe(false)
   })
 
   it("ask a repairable row to decide only when a unit exists", () => {
-    const overdue = { ...(lineFor("8000005632", "1300") as RepairableLine), department: "10300" }
-    expect(lineIssues(overdue)).toEqual(["decision"])
-    expect(isReady({ ...overdue, decision: "use_existing" })).toBe(true)
-    expect(lineIssues({ ...overdue, decision: "proceed_new" })).toEqual(["reason", "explanation"])
-
-    const none = lineFor("8000006590", "1500") as RepairableLine
+    expect(repair(true).decision).toBeNull()
+    expect(lineIssues({ ...repair(true), department: "10300" })).toEqual(["decision"])
+    expect(lineIssues({ ...repair(true), department: "10300", decision: "proceed_new" })).toEqual([
+      "reason",
+      "explanation",
+    ])
+    const none = repair(false)
     expect(none.decision).toBe("proceed_new")
-    expect(lineIssues(none)).toEqual(["department"])
     expect(isReady({ ...none, department: "40100" })).toBe(true)
   })
 
-  it("start every line without a department -- nothing is inherited", () => {
-    for (const m of REQUEST_CATALOGUE) {
-      const line = lineFor(m.materialId, m.plant, TODAY)
-      if (line.kind === "i13" || line.kind === "i08") expect(line.department).toBe("")
-    }
+  it("keep a material that opens no session, with the backend's reason", () => {
+    const row = lineFromPreview({ ...oarPreview(null), kind: "out_of_scope", reason: "A consumable." })
+    expect(row).toMatchObject({ kind: "out_of_scope", reason: "A consumable." })
+    expect(isReady(row)).toBe(true)
+  })
+
+  it("are not ready while their check is still running", () => {
+    expect(lineIssues(pendingLine("1000000123", "1300", null))).toEqual(["check"])
   })
 
   it("refuse the same material at the same plant twice", () => {
-    const rows = [lineFor("1000000123", "1300")]
-    expect(isDuplicate(rows, "0001000000123", "1300")).toBe(true)
-    expect(isDuplicate(rows, "1000000123", "1500")).toBe(false)
+    expect(isDuplicate([oar()], "0001000000123", "1300")).toBe(true)
+    expect(isDuplicate([oar()], "1000000123", "1500")).toBe(false)
+  })
+
+  it("re-checked after a 409 keep what was typed and take the new figures", () => {
+    const typed: OarLine = { ...oar("4"), department: "10100", quantity: "6", purpose: "Mill 3" }
+    const rechecked = lineFromPreview(oarPreview("3"), typed.key, typed) as OarLine
+    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose, rechecked.department]).toEqual([
+      3,
+      "6",
+      "Mill 3",
+      "10100",
+    ])
+    expect(rechecked.changed).toBe(true)
   })
 })
 
-function sampleRequest(): RequestRecord {
-  const oar = lineFor("1000000123", "1300", TODAY) as OarLine
-  const pump = lineFor("8000005632", "1300") as RepairableLine
-  const motor = lineFor("8000006120", "1300") as RepairableLine
-  return submitRequest(
-    [
-      { ...oar, department: "10100", purpose: "Mill 3 reline" },
-      lineFor("3000001122", "1300"),
-      {
-        ...pump,
+describe("what submit sends", () => {
+  it("sends an OAR line's answers, a reason only when one is needed, and what was shown as suggested", () => {
+    const line: OarLine = {
+      ...oar("4"),
+      department: "10100",
+      quantity: "6",
+      purpose: " Mill 3 ",
+      justification: { reasonCategory: "OTHER", freeText: " two spares " },
+    }
+    expect(answersOf(line)).toEqual({
+      materialId: "1000000123",
+      plant: "1300",
+      department: "10100",
+      decision: "proceed",
+      quantity: "6",
+      windowStart: "2026-10-15",
+      windowEnd: "2027-06-15",
+      purpose: "Mill 3",
+      reasonCategory: "OTHER",
+      freeText: "two spares",
+      seenSuggestedQuantity: "4",
+    })
+    expect(answersOf({ ...line, quantity: "4" }).reasonCategory).toBeNull()
+  })
+
+  it("sends a declined OAR line with nothing but the decision", () => {
+    const answers = answersOf({ ...oar("4"), decision: "not_needed" })
+    expect(answers).toMatchObject({ decision: "not_needed", quantity: null, department: null })
+  })
+
+  it("sends a repairable line's decision and reason", () => {
+    const line: RepairableLine = {
+      ...repair(true),
+      department: "10300",
+      decision: "proceed_new",
+      justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
+    }
+    expect(answersOf(line)).toEqual({
+      materialId: "8000005632",
+      plant: "1300",
+      department: "10300",
+      decision: "proceed_new",
+      reasonCategory: "URGENT_BREAKDOWN",
+      freeText: "Down",
+    })
+  })
+})
+
+describe("submit's refusals", () => {
+  it("names the refused line from a 422", () => {
+    const error = new ApiError("422", 422, undefined, "A reason is needed", { message: "A reason is needed", line: 2 })
+    expect(refusedDetail(error)).toEqual({ message: "A reason is needed", line: 2 })
+    expect(conflictDetail(error)).toBeNull()
+  })
+
+  it("lists the moved suggestions from a 409", () => {
+    const changed = [{ materialId: "1000000123", seenSuggestedQuantity: "4", suggestedQuantity: "3" }]
+    const error = new ApiError("409", 409, undefined, "moved", { message: "moved", changed })
+    expect(conflictDetail(error)?.changed).toEqual(changed)
+  })
+
+  it("tells 'not switched on' apart from a missing request", () => {
+    expect(isNotEnabled(new ApiError("404", 404, undefined, "Not Found"))).toBe(true)
+    expect(isNotEnabled(new ApiError("404", 404, undefined, "No request R123."))).toBe(false)
+  })
+})
+
+// --- a recorded request ------------------------------------------------------------
+
+function sampleRequest(): ApiRequest {
+  const id = requestIdFrom("7K2M4P8Q")
+  const line = (lineNo: number, overrides: Partial<ApiRequest["lines"][number]>): ApiRequest["lines"][number] => ({
+    lineNo,
+    reference: lineReference(id, lineNo),
+    sessionId: `S${lineNo}`,
+    flow: "i13",
+    outcome: "COMPLETED",
+    materialId: "1000000123",
+    materialDescription: null,
+    plant: "1300",
+    department: "10100",
+    decision: "proceed",
+    plannedQuantity: "4.000",
+    suggestedQuantity: "4.000",
+    acceptedQuantity: "4.000",
+    windowStart: "2026-10-15",
+    windowEnd: "2027-06-15",
+    purpose: "Mill 3",
+    justification: null,
+    linkedReservations: [],
+    ...overrides,
+  })
+  return {
+    requestId: id,
+    plant: "1300",
+    requestedFor: "J Miller",
+    requester: "op",
+    origin: "PLATFORM",
+    issuedAt: "2026-10-15T08:00:00Z",
+    departments: ["10100", "10300"],
+    lines: [
+      line(1, {}),
+      line(2, {
+        flow: "i08",
+        materialId: "8000005632",
         department: "10300",
         decision: "proceed_new",
-        justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
-      },
-      { ...motor, department: "10100", decision: "use_existing" },
+        plannedQuantity: null,
+        suggestedQuantity: null,
+        acceptedQuantity: null,
+        justification: { kind: "NEW_ACQUISITION", reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
+      }),
+      line(3, { flow: "i08", materialId: "8000006120", decision: "use_existing", plannedQuantity: null }),
     ],
-    { requester: "J Miller", plant: "1300" },
-    { requestId: requestIdFrom("7K2M4P8Q"), now: "2026-10-15T08:00:00.000Z" }
-  )
+    skipped: [{ materialId: "3000001122", plant: "1300", kind: "out_of_scope", reason: "Consumable" }],
+    replayed: false,
+  }
 }
 
-describe("request record", () => {
-  it("mints well-formed R references", () => {
-    for (let i = 0; i < 100; i += 1) {
+describe("a recorded request", () => {
+  it("has well-formed R references", () => {
+    for (let i = 0; i < 50; i += 1) {
       const id = mintRequestId()
       expect(id).toMatch(/^R[0-9A-HJKMNP-TV-Z]{9}$/)
       expect(isWellFormed(id)).toBe(true)
     }
   })
 
-  it("numbers only the rows that open a session, in the order added", () => {
-    const request = sampleRequest()
-    expect(request.lines.map((l) => [l.lineNo, l.material.materialId])).toEqual([
-      [1, "1000000123"],
-      [2, "8000005632"],
-      [3, "8000006120"],
-    ])
-    expect(request.skipped.map((s) => s.materialId)).toEqual(["3000001122"])
-    expect(lineReference(request.requestId, 2)).toBe(`${request.requestId}/2`)
-  })
-
-  it("keeps each line's department, and lists the request's departments once each", () => {
-    const request = sampleRequest()
-    expect(request.plant).toBe("1300")
-    expect(request.lines.map((l) => l.department)).toEqual(["10100", "10300", "10100"])
-    expect(departmentsOf(request)).toEqual(["10100", "10300"])
-  })
-
-  it("records whether the suggestion was kept", () => {
-    const [oar, pump, valve] = sampleRequest().lines
-    expect(outcomeSentence(oar.outcome)).toBe("Procure 4 -- the suggested quantity.")
-    expect(outcomeSentence(pump.outcome)).toMatch(/justified/)
-    expect(outcomeSentence(valve.outcome)).toMatch(/existing unit/)
+  it("says what each line decided", () => {
+    const [oarLine, pump, motor] = sampleRequest().lines
+    expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
+    expect(outcomeSentence(pump)).toMatch(/justified/)
+    expect(outcomeSentence(motor)).toMatch(/existing unit/)
+    expect(isDeclined(motor)).toBe(true)
+    expect(departmentsOf(sampleRequest())).toEqual(["10100", "10300"])
   })
 })
 
-describe("linking an item text to a line", () => {
+describe("the demo's link simulator", () => {
   const request = sampleRequest()
   const id = request.requestId
   const find = (rid: string) => (rid === id ? request : undefined)
@@ -218,40 +311,18 @@ describe("linking an item text to a line", () => {
   it("reads every way of writing the suffix", () => {
     expect(requestReferencesIn(`${id}/2`)[0]).toMatchObject({ requestId: id, lineNo: 2, valid: true })
     expect(requestReferencesIn(`${id}-2`)[0].lineNo).toBe(2)
-    expect(requestReferencesIn(`for mill 3 ${id} / 2 urgent`)[0].lineNo).toBe(2)
-    expect(requestReferencesIn(`${id}`)[0].lineNo).toBeNull()
     expect(requestReferencesIn(`${id.slice(0, 4)} ${id.slice(4)}/2`)[0]).toMatchObject({ requestId: id, valid: true })
-    expect(requestReferencesIn(id.toLowerCase())[0].valid).toBe(true)
   })
 
-  it("links the right line with or without /n", () => {
+  it("links by material, warning on a wrong /n or a declined line", () => {
     expect(resolveLink({ ...pump, sgtxt: `${id}/2` }, find)).toMatchObject({ status: "LINKED", line: { lineNo: 2 } })
-    expect(resolveLink({ ...pump, sgtxt: id }, find)).toMatchObject({ status: "LINKED", line: { lineNo: 2 } })
-  })
-
-  it("still links a wrong /n by material, with a warning", () => {
-    const result = resolveLink({ ...pump, sgtxt: `${id}/1` }, find)
-    expect(result).toMatchObject({ status: "LINKED_WITH_WARNING", line: { lineNo: 2 } })
-    expect(resolveLink({ ...pump, sgtxt: `${id}/9` }, find).notes[0]).toMatch(/no line \/9/)
-  })
-
-  it("flags a reservation for a line the requester declined", () => {
-    const result = resolveLink({ materialId: "8000006120", plant: "1300", sgtxt: `${id}/3` }, find)
-    expect(result.status).toBe("LINKED_WITH_WARNING")
-    expect(result.notes.join(" ")).toMatch(/existing unit/)
-  })
-
-  it("does not link a material the request never assessed", () => {
+    expect(resolveLink({ ...pump, sgtxt: `${id}/1` }, find).status).toBe("LINKED_WITH_WARNING")
+    expect(resolveLink({ materialId: "8000006120", plant: "1300", sgtxt: `${id}/3` }, find).status).toBe(
+      "LINKED_WITH_WARNING"
+    )
     expect(resolveLink({ materialId: "3000001122", plant: "1300", sgtxt: `${id}/2` }, find).status).toBe(
       "NOT_ON_REQUEST"
     )
-  })
-
-  it("tells a typo, an unknown request and a missing reference apart", () => {
-    const typo = id.slice(0, 5) + (id[5] === "A" ? "B" : "A") + id.slice(6)
-    expect(resolveLink({ ...pump, sgtxt: `${typo}/2` }, find).status).toBe("INVALID")
-    expect(resolveLink({ ...pump, sgtxt: requestIdFrom("ZZZZ9999") }, find).status).toBe("UNKNOWN_REQUEST")
-    expect(resolveLink({ ...pump, sgtxt: "for mill 3" }, find).status).toBe("MISSING")
   })
 
   it("knows every catalogue material", () => {

@@ -6,8 +6,9 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { DEMO_DEPARTMENTS } from "@/lib/assistant/request/catalogue"
-import { REASON_OPTIONS, type Justification } from "@/lib/assistant/request/lines"
+import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
+import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+import type { Justification } from "@/lib/assistant/request/lines"
 import { cn } from "@/lib/utils"
 
 /**
@@ -23,7 +24,9 @@ export const SELECT_CLASS = cn(
   "aria-invalid:border-destructive dark:bg-input/30"
 )
 
+/** Shown only in the offline demo -- live screens carry no banner. */
 export function DemoBanner({ children }: { children?: React.ReactNode }) {
+  if (!ASSISTANT_DEMO) return null
   return (
     <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-foreground">
       <FlaskConical className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
@@ -78,12 +81,15 @@ export function JustificationFields({
   value,
   onChange,
   showErrors,
+  reasons,
 }: {
   idPrefix: string
   prompt: string
   value: Justification
   onChange: (next: Justification) => void
   showErrors: boolean
+  /** What submit accepts -- from the preview, never a list of our own. */
+  reasons: readonly ApiReasonCategory[]
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
@@ -98,7 +104,7 @@ export function JustificationFields({
           onChange={(e) => onChange({ ...value, reasonCategory: e.target.value })}
         >
           <option value="">Choose a reason…</option>
-          {REASON_OPTIONS.map((o) => (
+          {reasons.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -120,29 +126,46 @@ export function JustificationFields({
 }
 
 /**
- * One line's department: a code from that plant's list. **Demo data**
- * (`DEMO_DEPARTMENTS`); live it is `GET /assistant/departments?plant=`.
+ * One line's department: a code from the plant's list
+ * (`GET /assistant/departments?plant=`, the plant's own codes).
  *
  * A native select rather than the searchable `DepartmentField`: it sits inside
  * a horizontally scrolling table, which would clip a popover. The searchable
  * one is in the header, for setting many lines at once.
+ *
+ * While the backend's list has not loaded, a 5-digit code can be typed
+ * instead -- the backend then accepts any code of that shape, as the opener does.
  */
 export function DepartmentSelect({
-  plant,
+  codes,
   value,
   onChange,
   label,
   invalid,
   disabled,
 }: {
-  plant: string
+  codes: readonly string[]
   value: string
   onChange: (code: string) => void
   label: string
   invalid: boolean
   disabled?: boolean
 }) {
-  const codes = DEMO_DEPARTMENTS[plant] ?? []
+  if (codes.length === 0) {
+    return (
+      <input
+        aria-label={label}
+        inputMode="numeric"
+        maxLength={5}
+        placeholder="5 digits"
+        className={cn(SELECT_CLASS, "w-28 font-mono")}
+        value={value}
+        disabled={disabled}
+        aria-invalid={invalid}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
+      />
+    )
+  }
   return (
     <select
       aria-label={label}
@@ -162,8 +185,12 @@ export function DepartmentSelect({
   )
 }
 
+/** A category as the conversation labels it: URGENT_BREAKDOWN -> Urgent Breakdown. */
 export function reasonLabel(value: string): string {
-  return REASON_OPTIONS.find((o) => o.value === value)?.label ?? value
+  return value
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ")
 }
 
 /** A reference with a copy button, for `R…` and `R…/n`. */

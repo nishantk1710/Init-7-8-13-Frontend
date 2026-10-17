@@ -82,10 +82,7 @@ export type LinkResult = {
 }
 
 function sameMaterial(line: RequestLine, materialId: string, plant: string): boolean {
-  return (
-    line.material.materialId === materialId.trim().replace(/^0+/, "") &&
-    line.material.plant === plant.trim()
-  )
+  return line.materialId === materialId.trim().replace(/^0+/, "") && line.plant === plant.trim()
 }
 
 /**
@@ -150,17 +147,16 @@ export function resolveLink(
       const typed = request.lines.find((l) => l.lineNo === ref.lineNo)
       notes.push(
         typed
-          ? `/${ref.lineNo} is the line for ${typed.material.materialId}. Linked to ${ours} by material and plant instead.`
+          ? `/${ref.lineNo} is the line for ${typed.materialId}. Linked to ${ours} by material and plant instead.`
           : `The request has no line /${ref.lineNo}. Linked to ${ours} by material and plant instead.`
       )
     }
 
-    const outcome = line.outcome
-    if (outcome.flow === "i13" && outcome.decision === "not_needed") {
+    if (line.decision === "not_needed") {
       warn = true
       notes.push("The requester said this part was not needed, yet it was reserved.")
     }
-    if (outcome.flow === "i08" && outcome.decision === "use_existing") {
+    if (line.decision === "use_existing") {
       warn = true
       notes.push("The requester chose to use the existing unit, yet a reservation was made.")
     }

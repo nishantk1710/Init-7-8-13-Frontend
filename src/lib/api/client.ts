@@ -67,7 +67,12 @@ export class ApiError extends Error {
      * envelope (see app/schemas/i7/errors.py), when the response body parsed
      * as that shape. Undefined for a network failure or a non-JSON body. */
     readonly code?: string,
-    readonly detail: ApiErrorDetail = null
+    readonly detail: ApiErrorDetail = null,
+    /** `detail` exactly as the body sent it, when it was an object. Routes
+     * that answer with structure -- the multi-material request's
+     * `{message, line}` and `{message, changed}` -- are read from here;
+     * `detail` keeps only the message. */
+    readonly rawDetail: unknown = null
   ) {
     super(message)
     this.name = "ApiError"
@@ -131,6 +136,8 @@ function fieldNameOf(issue: ValidationIssue): string | null {
 /** What a failed response's body said. */
 type ErrorBody = {
   detail: ApiErrorDetail
+  /** `detail` as sent, when it was an object. */
+  raw?: unknown
   /** The snapshot 503's `status` ("building" or "failed"); null on any other body. */
   snapshotStatus: string | null
 }
@@ -153,7 +160,7 @@ async function readErrorBody(response: Response): Promise<ErrorBody> {
       if (typeof detail === "object" && detail !== null && "message" in detail) {
         const { message, status } = detail as { message: unknown; status?: unknown }
         if (typeof message === "string") {
-          return { detail: message, snapshotStatus: typeof status === "string" ? status : null }
+          return { detail: message, snapshotStatus: typeof status === "string" ? status : null, raw: detail }
         }
       }
     }
@@ -268,7 +275,8 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
         : `${method} ${url} failed with ${response.status}`,
       response.status,
       undefined,
-      body.detail
+      body.detail,
+      body.raw ?? null
     )
   }
   return response

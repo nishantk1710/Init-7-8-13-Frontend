@@ -16,19 +16,21 @@ import { cn } from "@/lib/utils"
 type Item = { materialId: string; plant: string; label: string }
 
 /**
- * What happens when a SAP reservation item carrying this request's reference
- * is loaded: pick the item's material, type its item text, and see whether --
- * and to which line -- it would link. A linked result is recorded on the line.
+ * **Demo only.** What happens when a SAP reservation item carrying this
+ * request's reference is loaded: pick the item's material, type its item
+ * text, and see whether -- and to which line -- it would link, by the same
+ * rules the backend applies (`session_link.py`). A linked result is recorded
+ * on the line in this browser. Live, the backend links real extracts.
  */
 export function LinkSimulator({ request }: { request: RequestRecord }) {
   const items: Item[] = [
     ...request.lines.map((l) => ({
-      materialId: l.material.materialId,
-      plant: l.material.plant,
-      label: `${l.material.materialId} @ ${l.material.plant} -- ${l.material.description} (line /${l.lineNo})`,
+      materialId: l.materialId,
+      plant: l.plant,
+      label: `${l.materialId} @ ${l.plant} -- ${l.materialDescription ?? ""} (line /${l.lineNo})`,
     })),
     ...REQUEST_CATALOGUE.filter(
-      (m) => !request.lines.some((l) => l.material.materialId === m.materialId && l.material.plant === m.plant)
+      (m) => !request.lines.some((l) => l.materialId === m.materialId && l.plant === m.plant)
     ).map((m) => ({
       materialId: m.materialId,
       plant: m.plant,
@@ -41,7 +43,7 @@ export function LinkSimulator({ request }: { request: RequestRecord }) {
   const [result, setResult] = useState<{ result: LinkResult; reservation: string | null } | null>(null)
 
   const item = items[itemIndex]
-  const line = request.lines.find((l) => l.material.materialId === item.materialId && l.material.plant === item.plant)
+  const line = request.lines.find((l) => l.materialId === item.materialId && l.plant === item.plant)
   const ownNo = line?.lineNo ?? 1
   const otherNo = request.lines.length > 1 ? (ownNo === 1 ? 2 : 1) : 9
   const id = request.requestId
@@ -66,10 +68,12 @@ export function LinkSimulator({ request }: { request: RequestRecord }) {
       addLink(request.requestId, outcome.line.lineNo, {
         reservationNumber: reservation,
         reservationItem: "0001",
+        material: item.materialId,
+        plant: item.plant,
+        source: "UAT_SGTXT",
         sgtxt,
-        status: outcome.status,
-        note: outcome.notes.join(" "),
-        linkedAt: new Date().toISOString(),
+        firstSeenAt: new Date().toISOString(),
+        note: outcome.status === "LINKED_WITH_WARNING" ? outcome.notes.join(" ") : null,
       })
     }
     setResult({ result: outcome, reservation })

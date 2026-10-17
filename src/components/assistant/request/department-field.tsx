@@ -4,15 +4,15 @@ import { useId, useMemo, useState } from "react"
 import { Search } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
-import { DEMO_DEPARTMENTS } from "@/lib/assistant/request/catalogue"
+import type { ApiDepartment } from "@/lib/api/assistant"
 import { cn } from "@/lib/utils"
 
 type Option = { code: string; otherPlant: string | null }
 
 /**
- * A searchable department code, picked from the request plant's list. Used
- * in the header to fill many lines at once; each line has its own. **Demo data** (`DEMO_DEPARTMENTS`); live it is `GET
- * /assistant/departments?plant=`.
+ * A searchable department code, picked from the request plant's list
+ * (`GET /assistant/departments?plant=`). Used in the header to fill many lines
+ * at once; each line has its own.
  *
  * Disabled until the first material fixes the plant. Before anything is typed
  * it lists that plant's codes; typing also finds the other plant's, labelled.
@@ -22,6 +22,7 @@ export function DepartmentField({
   id,
   label = "Department",
   plant,
+  departments,
   value,
   onChange,
   invalid,
@@ -29,6 +30,8 @@ export function DepartmentField({
   id: string
   label?: string
   plant: string | null
+  /** The plant's own codes first (`primary`), then the other plant's. */
+  departments: readonly ApiDepartment[]
   value: string
   onChange: (code: string) => void
   invalid: boolean
@@ -40,17 +43,16 @@ export function DepartmentField({
 
   const options: Option[] = useMemo(() => {
     if (!plant) return []
-    const own = DEMO_DEPARTMENTS[plant] ?? []
     const typed = query.trim()
-    const mine = own.filter((code) => code.startsWith(typed)).map((code) => ({ code, otherPlant: null }))
+    const mine = departments
+      .filter((d) => d.primary && d.code.startsWith(typed))
+      .map((d) => ({ code: d.code, otherPlant: null }))
     if (!typed) return mine
-    const others = Object.entries(DEMO_DEPARTMENTS)
-      .filter(([p]) => p !== plant)
-      .flatMap(([p, codes]) =>
-        codes.filter((code) => code.startsWith(typed) && !own.includes(code)).map((code) => ({ code, otherPlant: p }))
-      )
+    const others = departments
+      .filter((d) => !d.primary && d.code.startsWith(typed))
+      .map((d) => ({ code: d.code, otherPlant: d.plants.join(", ") || null }))
     return [...mine, ...others]
-  }, [plant, query])
+  }, [plant, query, departments])
 
   const showList = open && !!plant
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
@@ -102,7 +104,11 @@ export function DepartmentField({
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
-          placeholder={plant ? `department code at ${plant}, e.g. ${DEMO_DEPARTMENTS[plant]?.[0] ?? "10100"}` : "add the first material first"}
+          placeholder={
+            plant
+              ? `department code at ${plant}, e.g. ${departments.find((d) => d.primary)?.code ?? "10100"}`
+              : "add the first material first"
+          }
           className="pl-8 font-mono"
           inputMode="numeric"
           autoComplete="off"

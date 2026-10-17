@@ -1,19 +1,21 @@
 "use client"
 
 import { Fragment } from "react"
-import { Ban, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
+import { Ban, RefreshCw, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
 
 import { Chip, DepartmentSelect, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import {
   lineIssues,
   oarNeedsJustification,
   parseQuantity,
+  toNumber,
   withSuggestedWindow,
   type OarLine,
 } from "@/lib/assistant/request/lines"
-import { justificationPrompt, suggestionLabel, suggestWindow } from "@/lib/assistant/request/suggest"
+import { justificationPrompt, suggestionKind, suggestionLabel, suggestWindow } from "@/lib/assistant/request/suggest"
 import { cn } from "@/lib/utils"
 
 /**
@@ -22,18 +24,26 @@ import { cn } from "@/lib/utils"
  * Reads left to right in the order the assistant asks: what is on hand, what
  * it suggests, the quantity (prefilled with that suggestion), a reason only if
  * the quantity goes above it, then the consumption window (prefilled from the
- * quantity and the usage rate) and the purpose.
+ * quantity and the usage rate) and the purpose. Every figure is the backend's
+ * assessment, exactly as a conversation would show it.
  */
 export function OarTable({
   rows,
   lineNumbers,
   showErrors,
+  departments,
+  reasons,
+  refusedKey,
   onChange,
   onRemove,
 }: {
   rows: OarLine[]
   lineNumbers: Map<string, number>
   showErrors: boolean
+  departments: readonly string[]
+  reasons: readonly ApiReasonCategory[]
+  /** The row submit refused, outlined until it is changed. */
+  refusedKey: string | null
   onChange: (next: OarLine) => void
   onRemove: (key: string) => void
 }) {
@@ -46,10 +56,9 @@ export function OarTable({
             <th className="min-w-44 px-3 py-2 font-medium">Material</th>
             <th className="w-32 px-3 py-2 font-medium">Department</th>
             <th className="px-3 py-2 font-medium">On hand</th>
-            <th className="w-44 px-3 py-2 font-medium">
+            <th className="w-48 px-3 py-2 font-medium">
               <span className="inline-flex items-center gap-1">
-                <Sparkles className="size-3 text-ai-2" aria-hidden />
-                1 · Suggested
+                <Sparkles className="size-3 text-ai-2" aria-hidden />1 · Suggested
               </span>
             </th>
             <th className="w-24 px-3 py-2 font-medium">2 · Quantity</th>
@@ -65,6 +74,9 @@ export function OarTable({
               row={row}
               lineNo={lineNumbers.get(row.key) ?? 0}
               showErrors={showErrors}
+              departments={departments}
+              reasons={reasons}
+              refused={row.key === refusedKey}
               onChange={onChange}
               onRemove={onRemove}
             />
@@ -79,12 +91,18 @@ function OarRow({
   row,
   lineNo,
   showErrors,
+  departments,
+  reasons,
+  refused,
   onChange,
   onRemove,
 }: {
   row: OarLine
   lineNo: number
   showErrors: boolean
+  departments: readonly string[]
+  reasons: readonly ApiReasonCategory[]
+  refused: boolean
   onChange: (next: OarLine) => void
   onRemove: (key: string) => void
 }) {
@@ -92,10 +110,13 @@ function OarRow({
   const issues = lineIssues(row)
   const quantity = parseQuantity(row.quantity)
   const justify = oarNeedsJustification(row)
-  const s = row.suggestion
-  const f = row.facts
+  const kind = suggestionKind(row.suggested)
+  const facts = row.preview.facts ?? {}
+  const crossPlant = Array.isArray(facts.crossPlantStock)
+    ? (facts.crossPlantStock as { plant: string; stockOnHand: string }[])
+    : []
   const err = (name: string) => showErrors && issues.includes(name)
-  const suggestedWindow = suggestWindow(quantity, f.averageMonthlyConsumption)
+  const suggestedWindow = suggestWindow(quantity, row.rate)
   const windowDiffers =
     row.windowEdited &&
     suggestedWindow !== null &&
@@ -103,23 +124,29 @@ function OarRow({
 
   return (
     <Fragment>
-      <tr className={cn("border-t border-border align-top", declined && "bg-muted/30")}>
+      <tr
+        className={cn(
+          "border-t border-border align-top",
+          declined && "bg-muted/30",
+          refused && "outline-2 -outline-offset-2 outline-destructive"
+        )}
+      >
         <td className="px-3 py-3 font-mono text-xs text-muted-foreground">/{lineNo}</td>
         <td className="px-3 py-3">
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-xs font-semibold text-foreground">{row.material.materialId}</span>
+            <span className="font-mono text-xs font-semibold text-foreground">{row.materialId}</span>
             <span className={cn("text-sm text-foreground", declined && "line-through opacity-60")}>
-              {row.material.description}
+              {row.description ?? <span className="text-muted-foreground italic">No description</span>}
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Plant <span className="font-mono">{row.material.plant}</span> {row.material.plantName}
+              Plant <span className="font-mono">{row.plant}</span>
             </span>
           </div>
         </td>
         <td className="px-3 py-3">
           <DepartmentSelect
-            plant={row.material.plant}
-            label={`Department for ${row.material.materialId}`}
+            codes={departments}
+            label={`Department for ${row.materialId}`}
             value={row.department}
             disabled={declined}
             invalid={err("department")}
@@ -129,57 +156,62 @@ function OarRow({
         <td className="px-3 py-3 text-xs text-muted-foreground">
           <dl className="grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5">
             <dt>Stock</dt>
-            <dd className="font-mono text-foreground">{f.stockOnHand}</dd>
+            <dd className="font-mono text-foreground">{figure(facts.stockOnHand)}</dd>
             <dt>Open PO</dt>
-            <dd className="font-mono text-foreground">{f.openPoQuantity}</dd>
+            <dd className="font-mono text-foreground">{figure(facts.openPoQuantity)}</dd>
             <dt>Use/month</dt>
-            <dd className="font-mono text-foreground">{f.averageMonthlyConsumption}</dd>
+            <dd className="font-mono text-foreground">{figure(facts.averageMonthlyConsumption)}</dd>
             <dt>Issues 12m</dt>
-            <dd className="font-mono text-foreground">{f.consumptionCount12m}</dd>
+            <dd className="font-mono text-foreground">{figure(facts.consumptionCount12m)}</dd>
           </dl>
-          {f.crossPlantStock.length > 0 && (
+          {crossPlant.length > 0 && (
             <div className="mt-1 text-[11px]">
-              Other plants:{" "}
-              {f.crossPlantStock.map((c) => `${c.stockOnHand} at ${c.plant}`).join(", ")}
+              Other plants: {crossPlant.map((c) => `${figure(c.stockOnHand)} at ${c.plant}`).join(", ")}
             </div>
           )}
         </td>
         <td className="px-3 py-3">
           <div className="flex flex-col gap-1">
-            <span
-              className={cn(
-                "w-fit rounded-md px-2 py-0.5 font-mono text-base font-bold",
-                s.kind === "suggested" && "ai-gradient text-white",
-                s.kind === "covered" && "bg-success/15 text-success",
-                (s.kind === "no_history" || s.kind === "no_rate") &&
-                  "bg-muted font-sans text-xs font-medium text-muted-foreground"
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "w-fit rounded-md px-2 py-0.5 font-mono text-base font-bold",
+                  kind === "suggested" && "ai-gradient text-white",
+                  kind === "covered" && "bg-success/15 text-success",
+                  kind === "none" && "bg-muted font-sans text-xs font-medium text-muted-foreground"
+                )}
+              >
+                {suggestionLabel(row.suggested)}
+              </span>
+              {row.changed && (
+                <Chip tone="warn" title="The stock figures moved since this row was added; review the quantity.">
+                  <RefreshCw className="size-3" /> Updated
+                </Chip>
               )}
-            >
-              {suggestionLabel(s)}
             </span>
-            <span className="text-[11px] leading-snug text-muted-foreground">{s.explanation}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{row.preview.suggestion?.reason}</span>
           </div>
         </td>
         <td className="px-3 py-3">
           <div className="flex flex-col gap-1">
             <Input
               inputMode="numeric"
-              aria-label={`Quantity for ${row.material.materialId}`}
+              aria-label={`Quantity for ${row.materialId}`}
               value={row.quantity}
               disabled={declined}
               aria-invalid={err("quantity")}
-              placeholder={s.quantity === null ? "Enter" : "0"}
-              onChange={(e) => onChange(withSuggestedWindow({ ...row, quantity: e.target.value }))}
+              placeholder={row.suggested === null ? "Enter" : "0"}
+              onChange={(e) => onChange(withSuggestedWindow({ ...row, quantity: e.target.value, changed: false }))}
               className="h-8 w-20 font-mono"
             />
-            {!declined && s.quantity !== null && s.quantity > 0 && quantity !== s.quantity && (
+            {!declined && row.suggested !== null && row.suggested > 0 && quantity !== row.suggested && (
               <button
                 type="button"
                 className="inline-flex w-fit items-center gap-1 text-[11px] text-ai-2 hover:underline"
-                onClick={() => onChange(withSuggestedWindow({ ...row, quantity: String(s.quantity) }))}
+                onClick={() => onChange(withSuggestedWindow({ ...row, quantity: String(row.suggested), changed: false }))}
               >
                 <RotateCcw className="size-3" aria-hidden />
-                Use {s.quantity}
+                Use {row.suggested}
               </button>
             )}
           </div>
@@ -209,11 +241,10 @@ function OarRow({
             </div>
             {!declined && !row.windowEdited && suggestedWindow && (
               <span className="text-[11px] text-muted-foreground">
-                Suggested: {suggestedWindow.months} month{suggestedWindow.months === 1 ? "" : "s"} at{" "}
-                {f.averageMonthlyConsumption}/month
+                Suggested: {suggestedWindow.months} month{suggestedWindow.months === 1 ? "" : "s"} at {row.rate}/month
               </span>
             )}
-            {!declined && !suggestedWindow && f.averageMonthlyConsumption <= 0 && (
+            {!declined && !suggestedWindow && row.rate <= 0 && (
               <span className="text-[11px] text-muted-foreground">No usage rate -- enter the window.</span>
             )}
             {!declined && windowDiffers && (
@@ -230,7 +261,7 @@ function OarRow({
         </td>
         <td className="px-3 py-3">
           <Input
-            aria-label={`Purpose for ${row.material.materialId}`}
+            aria-label={`Purpose for ${row.materialId}`}
             value={row.purpose}
             disabled={declined}
             aria-invalid={err("purpose")}
@@ -257,7 +288,7 @@ function OarRow({
               variant="ghost"
               size="icon-sm"
               title="Remove from request"
-              aria-label={`Remove ${row.material.materialId}`}
+              aria-label={`Remove ${row.materialId}`}
               onClick={() => onRemove(row.key)}
             >
               <Trash2 className="text-destructive/80" />
@@ -271,9 +302,10 @@ function OarRow({
           <td colSpan={8} className="px-3 pb-3">
             <JustificationFields
               idPrefix={row.key}
-              prompt={justificationPrompt(s, quantity)}
+              prompt={justificationPrompt(row.suggested, quantity)}
               value={row.justification}
               showErrors={showErrors}
+              reasons={reasons}
               onChange={(justification) => onChange({ ...row, justification })}
             />
           </td>
@@ -283,15 +315,27 @@ function OarRow({
   )
 }
 
-export function RowStatus({ declined, issues, declinedLabel = "Not needed" }: { declined: boolean; issues: string[]; declinedLabel?: string }) {
+/** A backend figure as a plain number ("4.000" -> "4"); a dash when absent. */
+export function figure(value: unknown): string {
+  const n = toNumber(value)
+  return n === null ? "—" : String(n)
+}
+
+export function RowStatus({
+  declined,
+  issues,
+  declinedLabel = "Not needed",
+}: {
+  declined: boolean
+  issues: string[]
+  declinedLabel?: string
+}) {
   if (declined) return <Chip tone="muted">{declinedLabel}</Chip>
   if (issues.length === 0) return <Chip tone="ready">Ready</Chip>
   return (
     <div className="flex flex-col gap-0.5">
       <Chip tone="todo">Needs {issues.length === 1 ? issues[0] : `${issues.length} things`}</Chip>
-      {issues.length > 1 && (
-        <span className="text-[11px] leading-snug text-muted-foreground">{issues.join(", ")}</span>
-      )}
+      {issues.length > 1 && <span className="text-[11px] leading-snug text-muted-foreground">{issues.join(", ")}</span>}
     </div>
   )
 }

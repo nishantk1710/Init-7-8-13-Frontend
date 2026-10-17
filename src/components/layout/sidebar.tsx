@@ -12,6 +12,7 @@ import {
   INITIATIVE_NAV_SECTIONS,
   QUICK_ACTIONS,
 } from "@/lib/constants"
+import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { cn } from "@/lib/utils"
 
 function NavSection({
@@ -81,8 +82,11 @@ export function Sidebar() {
         {[
           { label: "Open the assistant", icon: MessageIcon, href: "/assistant" },
           { label: "Sessions", icon: HistoryIcon, href: "/assistant/sessions" },
-          // Demo only for now: runs on mock data in the browser.
-          { label: "Multi-material request", icon: ListChecks, href: "/assistant/requests" },
+          // Offered only with NEXT_PUBLIC_ASSISTANT_REQUESTS (or the demo) --
+          // see lib/assistant/request/flag.ts.
+          ...(ASSISTANT_REQUESTS
+            ? [{ label: "Multi-material request", icon: ListChecks, href: "/assistant/requests" }]
+            : []),
         ].map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon

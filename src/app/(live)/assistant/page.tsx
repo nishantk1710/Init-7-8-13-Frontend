@@ -4,6 +4,7 @@ import { ArrowRight, Boxes, ListChecks, ShieldCheck, Sparkles, Wrench } from "lu
 
 import { AiEyebrow, AiIconBadge, AiOrb } from "@/components/assistant/ai-visuals"
 import { AssistantOpener } from "@/components/assistant/assistant-opener"
+import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 
 export const metadata: Metadata = {
   title: "Reservation assistant — Spares AI",
@@ -49,19 +50,24 @@ export default async function AssistantPage({
 
         <AssistantOpener defaultMaterial={material} defaultPlant={plant} />
 
-        <Link
-          href="/assistant/requests/new"
-          className="group flex items-center gap-3 rounded-2xl border border-dashed border-ai-2/30 px-5 py-3 text-sm transition-colors hover:border-ai-2/60 hover:bg-muted/40"
-        >
-          <ListChecks className="size-4 text-ai-2" aria-hidden />
-          <span className="flex-1">
-            <span className="font-medium text-foreground">Reserving several materials?</span>{" "}
-            <span className="text-muted-foreground">
-              Start a multi-material request: OAR and repairable parts in two tables, one reference.
+        {ASSISTANT_REQUESTS && (
+          <Link
+            href="/assistant/requests/new"
+            className="group flex items-center gap-3 rounded-2xl border border-dashed border-ai-2/30 px-5 py-3 text-sm transition-colors hover:border-ai-2/60 hover:bg-muted/40"
+          >
+            <ListChecks className="size-4 text-ai-2" aria-hidden />
+            <span className="flex-1">
+              <span className="font-medium text-foreground">Reserving several materials?</span>{" "}
+              <span className="text-muted-foreground">
+                Start a multi-material request: OAR and repairable parts in two tables, one reference.
+              </span>
             </span>
-          </span>
-          <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-        </Link>
+            <ArrowRight
+              className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </Link>
+        )}
 
         <section className="flex flex-col gap-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">

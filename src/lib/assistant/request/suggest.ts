@@ -1,15 +1,17 @@
 /**
- * Suggest-first quantity, and a consumption window to go with it.
+ * The quantity a request line suggests, what a typed quantity then asks for,
+ * and the consumption window that goes with it.
  *
- * The same arithmetic as `app/initiatives/i13/quantity.py::suggest`, with one
- * difference: the suggestion is made **before** the requester names a quantity,
- * so it is not capped at one. It is the raw headroom
+ * **Live, the suggestion comes from the backend** (the preview's
+ * `suggestion.quantity` and `reason`, from `quantity.py::suggest` uncapped).
+ * The functions below only compare a typed quantity against it, word the
+ * question, and size a window for a quantity the requester changed.
+ *
+ * {@link suggestQuantity} is the same arithmetic in the browser, for the
+ * offline demo's catalogue only:
  *
  *     target   = average monthly consumption × cover ceiling (12 months)
  *     headroom = target − (stock on hand + open PO), rounded down
- *
- * and the requester's quantity is then compared against it, not the other way
- * round. Pure functions, so the table, the summary and the tests agree.
  */
 
 import type { OarFacts } from "@/lib/assistant/request/catalogue"
@@ -31,6 +33,7 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10
 }
 
+/** Demo only -- the offline catalogue's suggestion. Live, the backend's preview is used. */
 export function suggestQuantity(facts: OarFacts): QuantitySuggestion {
   const rate = facts.averageMonthlyConsumption
   const available = facts.stockOnHand + facts.openPoQuantity
@@ -74,43 +77,41 @@ export function suggestQuantity(facts: OarFacts): QuantitySuggestion {
   return { kind: "suggested", quantity: headroom, target: round1(target), available, explanation: basis }
 }
 
+/** What kind of suggestion a line has: a quantity, nothing needed, or none possible. */
+export type SuggestionKind = "suggested" | "covered" | "none"
+
+export function suggestionKind(suggested: number | null): SuggestionKind {
+  if (suggested === null) return "none"
+  return suggested > 0 ? "suggested" : "covered"
+}
+
 /** Short label for the Suggested column. */
-export function suggestionLabel(s: QuantitySuggestion): string {
-  switch (s.kind) {
-    case "suggested":
-      return String(s.quantity)
-    case "covered":
-      return "0"
-    case "no_history":
-      return "Too little history"
-    case "no_rate":
-      return "No consumption"
-  }
+export function suggestionLabel(suggested: number | null): string {
+  return suggested === null ? "No suggestion" : String(suggested)
 }
 
 /**
- * Whether the chosen quantity has to be justified.
+ * Whether the chosen quantity has to be justified -- the backend's rule.
  *
  * Above the suggestion: yes. At or under it: no -- under-ordering is not the
  * risk this guards against. With no suggestion to compare against, any
  * quantity needs a reason, since nothing else supports it.
  */
-export function needsJustification(s: QuantitySuggestion, quantity: number | null): boolean {
+export function needsJustification(suggested: number | null, quantity: number | null): boolean {
   if (quantity === null || !(quantity > 0)) return false
-  if (s.quantity === null) return true
-  return quantity > s.quantity
+  if (suggested === null) return true
+  return quantity > suggested
 }
 
 /** Why the justification is being asked for, in the requester's terms. */
-export function justificationPrompt(s: QuantitySuggestion, quantity: number): string {
-  switch (s.kind) {
+export function justificationPrompt(suggested: number | null, quantity: number): string {
+  switch (suggestionKind(suggested)) {
     case "suggested":
-      return `${quantity} is above the suggested ${s.quantity}. Why the larger quantity?`
+      return `${quantity} is above the suggested ${suggested}. Why the larger quantity?`
     case "covered":
-      return `Stock already covers about ${s.monthsCovered} months. Why procure ${quantity} more?`
-    case "no_history":
-    case "no_rate":
-      return `There is no history to support a quantity. Why ${quantity}?`
+      return `Stock and open orders already cover the next 12 months. Why procure ${quantity} more?`
+    case "none":
+      return `No quantity can be suggested for this part. Why ${quantity}?`
   }
 }
 
