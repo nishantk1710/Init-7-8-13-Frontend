@@ -63,6 +63,8 @@ export function SessionLogTable({
         // The plant label as well as the code, so "Black Mountain" finds 1300.
         ![
           session.sessionId,
+          session.reference,
+          session.requestId,
           session.materialId,
           session.materialDescription,
           session.plant,
@@ -90,6 +92,7 @@ export function SessionLogTable({
       "assistant-sessions.xlsx",
       [
         "Reference",
+        "Request",
         "Flow",
         "Material",
         "Plant",
@@ -102,7 +105,8 @@ export function SessionLogTable({
         "Expires",
       ],
       filtered.map((session) => [
-        session.sessionId,
+        session.reference ?? session.sessionId,
+        session.requestId ?? "",
         flowLabel(session.flow),
         session.materialId,
         session.plant,
@@ -126,7 +130,7 @@ export function SessionLogTable({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, material, requester…"
+          placeholder="Search reference, request, material, requester…"
           aria-label="Search sessions"
           className="h-9 w-full sm:w-72"
         />
@@ -197,6 +201,7 @@ export function SessionLogTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Reference</TableHead>
+                <TableHead>Request</TableHead>
                 <TableHead>Flow</TableHead>
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
@@ -212,12 +217,27 @@ export function SessionLogTable({
               {filtered.map((session) => (
                 <TableRow key={session.sessionId} className="transition-colors hover:bg-ai-2/[0.04]">
                   <TableCell>
+                    {/* What the requester typed into SAP: R…/n for a line of a
+                        multi-material request, the session ID otherwise. */}
                     <Link
                       href={`/assistant/sessions/${session.sessionId}`}
                       className="ai-gradient-text font-mono text-xs font-semibold tracking-wider underline-offset-4 hover:underline"
                     >
-                      {session.sessionId}
+                      {session.reference ?? session.sessionId}
                     </Link>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {session.requestId ? (
+                      <Link
+                        href={`/assistant/requests/${session.requestId}`}
+                        className="font-mono text-ai-2 underline-offset-4 hover:underline"
+                        title="Open the multi-material request this line belongs to"
+                      >
+                        {session.requestId}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className="whitespace-nowrap rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-semibold text-ai-2">
