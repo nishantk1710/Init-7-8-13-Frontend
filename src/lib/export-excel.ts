@@ -1,5 +1,7 @@
 import { toast } from "sonner"
 
+import { saveBlob } from "@/lib/download-file"
+
 /** One cell of an export. Empty (null/undefined/"") stays an empty cell. */
 export type ExportCell = string | number | null | undefined
 
@@ -75,14 +77,7 @@ export async function downloadExcel(
     })
 
     const buffer = await workbook.xlsx.writeBuffer()
-    const url = URL.createObjectURL(new Blob([buffer], { type: XLSX_MIME }))
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    saveBlob(new Blob([buffer], { type: XLSX_MIME }), filename)
     return true
   } catch (error) {
     console.error("Excel export failed", error)
