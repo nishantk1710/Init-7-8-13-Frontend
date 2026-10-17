@@ -16,6 +16,9 @@ import {
 function stats(overrides: Record<string, unknown> = {}) {
   return {
     criticalStockoutRiskCount: 5,
+    stockoutRiskEvaluatedCount: 20,
+    stockoutRiskInsufficientDataCount: 2,
+    stockoutRiskAsOf: "2026-05-31",
     excessInventoryCandidatesCount: 3,
     awaitingApprovalCount: 7,
     netSafetyStockValueImpact: -1_048_500,

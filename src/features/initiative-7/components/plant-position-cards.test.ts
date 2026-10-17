@@ -2,8 +2,7 @@
 //
 // Rendered to static markup with react-dom/server (this project's vitest runs without a DOM). The
 // bars need a browser layout, so these read the text around them -- which is where the promises are:
-// counts and not money, an honest note that the history comes later, and a load failure that is not
-// mistaken for "nothing to count".
+// counts and not money, and a load failure that is not mistaken for "nothing to count".
 
 import { describe, expect, it } from "vitest"
 import { createElement } from "react"
@@ -14,9 +13,9 @@ import type { PlantPositionsState } from "@/features/initiative-7/hooks/use-plan
 import type { PlantPosition } from "@/features/initiative-7/utils/plant-position"
 
 const POSITIONS: PlantPosition[] = [
-  { scope: "ALL", total: 18752, stockoutRisk: 9890, excess: 2254 },
-  { scope: "1300", total: 18000, stockoutRisk: 9500, excess: 2200 },
-  { scope: "1500", total: 752, stockoutRisk: 390, excess: 54 },
+  { scope: "ALL", total: 18752, stockoutRisk: 890, stockoutEvaluated: 6200, stockoutAsOf: "2026-05-31", excess: 2254 },
+  { scope: "1300", total: 18000, stockoutRisk: 850, stockoutEvaluated: 6000, stockoutAsOf: "2026-05-31", excess: 2200 },
+  { scope: "1500", total: 752, stockoutRisk: 40, stockoutEvaluated: 200, stockoutAsOf: "2026-05-31", excess: 54 },
 ]
 
 const loaded = (positions: PlantPosition[]): PlantPositionsState => ({ positions, loading: false, error: null })
@@ -28,7 +27,7 @@ describe("loading and failure are separate from empty", () => {
     )
     expect(markup).not.toContain("No recommendations")
     expect(markup).not.toContain("Could not load")
-    expect(markup).not.toContain("builds up")
+    expect(markup).not.toContain("as of the latest recommendation analysis")
   })
 
   it("says it could not load, with the reason, and does not say there is nothing to count", () => {
@@ -45,25 +44,42 @@ describe("loading and failure are separate from empty", () => {
   it("says there is nothing to count when every scope is empty", () => {
     const markup = renderToStaticMarkup(
       createElement(StockoutPositionCard, {
-        state: loaded(POSITIONS.map((position) => ({ ...position, total: 0, stockoutRisk: 0, excess: 0 }))),
+        state: loaded(
+          POSITIONS.map((position) => ({ ...position, total: 0, stockoutRisk: 0, stockoutEvaluated: 0, excess: 0 })),
+        ),
       }),
     )
-    expect(markup).toContain("No recommendations to count yet")
+    expect(markup).toContain("No material-plants could be judged yet.")
+  })
+
+  it("says Not available, never zero at risk, when the stockout usage has not been built", () => {
+    const markup = renderToStaticMarkup(
+      createElement(StockoutPositionCard, {
+        state: loaded(POSITIONS.map((position) => ({ ...position, stockoutRisk: 0, stockoutEvaluated: 0, stockoutAsOf: null }))),
+      }),
+    )
+    expect(markup).toContain("Not available")
+    expect(markup).toContain("has not been built yet")
+    expect(markup).not.toContain("No material-plants could be judged yet.")
   })
 })
 
 describe("the bars' notes", () => {
-  it("describes the stockout count and says the history builds up later", () => {
+  it("describes the stockout count against consumption over the lead time, and says when it is as of", () => {
     const markup = renderToStaticMarkup(createElement(StockoutPositionCard, { state: loaded(POSITIONS) }))
-    expect(markup).toContain("below the recommended reorder point")
-    expect(markup).toContain("not yet confirmed by the business")
-    expect(markup).toContain("history of how this changes run by run builds up")
+    expect(markup).toContain("below their average daily consumption times their supplier lead time, as of 31 May 2026.")
+    expect(markup).toContain("left out as insufficient data")
+    expect(markup).not.toContain("reorder point")
+    expect(markup).not.toContain("not yet confirmed by the business")
+    expect(markup).not.toContain("builds up")
   })
 
   it("describes the excess count as a count and not a money value", () => {
     const markup = renderToStaticMarkup(createElement(ExcessPositionCard, { state: loaded(POSITIONS) }))
-    expect(markup).toContain("above the recommended maximum")
+    expect(markup).toContain("above the recommended maximum, as of the latest recommendation analysis.")
     expect(markup).toContain("A count, not a money value")
+    expect(markup).not.toContain("not yet confirmed by the business")
+    expect(markup).not.toContain("builds up")
   })
 
   it("never prints a money amount", () => {
@@ -78,13 +94,13 @@ describe("the bars' notes", () => {
     const markup = renderToStaticMarkup(
       createElement(StockoutPositionCard, {
         state: loaded([
-          { scope: "ALL", total: 100, stockoutRisk: 40, excess: 5 },
-          { scope: "1300", total: 100, stockoutRisk: 40, excess: 5 },
-          { scope: "1500", total: 0, stockoutRisk: 0, excess: 0 },
+          { scope: "ALL", total: 100, stockoutRisk: 40, stockoutEvaluated: 80, stockoutAsOf: "2026-05-31", excess: 5 },
+          { scope: "1300", total: 100, stockoutRisk: 40, stockoutEvaluated: 80, stockoutAsOf: "2026-05-31", excess: 5 },
+          { scope: "1500", total: 0, stockoutRisk: 0, stockoutEvaluated: 0, stockoutAsOf: "2026-05-31", excess: 0 },
         ]),
       }),
     )
-    expect(markup).toContain("below the recommended reorder point")
-    expect(markup).not.toContain("No recommendations to count yet")
+    expect(markup).toContain("average daily consumption")
+    expect(markup).not.toContain("No material-plants could be judged yet.")
   })
 })

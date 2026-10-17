@@ -202,8 +202,9 @@ function deriveRisk(rawCriticality: string | null, status: RecommendationStatus)
   const open = status === "Pending Review" || status === "In Approval" || status === "Returned"
   if (!open || !rawCriticality) return "low"
   const mapped = CRITICALITY_MAP[rawCriticality.toUpperCase()]
-  if (mapped === "Critical") return "critical"
-  if (mapped === "High") return "high"
+  // CRITICAL and IMPACT are one tier on every live page: "high". The backend still tells the two
+  // apart (its by_risk, and risk=critical), and the quarterly reports keep their four tiers.
+  if (mapped === "Critical" || mapped === "High") return "high"
   if (mapped === "Medium") return "medium"
   return "low"
 }
@@ -267,6 +268,7 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     criticalityTier: row.criticality ? row.criticality.toUpperCase() : null,
     demandPattern: mapDemandPattern(row.demand_class),
     demandType: mapDemandType(row.demand_type),
+    conversionEligibility: (row.conversion_eligibility as OarConversionInfo["conversionEligibility"]) ?? null,
     risk: deriveRisk(row.criticality, status),
     status,
     current: {
@@ -423,8 +425,9 @@ export interface RecommendationListParams {
   material?: string
   demandClass?: string
   isOar?: boolean
-  /** oar | declining | normal -- the Type filter, applied in SQL. */
-  type?: "oar" | "declining" | "normal"
+  /** oar | declining | normal | stock_item -- the Type filter, applied in SQL. stock_item is
+   * declining and normal together (everything that is not OAR). */
+  type?: "oar" | "declining" | "normal" | "stock_item"
   confidence?: string
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
@@ -508,7 +511,15 @@ export interface RecommendationSummaryStats {
   /** Currency of the money figures, when every priced material shares one. */
   currency: string | null
   netSafetyStockValueImpact: number | null
+  /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
+   * consumption x lead time. */
   criticalStockoutRiskCount: number
+  /** Material-plants that could be judged -- the denominator for the share at risk. */
+  stockoutRiskEvaluatedCount: number
+  /** Fast / Slow material-plants with no lead time or stock on hand: Insufficient Data. */
+  stockoutRiskInsufficientDataCount: number
+  /** ISO date the consumption and Fast / Slow bands were read as of; null = not computed yet. */
+  stockoutRiskAsOf: string | null
   excessInventoryCandidatesCount: number
   excessInventoryOpportunity: number | null
 }
@@ -541,6 +552,9 @@ export async function fetchRecommendationSummary(
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
+    stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
+    stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,
+    stockoutRiskAsOf: response.stockout_risk_as_of ?? null,
     excessInventoryCandidatesCount: response.excess_inventory_candidates_count,
     excessInventoryOpportunity: toNumber(response.excess_inventory_opportunity),
   }
@@ -605,8 +619,10 @@ export interface SimilarMaterial {
   /** The neighbour's own ZMM065 tier, upper-cased, or null. */
   criticality: string | null
   historyMonths: number | null
-  safetyStock: number | null
+  /** What SAP holds for the neighbour now (MARC reorder point, safety stock, max stock);
+   * null when SAP has no value -- shown as "—", never as 0. */
   rop: number | null
+  safetyStock: number | null
   maxStock: number | null
   /** Whether its stock values fed the weighted estimate. */
   contributed: boolean
@@ -627,9 +643,9 @@ export async function fetchSimilarMaterials(id: string): Promise<SimilarMaterial
     similarity: toNumber(n.similarity),
     criticality: n.criticality ? n.criticality.toUpperCase() : null,
     historyMonths: n.history_months,
-    safetyStock: n.safety_stock,
-    rop: n.rop,
-    maxStock: n.max_stock,
+    safetyStock: toNumber(n.current_safety_stock ?? null),
+    rop: toNumber(n.current_rop ?? null),
+    maxStock: toNumber(n.current_max_stock ?? null),
     contributed: n.contributed,
   }))
 }

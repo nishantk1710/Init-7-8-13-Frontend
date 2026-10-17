@@ -108,6 +108,8 @@ export interface ApiRecommendationSummary {
   demand_class: string | null
   criticality: string | null
   confidence: string | null
+  /** ELIGIBLE / NOT_ELIGIBLE / UNKNOWN for an OAR row; absent from a backend that predates it. */
+  conversion_eligibility?: string | null
   generated_at: string
   updated_at: string
   chain_index: number
@@ -171,6 +173,12 @@ export interface ApiRecommendationSummaryStats {
   currency?: string | null
   net_safety_stock_value_impact: ApiDecimal
   critical_stockout_risk_count: number
+  /** Fast / Slow material-plants that could be judged -- the denominator of the stockout share. */
+  stockout_risk_evaluated_count?: number
+  /** Fast / Slow material-plants with no lead time or no stock on hand (Insufficient Data). */
+  stockout_risk_insufficient_data_count?: number
+  /** ISO date the consumption and bands were read as of; null when the usage has not been built. */
+  stockout_risk_as_of?: string | null
   excess_inventory_candidates_count: number
   excess_inventory_opportunity: ApiDecimal
 }
@@ -256,9 +264,14 @@ export interface ApiSimilarMaterial {
   similarity: ApiDecimal | null
   criticality: string | null
   history_months: number | null
+  /** I07's own calculation for the neighbour (what fed the estimate). */
   safety_stock: number | null
   rop: number | null
   max_stock: number | null
+  /** What SAP holds for the neighbour now (MARC). Absent from a backend that predates it. */
+  current_rop?: ApiDecimal
+  current_safety_stock?: ApiDecimal
+  current_max_stock?: ApiDecimal
   contributed: boolean
 }
 

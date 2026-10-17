@@ -45,6 +45,7 @@ export function SimilarMaterialsList({ recommendationId }: { recommendationId: s
       </h4>
       <p className="mt-1 text-[11px] text-muted-foreground">
         The recommended reorder point, safety stock and max stock are worked out from these materials, best match first.
+        The ROP, Safety and Max shown are the values currently set in SAP for each material.
       </p>
 
       {state.status === "loading" && <p className="mt-3 text-xs text-muted-foreground">Loading similar materials…</p>}
@@ -65,9 +66,9 @@ export function SimilarMaterialsList({ recommendationId }: { recommendationId: s
                 <th className="py-1.5 pr-2 font-medium">Material</th>
                 <th className="py-1.5 pr-2 font-medium">Plant</th>
                 <th className="py-1.5 pr-2 text-right font-medium">Match</th>
-                <th className="py-1.5 pr-2 text-right font-medium">ROP</th>
-                <th className="py-1.5 pr-2 text-right font-medium">Safety</th>
-                <th className="py-1.5 text-right font-medium">Max</th>
+                <th className="py-1.5 pr-2 text-right font-medium">Current ROP</th>
+                <th className="py-1.5 pr-2 text-right font-medium">Current Safety</th>
+                <th className="py-1.5 text-right font-medium">Current Max</th>
               </tr>
             </thead>
             <tbody>

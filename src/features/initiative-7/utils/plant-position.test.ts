@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { fetchRecommendationSummary, type RecommendationSummaryStats } from "@/features/initiative-7/services/i7-api"
-import { formatShare, positionBars, toPlantPosition, type PlantPosition } from "./plant-position"
+import { formatShare, positionBars, stockoutAsOf, toPlantPosition, type PlantPosition } from "./plant-position"
 
 function stats(overrides: Partial<RecommendationSummaryStats> = {}): RecommendationSummaryStats {
   return {
@@ -13,6 +13,9 @@ function stats(overrides: Partial<RecommendationSummaryStats> = {}): Recommendat
     currency: null,
     netSafetyStockValueImpact: -1_317_618_228_488,
     criticalStockoutRiskCount: 530,
+    stockoutRiskEvaluatedCount: 800,
+    stockoutRiskInsufficientDataCount: 40,
+    stockoutRiskAsOf: "2026-05-31",
     excessInventoryCandidatesCount: 120,
     excessInventoryOpportunity: 400_409_860_446,
     ...overrides,
@@ -24,7 +27,14 @@ afterEach(() => vi.unstubAllGlobals())
 describe("toPlantPosition", () => {
   it("keeps the counts and drops every money figure", () => {
     const position = toPlantPosition("1300", stats())
-    expect(position).toEqual({ scope: "1300", total: 1000, stockoutRisk: 530, excess: 120 })
+    expect(position).toEqual({
+      scope: "1300",
+      total: 1000,
+      stockoutRisk: 530,
+      stockoutEvaluated: 800,
+      stockoutAsOf: "2026-05-31",
+      excess: 120,
+    })
     expect(JSON.stringify(position)).not.toContain("400409860446")
     expect(JSON.stringify(position)).not.toContain("1317618228488")
   })
@@ -45,9 +55,9 @@ describe("formatShare", () => {
 
 describe("positionBars", () => {
   const positions: PlantPosition[] = [
-    { scope: "1500", total: 200, stockoutRisk: 20, excess: 5 },
-    { scope: "ALL", total: 1000, stockoutRisk: 530, excess: 120 },
-    { scope: "1300", total: 800, stockoutRisk: 510, excess: 115 },
+    { scope: "1500", total: 200, stockoutRisk: 20, stockoutEvaluated: 50, stockoutAsOf: "2026-05-31", excess: 5 },
+    { scope: "ALL", total: 1000, stockoutRisk: 530, stockoutEvaluated: 800, stockoutAsOf: "2026-05-31", excess: 120 },
+    { scope: "1300", total: 800, stockoutRisk: 510, stockoutEvaluated: 750, stockoutAsOf: "2026-05-31", excess: 115 },
   ]
 
   it("is in the fixed All, 1300, 1500 order whatever order the data arrived in", () => {
@@ -62,6 +72,14 @@ describe("positionBars", () => {
     ])
   })
 
+  it("takes the stockout bars out of the material-plants that could be judged, not all of them", () => {
+    expect(positionBars(positions, "stockoutRisk")).toEqual([
+      { scope: "ALL", value: 530, total: 800 },
+      { scope: "1300", value: 510, total: 750 },
+      { scope: "1500", value: 20, total: 50 },
+    ])
+  })
+
   it("leaves out a scope that has no position instead of inventing a zero", () => {
     expect(positionBars(positions.filter((p) => p.scope !== "1500"), "excess").map((bar) => bar.scope)).toEqual([
       "ALL",
@@ -70,7 +88,29 @@ describe("positionBars", () => {
   })
 
   it("keeps a real zero", () => {
-    expect(positionBars([{ scope: "ALL", total: 10, stockoutRisk: 0, excess: 0 }], "excess")[0].value).toBe(0)
+    expect(
+      positionBars([{ scope: "ALL", total: 10, stockoutRisk: 0, stockoutEvaluated: 4, stockoutAsOf: null, excess: 0 }], "excess")[0].value,
+    ).toBe(0)
+  })
+})
+
+describe("stockoutAsOf", () => {
+  const at = (scope: PlantPosition["scope"], asOf: string | null): PlantPosition => ({
+    scope,
+    total: 1,
+    stockoutRisk: 0,
+    stockoutEvaluated: 0,
+    stockoutAsOf: asOf,
+    excess: 0,
+  })
+
+  it("is the date the figures were read as of", () => {
+    expect(stockoutAsOf([at("ALL", "2026-05-31"), at("1300", "2026-05-31")])).toBe("2026-05-31")
+  })
+
+  it("is null when the usage has not been built, so the counts are not mistaken for zero", () => {
+    expect(stockoutAsOf([at("ALL", null), at("1300", null)])).toBeNull()
+    expect(stockoutAsOf([])).toBeNull()
   })
 })
 

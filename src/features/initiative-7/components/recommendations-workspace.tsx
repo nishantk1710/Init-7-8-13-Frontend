@@ -12,7 +12,6 @@ import { RecommendationReviewTable } from "@/features/initiative-7/components/re
 import {
   ALL_FILTER,
   DashboardFilters,
-  EMPTY_DASHBOARD_FILTERS,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
@@ -20,18 +19,24 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import {
   listFilterKey,
   listParamsFromFilters,
+  normaliseRecommendationFilters,
+  RECOMMENDATIONS_PAGE_FILTERS,
   RECOMMENDATIONS_PAGE_SIZE,
 } from "@/features/initiative-7/utils/recommendation-list-query"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
-import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import type { DemandPattern, Recommendation } from "@/features/initiative-7/types/inventory"
 
 // Every filter below is sent to the backend (utils/recommendation-list-query.ts), which searches
 // the whole catalogue and returns one page and the true total. Only Circuit still narrows the
 // page in view, and the Circuit filter is offered only when the data carries real circuits.
 const PAGE_SIZE = RECOMMENDATIONS_PAGE_SIZE
+
+// Smooth-demand materials are sized by SAP and not recommended, so no row of this page is Smooth and the
+// Demand Pattern filter does not offer it.
+const SMOOTH_ONLY: DemandPattern[] = ["Smooth"]
 
 /** Repeated pipeline runs during testing can leave more than one
  * recommendation row per material-plant (see recommendation_id not being a
@@ -131,12 +136,17 @@ function LiveRecommendationsWorkspace({
     <div className="flex flex-col gap-4">
       <DashboardFilters
         value={filters}
-        onChange={setFilters}
+        onChange={(next) => setFilters(normaliseRecommendationFilters(next))}
+        resetFilters={RECOMMENDATIONS_PAGE_FILTERS}
+        hiddenDemandPatterns={SMOOTH_ONLY}
         layout="bar"
         plantOptions={plantOptions}
         showTypeFilter
         typeFilterLabel="Recommendation"
+        showStatusFilter={false}
+        showConfidenceFilter={filters.type === "oar"}
         showCircuitFilter={hasRealCircuit(data ?? [])}
+        mergeCriticalIntoHigh
       />
       {loading ? (
         <div className="flex flex-col gap-2">
@@ -157,7 +167,7 @@ function LiveRecommendationsWorkspace({
         />
       ) : (
         <>
-          <RecommendationReviewTable recommendations={filtered} />
+          <RecommendationReviewTable recommendations={filtered} showMinMaxConversion={filters.type === "oar"} />
           {total > 0 && (
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">
@@ -197,7 +207,7 @@ function LiveRecommendationsWorkspace({
 export function RecommendationsWorkspace() {
   const searchParams = useSearchParams()
   const reviewMaterial = searchParams.get("reviewMaterial")
-  const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
+  const [filters, setFilters] = useState<DashboardFilterState>(RECOMMENDATIONS_PAGE_FILTERS)
 
   const banner = reviewMaterial && (
     <AlertBanner tone="info" title={`Reviewing material flagged by OAR Utilization for reclassification review — ${reviewMaterial}`}>

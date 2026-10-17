@@ -9,6 +9,8 @@ import {
   DEMAND_CLASS_FOR_PATTERN,
   listFilterKey,
   listParamsFromFilters,
+  normaliseRecommendationFilters,
+  RECOMMENDATIONS_PAGE_FILTERS,
 } from "@/features/initiative-7/utils/recommendation-list-query"
 import { DEMAND_PATTERNS } from "@/features/initiative-7/types/inventory"
 
@@ -55,6 +57,20 @@ describe("listParamsFromFilters", () => {
     expect(listParamsFromFilters(filters({ type: "oar" }), 1)).toMatchObject({ type: "oar", status: "READY_FOR_REVIEW" })
   })
 
+  it("sends 'Stock item' as the backend's stock_item group", () => {
+    expect(listParamsFromFilters(filters({ type: "stock_item" }), 1)).toMatchObject({
+      type: "stock_item",
+      status: "READY_FOR_REVIEW",
+    })
+  })
+
+  it("sends a confidence only with the OAR group, never alone or with Stock item", () => {
+    expect(listParamsFromFilters(filters({ type: "oar", confidence: "HIGH" }), 1).confidence).toBe("HIGH")
+    expect(listParamsFromFilters(filters({ type: "oar" }), 1).confidence).toBeUndefined()
+    expect(listParamsFromFilters(filters({ type: "stock_item", confidence: "HIGH" }), 1).confidence).toBeUndefined()
+    expect(listParamsFromFilters(filters({ confidence: "LOW" }), 1).confidence).toBeUndefined()
+  })
+
   it("lets an explicit status decide instead of forcing 'calculated'", () => {
     const approved = listParamsFromFilters(filters({ type: "oar", status: "Approved" }), 1)
     expect(approved.status).toBeUndefined()
@@ -69,7 +85,7 @@ describe("listFilterKey (decides when paging goes back to page 1)", () => {
     const base = listFilterKey(filters())
     for (const change of [
       { type: "oar" }, { plant: "1300" }, { criticality: "High" }, { demandPattern: "Lumpy" },
-      { status: "Approved" }, { risk: "low" }, { material: "80" },
+      { status: "Approved" }, { risk: "low" }, { material: "80" }, { confidence: "HIGH" },
     ]) {
       expect(listFilterKey(filters(change))).not.toBe(base)
     }
@@ -104,5 +120,35 @@ describe("the request that reaches the backend", () => {
     expect(query.get("risk")).toBe("medium")
     expect(query.get("demand_class")).toBe("LUMPY")
     expect(query.get("page")).toBe("2")
+  })
+})
+
+describe("the Recommendations page has no All: it is OAR or Stock item", () => {
+  it("starts on OAR, so the first request is already an OAR list", () => {
+    expect(RECOMMENDATIONS_PAGE_FILTERS.type).toBe("oar")
+    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1).type).toBe("oar")
+  })
+
+  it("never lets the group go back to All", () => {
+    const next = normaliseRecommendationFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type: "all" })
+    expect(next.type).toBe("oar")
+  })
+
+  it("keeps a valid choice as it is", () => {
+    const stock = { ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" }
+    expect(normaliseRecommendationFilters(stock)).toBe(stock)
+    const oar = { ...RECOMMENDATIONS_PAGE_FILTERS, confidence: "HIGH" }
+    expect(normaliseRecommendationFilters(oar)).toBe(oar)
+  })
+
+  it("drops a confidence when the group leaves OAR, so no hidden filter is left behind", () => {
+    const next = normaliseRecommendationFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item", confidence: "HIGH" })
+    expect(next).toMatchObject({ type: "stock_item", confidence: "all" })
+  })
+
+  it("lists only calculated recommendations, whichever group is chosen", () => {
+    for (const type of ["oar", "stock_item"]) {
+      expect(listParamsFromFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type }, 1).status).toBe("READY_FOR_REVIEW")
+    }
   })
 })

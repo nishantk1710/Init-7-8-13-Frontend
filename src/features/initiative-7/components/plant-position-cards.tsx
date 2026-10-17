@@ -14,12 +14,13 @@ import {
 } from "recharts"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCount } from "@/lib/utils"
+import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { PlantPositionsState } from "@/features/initiative-7/hooks/use-plant-positions"
 import {
   formatShare,
   positionBars,
+  stockoutAsOf,
   type PositionBar,
   type PositionMetric,
   type PositionScope,
@@ -57,21 +58,34 @@ function toData(bars: PositionBar[]): BarDatum[] {
 
 const METRIC_COPY: Record<
   PositionMetric,
-  { noun: string; loadError: string; note: string }
+  { noun: string; population: string; loadError: string; empty: string; note: (asOf: string | null) => string }
 > = {
   stockoutRisk: {
-    noun: "below their reorder point",
+    noun: "at stockout risk",
+    population: "judged material-plants",
     loadError: "Could not load the stockout risk position from the backend.",
-    note: "Material-plants whose stock on hand is below the recommended reorder point, as of the latest recommendation run. An internal definition, not yet confirmed by the business.",
+    empty: "No material-plants could be judged yet.",
+    note: (asOf) =>
+      `Fast and slow moving material-plants whose stock on hand is below their average daily consumption times their supplier lead time${
+        asOf ? `, as of ${formatIsoDateDMY(asOf)}` : ""
+      }. Material-plants with no lead time or stock figure are left out as insufficient data.`,
   },
   excess: {
     noun: "above the recommended maximum",
+    population: "material-plants",
     loadError: "Could not load the excess inventory position from the backend.",
-    note: "Material-plants whose current maximum stock is above the recommended maximum, as of the latest recommendation run. A count, not a money value. An internal definition, not yet confirmed by the business.",
+    empty: "No recommendations to count yet.",
+    note: () =>
+      "Material-plants whose current maximum stock is above the recommended maximum, as of the latest recommendation analysis. A count, not a money value.",
   },
 }
 
-function PositionTooltip({ active, payload, noun }: TooltipContentProps & { noun: string }) {
+function PositionTooltip({
+  active,
+  payload,
+  noun,
+  population,
+}: TooltipContentProps & { noun: string; population: string }) {
   const bar = payload?.[0]?.payload as BarDatum | undefined
   if (!active || !bar) return null
   const share = formatShare(bar.value, bar.total)
@@ -80,7 +94,7 @@ function PositionTooltip({ active, payload, noun }: TooltipContentProps & { noun
       <div className="font-medium text-foreground">{bar.name}</div>
       <div className="mt-1 text-muted-foreground">
         <span className="font-medium text-foreground">{formatCount(bar.value)}</span> of {formatCount(bar.total)}{" "}
-        material-plants {noun}
+        {population} {noun}
         {share ? ` (${share})` : ""}
       </div>
     </div>
@@ -100,11 +114,20 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
       </div>
     )
   }
+  // The stockout counts are 0 -- not "none at risk" -- until the usage they are built from exists.
+  if (metric === "stockoutRisk" && state.positions.length > 0 && stockoutAsOf(state.positions) === null) {
+    return (
+      <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
+        <p>Not available</p>
+        <p className="max-w-xs">The stockout usage has not been built yet, so nothing can be judged.</p>
+      </div>
+    )
+  }
   const bars = positionBars(state.positions, metric)
   if (bars.length === 0 || bars.every((bar) => bar.total === 0)) {
     return (
       <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
-        <p>No recommendations to count yet.</p>
+        <p>{copy.empty}</p>
       </div>
     )
   }
@@ -135,7 +158,9 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
             />
             <Tooltip
               cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-              content={(props: TooltipContentProps) => <PositionTooltip {...props} noun={copy.noun} />}
+              content={(props: TooltipContentProps) => (
+                <PositionTooltip {...props} noun={copy.noun} population={copy.population} />
+              )}
             />
             <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {data.map((bar) => (
@@ -152,10 +177,7 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[11px] text-muted-foreground">{copy.note}</p>
-      <p className="text-[11px] text-muted-foreground">
-        The history of how this changes run by run builds up from the next recommendation runs.
-      </p>
+      <p className="text-[11px] text-muted-foreground">{copy.note(stockoutAsOf(state.positions))}</p>
     </div>
   )
 }

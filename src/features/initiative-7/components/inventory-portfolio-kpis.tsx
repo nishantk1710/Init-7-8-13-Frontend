@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { AlertTriangle, Clock, Layers, Wallet } from "lucide-react"
 
-import { cn, commonCurrency, currencyPrefix, formatCount } from "@/lib/utils"
+import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import {
@@ -61,6 +61,7 @@ function PortfolioKpiCard({
   suffix,
   caption,
   captionMuted,
+  note,
 }: {
   title: string
   icon: ReactNode
@@ -69,6 +70,8 @@ function PortfolioKpiCard({
   suffix?: string
   caption?: string
   captionMuted?: boolean
+  /** A second, always-muted line under the caption -- e.g. the date a figure is as of. */
+  note?: string
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
@@ -99,6 +102,7 @@ function PortfolioKpiCard({
           {caption}
         </span>
       )}
+      {note && <span className="truncate text-[11px] text-muted-foreground">{note}</span>}
     </div>
   )
 }
@@ -129,13 +133,17 @@ export function InventoryPortfolioKpis({
    * backend aggregate to fall back to; the other three still derive from
    * `recommendations` as before -- unchanged, not addressed here. */
   pendingApprovalOverride?: { count: number; total: number }
-  /** Portfolio-wide { count, total } for "Critical Stockout Risk", from
-   * GET /recommendations/summary's critical_stockout_risk_count -- the same
-   * one-fetched-page-is-not-the-portfolio problem pendingApprovalOverride
-   * documents above applies here too: current on-hand stock vs.
-   * recommended_rop is computed in SQL over every recommendation, not just
-   * the ~200 rows the live table happens to have fetched. */
-  stockoutRiskOverride?: { count: number; total: number }
+  /** Portfolio-wide figures for "High Stockout Risk", from GET /recommendations/summary's
+   * critical_stockout_risk_count -- the same one-fetched-page-is-not-the-portfolio problem
+   * pendingApprovalOverride documents above applies here too: it is computed in SQL over every
+   * recommendation, not just the ~200 rows the live table happens to have fetched.
+   *
+   * `count` are the Fast / Slow material-plants whose stock on hand is below average daily
+   * consumption x lead time; `total` is how many could be judged (the denominator -- Insufficient
+   * Data is left out of it); `insufficient` is how many could not be judged; `asOf` is the ISO date
+   * the consumption and bands were read as of. `asOf: null` means the usage has not been built, and
+   * the card says "Not available" rather than showing 0. */
+  stockoutRiskOverride?: { count: number; total: number; insufficient?: number; asOf?: string | null }
   /** Portfolio-wide { count, total, opportunity } for "Excess Inventory
    * Candidates", from GET /recommendations/summary's
    * excess_inventory_candidates_count / excess_inventory_opportunity.
@@ -155,6 +163,19 @@ export function InventoryPortfolioKpis({
   const total = recommendations.length
   const stockoutRisk = stockoutRiskOverride?.count ?? countAtStockoutRisk(recommendations)
   const stockoutRiskTotal = stockoutRiskOverride?.total ?? total
+  // From the backend: `asOf` is the date the figures were read as of (null = the usage behind them has
+  // not been built). Absent on the scenario dataset, which still counts the rows it was given.
+  const stockoutAsOf = stockoutRiskOverride?.asOf
+  const stockoutNotComputed = stockoutRiskOverride !== undefined && stockoutAsOf === null
+  const stockoutInsufficient = stockoutRiskOverride?.insufficient ?? 0
+  const stockoutNote = stockoutAsOf
+    ? [
+        `As of ${formatIsoDateDMY(stockoutAsOf)}`,
+        stockoutInsufficient > 0 ? `${formatCount(stockoutInsufficient)} need data` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined
   const excess = excessInventoryOverride?.count ?? countExcessCandidates(recommendations)
   const excessTotal = excessInventoryOverride?.total ?? total
   const awaiting = pendingApprovalOverride?.count ?? countAwaitingApproval(recommendations)
@@ -171,12 +192,18 @@ export function InventoryPortfolioKpis({
   return (
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
       <PortfolioKpiCard
-        title="Critical Stockout Risk"
+        title="High Stockout Risk"
         icon={<AlertTriangle className="size-3.5" />}
         tone="danger"
-        value={formatCount(stockoutRisk)}
-        suffix="Materials"
-        caption={`${pct(stockoutRisk, stockoutRiskTotal)}% of in-scope`}
+        value={stockoutNotComputed ? "Not available" : formatCount(stockoutRisk)}
+        suffix={stockoutNotComputed ? undefined : "Materials"}
+        caption={
+          stockoutNotComputed
+            ? "needs the stockout usage build"
+            : `${pct(stockoutRisk, stockoutRiskTotal)}% of ${stockoutAsOf ? "evaluated" : "in-scope"}`
+        }
+        captionMuted={stockoutNotComputed}
+        note={stockoutNote}
       />
       <PortfolioKpiCard
         title="Excess Inventory Candidates"

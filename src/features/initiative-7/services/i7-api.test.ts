@@ -310,10 +310,11 @@ describe("mapSummaryToRecommendation", () => {
     )
     expect(insurance.risk).toBe("medium")
 
+    // CRITICAL and IMPACT are one High tier on the live pages.
     const critical = mapSummaryToRecommendation(
       summaryFixture({ criticality: "CRITICAL", status: "READY_FOR_REVIEW" }),
     )
-    expect(critical.risk).toBe("critical")
+    expect(critical.risk).toBe("high")
   })
 
   it("marks a NOT_EVALUABLE summary row so the table never shows a fabricated 'no change'", () => {
