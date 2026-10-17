@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react"
 
 import { AiEyebrow } from "@/components/assistant/ai-visuals"
 
+import { SessionDownloadMenu } from "@/components/assistant/session-download-menu"
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type { ApiRouting } from "@/lib/api/assistant"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
@@ -84,13 +85,15 @@ export function ConversationOutcome({ sessionId, routing }: { sessionId: string;
       <Confetti />
       <div className="relative flex items-center gap-4">
         <DoneCheck />
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-1 flex-col gap-1">
           <AiEyebrow>All done</AiEyebrow>
           <p className="text-base font-semibold text-foreground">This conversation is finished.</p>
           <p className="text-xs text-muted-foreground">
             What you recorded is already on these screens:
           </p>
         </div>
+        {/* Demo sessions live in the browser; the backend has no record to read. */}
+        {!ASSISTANT_DEMO && <SessionDownloadMenu sessionId={sessionId} className="shrink-0 self-start" />}
       </div>
       <ul className="relative mt-4 grid gap-2 sm:grid-cols-2">
         {destinations(sessionId, routing).map((d, index) => (

@@ -1,31 +1,20 @@
 /**
  * The request summary as a file -- Word, PDF or plain text -- with the same
- * content and wording as the screen. One model ({@link requestExportModel})
- * feeds three writers, so the formats cannot drift apart. docx and jspdf are
- * loaded on first use, as exceljs is, so the page costs nothing until somebody
- * clicks Download.
+ * content and wording as the screen. The writers are the shared ones in
+ * `lib/export-document`.
  */
-
-import { toast } from "sonner"
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
 import { isDeclined, lineReference, outcomeSentence } from "@/lib/assistant/request/record"
-import { saveBlob } from "@/lib/download-file"
-
-export type RequestExportFormat = "docx" | "pdf" | "txt"
-
-export const REQUEST_EXPORT_FORMATS: { format: RequestExportFormat; label: string }[] = [
-  { format: "docx", label: "Word (.docx)" },
-  { format: "pdf", label: "PDF (.pdf)" },
-  { format: "txt", label: "Text (.txt)" },
-]
-
-const MIME: Record<RequestExportFormat, string> = {
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  pdf: "application/pdf",
-  txt: "text/plain;charset=utf-8",
-}
+import {
+  downloadDocument,
+  exportFilename,
+  type ExportBlock,
+  type ExportCell,
+  type ExportDocument,
+  type ExportFormat,
+} from "@/lib/export-document"
 
 export const LINE_COLUMNS = [
   "Reference for SGTXT",
@@ -37,16 +26,13 @@ export const LINE_COLUMNS = [
   "SAP link",
 ] as const
 
-/** One cell: its lines, top to bottom. */
-type Cell = string[]
-
 export type RequestExportModel = {
   title: string
   subtitle: string
   generatedAt: string
   details: [string, string][]
   note: string
-  lines: Cell[][]
+  lines: ExportCell[][]
   skipped: { materialId: string; plant: string; reason: string }[]
   linkSummary: string
 }
@@ -57,7 +43,7 @@ function plain(value: string | null): string {
   return Number.isFinite(n) ? String(n) : value
 }
 
-function lineCells(line: ApiRequestLine): Cell[] {
+function lineCells(line: ApiRequestLine): ExportCell[] {
   const procured = line.flow === "i13" && line.decision === "proceed"
   const material = [
     `${line.materialId} (${line.flow === "i13" ? "OAR" : "Repairable"})`,
@@ -113,195 +99,37 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
   }
 }
 
-export function requestExportFilename(request: ApiRequest, format: RequestExportFormat, now: Date = new Date()): string {
-  const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => String(n).padStart(2, "0")).join("-")
-  return `request-${request.requestId}-${day}.${format}`
-}
-
-// --- writers --------------------------------------------------------------------
-
-/** Plain text, one block per line: a seven-column table does not survive Notepad. */
-export function toTxt(model: RequestExportModel): string {
-  const out: string[] = [model.title, model.subtitle, `Generated ${model.generatedAt}`, ""]
-  const width = Math.max(...model.details.map(([k]) => k.length))
-  for (const [k, v] of model.details) out.push(`${`${k}:`.padEnd(width + 2)}${v}`)
-  out.push("", model.note, "", "LINES", "=====")
-  const labelWidth = Math.max(...LINE_COLUMNS.map((c) => c.length))
-  for (const cells of model.lines) {
-    out.push("")
-    cells.forEach((cell, i) => {
-      cell.forEach((text, j) => out.push(`${(j === 0 ? `${LINE_COLUMNS[i]}:` : "").padEnd(labelWidth + 2)}${text}`))
-    })
-  }
-  if (model.skipped.length > 0) {
-    out.push("", "NO SESSION -- RESERVE AS USUAL", "==============================")
-    for (const s of model.skipped) out.push(`${s.materialId} (Plant ${s.plant}): ${s.reason}`)
-  }
-  out.push("", model.linkSummary, "")
-  return out.join("\r\n")
-}
-
-export async function toDocx(model: RequestExportModel): Promise<Blob> {
-  const {
-    AlignmentType,
-    BorderStyle,
-    Document,
-    HeadingLevel,
-    Packer,
-    PageOrientation,
-    Paragraph,
-    ShadingType,
-    Table,
-    TableCell,
-    TableRow,
-    TextRun,
-    WidthType,
-  } = await import("docx")
-
-  const border = { style: BorderStyle.SINGLE, size: 4, color: "D0D0D0" }
-  const borders = { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border }
-  const cell = (texts: string[], header = false) =>
-    new TableCell({
-      shading: header ? { type: ShadingType.CLEAR, color: "auto", fill: "EFEFEF" } : undefined,
-      margins: { top: 60, bottom: 60, left: 80, right: 80 },
-      children: texts.map(
-        (text, i) =>
-          new Paragraph({
-            children: [new TextRun({ text, bold: header || i === 0, size: 18 })],
-          })
-      ),
-    })
-  const table = (rows: string[][][], header: string[]) =>
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders,
-      rows: [
-        new TableRow({ tableHeader: true, children: header.map((h) => cell([h], true)) }),
-        ...rows.map((r) => new TableRow({ children: r.map((c) => cell(c)) })),
-      ],
-    })
-
-  const doc = new Document({
-    creator: "Spares AI",
+/** The model as a document for the shared Word / PDF / text writers. */
+export function requestDocument(model: RequestExportModel): ExportDocument {
+  return {
     title: model.title,
-    sections: [
-      {
-        properties: { page: { size: { orientation: PageOrientation.LANDSCAPE } } },
-        children: [
-          new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(model.title)] }),
-          new Paragraph({ children: [new TextRun({ text: model.subtitle, italics: true })] }),
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            children: [new TextRun({ text: `Generated ${model.generatedAt}`, size: 16, color: "666666" })],
-          }),
-          new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("Request")] }),
-          new Table({
-            width: { size: 60, type: WidthType.PERCENTAGE },
-            borders,
-            rows: model.details.map(
-              ([k, v]) => new TableRow({ children: [cell([k], true), cell([v])] })
-            ),
-          }),
-          new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: model.note, size: 18 })] }),
-          new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("Lines")] }),
-          table(model.lines, [...LINE_COLUMNS]),
-          ...(model.skipped.length > 0
-            ? [
-                new Paragraph({
-                  heading: HeadingLevel.HEADING_2,
-                  children: [new TextRun("No session -- reserve as usual")],
-                }),
-                table(
-                  model.skipped.map((s) => [[s.materialId], [s.plant], [s.reason]]),
-                  ["Material", "Plant", "Reason"]
-                ),
-              ]
-            : []),
-          new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: model.linkSummary, size: 18 })] }),
-        ],
-      },
+    subtitle: model.subtitle,
+    generatedAt: model.generatedAt,
+    blocks: [
+      { kind: "fields", rows: model.details },
+      { kind: "paragraph", text: model.note },
+      { kind: "heading", text: "Lines" },
+      { kind: "table", columns: [...LINE_COLUMNS], rows: model.lines },
+      ...(model.skipped.length > 0
+        ? ([
+            { kind: "heading", text: "No session -- reserve as usual" },
+            {
+              kind: "table",
+              columns: ["Material", "Plant", "Reason"],
+              rows: model.skipped.map((s) => [[s.materialId], [s.plant], [s.reason]]),
+            },
+          ] satisfies ExportBlock[])
+        : []),
+      { kind: "paragraph", text: model.linkSummary },
     ],
-  })
-  return Packer.toBlob(doc)
+  }
 }
 
-export async function toPdf(model: RequestExportModel): Promise<Blob> {
-  const { jsPDF } = await import("jspdf")
-  const { autoTable } = await import("jspdf-autotable")
-
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" })
-  const margin = 40
-  const width = doc.internal.pageSize.getWidth() - margin * 2
-  let y = margin
-
-  doc.setFont("helvetica", "bold").setFontSize(18).text(model.title, margin, (y += 8))
-  doc.setFont("helvetica", "italic").setFontSize(10).text(model.subtitle, margin, (y += 18))
-  doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(110).text(`Generated ${model.generatedAt}`, margin, (y += 14))
-  doc.setTextColor(0)
-
-  const tableStyles = { fontSize: 8, cellPadding: 4, valign: "top" as const, lineColor: 210, lineWidth: 0.5 }
-  const headStyles = { fillColor: 239, textColor: 30, fontStyle: "bold" as const }
-  const lastY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
-
-  autoTable(doc, {
-    startY: y + 12,
-    margin: { left: margin, right: margin },
-    tableWidth: width * 0.55,
-    theme: "grid",
-    styles: tableStyles,
-    columnStyles: { 0: { fontStyle: "bold", fillColor: 239, cellWidth: 110 } },
-    body: model.details,
-  })
-
-  const note = doc.setFontSize(8).splitTextToSize(model.note, width)
-  doc.text(note, margin, (y = lastY() + 16))
-  y += note.length * 10
-
-  autoTable(doc, {
-    startY: y + 6,
-    margin: { left: margin, right: margin },
-    theme: "grid",
-    styles: tableStyles,
-    headStyles,
-    head: [[...LINE_COLUMNS]],
-    body: model.lines.map((cells) => cells.map((c) => c.join("\n"))),
-  })
-
-  if (model.skipped.length > 0) {
-    doc.setFont("helvetica", "bold").setFontSize(10).text("No session -- reserve as usual", margin, lastY() + 20)
-    doc.setFont("helvetica", "normal")
-    autoTable(doc, {
-      startY: lastY() + 26,
-      margin: { left: margin, right: margin },
-      theme: "grid",
-      styles: tableStyles,
-      headStyles,
-      head: [["Material", "Plant", "Reason"]],
-      body: model.skipped.map((s) => [s.materialId, s.plant, s.reason]),
-    })
-  }
-
-  doc.setFontSize(8).text(doc.splitTextToSize(model.linkSummary, width), margin, lastY() + 16)
-  return doc.output("blob")
-}
-
-/** Builds the file and hands it to the browser; a failure is a toast, not a crash. */
-export async function downloadRequest(request: ApiRequest, format: RequestExportFormat): Promise<boolean> {
-  try {
-    const now = new Date()
-    const model = requestExportModel(request, now)
-    const blob =
-      format === "txt"
-        ? // The BOM makes older Notepad read "·" and "–" as UTF-8.
-          new Blob(["﻿", toTxt(model)], { type: MIME.txt })
-        : format === "docx"
-          ? await toDocx(model)
-          : await toPdf(model)
-    saveBlob(blob, requestExportFilename(request, format, now))
-    return true
-  } catch (error) {
-    console.error(`Request ${format} export failed`, error)
-    toast.error("Could not create the file. Please try again.")
-    return false
-  }
+export function downloadRequest(request: ApiRequest, format: ExportFormat): Promise<boolean> {
+  const now = new Date()
+  return downloadDocument(
+    requestDocument(requestExportModel(request, now)),
+    format,
+    exportFilename("request", request.requestId, format, now)
+  )
 }

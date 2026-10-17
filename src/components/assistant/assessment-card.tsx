@@ -22,6 +22,7 @@ import {
   type I08Facts,
   type I13Facts,
 } from "@/lib/api/assistant-facts"
+import { BAND_LABEL, coverReasonText } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -305,22 +306,7 @@ function Identity({
   )
 }
 
-/** Colour for the backend's aging band. Display only — the band is the backend's. */
-const BAND_LABEL: Record<string, string> = {
-  FAST: "Fast-moving",
-  SLOW: "Slow-moving",
-  NON_MOVING: "Non-moving",
-}
-
-/** Why months of cover is blank, in words -- the backend sends a code. */
-const COVER_REASON: Record<string, string> = {
-  INSUFFICIENT_HISTORY: "not enough consumption history",
-}
-
-function coverReasonText(reason: string): string {
-  return COVER_REASON[reason] ?? reason.replace(/_/g, " ").toLowerCase()
-}
-
+/** Colour for the backend's aging band. */
 const BAND_TONE: Record<string, string> = {
   FAST: "bg-success/15 text-success",
   SLOW: "bg-warning/15 text-warning",

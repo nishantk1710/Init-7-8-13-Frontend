@@ -7,10 +7,11 @@ import { toast } from "sonner"
 
 import { AiEyebrow, AiIconBadge } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
-import { RequestDownloadMenu } from "@/components/assistant/request/request-download-menu"
+import { downloadRequest } from "@/components/assistant/request/request-export"
 import { LinkSimulator } from "@/components/assistant/request/link-simulator"
 import { Chip, CopyReference, DemoBanner, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import { useRequest } from "@/components/assistant/request/use-requests"
+import { DownloadMenu } from "@/components/shared/download-menu"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -72,7 +73,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
               <Stat term="To reserve" value={toReserve.length} />
               <Stat term="No session" value={request.skipped.length} />
             </dl>
-            <RequestDownloadMenu request={request} />
+            <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
           </div>
         </div>
         <div className="flex gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -131,7 +132,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
       {ASSISTANT_DEMO ? <LinkSimulator request={request} /> : <LiveLinks request={request} onSimulated={reload} />}
 
       <div className="flex flex-wrap gap-2">
-        <RequestDownloadMenu request={request} />
+        <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
         <Link href="/assistant/requests/new" className={buttonVariants({ variant: "outline", size: "sm" })}>
           New request
         </Link>

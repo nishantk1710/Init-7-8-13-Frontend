@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
 
-import { requestExportFilename, requestExportModel, toDocx, toPdf, toTxt } from "./request-export"
+import { exportFilename, toDocx, toPdf, toTxt } from "@/lib/export-document"
+
+import { requestDocument, requestExportModel } from "./request-export"
 
 const line = (over: Partial<ApiRequestLine>): ApiRequestLine => ({
   lineNo: 1,
@@ -98,23 +100,24 @@ describe("requestExportModel", () => {
 
 describe("writers", () => {
   const model = requestExportModel(request)
+  const doc = requestDocument(model)
 
   it("text has every line reference and the skipped material", () => {
-    const txt = toTxt(model)
+    const txt = toTxt(doc)
     expect(txt).toContain("R46WFYXS1R/1")
     expect(txt).toContain("Procure 2 although stock covers the year -- justified.")
-    expect(txt).toContain("123 (Plant 1300): Not in the I13 data.")
+    expect(txt).toContain("Not in the I13 data.")
   })
 
   it("Word and PDF produce non-empty files", async () => {
-    const docx = await toDocx(model)
+    const docx = await toDocx(doc)
     expect(docx.size).toBeGreaterThan(1000)
-    const pdf = await toPdf(model)
+    const pdf = await toPdf(doc)
     expect(pdf.size).toBeGreaterThan(1000)
     expect(new TextDecoder().decode((await pdf.arrayBuffer()).slice(0, 5))).toBe("%PDF-")
   }, 20_000)
 
   it("names the file after the request and day", () => {
-    expect(requestExportFilename(request, "pdf", new Date(2026, 9, 17))).toBe("request-R46WFYXS1R-2026-10-17.pdf")
+    expect(exportFilename("request", request.requestId, "pdf", new Date(2026, 9, 17))).toBe("request-R46WFYXS1R-2026-10-17.pdf")
   })
 })
