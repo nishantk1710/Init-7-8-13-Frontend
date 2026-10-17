@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { AiEyebrow, AiIconBadge } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
+import { RequestDownloadMenu } from "@/components/assistant/request/request-download-menu"
 import { LinkSimulator } from "@/components/assistant/request/link-simulator"
 import { Chip, CopyReference, DemoBanner, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import { useRequest } from "@/components/assistant/request/use-requests"
@@ -65,11 +66,14 @@ export function RequestSummary({ requestId }: { requestId: string }) {
               · {new Date(request.issuedAt).toLocaleString("en-GB")}
             </span>
           </div>
-          <dl className="grid grid-cols-3 gap-4 text-center">
-            <Stat term="Lines" value={request.lines.length} />
-            <Stat term="To reserve" value={toReserve.length} />
-            <Stat term="No session" value={request.skipped.length} />
-          </dl>
+          <div className="flex flex-col items-end gap-3">
+            <dl className="grid grid-cols-3 gap-4 text-center">
+              <Stat term="Lines" value={request.lines.length} />
+              <Stat term="To reserve" value={toReserve.length} />
+              <Stat term="No session" value={request.skipped.length} />
+            </dl>
+            <RequestDownloadMenu request={request} />
+          </div>
         </div>
         <div className="flex gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -127,6 +131,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
       {ASSISTANT_DEMO ? <LinkSimulator request={request} /> : <LiveLinks request={request} onSimulated={reload} />}
 
       <div className="flex flex-wrap gap-2">
+        <RequestDownloadMenu request={request} />
         <Link href="/assistant/requests/new" className={buttonVariants({ variant: "outline", size: "sm" })}>
           New request
         </Link>

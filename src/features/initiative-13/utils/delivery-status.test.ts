@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { deliveryStatus, deliveryStatusFromProcurement } from "./delivery-status"
+import { DELIVERY_STATE_LABELS, deliveryStatus, deliveryStatusFromProcurement } from "./delivery-status"
 
 const base = {
   hasPo: true,
@@ -76,5 +76,11 @@ describe("deliveryStatusFromProcurement", () => {
     expect(
       deliveryStatusFromProcurement({ ...line, hasPo: false, procurementStatus: "OPEN" })
     ).toMatchObject({ state: "NO_PO" })
+  })
+})
+
+describe("DELIVERY_STATE_LABELS", () => {
+  it("labels every state", () => {
+    expect(Object.keys(DELIVERY_STATE_LABELS).sort()).toEqual(["DELIVERED", "NOT_DELIVERED", "NO_PO", "PARTIAL"])
   })
 })

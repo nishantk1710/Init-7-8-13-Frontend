@@ -63,3 +63,11 @@ export function deliveryStatusFromProcurement(input: {
       return { state: "DELIVERED", date, firstDate }
   }
 }
+
+/** Filter labels, in the order a reader expects them; the cell's wording. */
+export const DELIVERY_STATE_LABELS: Record<DeliveryState, string> = {
+  DELIVERED: "Delivered",
+  PARTIAL: "Partially received",
+  NOT_DELIVERED: "Not delivered",
+  NO_PO: "No PO yet",
+}

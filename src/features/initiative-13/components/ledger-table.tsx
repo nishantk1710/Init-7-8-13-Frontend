@@ -5,7 +5,11 @@ import { ChevronRight } from "lucide-react"
 
 import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
-import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/delivery-status"
+import {
+  DELIVERY_STATE_LABELS,
+  deliveryStatusFromProcurement,
+  type DeliveryState,
+} from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { TablePagination } from "@/components/shared/table-pagination"
@@ -82,6 +86,15 @@ function rowKey(entry: UtilisationLedgerEntry): string {
   return [entry.poNumber, entry.poItem, entry.prNumber, entry.prItem].map((v) => v ?? "").join("|")
 }
 
+function deliveryOf(entry: UtilisationLedgerEntry) {
+  return deliveryStatusFromProcurement({
+    hasPo: Boolean(entry.poNumber),
+    procurementStatus: entry.procurementStatus,
+    firstGrDate: entry.firstGrDate,
+    latestGrDate: entry.latestGrDate,
+  })
+}
+
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   const events: TimelineEvent[] = [
     {
@@ -135,7 +148,8 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
  *
  * Plant and material are **not** filtered here any more — they are server-side
  * query parameters now, owned by the URL and rendered by `I13UrlFilters` on the
- * page. What remains local are the two status filters, which narrow rows the
+ * page. What remains local are the three status filters (procurement,
+ * utilization, delivery), which narrow rows the
  * server already sent: that is genuine client work over data in hand, and it is
  * the split Initiative 8's register uses.
  */
@@ -147,18 +161,20 @@ export function UtilizationLedgerTable({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [procurementFilter, setProcurementFilter] = useState<string>(ALL_FILTER)
   const [utilisationFilter, setUtilisationFilter] = useState<string>(ALL_FILTER)
+  const [deliveryFilter, setDeliveryFilter] = useState<string>(ALL_FILTER)
 
   const filtered = useMemo(
     () =>
       entries.filter((e) => {
         if (procurementFilter !== ALL_FILTER && e.procurementStatus !== procurementFilter) return false
         if (utilisationFilter !== ALL_FILTER && e.utilisationStatus !== utilisationFilter) return false
+        if (deliveryFilter !== ALL_FILTER && deliveryOf(e).state !== deliveryFilter) return false
         return true
       }),
-    [entries, procurementFilter, utilisationFilter]
+    [entries, procurementFilter, utilisationFilter, deliveryFilter]
   )
   const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
-    resetKey: `${procurementFilter}|${utilisationFilter}`,
+    resetKey: `${procurementFilter}|${utilisationFilter}|${deliveryFilter}`,
   })
 
   if (entries.length === 0) {
@@ -203,14 +219,32 @@ export function UtilizationLedgerTable({
             ))}
           </SelectContent>
         </Select>
+        <Select value={deliveryFilter} onValueChange={(v) => setDeliveryFilter(v ?? ALL_FILTER)}>
+          <SelectTrigger className="h-9 w-full sm:w-48">
+            <SelectValue placeholder="Delivery status">
+              {(v: string) =>
+                v === ALL_FILTER ? "All delivery statuses" : DELIVERY_STATE_LABELS[v as DeliveryState]
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_FILTER}>All delivery statuses</SelectItem>
+            {(Object.keys(DELIVERY_STATE_LABELS) as DeliveryState[]).map((s) => (
+              <SelectItem key={s} value={s}>
+                {DELIVERY_STATE_LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <ClearFiltersButton
           activeCount={
-            [procurementFilter, utilisationFilter].filter((f) => f !== ALL_FILTER)
+            [procurementFilter, utilisationFilter, deliveryFilter].filter((f) => f !== ALL_FILTER)
               .length
           }
           onClear={() => {
             setProcurementFilter(ALL_FILTER)
             setUtilisationFilter(ALL_FILTER)
+            setDeliveryFilter(ALL_FILTER)
           }}
         />
       </FilterBar>
@@ -315,12 +349,7 @@ export function UtilizationLedgerTable({
                           adapter keeps them apart precisely so this cell can. */}
                       <Quantity value={entry.receivedQuantity} />
                       <DeliveredOnCell
-                        status={deliveryStatusFromProcurement({
-                          hasPo: Boolean(entry.poNumber),
-                          procurementStatus: entry.procurementStatus,
-                          firstGrDate: entry.firstGrDate,
-                          latestGrDate: entry.latestGrDate,
-                        })}
+                        status={deliveryOf(entry)}
                         receivedQuantity={entry.receivedQuantity}
                       />
                       <Quantity value={entry.issuedQuantity} />
