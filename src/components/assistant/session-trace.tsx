@@ -13,6 +13,7 @@ import {
   AssessmentCard,
   AssessmentCaveats,
 } from "@/components/assistant/assessment-card"
+import { SessionDownloadMenu } from "@/components/assistant/session-download-menu"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type {
@@ -24,6 +25,7 @@ import type {
   SessionTraceResponse,
 } from "@/lib/api/assistant"
 import { summariseAnswer } from "@/lib/assistant/transcript"
+import { formatInstant, formatWindow, planStatusLabel } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -134,6 +136,7 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
           opened from {trace.origin === "BADI" ? "SAP" : "the platform"}
         </span>
+        <SessionDownloadMenu trace={trace} className="ml-auto" />
       </div>
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -260,12 +263,6 @@ function PlanCard({ plan }: { plan: ApiPlan }) {
       </div>
     </div>
   )
-}
-
-/** `OPEN` -> `Open`: the plan's status is a code on the wire. */
-function planStatusLabel(status: string): string {
-  const words = status.replace(/_/g, " ").toLowerCase()
-  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 function SuggestionCard({
@@ -474,22 +471,4 @@ export function BackToSessions() {
       All sessions
     </Link>
   )
-}
-
-function formatWindow(start: string | null, end: string | null): string | null {
-  if (!start && !end) return null
-  if (start && end) return `${start} to ${end}`
-  return start ? `from ${start}` : `by ${end}`
-}
-
-function formatInstant(iso: string): string {
-  const parsed = new Date(iso)
-  if (Number.isNaN(parsed.getTime())) return iso
-  return parsed.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }

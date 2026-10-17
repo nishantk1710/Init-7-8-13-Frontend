@@ -3,34 +3,38 @@
 import { useState } from "react"
 import { ChevronDown, Download, Loader2 } from "lucide-react"
 
-import {
-  downloadRequest,
-  REQUEST_EXPORT_FORMATS,
-  type RequestExportFormat,
-} from "@/components/assistant/request/request-export"
 import { buttonVariants } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ApiRequest } from "@/lib/api/assistant-requests"
+import { EXPORT_FORMATS, type ExportFormat } from "@/lib/export-document"
 
-/** Download the request summary as Word, PDF or text. */
-export function RequestDownloadMenu({ request }: { request: ApiRequest }) {
-  const [busy, setBusy] = useState<RequestExportFormat | null>(null)
+/** "Download ▾" with Word, PDF and text; `onDownload` builds and saves the file. */
+export function DownloadMenu({
+  onDownload,
+  className,
+}: {
+  onDownload: (format: ExportFormat) => Promise<unknown>
+  className?: string
+}) {
+  const [busy, setBusy] = useState(false)
 
-  async function download(format: RequestExportFormat) {
-    setBusy(format)
-    await downloadRequest(request, format)
-    setBusy(null)
+  async function download(format: ExportFormat) {
+    setBusy(true)
+    try {
+      await onDownload(format)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={buttonVariants({ variant: "outline", size: "sm" })} disabled={busy !== null}>
+      <DropdownMenuTrigger className={buttonVariants({ variant: "outline", size: "sm", className })} disabled={busy}>
         {busy ? <Loader2 className="animate-spin" /> : <Download />}
         Download
         <ChevronDown className="opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {REQUEST_EXPORT_FORMATS.map(({ format, label }) => (
+        {EXPORT_FORMATS.map(({ format, label }) => (
           <DropdownMenuItem key={format} onClick={() => download(format)}>
             {label}
           </DropdownMenuItem>
