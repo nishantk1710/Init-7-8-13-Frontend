@@ -629,7 +629,7 @@ export interface SimilarMaterial {
 }
 
 /** GET /recommendations/{id}/similar-materials -- the neighbours an OAR
- * recommendation was sized from, best first (up to ten). `[]` (never fabricated)
+ * recommendation was sized from, best first (up to five). `[]` (never fabricated)
  * when it was not sized from similarity. */
 export async function fetchSimilarMaterials(id: string): Promise<SimilarMaterial[]> {
   const response = await apiFetch<ApiSimilarMaterialsResponse>(
