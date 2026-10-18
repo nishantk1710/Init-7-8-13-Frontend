@@ -1,17 +1,20 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
+  activeRegisterFilters,
   buildRegisterOptions,
+  fetchAllRegisterLines,
   isListedInRegister,
+  loadRegisterPage,
+  parseRegisterParams,
   registerDescription,
+  registerHref,
+  toRegisterLine,
   toRepairChain,
 } from "@/features/initiative-8/data/live-register"
 import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import {
-  NO_REGISTER_FILTERS,
   REGISTER_CSV_HEADERS,
-  activeRegisterFilters,
-  filterRegister,
   registerRowsToCsv,
 } from "@/features/initiative-8/utils/register-view"
 import {
@@ -22,7 +25,12 @@ import {
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import type { ApiRegisterMeta, ApiRepairChain, ApiRepairJustification } from "@/lib/api/i8"
+import type {
+  ApiRegisterMeta,
+  ApiRegisterPage,
+  ApiRepairChain,
+  ApiRepairJustification,
+} from "@/lib/api/i8"
 
 /**
  * W5.4 — the adapter between the API and the domain type.
@@ -267,83 +275,251 @@ describe("buildRegisterOptions", () => {
   })
 })
 
-describe("filterRegister", () => {
-  const overdue = toRepairChain(apiRow({ id: "overdue", criticality: "CRITICAL" }))
-  const onTime = toRepairChain(apiRow({ id: "on-time", overdueStatus: "ON_TIME" }))
-  const noDate = toRepairChain(apiRow({ id: "no-date", overdueStatus: "NO_DUE_DATE" }))
-  const back = toRepairChain(
-    apiRow({ id: "back", overdueStatus: "RECEIVED", repairStatus: "Closed", criticality: "NORMAL" }),
-  )
-  const all = [overdue, onTime, noDate, back]
-  const ids = (chains: { id: string }[]) => chains.map((c) => c.id)
+/**
+ * The Register screen pages on the server. What these pin: the URL reads back
+ * as the filters it was written from, the listing's own two parameters go on
+ * every request, the dropdowns are the server's in the order the screen always
+ * had them, and each line's exceptions arrive with it. The filters themselves
+ * run in the backend and are tested there (`tests/test_i8_queue_paging.py`).
+ */
 
-  it("returns everything with no filter set", () => {
-    expect(filterRegister(all, NO_REGISTER_FILTERS)).toHaveLength(4)
-  })
-
-  it("filters on the overdue status, each state separately", () => {
-    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "OVERDUE" }))).toEqual(["overdue"])
-    // "No due date" is its own answer, not a kind of "on time".
-    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "NO_DUE_DATE" }))).toEqual(["no-date"])
-    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, overdue: "ON_TIME" }))).toEqual(["on-time"])
-  })
-
-  it("filters on criticality, and 'Not recorded' finds the unrated lines", () => {
-    expect(ids(filterRegister(all, { ...NO_REGISTER_FILTERS, criticality: "CRITICAL" }))).toEqual([
-      "overdue",
-    ])
+describe("parseRegisterParams and registerHref", () => {
+  it("read every filter and the page", () => {
     expect(
-      ids(filterRegister(all, { ...NO_REGISTER_FILTERS, criticality: NO_CRITICALITY })),
-    ).toEqual(["on-time", "no-date"])
+      parseRegisterParams({
+        q: " pump ",
+        plant: "1300",
+        vendor: "none",
+        repairStatus: "PO Issued",
+        overdue: "OVERDUE",
+        criticality: "CRITICAL",
+        declarationStatus: "Required",
+        aging: "60+",
+        exceptions: "1",
+        page: "4",
+      }),
+    ).toEqual({
+      filters: {
+        q: "pump",
+        plant: "1300",
+        vendor: "none",
+        repairStatus: "PO Issued",
+        overdue: "OVERDUE",
+        criticality: "CRITICAL",
+        declarationStatus: "Required",
+        aging: "60+",
+        exceptions: true,
+      },
+      page: 4,
+    })
   })
 
-  it("combines filters with AND", () => {
-    const filters = { ...NO_REGISTER_FILTERS, repairStatus: "Closed", criticality: "CRITICAL" }
-    expect(filterRegister(all, filters)).toHaveLength(0)
-  })
-})
-
-describe("filterRegister: the search box", () => {
-  // The register is drawn a page at a time, so the browser's own find sees
-  // one page. The search box is how a line on another page is found.
-  const pump = toRepairChain(apiRow())
-  const valve = toRepairChain(
-    apiRow({
-      id: "4500002000-10",
-      material: { materialId: "8000009999", materialCode: "8000009999", description: "GATE VALVE 4IN" },
-      repairPr: { type: "PR", documentNumber: "2000099999", line: "10" },
-      repairPo: { type: "PO", documentNumber: "4500002000", line: "10" },
-    }),
-  )
-  const found = (search: string) =>
-    filterRegister([pump, valve], { ...NO_REGISTER_FILTERS, search }).map((c) => c.id)
-
-  it("matches the material number and description, ignoring case", () => {
-    expect(found("8000009999")).toEqual(["4500002000-10"])
-    expect(found("gate valve")).toEqual(["4500002000-10"])
+  it("treat a blank, repeated or malformed value as absent", () => {
+    expect(
+      parseRegisterParams({ q: " ", plant: ["1300", "1500"], exceptions: "yes", page: "x" }),
+    ).toEqual({ filters: { exceptions: false }, page: 1 })
   })
 
-  it("matches the repair line, and the PO and PR as the register shows them", () => {
-    expect(found("4500001052-1310")).toEqual(["4500001052-1310"])
-    expect(found("4500002000/10")).toEqual(["4500002000-10"])
-    expect(found("2000028388")).toEqual(["4500001052-1310"])
+  it("link to a page, keeping the filters and dropping page 1", () => {
+    expect(registerHref({ q: "pump seal", exceptions: true }, 2)).toBe(
+      "/repairable-spares/repair-register?q=pump+seal&exceptions=1&page=2",
+    )
+    expect(registerHref({})).toBe("/repairable-spares/repair-register")
   })
 
-  it("is no filter when blank", () => {
-    expect(found("   ")).toHaveLength(2)
-  })
+  it("read back as the same filters", () => {
+    const filters = {
+      q: "pump",
+      plant: "1300",
+      vendor: "none",
+      repairStatus: "At Vendor",
+      overdue: "NO_DUE_DATE",
+      criticality: "none",
+      declarationStatus: "Flagged",
+      aging: "0-15",
+      exceptions: true,
+    }
+    const raw = Object.fromEntries(new URL(registerHref(filters, 3), "http://x").searchParams)
 
-  it("combines with the dropdowns", () => {
-    const filters = { ...NO_REGISTER_FILTERS, search: "valve", plant: "1500" }
-    expect(filterRegister([pump, valve], filters)).toHaveLength(0)
+    expect(parseRegisterParams(raw)).toEqual({ filters, page: 3 })
   })
 })
 
 describe("activeRegisterFilters", () => {
-  it("counts the search box only when it holds text", () => {
-    expect(activeRegisterFilters(NO_REGISTER_FILTERS)).toBe(0)
-    expect(activeRegisterFilters({ ...NO_REGISTER_FILTERS, search: "  " })).toBe(0)
-    expect(activeRegisterFilters({ ...NO_REGISTER_FILTERS, search: "pump", plant: "1300" })).toBe(2)
+  it("counts each filter set, and the exceptions switch only when it is on", () => {
+    expect(activeRegisterFilters({ exceptions: false })).toBe(0)
+    expect(activeRegisterFilters({ q: "pump", plant: "1300", exceptions: true })).toBe(3)
+  })
+})
+
+/** A `GET /api/i8/register` page as the backend sends it. */
+function registerPage(
+  items: ApiRepairChain[],
+  extra: Partial<ApiRegisterPage> = {},
+): ApiRegisterPage {
+  return {
+    items,
+    total: items.length,
+    page: 1,
+    pageSize: 25,
+    referenceDate: "2026-10-18",
+    meta: { totalLines: 5063, openLines: 735, heldLines: 92 } as ApiRegisterMeta,
+    ...extra,
+  }
+}
+
+describe("loadRegisterPage", () => {
+  const fetchSnapshot = vi.fn().mockResolvedValue({
+    rules: { agingBands: "0-15,16-30" },
+    sourceLoadedAt: "2026-10-18T03:40:00Z",
+  })
+
+  it("asks for one page, with the listing's own two parameters always on", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
+
+    await loadRegisterPage({ plant: "1300", q: "pump", exceptions: true }, 3, {
+      pageSize: 25,
+      fetchPage,
+      fetchSnapshot,
+    })
+
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+    expect(fetchPage).toHaveBeenCalledWith({
+      q: "pump",
+      plant: "1300",
+      withExceptions: true,
+      excludeHeld: true,
+      excludeExceptionType: "UNJUSTIFIED_ACQUISITION",
+      page: 3,
+      pageSize: 25,
+    })
+  })
+
+  it("counts every match, and keeps the listed register's counts for the caption", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()], { total: 240 }))
+
+    const page = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(page.total).toBe(240)
+    expect(page.meta.heldLines).toBe(92)
+    expect(page.agingBands).toEqual(["0-15", "16-30"])
+    expect(page.sourceLoadedAt).toBe("2026-10-18T03:40:00Z")
+  })
+
+  it("orders the server's dropdown values the way the screen always had them", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([apiRow()], {
+        facets: {
+          plants: [
+            { plantId: "1500", name: "Gamsberg" },
+            { plantId: "1300", name: "Black Mountain Mining" },
+          ],
+          vendors: [
+            { vendor: "100999", name: null },
+            { vendor: "100234", name: "Acme Rewinds" },
+          ],
+          hasUnknownVendor: true,
+          repairStatuses: ["Closed", "At Vendor", "PO Issued"],
+          criticalities: ["NORMAL", "CRITICAL"],
+          hasUnrated: true,
+        },
+      }),
+    )
+
+    const { facets } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(facets.plants.map((p) => p.name)).toEqual(["Black Mountain Mining", "Gamsberg"])
+    // "Unknown vendor" and "Not recorded" keep the lines with neither findable.
+    expect(facets.vendors).toEqual([
+      { value: "100999", label: "100999" },
+      { value: "100234", label: "Acme Rewinds" },
+      { value: "none", label: "Unknown vendor" },
+    ])
+    expect(facets.repairStatuses).toEqual(["PO Issued", "At Vendor", "Closed"])
+    expect(facets.criticalities).toEqual([
+      { value: "CRITICAL", label: "CRITICAL" },
+      { value: "NORMAL", label: "NORMAL" },
+      { value: "none", label: "Not recorded" },
+    ])
+  })
+
+  it("falls back to the page's rows when the backend sends no facets", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([
+        apiRow({ id: "a", criticality: "CRITICAL" }),
+        apiRow({ id: "b", vendor: null, vendorName: null, criticality: null }),
+      ]),
+    )
+
+    const { facets } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(facets.vendors).toEqual([
+      { value: "0001000123", label: "0001000123" },
+      { value: "none", label: "Unknown vendor" },
+    ])
+    expect(facets.criticalities.map((c) => c.value)).toEqual(["CRITICAL", "none"])
+  })
+
+  it("brings each line's exceptions with it, and leaves 'not computed' undefined", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([
+        apiRow({
+          id: "raised",
+          exceptions: [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning" }],
+        }),
+        apiRow({ id: "clean", exceptions: [] }),
+        // A backend older than paging sends none: the column says "Not checked".
+        apiRow({ id: "unknown" }),
+      ]),
+    )
+
+    const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(chains.map((c) => c.exceptions)).toEqual([
+      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning" }],
+      [],
+      undefined,
+    ])
+  })
+})
+
+describe("toRegisterLine", () => {
+  it("carries the line's exceptions, which toRepairChain leaves off for the Overview", () => {
+    const row = apiRow({
+      exceptions: [{ id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical" }],
+    })
+
+    expect(toRegisterLine(row).exceptions).toEqual([
+      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical" },
+    ])
+    // Its charts never read them, and every line it loads would carry them.
+    expect(toRepairChain(row).exceptions).toBeUndefined()
+  })
+})
+
+describe("fetchAllRegisterLines", () => {
+  const batch = (start: number, count: number) =>
+    Array.from({ length: count }, (_, i) => apiRow({ id: `L${start + i}` }))
+
+  it("pages until the count is reached, with the screen's filters", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce(registerPage(batch(0, 500), { total: 700 }))
+      .mockResolvedValueOnce(registerPage(batch(500, 200), { total: 700 }))
+
+    const chains = await fetchAllRegisterLines({ vendor: "none" }, fetchPage)
+
+    expect(chains).toHaveLength(700)
+    expect(fetchPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ vendor: "none", excludeHeld: true, page: 2, pageSize: 500 }),
+    )
+  })
+
+  it("stops on a short page even if the count says more", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage(batch(0, 3), { total: 9000 }))
+
+    expect(await fetchAllRegisterLines({}, fetchPage)).toHaveLength(3)
+    expect(fetchPage).toHaveBeenCalledTimes(1)
   })
 })
 

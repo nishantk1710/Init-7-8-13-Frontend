@@ -9,9 +9,11 @@
  * filter it in the browser, which made it a 17 MB page that took ten seconds
  * to arrive.
  *
- * `loadLiveExceptions` still loads all of it, for the two readers that join it
- * to repair lines: the register's Exceptions column, and the repair detail
- * page's own short list (which asks for one line with `repair`).
+ * `loadLiveExceptions` still follows every page, for the repair detail page's
+ * own short list -- which asks for one line with `repair`, so in practice it
+ * is one request. The register's Exceptions column used to be filled by
+ * loading the whole queue here and joining it in the browser; the register
+ * listing serves each line's items itself now.
  *
  * ## Expect this to be large, and say so
  *
@@ -45,8 +47,6 @@ import type {
   ExceptionQueueRow,
   ExceptionQueueSummary,
   ExceptionStatus,
-  RepairChain,
-  RepairLineException,
 } from "@/features/initiative-8/types/repair"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
@@ -169,9 +169,10 @@ const PAGE_SIZE = 500
  *
  * Dropped here rather than in the table so that everything reading this
  * loader agrees about what the queue holds: the summary band, the type
- * filter, the CSV export, and the register's per-line exception chips.
+ * filter and the CSV export. The register sends the same list with its own
+ * request (`excludeExceptionType`), so its per-line chips agree too.
  */
-const DROPPED_TYPES: ReadonlySet<string> = new Set(["UNJUSTIFIED_ACQUISITION"])
+export const DROPPED_TYPES: ReadonlySet<string> = new Set(["UNJUSTIFIED_ACQUISITION"])
 
 /**
  * The summary, describing the rows that are left.
@@ -273,42 +274,6 @@ export async function loadLiveExceptions(
     referenceDate,
     truncated,
   }
-}
-
-/**
- * Hang each line's exception items off the register rows.
- *
- * The register and the exception queue are two different endpoints: the
- * register knows nothing about the checks, and the checks are recomputed from
- * it on every read. The join is by `repairId`, which the queue serves exactly
- * so this is possible.
- *
- * `rows === null` means the exception fetch failed, and every chain comes back
- * with `exceptions` left undefined — the register then shows "Not checked"
- * rather than an empty cell. An empty array means the checks ran and found
- * nothing against that line, which is a different and much stronger claim.
- */
-export function attachLineExceptions(
-  chains: RepairChain[],
-  rows: ExceptionQueueRow[] | null,
-): RepairChain[] {
-  if (rows === null) return chains
-
-  const byLine = new Map<string, RepairLineException[]>()
-  for (const row of rows) {
-    // An item the queue could not tie back to a register line (no repairId)
-    // is still a real finding; it just has no row here to sit on.
-    if (!row.repairId) continue
-    const found = byLine.get(row.repairId)
-    const item = { id: row.id, type: row.type, severity: row.severity }
-    if (found) found.push(item)
-    else byLine.set(row.repairId, [item])
-  }
-
-  return chains.map((chain) => ({
-    ...chain,
-    exceptions: byLine.get(chain.id) ?? [],
-  }))
 }
 
 // --- One page, for the Exceptions screen ------------------------------------

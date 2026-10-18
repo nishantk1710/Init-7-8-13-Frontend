@@ -16,7 +16,7 @@ Exceptions and Justifications, whose route files are the pages.
 | Route | Page | FRS | Reads |
 |---|---|---|---|
 | `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-10 | register, universe, declaration and exception meta (`data/live-overview.ts`) |
-| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
+| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, one page at a time, and `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
 | `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4, FR-7 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); the attestation form (`components/declare-condition-button.tsx`, `GET`/`POST /api/i8/attestations`) |
 | `/repairable-spares/declarations` | route file itself | FR-4 | `GET /api/i8/declarations`, one page at a time, and the log from `GET /api/i8/attestations` (`data/live-declarations.ts`) |
 | `/repairable-spares/exceptions` | route file itself | FR-8, FR-9, FR-11 | `GET /api/i8/exceptions`, one page at a time, and `GET /api/i8/exceptions/{id}` for a linked item (`data/live-exceptions.ts`) |
@@ -31,19 +31,21 @@ The long lists draw 25 rows a page (`DEFAULT_PAGE_SIZE`, with
 `components/shared/table-pagination.tsx`). Until 18-Oct-2026 the register and
 the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
 
-- **Paged on the server:** Repair Declarations, Repair Exceptions and
-  Justifications. The filters and the page live in the URL (`?q=`, `?plant=`,
-  `?page=` and so on), and the backend searches, filters, counts and pages.
-  The dropdown values come back as `facets`, because one page of rows cannot
-  supply them. The controls are in `components/url-filters.tsx`. Export
-  fetches every match in batches of 500.
-- **Paged in the browser:** the Repair Register. It still loads every line,
-  because its Exceptions column joins the whole exception queue and some of
-  its filters exist only here. It draws one page at a time (`usePaginatedRows`),
-  and its search box stands in for the browser's find, which sees one page.
-- **Not paged:** Repair Candidates (113 ranked rows, whose AI screen fills in
-  verdicts while you watch), the declaration log (six rows) and the repair
-  detail page, which has no table.
+- **Paged on the server:** the Repair Register, Repair Declarations, Repair
+  Exceptions and Justifications. The filters and the page live in the URL
+  (`?q=`, `?plant=`, `?page=` and so on), and the backend searches, filters,
+  counts and pages. The dropdown values come back as `facets`, because one
+  page of rows cannot supply them. The controls are in
+  `components/url-filters.tsx`. Export fetches every match in batches of 500.
+- **The register's own two rules run on the server too.** It leaves out the
+  PO-issued lines blocked in SAP or partly received (`excludeHeld`; the
+  Overview applies the same rule in `isListedInRegister`), and each line
+  arrives with its exceptions, so the screen no longer loads the whole
+  exception queue to fill one column.
+- **Not paged:** the Overview, whose charts describe every line
+  (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
+  fills in verdicts while you watch); the declaration log (six rows); and the
+  repair detail page, which has no table.
 
 ### The register is where a repair line is worked
 
@@ -99,9 +101,8 @@ FRS does not require them:
   went for repair anyway.
 - `utils/status.ts` holds the tone maps, the status orders, the overdue and
   lead-time helpers, and `isPartiallyReceived`.
-- `utils/register-view.ts` holds the register filters, its search and the
-  CSV export. The CSV is built from every row the filters match, not from
-  the page on screen.
+- `utils/register-view.ts` holds the register's CSV export. The CSV is built
+  from every line the filters match, not from the page on screen.
 - `utils/attestation.ts` holds the attestation form's rules (conditions,
   recommendation mapping, quantity parsing).
 - `lib/api/i8.ts` (outside this folder) is the typed client and wire

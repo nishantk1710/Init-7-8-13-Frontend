@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
-import { Download } from "lucide-react"
+import { useState, type KeyboardEvent, type MouseEvent } from "react"
+import { Download, Loader2 } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -12,14 +12,6 @@ import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -28,22 +20,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
 import {
-  ALL,
-  NO_REGISTER_FILTERS,
-  REGISTER_CSV_HEADERS,
-  WITH_EXCEPTIONS,
+  PendingSpinner,
+  UrlSearchInput,
+  UrlSelect,
+  useUrlFilters,
+  withSelected,
+} from "@/features/initiative-8/components/url-filters"
+import {
+  REGISTER_PATH,
   activeRegisterFilters,
-  filterRegister,
-  registerRowsToCsv,
+  fetchAllRegisterLines,
+  registerHref,
+  type RegisterFacets,
   type RegisterFilters,
+} from "@/features/initiative-8/data/live-register"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
+import {
+  REGISTER_CSV_HEADERS,
+  registerRowsToCsv,
 } from "@/features/initiative-8/utils/register-view"
 import {
   CRITICALITY_TONE,
   DECLARATION_STATUSES,
   DECLARATION_STATUS_TONE,
-  DEFAULT_AGING_BUCKETS,
   EXCEPTION_SEVERITY_TONE,
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
@@ -55,39 +55,24 @@ import {
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
-/** A plant the filter can offer. Structurally `PlantReference`, but the live
- *  plants come from the data rather than from `lib/shared-data/plants`, whose
- *  ids (PLANT-GBG) do not exist in the backend (1300). */
-type PlantOption = { plantId: string; name: string }
-
 export type RepairRegisterTableProps = {
-  /** The rows to render — always from the backend. There is no fixture
-   *  fallback: an empty array means the register really is empty, and a
-   *  failure is reported through `loadError` instead. */
-  chains?: RepairChain[]
-  plantOptions?: PlantOption[]
-  vendorOptions?: string[]
-  /** The repair statuses present in the data (`LiveRegister.repairStatusOptions`),
-   *  not every status the type allows. */
-  repairStatusOptions?: RepairStatus[]
-  /** Criticality ratings present in the data, plus "Not recorded" when any
-   *  line is unrated. */
-  criticalityOptions?: string[]
-  /** The active aging bands, from `LiveRegister.agingBands` in live mode.
-   *  Defaults to the fixed bands the fixtures were written against. */
-  agingBands?: string[]
-  /**
-   * Set when the rows could not be loaded.
-   *
-   * Rendered as a visible failure, never as an empty table. "No repairs match
-   * these filters" and "the server could not be reached" are different
-   * statements, and showing the second as the first is how a broken demo looks
-   * like a clean answer.
-   */
-  loadError?: string | null
+  /** One page of the register — always from the backend. There is no fixture
+   *  fallback: a failure is reported by the page, never as an empty table. */
+  chains: RepairChain[]
+  /** Matching the filters, across every page. */
+  total: number
+  /** Every line the register lists, whatever the filters. */
+  overall: number
+  page: number
+  pageSize: number
+  /** The dropdowns' choices, from the server: one page of rows would offer
+   *  only what is on it. */
+  facets: RegisterFacets
+  /** The active aging bands, from the snapshot's rules. */
+  agingBands: string[]
+  filters: RegisterFilters
 }
 
 /** The repair detail page for one register line. */
@@ -109,38 +94,56 @@ export function repairHref(chain: Pick<RepairChain, "id">): string {
  * Columns run from what a repair is doing now, through its declaration and
  * justification, to the reference columns (criticality, stock, SAP documents)
  * people read least.
+ *
+ * One server page at a time: the filters live in the URL, and the server
+ * searches, filters, counts and pages (see `loadRegisterPage`). Back from a
+ * repair's detail page returns to the same page and filters.
  */
 export function RepairRegisterTable({
-  chains = [],
-  plantOptions = [],
-  vendorOptions = [],
-  repairStatusOptions = [],
-  criticalityOptions = [],
-  agingBands = DEFAULT_AGING_BUCKETS,
-  loadError = null,
-}: RepairRegisterTableProps = {}) {
+  chains,
+  total,
+  overall,
+  page,
+  pageSize,
+  facets,
+  agingBands,
+  filters,
+}: RepairRegisterTableProps) {
   const router = useRouter()
-  const [filters, setFilters] = useState<RegisterFilters>(NO_REGISTER_FILTERS)
+  const { push, isPending } = useUrlFilters(REGISTER_PATH)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
-  function setFilter(key: keyof RegisterFilters) {
-    return (value: string) => setFilters((current) => ({ ...current, [key]: value }))
+  /**
+   * Every line the filters match, not the page on screen -- and nothing the
+   * filters exclude. The file is the view it came from.
+   */
+  async function exportExcel() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const all = await fetchAllRegisterLines(filters)
+      const built = await downloadExcel(
+        "i08-repair-register.xlsx",
+        REGISTER_CSV_HEADERS,
+        registerRowsToCsv(all)
+      )
+      if (!built) setExportError("The Excel file could not be built.")
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExporting(false)
+    }
   }
 
-  // The same client-side filter over the full array the table has always done.
-  const filtered = useMemo(() => filterRegister(chains, filters), [chains, filters])
-
-  // Drawn one page at a time. All 5,063 lines at once made a 35 MB page that
-  // took 27 seconds to arrive (measured 18-Oct-2026), and every filter change
-  // re-rendered thousands of rows. The filters, the count and the export still work on every line;
-  // only the drawing is paged. Any filter change goes back to page 1.
-  const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
-    resetKey: JSON.stringify(filters),
-  })
-
-  function exportExcel() {
-    // Every row the filters match, not a page of them -- and nothing the
-    // filters exclude. The file is the view it came from.
-    downloadExcel("i08-repair-register.xlsx", REGISTER_CSV_HEADERS, registerRowsToCsv(filtered))
+  /** A dropdown's choices, plus the one in the URL if the server no longer
+   *  lists it -- so a link to it still shows what it is filtering by. */
+  function choices(options: { value: string; label: string }[], selected?: string) {
+    const labels = new Map(options.map((o) => [o.value, o.label]))
+    return withSelected(
+      options.map((o) => o.value),
+      selected
+    ).map((value) => ({ value, label: labels.get(value) ?? value }))
   }
 
   /**
@@ -169,121 +172,138 @@ export function RepairRegisterTable({
     router.push(href)
   }
 
-  if (loadError) {
-    return (
-      <div
-        role="alert"
-        className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center text-sm"
-      >
-        <p className="font-medium text-foreground">The repair register could not be loaded.</p>
-        <p className="mt-1 text-muted-foreground">{loadError}</p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          This is not an empty register — it is a failed request. Check that the
-          backend is running and that NEXT_PUBLIC_API_BASE_URL points at it.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-4">
-      <FilterBar>
-        {/* Drawn a page at a time, so the browser's own find sees one page.
-            This looks through every line -- see `filterRegister`. */}
-        <Input
-          value={filters.search}
-          onChange={(e) => setFilter("search")(e.target.value)}
-          placeholder="Search material, repair line, PO, PR…"
-          aria-label="Search the repair register"
-          className="h-9 w-full sm:w-64"
-        />
-        <FilterSelect
-          value={filters.plant}
-          onChange={setFilter("plant")}
-          allLabel="All plants"
-          options={plantOptions.map((p) => ({ value: p.plantId, label: p.name }))}
-          className="sm:w-44"
-        />
-        <FilterSelect
-          value={filters.vendor}
-          onChange={setFilter("vendor")}
-          allLabel="All vendors"
-          options={vendorOptions.map((v) => ({ value: v, label: v }))}
-          className="sm:w-52"
-        />
-        <FilterSelect
-          value={filters.repairStatus}
-          onChange={setFilter("repairStatus")}
-          allLabel="All repair statuses"
-          options={repairStatusOptions.map((s) => ({ value: s, label: s }))}
-          className="sm:w-44"
-        />
-        <FilterSelect
-          value={filters.overdue}
-          onChange={setFilter("overdue")}
-          allLabel="Any due-date status"
-          options={OVERDUE_STATUSES.map((s) => ({ value: s, label: OVERDUE_STATUS_LABEL[s] }))}
-          className="sm:w-44"
-        />
-        {/* The criticality column sits at the far end now, but FR-10 asks for
-            the register to be filterable by criticality, so the filter stays. */}
-        <FilterSelect
-          value={filters.criticality}
-          onChange={setFilter("criticality")}
-          allLabel="All criticalities"
-          options={criticalityOptions.map((c) => ({ value: c, label: c }))}
-          className="sm:w-44"
-        />
-        <FilterSelect
-          value={filters.declarationStatus}
-          onChange={setFilter("declarationStatus")}
-          allLabel="All declaration statuses"
-          options={DECLARATION_STATUSES.map((s) => ({ value: s, label: s }))}
-          className="sm:w-48"
-        />
-        <FilterSelect
-          value={filters.aging}
-          onChange={setFilter("aging")}
-          allLabel="All aging"
-          options={agingBands.map((b) => ({ value: b, label: `${b} days` }))}
-          className="sm:w-40"
-        />
-        {/* FR-8's findings, as a way into the register rather than out of it:
-            "show me the lines something was raised against". */}
-        <FilterSelect
-          value={filters.exceptions}
-          onChange={setFilter("exceptions")}
-          allLabel="Any exceptions"
-          options={[{ value: WITH_EXCEPTIONS, label: "With exceptions only" }]}
-          className="sm:w-48"
-        />
-        <ClearFiltersButton
-          activeCount={activeRegisterFilters(filters)}
-          onClear={() => setFilters(NO_REGISTER_FILTERS)}
-        />
+      <div className="flex items-center gap-2">
+        <FilterBar className="flex-1">
+          {/* The browser's own find sees one page; this looks through every
+              line -- material, repair line, PO and PR. */}
+          <UrlSearchInput
+            value={filters.q ?? ""}
+            onCommit={(value) => push({ q: value })}
+            placeholder="Search material, repair line, PO, PR…"
+            ariaLabel="Search the repair register"
+            className="sm:w-64"
+          />
+          <UrlSelect
+            value={filters.plant ?? ""}
+            onChange={(value) => push({ plant: value })}
+            allLabel="All plants"
+            options={choices(
+              facets.plants.map((p) => ({ value: p.plantId, label: p.name })),
+              filters.plant
+            )}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.vendor ?? ""}
+            onChange={(value) => push({ vendor: value })}
+            allLabel="All vendors"
+            options={choices(facets.vendors, filters.vendor)}
+            className="sm:w-52"
+          />
+          <UrlSelect
+            value={filters.repairStatus ?? ""}
+            onChange={(value) => push({ repairStatus: value })}
+            allLabel="All repair statuses"
+            options={choices(
+              facets.repairStatuses.map((s) => ({ value: s, label: s })),
+              filters.repairStatus
+            )}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.overdue ?? ""}
+            onChange={(value) => push({ overdue: value })}
+            allLabel="Any due-date status"
+            options={OVERDUE_STATUSES.map((s) => ({ value: s, label: OVERDUE_STATUS_LABEL[s] }))}
+            className="sm:w-44"
+          />
+          {/* The criticality column sits at the far end now, but FR-10 asks for
+              the register to be filterable by criticality, so the filter stays. */}
+          <UrlSelect
+            value={filters.criticality ?? ""}
+            onChange={(value) => push({ criticality: value })}
+            allLabel="All criticalities"
+            options={choices(facets.criticalities, filters.criticality)}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.declarationStatus ?? ""}
+            onChange={(value) => push({ declarationStatus: value })}
+            allLabel="All declaration statuses"
+            options={DECLARATION_STATUSES.map((s) => ({ value: s, label: s }))}
+            className="sm:w-48"
+          />
+          <UrlSelect
+            value={filters.aging ?? ""}
+            onChange={(value) => push({ aging: value })}
+            allLabel="All aging"
+            options={choices(
+              agingBands.map((b) => ({ value: b, label: `${b} days` })),
+              filters.aging
+            )}
+            className="sm:w-40"
+          />
+          {/* FR-8's findings, as a way into the register rather than out of it:
+              "show me the lines something was raised against". */}
+          <UrlSelect
+            value={filters.exceptions ? "1" : ""}
+            onChange={(value) => push({ exceptions: value || undefined })}
+            allLabel="Any exceptions"
+            options={[{ value: "1", label: "With exceptions only" }]}
+            className="sm:w-48"
+          />
+          <ClearFiltersButton
+            activeCount={activeRegisterFilters(filters)}
+            onClear={() =>
+              push({
+                q: undefined,
+                plant: undefined,
+                vendor: undefined,
+                repairStatus: undefined,
+                overdue: undefined,
+                criticality: undefined,
+                declarationStatus: undefined,
+                aging: undefined,
+                exceptions: undefined,
+              })
+            }
+          />
 
-        <div className="flex items-center gap-3 sm:ml-auto">
-          <span className="text-xs text-muted-foreground">
-            {formatCount(filtered.length)} of {formatCount(chains.length)} lines
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportExcel}
-            disabled={filtered.length === 0}
-          >
-            <Download className="size-3.5" />
-            Export Excel
-          </Button>
-        </div>
-      </FilterBar>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            {exportError && (
+              <span role="alert" className="text-[11px] text-destructive">
+                Export failed: {exportError}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {formatCount(total)} of {formatCount(overall)} lines
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void exportExcel()}
+              disabled={exporting || total === 0}
+            >
+              {exporting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+              Export Excel
+            </Button>
+          </div>
+        </FilterBar>
+        <PendingSpinner pending={isPending} />
+      </div>
 
-      {filtered.length === 0 ? (
+      {total === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           No repair chains match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -305,7 +325,7 @@ export function RepairRegisterTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paged.map((c) => {
+              {chains.map((c) => {
                 const href = repairHref(c)
                 const overdue = overdueStatusOf(c)
                 return (
@@ -397,15 +417,15 @@ export function RepairRegisterTable({
                         )}
                       </div>
                     </TableCell>
-                    {/* What the four FR-8 checks found against this line.
-                        Joined onto the register by the page, so a line whose
-                        exception fetch failed reads "not checked" rather than
+                    {/* What the FR-8 checks found against this line, served
+                        with it. A line they were not computed for -- a backend
+                        older than that -- reads "not checked" rather than
                         showing a clean dash it has not earned. */}
                     <TableCell onClick={(event) => event.stopPropagation()}>
                       {c.exceptions === undefined ? (
                         <span
                           className="text-xs text-muted-foreground"
-                          title="The exception queue could not be read, so this line's findings are unknown."
+                          title="The checks were not read for this line, so its findings are unknown."
                         >
                           Not checked
                         </span>
@@ -466,47 +486,10 @@ export function RepairRegisterTable({
         page={page}
         pageSize={pageSize}
         total={total}
-        count={paged.length}
+        count={chains.length}
         noun="repair lines"
-        onPageChange={setPage}
+        hrefFor={(p) => registerHref(filters, p)}
       />
     </div>
-  )
-}
-
-/** One register dropdown: an "all" choice followed by the given options. */
-function FilterSelect({
-  value,
-  onChange,
-  allLabel,
-  options,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  allLabel: string
-  options: { value: string; label: string }[]
-  className?: string
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
-      <SelectTrigger className={cn("h-9 w-full", className)}>
-        <SelectValue placeholder={allLabel}>
-          {(selected: string) =>
-            selected === ALL
-              ? allLabel
-              : options.find((o) => o.value === selected)?.label ?? selected
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }
