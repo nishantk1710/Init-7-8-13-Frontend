@@ -91,9 +91,12 @@ export default async function I08ExceptionsPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
+        {/* Names only the checks this queue shows. Unjustified new purchases
+            used to be the second half of this line; that type has been dropped
+            from the queue since 14-Oct-2026 (see ALL_CHECKS in the table). */}
         <PageHeader
           title="Repair Exceptions"
-          description="Repair lines sent away with no condition declaration, and new units bought while a repair was already open with no justification on record."
+          description="Repair lines sent away with no condition declaration, and repairs still at the vendor past their due date."
         />
 
         {data === null ? (
