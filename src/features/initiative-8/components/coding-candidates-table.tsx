@@ -7,6 +7,7 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -42,6 +43,7 @@ import {
   CODING_SCREEN_TIMEOUT_MS,
   getCodingCandidates,
 } from "@/lib/api/i8"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { downloadExcel, formatCount } from "@/lib/utils"
 
 const ALL = "all"
@@ -172,6 +174,13 @@ export function CodingCandidatesTable({
   // Sorted AFTER filtering, and only when the price column asks: the default
   // is the backend's ranking, which the `#` column keeps showing either way.
   const visible = useMemo(() => sortByNewItemPrice(filtered, priceSort), [filtered, priceSort])
+  // Paged on screen only: the export and the `#` rank still cover the whole
+  // list. Not reset by an AI screening batch landing -- that merges verdicts
+  // into the same rows, and jumping back to page 1 mid-screen would lose
+  // the reader's place.
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(visible, {
+    resetKey: [verdict, plant, source, search, priceSort].join("|"),
+  })
 
   /**
    * Export what is on screen.
@@ -506,7 +515,7 @@ export function CodingCandidatesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((c) => (
+              {paged.map((c) => (
                 <Fragment key={c.material.materialId}>
                 {/* The whole row opens the evidence, so the row is the control
                     and carries the aria state. The chevron column that used to
@@ -618,6 +627,14 @@ export function CodingCandidatesTable({
           </Table>
         </div>
       )}
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        noun="candidates"
+        onPageChange={setPage}
+      />
     </div>
   )
 }
