@@ -165,7 +165,6 @@ export function ExceptionsTable({
         "Description",
         "Plant",
         "Repair Line",
-        "New Purchase",
         "Raised At",
         "Open Repair",
         "Pre-automation",
@@ -180,7 +179,6 @@ export function ExceptionsTable({
         row.material.description ?? "",
         row.plant?.name ?? row.plant?.plantId ?? "",
         row.repairLine,
-        row.acquisitionLine ?? "",
         row.raisedAt ?? "",
         row.isOpenRepair ? "Yes" : "No",
         row.preAutomation ? "Yes" : "No",
@@ -377,8 +375,12 @@ export function ExceptionsTable({
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              {/* Column order mirrors the Snapshot exception queue, so the
-                  two read the same way side by side. */}
+              {/* Column order follows the Snapshot exception queue, so the two
+                  read the same way side by side. Live has no "New purchase"
+                  column since 18-Oct-2026: only UNJUSTIFIED_ACQUISITION fills
+                  it, and that type is dropped from this queue (see ALL_CHECKS),
+                  so it read "—" on every row. The drawer still shows the line
+                  whenever a row carries one. */}
               <TableRow>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
@@ -386,7 +388,6 @@ export function ExceptionsTable({
                 <TableHead>Material</TableHead>
                 <TableHead>Plant</TableHead>
                 <TableHead>Repair Line</TableHead>
-                <TableHead>New purchase</TableHead>
                 <TableHead>Raised</TableHead>
               </TableRow>
             </TableHeader>
@@ -453,9 +454,6 @@ export function ExceptionsTable({
                         {row.isOpenRepair ? "Repair still open" : "Repair received"}
                       </span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.acquisitionLine ?? "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">
                     {row.raisedAt ?? "—"}
