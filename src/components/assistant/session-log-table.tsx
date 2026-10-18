@@ -19,6 +19,12 @@ import {
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, downloadExcel } from "@/lib/utils"
 import { FLOW_LABEL, flowLabel } from "@/lib/assistant/flow-labels"
+import {
+  matchesReservationFilter,
+  reservationExportCell,
+  reservationSearchTerms,
+  sessionReservationState,
+} from "@/lib/assistant/session-reservations"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -51,6 +57,7 @@ export function SessionLogTable({
 }) {
   const [flow, setFlow] = useState<string>("all")
   const [outcome, setOutcome] = useState<string>("all")
+  const [reservation, setReservation] = useState<string>("all")
   const [search, setSearch] = useState("")
 
   const filtered = useMemo(() => {
@@ -58,6 +65,7 @@ export function SessionLogTable({
     return sessions.filter((session) => {
       if (flow !== "all" && session.flow !== flow) return false
       if (outcome !== "all" && session.outcome !== outcome) return false
+      if (!matchesReservationFilter(session, reservation)) return false
       if (
         needle &&
         // The plant label as well as the code, so "Black Mountain" finds 1300.
@@ -71,6 +79,7 @@ export function SessionLogTable({
           sapPlantLabel(session.plant),
           session.requestedFor,
           session.department,
+          ...reservationSearchTerms(session),
         ]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(needle))
@@ -79,10 +88,13 @@ export function SessionLogTable({
       }
       return true
     })
-  }, [sessions, flow, outcome, search])
+  }, [sessions, flow, outcome, reservation, search])
 
   const activeFilters =
-    (flow !== "all" ? 1 : 0) + (outcome !== "all" ? 1 : 0) + (search.trim() ? 1 : 0)
+    (flow !== "all" ? 1 : 0) +
+    (outcome !== "all" ? 1 : 0) +
+    (reservation !== "all" ? 1 : 0) +
+    (search.trim() ? 1 : 0)
 
   function exportExcel() {
     // Exports what is on screen, not the whole log. A file that silently
@@ -103,6 +115,7 @@ export function SessionLogTable({
         "Outcome",
         "Issued",
         "Expires",
+        "Reservation",
       ],
       filtered.map((session) => [
         session.reference ?? session.sessionId,
@@ -120,6 +133,7 @@ export function SessionLogTable({
         session.outcome,
         session.issuedAt,
         session.expiresAt,
+        reservationExportCell(session),
       ])
     )
   }
@@ -130,7 +144,7 @@ export function SessionLogTable({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, request, material, requester…"
+          placeholder="Search reference, request, material, reservation…"
           aria-label="Search sessions"
           className="h-9 w-full sm:w-72"
         />
@@ -155,12 +169,23 @@ export function SessionLogTable({
             { value: "ABANDONED", label: "Abandoned" },
           ]}
         />
+        <FilterGroup
+          label="Reservation"
+          value={reservation}
+          onChange={setReservation}
+          options={[
+            { value: "all", label: "All" },
+            { value: "linked", label: "Linked" },
+            { value: "not-linked", label: "Not linked" },
+          ]}
+        />
 
         <ClearFiltersButton
           activeCount={activeFilters}
           onClear={() => {
             setFlow("all")
             setOutcome("all")
+            setReservation("all")
             setSearch("")
           }}
         />
@@ -196,6 +221,7 @@ export function SessionLogTable({
             <caption className="sr-only">
               Assistant sessions{flow === "all" ? "" : `, ${flowLabel(flow)} only`}
               {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
+              {reservation === "all" ? "" : `, ${reservation === "linked" ? "linked" : "not linked"} only`}
               {search.trim() ? `, matching "${search.trim()}"` : ""}
             </caption>
             <TableHeader>
@@ -211,6 +237,7 @@ export function SessionLogTable({
                 <TableHead>Turns</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Issued</TableHead>
+                <TableHead>Reservation</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -297,6 +324,9 @@ export function SessionLogTable({
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(session.issuedAt)}
                   </TableCell>
+                  <TableCell className="text-xs">
+                    <ReservationCell session={session} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -314,6 +344,65 @@ export function SessionLogTable({
         {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
       </div>
     </div>
+  )
+}
+
+/** At most this many references per cell; the rest as "+n". */
+const MAX_REFS_SHOWN = 2
+
+/**
+ * The reservation(s) whose SGTXT names this session. Each links to the
+ * Utilization Ledger's reservations filtered to this session, as the trace
+ * does. "Not linked" is "not read yet", not "never": the link appears once the
+ * item text reaches the platform.
+ */
+function ReservationCell({ session }: { session: ApiSessionSummary }) {
+  const state = sessionReservationState(session)
+  if (state.kind === "not-applicable" || state.kind === "unknown") {
+    return (
+      <span
+        className="text-muted-foreground"
+        title={
+          state.kind === "unknown"
+            ? "Not available from this backend"
+            : "Repairable Spares sessions are not linked through the reservation's item text"
+        }
+      >
+        —
+      </span>
+    )
+  }
+  if (state.kind === "not-linked") {
+    return (
+      <span
+        className="whitespace-nowrap text-muted-foreground"
+        title="No reservation's item text (SGTXT) names this session yet. It is read from the RESB extract (next night's rebuild), or at once through the UAT “Link SAP reservation” panel."
+      >
+        Not linked
+      </span>
+    )
+  }
+  const shown = state.refs.slice(0, MAX_REFS_SHOWN)
+  const more = state.refs.length - shown.length
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <Link
+        href={`/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(session.sessionId)}`}
+        className="font-mono whitespace-nowrap text-ai-2 underline-offset-4 hover:underline"
+        title={`Open in the Utilization Ledger: ${state.refs.join(", ")}`}
+      >
+        {shown.join(", ")}
+      </Link>
+      {more > 0 && <span className="text-muted-foreground">+{more}</span>}
+      {state.fromUat && (
+        <span
+          className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+          title="Linked through the UAT “Link SAP reservation” panel, not read from SAP's item text"
+        >
+          UAT
+        </span>
+      )}
+    </span>
   )
 }
 
