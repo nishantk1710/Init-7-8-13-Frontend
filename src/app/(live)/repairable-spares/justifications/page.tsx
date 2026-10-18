@@ -1,12 +1,19 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
-import { JustificationLog } from "@/features/initiative-13/components/justification-log"
+import { I08JustificationLog } from "@/features/initiative-8/components/justification-log"
+import {
+  justificationsHref,
+  loadJustificationsPage,
+  parseJustificationParams,
+  type JustificationsPage,
+  type RawSearchParams,
+} from "@/features/initiative-8/data/live-justifications"
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { PageHeader } from "@/components/shared/page-header"
-import { listJustifications } from "@/lib/api/assistant"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { formatCount } from "@/lib/utils"
-import { fromAssistant } from "@/lib/assistant/justifications"
 
 /** Shown on a tile whose source could not be read -- never a 0. */
 const NOT_LOADED = "Could not be loaded"
@@ -38,21 +45,39 @@ export const metadata: Metadata = {
  * where the requester chose refurbishment following the assistant's advice.
  * These are the cases where they did not — so this log is the denominator,
  * and reading it is how anyone finds out whether the advice is landing.
+ *
+ * ## Paged on the server
+ *
+ * `?q=`, `?plant=`, `?reason=` and `?page=` are read here and the backend
+ * pages, counts and searches -- see `live-justifications.ts` for why it stopped
+ * fetching the newest 200 and filtering them in the browser.
  */
-export default async function I08JustificationsPage() {
+export default async function I08JustificationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>
+}) {
   // Reads a table that grows as people use the assistant, so a build-time
   // snapshot would be permanently empty.
   await connection()
 
-  let entries: Awaited<ReturnType<typeof listJustifications>> | null = null
+  const { filters, page } = parseJustificationParams(await searchParams)
+
+  let data: JustificationsPage | null = null
   let loadError: string | null = null
   try {
-    entries = await listJustifications({ kind: "NEW_ACQUISITION", limit: 200 })
+    data = await loadJustificationsPage(filters, page)
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
 
-  const recorded = entries?.items.length ?? 0
+  // Past the end -- a stale link, or a filter that now matches fewer: go to
+  // the last page there is rather than show an empty one. Outside the try:
+  // `redirect` throws, and the catch would swallow it as a load error.
+  if (data) {
+    const lastPage = pageCountOf(data.total, DEFAULT_PAGE_SIZE)
+    if (page > lastPage) redirect(justificationsHref(filters, lastPage))
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -77,16 +102,19 @@ export default async function I08JustificationsPage() {
               - "Linked to a session" always equalled the count: the assistant
                 writes every justification inside a session.
             The grid keeps four columns so the one tile stays the width tiles
-            are on every other screen, rather than stretching across. */}
+            are on every other screen, rather than stretching across.
+
+            The count is every justification on record, whatever the filters
+            below are set to -- the line above the list says how many match. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KPIStatCard
             label="Justifications recorded"
-            value={entries === null ? NOT_LOADED : formatCount(recorded)}
+            value={data === null ? NOT_LOADED : formatCount(data.overall)}
             hint="new-acquisition reasons on record"
           />
         </div>
 
-        {entries === null ? (
+        {data === null ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
             <p className="text-sm text-foreground">
               The justification log could not be loaded.
@@ -94,16 +122,14 @@ export default async function I08JustificationsPage() {
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
           </div>
         ) : (
-          <JustificationLog
-            entries={entries.items.map(fromAssistant)}
-            exportFilename="i08-new-acquisition-justifications.xlsx"
-            filterable
-            showSource={false}
-            emptyMessage={{
-              title: "No new-unit justifications recorded yet.",
-              description:
-                "Nobody has yet chosen to buy a new unit while a repairable one exists. When someone does, the Spares Assistant asks them why at the reservation, and their reason appears here.",
-            }}
+          <I08JustificationLog
+            items={data.items}
+            total={data.total}
+            overall={data.overall}
+            page={page}
+            pageSize={DEFAULT_PAGE_SIZE}
+            filters={filters}
+            facets={data.facets}
           />
         )}
       </div>
