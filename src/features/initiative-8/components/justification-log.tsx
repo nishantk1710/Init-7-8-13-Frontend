@@ -1,22 +1,20 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Download, Loader2, X } from "lucide-react"
+import { useState } from "react"
+import { Download, Loader2 } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  PendingSpinner,
+  UrlSearchInput,
+  UrlSelect,
+  useUrlFilters,
+  withSelected,
+} from "@/features/initiative-8/components/url-filters"
 import {
   fetchAllJustifications,
   JUSTIFICATIONS_PATH,
@@ -31,8 +29,6 @@ import { kindLabel } from "@/lib/assistant/justifications"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
-const ALL = "all"
-const DEBOUNCE_MS = 400
 const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
 
 /**
@@ -70,28 +66,9 @@ export function I08JustificationLog({
   filters: JustificationFilters
   facets: JustificationFacets
 }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+  const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-
-  /** Any filter change starts over at page 1: page 4 of the old filter means
-   *  nothing in the new one. */
-  function push(patch: JustificationFilters) {
-    const next = new URLSearchParams(searchParams.toString())
-    for (const [key, value] of Object.entries(patch)) {
-      if (value) next.set(key, value)
-      else next.delete(key)
-    }
-    next.delete("page")
-    const query = next.toString()
-    startTransition(() => {
-      router.replace(query ? `${JUSTIFICATIONS_PATH}?${query}` : JUSTIFICATIONS_PATH, {
-        scroll: false,
-      })
-    })
-  }
 
   const activeFilters = [filters.q, filters.plant, filters.reason].filter(Boolean).length
   const filtered = activeFilters > 0
@@ -138,13 +115,14 @@ export function I08JustificationLog({
   const filterBar = (
     <div className="flex items-center gap-2">
       <FilterBar className="flex-1">
-        <SearchInput
+        <UrlSearchInput
           value={filters.q ?? ""}
           onCommit={(value) => push({ q: value })}
           placeholder="Search material, reason, author or text"
+          ariaLabel="Search justifications"
           className="sm:w-72"
         />
-        <LogSelect
+        <UrlSelect
           value={filters.plant ?? ""}
           onChange={(value) => push({ plant: value })}
           allLabel="All plants"
@@ -154,7 +132,7 @@ export function I08JustificationLog({
           }))}
           className="sm:w-52"
         />
-        <LogSelect
+        <UrlSelect
           value={filters.reason ?? ""}
           onChange={(value) => push({ reason: value })}
           allLabel="All reasons"
@@ -169,15 +147,7 @@ export function I08JustificationLog({
           onClear={() => push({ q: undefined, plant: undefined, reason: undefined })}
         />
       </FilterBar>
-      {/* Reserved whether or not it spins, so the row does not jump. */}
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        {isPending && (
-          <Loader2
-            className="size-4 animate-spin text-muted-foreground"
-            aria-label="Loading filtered results"
-          />
-        )}
-      </span>
+      <PendingSpinner pending={isPending} />
     </div>
   )
 
@@ -269,111 +239,6 @@ export function I08JustificationLog({
         noun="justifications"
         hrefFor={(p) => justificationsHref(filters, p)}
       />
-    </div>
-  )
-}
-
-/** The values the server says exist, plus the one selected -- so a link to a
- *  value that no longer appears still shows what it is filtering by. */
-function withSelected(values: readonly string[], selected?: string): string[] {
-  return selected && !values.includes(selected) ? [...values, selected] : [...values]
-}
-
-function LogSelect({
-  value,
-  onChange,
-  allLabel,
-  options,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  allLabel: string
-  options: { value: string; label: string }[]
-  className?: string
-}) {
-  const labels = Object.fromEntries(options.map((o) => [o.value, o.label]))
-  return (
-    <Select
-      value={value || ALL}
-      onValueChange={(v) => {
-        const next = v ?? ALL
-        onChange(next === ALL ? "" : next)
-      }}
-    >
-      <SelectTrigger className={cn("h-9 w-full", className)}>
-        <SelectValue placeholder={allLabel}>
-          {(selected: string) => (selected === ALL ? allLabel : labels[selected] ?? selected)}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-/**
- * The search box. It writes the URL once typing settles, not per keystroke:
- * a controlled input reading the URL would re-render from the server on every
- * key and drop characters. Same mechanics as I13's `DebouncedInput`.
- */
-function SearchInput({
-  value,
-  onCommit,
-  placeholder,
-  className,
-}: {
-  value: string
-  onCommit: (value: string) => void
-  placeholder: string
-  className?: string
-}) {
-  const [draft, setDraft] = useState(value)
-
-  // Re-sync when the URL changes underneath -- the back button, or Clear.
-  // Adjusted during render, React's pattern for state that resets with a prop.
-  const [lastValue, setLastValue] = useState(value)
-  if (value !== lastValue) {
-    setLastValue(value)
-    setDraft(value)
-  }
-
-  useEffect(() => {
-    if (draft === value) return
-    const id = setTimeout(() => onCommit(draft.trim()), DEBOUNCE_MS)
-    return () => clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft])
-
-  return (
-    <div className={cn("relative w-full", className)}>
-      <Input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder={placeholder}
-        aria-label="Search justifications"
-        className={cn("h-9 w-full", draft && "pr-8")}
-      />
-      {draft && (
-        <button
-          type="button"
-          onClick={() => {
-            setDraft("")
-            onCommit("")
-          }}
-          aria-label="Clear search"
-          title="Clear search"
-          className="absolute top-1/2 right-2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <X className="size-3.5" />
-        </button>
-      )}
     </div>
   )
 }

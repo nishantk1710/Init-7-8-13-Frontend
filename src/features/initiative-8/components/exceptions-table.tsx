@@ -1,14 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import { Download, Loader2, X } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -25,6 +26,23 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ExceptionDetailDrawer } from "@/features/initiative-8/components/exception-detail-drawer"
+import {
+  PendingSpinner,
+  UrlSearchInput,
+  UrlSelect,
+  useUrlFilters,
+  withSelected,
+} from "@/features/initiative-8/components/url-filters"
+import {
+  ALL_STATUSES,
+  DEFAULT_EXCEPTION_STATUS,
+  EXCEPTIONS_PATH,
+  activeExceptionFilters,
+  exceptionsHref,
+  fetchAllExceptions,
+  type ExceptionFacets,
+  type ExceptionFilters,
+} from "@/features/initiative-8/data/live-exceptions"
 import type {
   ExceptionQueueRow,
   ExceptionQueueSummary,
@@ -36,19 +54,8 @@ import {
   EXCEPTION_STATUS_TONE,
   exceptionTypeLabel as labelFor,
 } from "@/features/initiative-8/utils/status"
-import { downloadExcel } from "@/lib/utils"
+import { cn, downloadExcel } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
-
-const ALL = "all"
-
-/** The status filter's default. Chosen over "All statuses" for the same
- *  reason it always was: the queue runs to thousands of rows and almost all
- *  of it is historical, so starting on everything would bury the handful
- *  somebody can actually act on. "Open + In progress" used to be the default
- *  value too, as a second blended option the dropdown offered; removed on
- *  request, leaving OPEN -- the first of the four real statuses -- as the
- *  plain default instead of a fifth synthetic one. */
-const DEFAULT_STATUS: ExceptionStatus = "OPEN"
 
 /**
  * What each check actually looks for.
@@ -86,124 +93,112 @@ const ALL_CHECKS = [
 ] as const
 
 export type ExceptionsTableProps = {
+  /** One page of the queue. */
   rows: ExceptionQueueRow[]
+  /** Matching the filters, across every page. */
+  total: number
+  page: number
+  pageSize: number
   summary: ExceptionQueueSummary
-  truncated?: boolean
-  /** `?id=` — open this item's drawer on arrival. */
-  initialId?: string
-  /** `?repair=` — narrow the queue to one repair line, as the register links. */
-  initialRepair?: string
+  facets: ExceptionFacets
+  filters: ExceptionFilters
+  /** `?id=`: the linked item, fetched by id. Its drawer opens on arrival. */
+  initialItem?: ExceptionQueueRow
 }
 
+/**
+ * The exception queue, one server page at a time.
+ *
+ * The filters live in the URL and the server pages, searches and counts (see
+ * `loadExceptionsPage`). The screen used to load all 5,978 items and filter
+ * them here, which made it a 17 MB page.
+ *
+ * ## Why the drawer keeps its own copy of the item
+ *
+ * It used to look the item up among the rows on every render, which worked
+ * while the rows were the whole queue. They are one page now: moving an item
+ * from Open to In progress takes it off an Open-filtered page, and a lookup
+ * there would empty the drawer the moment the write landed. So the drawer
+ * holds the item it opened with, and the one each write sends back, and only
+ * prefers the page's copy while the page still has it.
+ */
 export function ExceptionsTable({
   rows,
+  total,
+  page,
+  pageSize,
   summary,
-  truncated = false,
-  initialId,
-  initialRepair,
+  facets,
+  filters,
+  initialItem,
 }: ExceptionsTableProps) {
   const { openMaterial360 } = useMaterial360()
+  const { push, isPending } = useUrlFilters(EXCEPTIONS_PATH)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
-  const [type, setType] = useState<string>(ALL)
-  const [plant, setPlant] = useState<string>(ALL)
-  const [openOnly, setOpenOnly] = useState(false)
-  const [status, setStatus] = useState<string>(DEFAULT_STATUS)
-  const [search, setSearch] = useState("")
-  const [selectedId, setSelectedId] = useState<string | undefined>(initialId)
-  const [drawerOpen, setDrawerOpen] = useState(initialId !== undefined)
+  const [selected, setSelected] = useState<ExceptionQueueRow | undefined>(initialItem)
+  const [drawerOpen, setDrawerOpen] = useState(initialItem !== undefined)
+  // The page's copy when it has one: that is as fresh as the last refresh.
+  const current = selected ? (rows.find((r) => r.id === selected.id) ?? selected) : undefined
 
-  const plants = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const row of rows) {
-      if (row.plant) seen.set(row.plant.plantId, row.plant.name ?? row.plant.plantId)
-    }
-    return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [rows])
-
-  // From the rows AND from typesRaised, so a type the backend raises but this
-  // page happens not to contain is still offered -- and one it does not raise
-  // at all never appears as a filter that can only ever return nothing.
-  const types = useMemo(() => {
-    const seen = new Set<string>(summary.typesRaised)
-    for (const row of rows) seen.add(row.type)
-    return [...seen].sort()
-  }, [rows, summary.typesRaised])
-
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    return rows.filter((row) => {
-      if (type !== ALL && row.type !== type) return false
-      if (plant !== ALL && row.plant?.plantId !== plant) return false
-      if (openOnly && !row.isOpenRepair) return false
-      // Always on, not a toggle. Depends on attestationCutoverDate, which is
-      // unset on the deployed backend -- every row reads as actionable today,
-      // so this filters nothing yet. It will the day VZI supplies the date.
-      if (row.preAutomation) return false
-      if (status !== ALL && row.status !== status) return false
-      if (initialRepair && row.repairId !== initialRepair) return false
-      if (
-        needle &&
-        ![row.id, row.material.materialCode, row.material.description, row.repairLine]
-          .filter(Boolean)
-          .some((field) => String(field).toLowerCase().includes(needle))
-      ) {
-        return false
-      }
-      return true
-    })
-  }, [rows, type, plant, openOnly, status, search, initialRepair])
-
-  const selected = selectedId ? rows.find((r) => r.id === selectedId) : undefined
-
-  function exportExcel() {
-    downloadExcel(
-      "i08-exception-queue.xlsx",
-      [
-        "Type",
-        "Severity",
-        "Material",
-        "Description",
-        "Plant",
-        "Repair Line",
-        "Raised At",
-        "Open Repair",
-        "Pre-automation",
-        "Status",
-        "Owner",
-        "Detail",
-      ],
-      filtered.map((row) => [
-        row.type,
-        row.severity,
-        row.material.materialCode,
-        row.material.description ?? "",
-        row.plant?.name ?? row.plant?.plantId ?? "",
-        row.repairLine,
-        row.raisedAt ?? "",
-        row.isOpenRepair ? "Yes" : "No",
-        row.preAutomation ? "Yes" : "No",
-        EXCEPTION_STATUS_LABEL[row.status],
-        row.owner ?? "",
-        row.detail,
-      ])
-    )
+  /** A filter change also ends a `?id=` link, which would otherwise re-open
+   *  the linked item on every change. */
+  function update(patch: Record<string, string | undefined>) {
+    push({ ...patch, id: undefined })
   }
 
-  const activeFilters = [
-    type !== ALL,
-    plant !== ALL,
-    openOnly,
-    // The status filter starts narrowed to DEFAULT_STATUS, so being on it is
-    // not "a filter the user applied" -- counting it would show "1 filter" on
-    // an untouched screen.
-    status !== DEFAULT_STATUS,
-    search.trim() !== "",
-  ].filter(Boolean).length
-
-  function openItem(id: string) {
-    setSelectedId(id)
+  function openItem(row: ExceptionQueueRow) {
+    setSelected(row)
     setDrawerOpen(true)
   }
+
+  /** Every match, not the page on screen -- see `fetchAllExceptions`. */
+  async function exportExcel() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const all = await fetchAllExceptions(filters)
+      const built = await downloadExcel(
+        "i08-exception-queue.xlsx",
+        [
+          "Type",
+          "Severity",
+          "Material",
+          "Description",
+          "Plant",
+          "Repair Line",
+          "Raised At",
+          "Open Repair",
+          "Pre-automation",
+          "Status",
+          "Owner",
+          "Detail",
+        ],
+        all.map((row) => [
+          row.type,
+          row.severity,
+          row.material.materialCode,
+          row.material.description ?? "",
+          row.plant?.name ?? row.plant?.plantId ?? "",
+          row.repairLine,
+          row.raisedAt ?? "",
+          row.isOpenRepair ? "Yes" : "No",
+          row.preAutomation ? "Yes" : "No",
+          EXCEPTION_STATUS_LABEL[row.status],
+          row.owner ?? "",
+          row.detail,
+        ])
+      )
+      if (!built) setExportError("The Excel file could not be built.")
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const plantNames = new Map(facets.plants.map((p) => [p.plantId, p.name]))
 
   const coverage =
     summary.linesChecked > 0
@@ -231,9 +226,26 @@ export function ExceptionsTable({
             </span>
           )}
         </div>
-        <Button size="sm" variant="outline" onClick={exportExcel}>
-          Export Excel
-        </Button>
+        <div className="flex items-center gap-2">
+          {exportError && (
+            <span role="alert" className="text-[11px] text-destructive">
+              Export failed: {exportError}
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void exportExcel()}
+            disabled={exporting || total === 0}
+          >
+            {exporting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            Export Excel
+          </Button>
+        </div>
       </div>
 
       {/* How each check works.
@@ -257,122 +269,115 @@ export function ExceptionsTable({
 
       </div>
 
-      {truncated && (
-        <div
-          role="alert"
-          className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-foreground"
-        >
-          Showing the first {rows.length} of {summary.total} exceptions. This is
-          a partial queue — filter by plant or type to reach the rest.
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <FilterBar className="flex-1">
+          <UrlSelect
+            value={filters.type ?? ""}
+            onChange={(value) => update({ type: value })}
+            allLabel="All exception types"
+            options={withSelected(facets.types, filters.type).map((t) => ({
+              value: t,
+              label: labelFor(t),
+            }))}
+            className="sm:w-[260px]"
+          />
 
-      <FilterBar>
-        <Select value={type} onValueChange={(v) => setType(v ?? ALL)}>
-          <SelectTrigger className="w-[260px]">
-            <SelectValue placeholder="All exception types">
-              {(value: string) =>
-                value === ALL ? "All exception types" : labelFor(value)
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All exception types</SelectItem>
-            {types.map((t) => (
-              <SelectItem key={t} value={t}>
-                {labelFor(t)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <UrlSelect
+            value={filters.plant ?? ""}
+            onChange={(value) => update({ plant: value })}
+            allLabel="All plants"
+            options={withSelected(
+              facets.plants.map((p) => p.plantId),
+              filters.plant
+            ).map((id) => ({ value: id, label: plantNames.get(id) ?? id }))}
+            className="sm:w-[200px]"
+          />
 
-        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All plants">
-              {(value: string) =>
-                value === ALL
-                  ? "All plants"
-                  : (plants.find(([id]) => id === value)?.[1] ?? value)
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All plants</SelectItem>
-            {plants.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <UrlSelect
+            value={filters.open ? "1" : ""}
+            onChange={(value) => update({ open: value || undefined })}
+            allLabel="All repairs"
+            options={[{ value: "1", label: "Open repairs only" }]}
+            className="sm:w-[220px]"
+          />
 
-        <Select
-          value={openOnly ? "yes" : ALL}
-          onValueChange={(v) => setOpenOnly(v === "yes")}
-        >
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="All repairs">
-              {(value: string) =>
-                value === "yes" ? "Open repairs only" : "All repairs"
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All repairs</SelectItem>
-            <SelectItem value="yes">Open repairs only</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* FR-11: the queue is worked, so it filters by where the work is.
+              Starts on OPEN, the first of the four real statuses; the URL
+              says `status=all` for every status, and nothing for the default. */}
+          <Select
+            value={filters.status ?? ALL_STATUSES}
+            onValueChange={(v) => {
+              const next = v ?? DEFAULT_EXCEPTION_STATUS
+              update({ status: next === DEFAULT_EXCEPTION_STATUS ? undefined : next })
+            }}
+          >
+            <SelectTrigger className="h-9 w-full sm:w-[200px]">
+              <SelectValue placeholder={EXCEPTION_STATUS_LABEL[DEFAULT_EXCEPTION_STATUS]}>
+                {(value: string) =>
+                  value === ALL_STATUSES
+                    ? "All statuses"
+                    : EXCEPTION_STATUS_LABEL[value as ExceptionStatus] ?? value
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {EXCEPTION_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {EXCEPTION_STATUS_LABEL[s]}
+                </SelectItem>
+              ))}
+              <SelectItem value={ALL_STATUSES}>All statuses</SelectItem>
+            </SelectContent>
+          </Select>
 
-        {/* FR-11: the queue is worked, so it filters by where the work is.
-            No "Open + In progress" blend any more -- that was a fifth,
-            synthetic option sitting beside the four real statuses. Starts on
-            OPEN, the plain first status, rather than on a combined one. */}
-        <Select value={status} onValueChange={(v) => setStatus(v ?? DEFAULT_STATUS)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder={EXCEPTION_STATUS_LABEL[DEFAULT_STATUS]}>
-              {(value: string) =>
-                value === ALL
-                  ? "All statuses"
-                  : EXCEPTION_STATUS_LABEL[value as ExceptionStatus] ?? value
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {EXCEPTION_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {EXCEPTION_STATUS_LABEL[s]}
-              </SelectItem>
-            ))}
-            <SelectItem value={ALL}>All statuses</SelectItem>
-          </SelectContent>
-        </Select>
+          <UrlSearchInput
+            value={filters.q ?? ""}
+            onCommit={(value) => update({ q: value })}
+            placeholder="Search id, material, document…"
+            ariaLabel="Search exceptions"
+            className="sm:w-64"
+          />
 
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search id, material, document…"
-          aria-label="Search exceptions"
-          className="h-9 w-full sm:w-64"
-        />
+          {/* The register's Exceptions column and the repair detail page link
+              here narrowed to one line. Shown, so the narrowing is visible
+              and can be taken off without editing the address bar. */}
+          {filters.repair && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={() => update({ repair: undefined })}
+              aria-label={`Stop narrowing to repair line ${filters.repair}`}
+            >
+              Repair line {filters.repair}
+              <X className="size-3.5" />
+            </Button>
+          )}
 
-        <ClearFiltersButton
-          activeCount={activeFilters}
-          onClear={() => {
-            setType(ALL)
-            setPlant(ALL)
-            setOpenOnly(false)
-            setStatus(DEFAULT_STATUS)
-            setSearch("")
-          }}
-        />
-      </FilterBar>
+          <ClearFiltersButton
+            activeCount={activeExceptionFilters(filters)}
+            onClear={() =>
+              update({
+                type: undefined,
+                plant: undefined,
+                open: undefined,
+                status: undefined,
+                q: undefined,
+                repair: undefined,
+              })
+            }
+          />
+        </FilterBar>
+        <PendingSpinner pending={isPending} />
+      </div>
 
-      {filtered.length === 0 ? (
+      {total === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           No exceptions match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
           <Table>
             <TableHeader>
               {/* Column order follows the Snapshot exception queue, so the two
@@ -392,17 +397,17 @@ export function ExceptionsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => (
+              {rows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer align-top"
                   tabIndex={0}
                   aria-label={`Open ${row.id}`}
-                  onClick={() => openItem(row.id)}
+                  onClick={() => openItem(row)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault()
-                      openItem(row.id)
+                      openItem(row)
                     }
                   }}
                 >
@@ -465,10 +470,20 @@ export function ExceptionsTable({
         </div>
       )}
 
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={rows.length}
+        noun="exceptions"
+        hrefFor={(p) => exceptionsHref(filters, p)}
+      />
+
       <ExceptionDetailDrawer
-        exception={selected}
+        exception={current}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        onChanged={setSelected}
       />
     </div>
   )

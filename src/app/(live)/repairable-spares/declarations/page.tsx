@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { KPIStatCard } from "@/components/shared/kpi-stat-card"
@@ -6,8 +7,16 @@ import { PageHeader } from "@/components/shared/page-header"
 import { DeclarationLogTable } from "@/features/initiative-8/components/declaration-log-table"
 import { DeclarationsTable } from "@/features/initiative-8/components/declarations-table"
 import { DeclarePartButton } from "@/features/initiative-8/components/declare-part-button"
-import { loadLiveDeclarations } from "@/features/initiative-8/data/live-declarations"
+import {
+  declarationsHref,
+  loadDeclarationLog,
+  loadDeclarationsPage,
+  parseDeclarationParams,
+  type DeclarationsPage,
+} from "@/features/initiative-8/data/live-declarations"
+import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
 import { getAttestations } from "@/lib/api/i8"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { formatCount } from "@/lib/utils"
 
 /** Shown on a tile whose source could not be read -- never a 0. */
@@ -51,42 +60,56 @@ export const metadata: Metadata = {
  * off the machine, and a part judged Scrap or Beyond Economical Repair never
  * gets a repair PO. While the form was reachable only from a repair line,
  * exactly those judgements had nowhere to go.
+ *
+ * ## Paged on the server
+ *
+ * `?q=`, `?plant=`, `?vendor=`, `?repairStatus=` and `?page=` are read here,
+ * and the backend searches, filters, counts and pages the queue. It used to
+ * load all 5,153 rows and filter them in the browser: a 17 MB page that took
+ * ten seconds to arrive. See `loadDeclarationsPage`. The declaration log below
+ * the queue is still loaded whole -- it holds six rows.
  */
-export default async function I08DeclarationsPage() {
+export default async function I08DeclarationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>
+}) {
   // Reads a table that changes whenever somebody records a declaration, so a
   // build-time snapshot would be stale the moment it was built.
   await connection()
 
-  let data: Awaited<ReturnType<typeof loadLiveDeclarations>> | null = null
+  const { filters, page } = parseDeclarationParams(await searchParams)
+
+  let data: DeclarationsPage | null = null
   let loadError: string | null = null
   // Best-effort and fetched in parallel: a failure costs the forms their
   // category list (they then say so and cannot submit), never the screen.
   const faultCategories = getAttestations()
     .then((body) => body.faultCategories ?? [])
     .catch(() => [] as string[])
+  // Null on failure, which the log section reports as such.
+  const declarationLog = loadDeclarationLog()
   try {
-    // Only what the table draws. The table is scoped to outstanding rows --
-    // with no declaration-status column, a Completed row would look
-    // identical to an undeclared one -- so fetching the Completed ones too
-    // would be paying to transfer rows nothing renders. The table still
-    // filters them again itself, so a backend that ignores the parameter
-    // renders exactly the same screen.
-    data = await loadLiveDeclarations({ outstandingOnly: true })
+    data = await loadDeclarationsPage(filters, page)
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
   const categories = await faultCategories
+  const log = await declarationLog
 
-  // The plants a declaration can be recorded against, from the rows rather
+  // Past the end -- a stale link, or a filter that now matches fewer: go to
+  // the last page there is rather than show an empty one. Outside the try:
+  // `redirect` throws, and the catch would swallow it as a load error.
+  if (data) {
+    const lastPage = pageCountOf(data.total, DEFAULT_PAGE_SIZE)
+    if (page > lastPage) redirect(declarationsHref(filters, lastPage))
+  }
+
+  // The plants a declaration can be recorded against, from the queue rather
   // than hard-coded: the plant scope is a backend setting and a list typed
-  // here would be a second place to change it.
-  const plantOptions = [
-    ...new Map(
-      (data?.rows ?? [])
-        .filter((row) => row.plant)
-        .map((row) => [row.plant!.plantId, { plantId: row.plant!.plantId, name: row.plant!.name }]),
-    ).values(),
-  ].sort((a, b) => a.plantId.localeCompare(b.plantId))
+  // here would be a second place to change it. The server's list, not the
+  // page's rows, which would offer only the plants on one page.
+  const plantOptions = data?.facets.plants ?? []
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -131,23 +154,23 @@ export default async function I08DeclarationsPage() {
               <KPIStatCard
                 label="Declarations recorded"
                 value={
-                  data.log === null
+                  log === null
                     ? NOT_LOADED
-                    : formatCount(data.log.filter((r) => !r.supersededBy).length)
+                    : formatCount(log.filter((r) => !r.supersededBy).length)
                 }
                 hint={
-                  data.log === null
+                  log === null
                     ? undefined
-                    : `in force · ${formatCount(data.log.filter((r) => r.supersededBy).length)} amended, kept as history`
+                    : `in force · ${formatCount(log.filter((r) => r.supersededBy).length)} amended, kept as history`
                 }
               />
               <KPIStatCard
                 label="Repairable"
                 value={
-                  data.log === null
+                  log === null
                     ? NOT_LOADED
                     : formatCount(
-                        data.log.filter((r) => r.condition === "Repairable").length
+                        log.filter((r) => r.condition === "Repairable").length
                       )
                 }
                 hint="judged worth repairing"
@@ -155,10 +178,10 @@ export default async function I08DeclarationsPage() {
               <KPIStatCard
                 label="Not worth repairing"
                 value={
-                  data.log === null
+                  log === null
                     ? NOT_LOADED
                     : formatCount(
-                        data.log.filter(
+                        log.filter(
                           (r) =>
                             r.condition === "Scrap" ||
                             r.condition === "Beyond Economical Repair"
@@ -175,8 +198,12 @@ export default async function I08DeclarationsPage() {
               </h2>
               <DeclarationsTable
                 rows={data.rows}
+                total={data.total}
+                page={page}
+                pageSize={DEFAULT_PAGE_SIZE}
                 summary={data.summary}
-                truncated={data.truncated}
+                facets={data.facets}
+                filters={filters}
                 faultCategories={categories}
               />
             </section>
@@ -185,7 +212,7 @@ export default async function I08DeclarationsPage() {
               <h2 className="text-sm font-medium text-foreground">
                 Declaration log
               </h2>
-              {data.log === null ? (
+              {log === null ? (
                 <div
                   role="alert"
                   className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm"
@@ -199,7 +226,7 @@ export default async function I08DeclarationsPage() {
                   </p>
                 </div>
               ) : (
-                <DeclarationLogTable rows={data.log} />
+                <DeclarationLogTable rows={log} />
               )}
             </section>
           </>

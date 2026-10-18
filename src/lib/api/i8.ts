@@ -196,6 +196,20 @@ export type ApiRepairChain = {
   /** Null when no reason was recorded while the line was out AND no new
    *  purchase overlapped it without one. */
   justification?: ApiRepairJustification | null
+  /**
+   * What the checks raise against this line, served by the register listing so
+   * a page of it need not load the whole exception queue. An empty list means
+   * the checks found nothing; null or absent means not computed here -- the
+   * detail endpoint, or a backend older than server paging.
+   */
+  exceptions?: ApiLineException[] | null
+}
+
+/** One exception raised against a register line. */
+export type ApiLineException = {
+  id: string
+  type: string
+  severity: "info" | "warning" | "critical"
 }
 
 /** One NEW_ACQUISITION justification recorded while a repair line was out. */
@@ -257,6 +271,34 @@ export type ApiRegisterMeta = {
   excludedDeletedLines?: number
   /** Lines blocked in SAP — included above, flagged with `poBlocked`. */
   blockedLines?: number
+  /**
+   * PO-issued lines blocked in SAP or partly received, left out by
+   * `excludeHeld`. With it, `totalLines`, `openLines`, `blockedLines` and
+   * `partiallyReceivedLines` describe the lines listed. Zero without it, and
+   * absent from a backend older than server paging.
+   */
+  heldLines?: number
+}
+
+/**
+ * The values the register's filters can take. Taken after `excludeHeld` and
+ * before every filter, so a paged screen's dropdowns list every value rather
+ * than those on one page.
+ */
+export type ApiRegisterFacets = {
+  plants: ApiPlantReference[]
+  vendors: ApiVendorOption[]
+  /** Some lines carry no vendor; `vendor=none` finds them. */
+  hasUnknownVendor: boolean
+  repairStatuses: string[]
+  criticalities: string[]
+  /** Some lines' material is unrated at their plant; `criticality=none` finds them. */
+  hasUnrated: boolean
+}
+
+export type ApiRegisterPage = ApiPage<ApiRepairChain, ApiRegisterMeta> & {
+  /** Absent from a backend older than server paging. */
+  facets?: ApiRegisterFacets
 }
 
 export type ApiUniverseItem = {
@@ -424,6 +466,30 @@ export type ApiDeclarationMeta = {
   attestationWindowDays: number
 }
 
+/** One vendor the declaration queue can be narrowed to. */
+export type ApiVendorOption = {
+  /** The code — what the `vendor` filter takes. */
+  vendor: string
+  /** LFA1's name, where one was delivered. */
+  name: string | null
+}
+
+/**
+ * The values the declaration queue's filters can take. Taken after
+ * `outstandingOnly`/`status` and before the filters themselves, so a paged
+ * screen's dropdowns list every value rather than those on one page.
+ */
+export type ApiDeclarationFacets = {
+  plants: ApiPlantReference[]
+  vendors: ApiVendorOption[]
+  repairStatuses: string[]
+}
+
+export type ApiDeclarationPage = ApiPage<ApiDeclarationItem, ApiDeclarationMeta> & {
+  /** Absent from a backend older than server paging. */
+  facets?: ApiDeclarationFacets
+}
+
 /**
  * One row of `GET /api/i8/exceptions`.
  *
@@ -521,6 +587,22 @@ export type ApiExceptionMeta = {
   /** The justification check's own cutover — purchases before it count as
    *  pre-automation. Null means none is set. */
   justificationCutoverDate?: string | null
+}
+
+/**
+ * The values the exception queue's filters can take. Taken after `excludeType`
+ * and before every filter, so a paged screen's dropdowns list every value
+ * rather than those on one page.
+ */
+export type ApiExceptionFacets = {
+  plants: ApiPlantReference[]
+  /** Types present among the items; `meta.typesRaised` is the checks that run. */
+  types: string[]
+}
+
+export type ApiExceptionPage = ApiPage<ApiExceptionItem, ApiExceptionMeta> & {
+  /** Absent from a backend older than server paging. */
+  facets?: ApiExceptionFacets
 }
 
 /** One recorded attestation. */
@@ -621,13 +703,29 @@ export type UniverseQuery = {
 
 export type RegisterQuery = {
   plant?: string
+  /** A vendor code, or the literal `none` for the lines with no vendor. */
   vendor?: string
   material?: string
   status?: string
   overdueOnly?: boolean
+  /** OVERDUE, ON_TIME, NO_DUE_DATE or RECEIVED. */
+  overdueStatus?: string
   openOnly?: boolean
+  /** The rating the line shows, or the literal `none` for unrated lines. */
   criticality?: string
+  /** Required, Completed or Flagged. */
+  declarationStatus?: string
   agingBucket?: string
+  /** Only lines a check has raised something against. */
+  withExceptions?: boolean
+  /** Comma-separated exception types left out of each line's `exceptions`
+   *  and of `withExceptions`. */
+  excludeExceptionType?: string
+  /** Leave out PO-issued lines blocked in SAP or partly received, as the
+   *  Repair Register screen does; `meta` then describes the lines listed. */
+  excludeHeld?: boolean
+  /** Material number or description, repair line, or the PO or PR number. */
+  q?: string
   page?: number
   pageSize?: number
 }
@@ -665,9 +763,7 @@ export function getUniverseMaterial(materialId: string): Promise<ApiUniverseDeta
 }
 
 /** `GET /api/i8/register` — repair lines at material + repair-PO-line grain. */
-export function getRegister(
-  query: RegisterQuery = {},
-): Promise<ApiPage<ApiRepairChain, ApiRegisterMeta>> {
+export function getRegister(query: RegisterQuery = {}): Promise<ApiRegisterPage> {
   return apiFetch(`/i8/register${queryString(query)}`)
 }
 
@@ -697,6 +793,12 @@ export function getSnapshot(): Promise<ApiSnapshot> {
 
 export type DeclarationQuery = {
   plant?: string
+  /** A vendor CODE, as `facets.vendors` lists it. */
+  vendor?: string
+  /** Where the repair stands — PO Issued, At Vendor, Closed. */
+  repairStatus?: string
+  /** Material number or description, repair line or requisition. */
+  q?: string
   status?: string
   /** Only rows wanting attention — Required and Flagged. */
   outstandingOnly?: boolean
@@ -705,9 +807,7 @@ export type DeclarationQuery = {
 }
 
 /** `GET /api/i8/declarations` — the condition-to-repair declaration queue. */
-export function getDeclarations(
-  query: DeclarationQuery = {},
-): Promise<ApiPage<ApiDeclarationItem, ApiDeclarationMeta>> {
+export function getDeclarations(query: DeclarationQuery = {}): Promise<ApiDeclarationPage> {
   return apiFetch(`/i8/declarations${queryString(query)}`)
 }
 
@@ -722,6 +822,15 @@ export type ExceptionQuery = {
   owner?: string
   /** Only exceptions on repairs still out at a vendor — the actionable ones. */
   openOnly?: boolean
+  /** Leave out items raised before the control existed (`preAutomation`). */
+  actionableOnly?: boolean
+  /**
+   * Comma-separated types the queue does not carry. Unlike a filter, they come
+   * off the meta counts and the facets as well as the items.
+   */
+  excludeType?: string
+  /** Exception id, material number or description, or repair line. */
+  q?: string
   page?: number
   pageSize?: number
 }
@@ -735,10 +844,20 @@ export type ExceptionQuery = {
  * because the control did not exist before this platform — that number is the
  * business case for W5.3, not a bug in it.
  */
-export function getExceptions(
-  query: ExceptionQuery = {},
-): Promise<ApiPage<ApiExceptionItem, ApiExceptionMeta>> {
+export function getExceptions(query: ExceptionQuery = {}): Promise<ApiExceptionPage> {
   return apiFetch(`/i8/exceptions${queryString(query)}`)
+}
+
+/**
+ * `GET /api/i8/exceptions/{id}` — one item, with its status, owner and history.
+ *
+ * For a link to one item: the queue is paged, so the item may be on any page
+ * of it, or filtered off them all. An item the checks no longer raise still
+ * answers while it has a history, with `stillDetected` false; an id with
+ * neither is a 404.
+ */
+export function getException(exceptionId: string): Promise<ApiExceptionItem> {
+  return apiFetch(`/i8/exceptions/${encodeURIComponent(exceptionId)}`)
 }
 
 /**

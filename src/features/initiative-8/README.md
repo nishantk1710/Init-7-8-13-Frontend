@@ -10,18 +10,42 @@ attestation, which goes to a table the platform owns.
 ## Pages
 
 Routes live in `src/app/(live)/repairable-spares/**`. Each route wrapper
-imports and renders a page from `pages/`, except Justifications, whose route
-file is the page.
+imports and renders a page from `pages/`, except Repair Declarations, Repair
+Exceptions and Justifications, whose route files are the pages.
 
 | Route | Page | FRS | Reads |
 |---|---|---|---|
 | `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-10 | register, universe, declaration and exception meta (`data/live-overview.ts`) |
-| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
+| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, one page at a time, and `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
 | `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4, FR-7 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); the attestation form (`components/declare-condition-button.tsx`, `GET`/`POST /api/i8/attestations`) |
+| `/repairable-spares/declarations` | route file itself | FR-4 | `GET /api/i8/declarations`, one page at a time, and the log from `GET /api/i8/attestations` (`data/live-declarations.ts`) |
+| `/repairable-spares/exceptions` | route file itself | FR-8, FR-9, FR-11 | `GET /api/i8/exceptions`, one page at a time, and `GET /api/i8/exceptions/{id}` for a linked item (`data/live-exceptions.ts`) |
 | `/repairable-spares/coding-candidates` | `pages/coding-candidates-page.tsx` | FR-2 | `GET /api/i8/coding-candidates` (`data/live-coding-candidates.ts`) |
-| `/repairable-spares/justifications` | route file itself | FR-7 | `GET /api/justifications?kind=NEW_ACQUISITION`, rendered with Initiative 13's `JustificationLog` |
+| `/repairable-spares/justifications` | route file itself | FR-7 | `GET /api/justifications?kind=NEW_ACQUISITION`, one page at a time (`data/live-justifications.ts`) |
 
-The navigation for these five lives in `manifest.ts`.
+The navigation for these lives in `manifest.ts`.
+
+### Paging
+
+The long lists draw 25 rows a page (`DEFAULT_PAGE_SIZE`, with
+`components/shared/table-pagination.tsx`). Until 18-Oct-2026 the register and
+the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
+
+- **Paged on the server:** the Repair Register, Repair Declarations, Repair
+  Exceptions and Justifications. The filters and the page live in the URL
+  (`?q=`, `?plant=`, `?page=` and so on), and the backend searches, filters,
+  counts and pages. The dropdown values come back as `facets`, because one
+  page of rows cannot supply them. The controls are in
+  `components/url-filters.tsx`. Export fetches every match in batches of 500.
+- **The register's own two rules run on the server too.** It leaves out the
+  PO-issued lines blocked in SAP or partly received (`excludeHeld`; the
+  Overview applies the same rule in `isListedInRegister`), and each line
+  arrives with its exceptions, so the screen no longer loads the whole
+  exception queue to fill one column.
+- **Not paged:** the Overview, whose charts describe every line
+  (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
+  fills in verdicts while you watch); the declaration log (six rows); and the
+  repair detail page, which has no table.
 
 ### The register is where a repair line is worked
 
@@ -34,25 +58,17 @@ the workspace):
 - **Columns run from what a repair is doing to reference data.** Criticality,
   SOH, ROP, Repair PR and Repair PO are last. "Blocked in SAP" sits under
   Repair Status so it stays on screen. The CSV follows the same order.
-- **No Declaration Queue.** It was the register's own lines with other
-  columns. Each line shows its declaration status and who declared it; the
-  condition, requester, next action and the **Declare condition** form are on
-  the detail page. `/repairable-spares/declarations` redirects to the register.
+- **The queues are screens of their own again.** The Declaration and
+  Exception queues were folded into the register on 08-Oct-2026 and came back
+  on 12-Oct, after the FRS audit. The register tells you the state of one
+  line, but FR-4, FR-8, FR-9 and FR-11 ask what is outstanding across all of
+  them (see `manifest.ts`). Each register line still shows its declaration
+  status and its findings, and links to both queues.
 - **Justifications on the line, and on their own screen.** Each line shows
   its justification (Recorded, Missing, Not asked, or a dash), with the full
   reason on the detail page. The Justifications screen keeps the whole log,
   because most reasons belong to no repair line: FR-5 asks for one when a unit
   is on the shelf, or removed and not yet sent for repair.
-- **No Exception Queue.** Declaration and justification are treated as
-  mandatory, so the queue screen was removed. The checks still run on the
-  backend: they decide the register's Missing justification value, and the
-  Overview's Unjustified new purchases tile counts them through
-  `GET /api/i8/exceptions`.
-  Each line shows its own findings in the register (Declaration Status
-  Required, Justification Missing, Due Date Status Overdue).
-  `/repairable-spares/exceptions` redirects to the register. The FRS still
-  names an exception queue (FR-8, FR-9, FR-11); that gap is recorded in the
-  consolidation doc.
 
 ### What is deliberately not here
 
@@ -85,8 +101,8 @@ FRS does not require them:
   went for repair anyway.
 - `utils/status.ts` holds the tone maps, the status orders, the overdue and
   lead-time helpers, and `isPartiallyReceived`.
-- `utils/register-view.ts` holds the register filters and CSV export. The
-  CSV is built from exactly the rows on screen.
+- `utils/register-view.ts` holds the register's CSV export. The CSV is built
+  from every line the filters match, not from the page on screen.
 - `utils/attestation.ts` holds the attestation form's rules (conditions,
   recommendation mapping, quantity parsing).
 - `lib/api/i8.ts` (outside this folder) is the typed client and wire
@@ -95,7 +111,7 @@ FRS does not require them:
 ## What still reads fixtures
 
 `data/repair-chains.ts` (RC-80xx) and `data/declarations.ts` (D-90xxx) are
-hand-written scenario rows. None of the five screens read them. They feed
+hand-written scenario rows. None of the screens above read them. They feed
 the four **synchronous** cross-initiative selectors:
 
 | Selector | Read by |

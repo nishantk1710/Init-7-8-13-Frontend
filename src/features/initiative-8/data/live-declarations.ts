@@ -9,12 +9,16 @@
  * invented data"). This module is the real thing, and the screen reads this
  * one — a queue that shows made-up work is worse than no queue.
  *
- * Paged, unlike the coding-candidate screen: the backend caps a page at
- * `maxPageSize` and the queue is one row per repair line, so a single fetch
- * would silently truncate. The loop below follows `page`/`total` the same way
- * `live-register.ts` does.
+ * ## Paged on the server
+ *
+ * The screen asks for ONE page, and the backend searches, filters and counts.
+ * It used to follow the pages to the end -- every repair line is undeclared,
+ * so that was the whole 5,153-line register -- and filter in the browser,
+ * which made a 17 MB page. The filters and the page live in the URL, as on
+ * the Justifications screen (`live-justifications.ts`).
  */
 
+import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
@@ -23,10 +27,12 @@ import type {
 import type {
   ApiDeclarationItem,
   ApiDeclarationMeta,
+  ApiDeclarationPage,
   DeclarationQuery,
 } from "@/lib/api/i8"
 import type { ApiAttestation } from "@/lib/api/i8"
 import { formatApiDate, getAttestations, getDeclarations } from "@/lib/api/i8"
+import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -132,86 +138,197 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
   }
 }
 
-export type LiveDeclarations = {
-  rows: DeclarationQueueRow[]
-  summary: DeclarationQueueSummary
-  /**
-   * Recorded attestations, newest first. Null when that call failed -- the
-   * queue is still worth showing without the log, but an empty log must not
-   * be served in place of a failed one.
-   */
-  log: DeclarationLogRow[] | null
-  referenceDate?: string
-  /**
-   * True when the page loop stopped before reading everything.
-   *
-   * Kept, and now expected to be false: the loop follows pages to the end, so
-   * this is only true if the backend reports a total it will not serve. It
-   * stays because a queue that quietly shows part of itself reads as a
-   * complete queue, and somebody will work it to the bottom and believe they
-   * are done.
-   */
-  truncated: boolean
-}
-
-// No row cap. There was one -- 2,000 -- and it was the only reason this
-// screen ever showed the "partial queue" banner: every row in the register is
-// currently undeclared, so the queue is the whole register and the cap cut it
-// in half. The register screen has never had a cap and loads the same rows at
-// the same page size, so the ceiling was this screen's alone rather than
-// anything the browser or the API could not take.
-//
-// 500 is the backend's max_page_size, so this is as few round trips as the
-// API allows.
-const PAGE_SIZE = 500
-
 /**
- * Fetch the whole declaration queue, following pages.
+ * Every recorded attestation, newest first, for the declaration log. Null when
+ * the call failed: the queue is still worth showing without the log, but an
+ * empty log must not be served in place of a failed one.
  *
- * Throws on failure — the caller renders that visibly, same contract as
- * `loadLiveRegister`. A failed request is not an empty queue, and the one must
- * never render as the other.
+ * Not paged. It holds what people have declared -- six rows today -- and grows
+ * only as fast as they declare. Superseded rows are kept: they are the audit
+ * history, and an amendment chain with the amended row hidden is not a chain.
  */
-export async function loadLiveDeclarations(
-  query: Omit<DeclarationQuery, "page" | "pageSize"> = {},
-): Promise<LiveDeclarations> {
-  const rows: DeclarationQueueRow[] = []
-  let summary: DeclarationQueueSummary | null = null
-  let referenceDate: string | undefined
-  let page = 1
-  let total = 0
-
-  for (;;) {
-    const body = await getDeclarations({ ...query, page, pageSize: PAGE_SIZE })
-    summary ??= toSummary(body.meta)
-    referenceDate ??= body.referenceDate ? formatApiDate(body.referenceDate) : undefined
-    total = body.total
-
-    rows.push(...body.items.map(toRow))
-
-    // Stops on the total, or on an empty page -- never on a row count of its
-    // own. `body.items.length === 0` is the guard that keeps a backend
-    // misreporting `total` from looping forever.
-    if (rows.length >= total || body.items.length === 0) break
-    page += 1
-  }
-
-  // Superseded rows are kept: they are the audit history, and an amendment
-  // chain with the amended row hidden is not a chain.
-  const log = await getAttestations()
+export async function loadDeclarationLog(): Promise<DeclarationLogRow[] | null> {
+  return getAttestations()
     .then((body) => body.items.map(toLogRow))
     .catch(() => null)
+}
+
+// --- One page of the queue --------------------------------------------------
+
+export const DECLARATIONS_PATH = "/repairable-spares/declarations"
+
+/** The backend's max_page_size: as few export round trips as the API allows. */
+const EXPORT_PAGE_SIZE = 500
+
+/** A ceiling on export requests, so a backend that ignored `page` and kept
+ *  returning full pages could never loop forever. 200 x 500 rows. */
+const MAX_EXPORT_PAGES = 200
+
+/** What the queue can be narrowed by. Each is a URL parameter of the same name. */
+export type DeclarationFilters = {
+  q?: string
+  plant?: string
+  /** A vendor CODE, as the facets list it. */
+  vendor?: string
+  /** Where the repair stands -- PO Issued, At Vendor, Closed. */
+  repairStatus?: string
+}
+
+export type DeclarationFacets = {
+  plants: { plantId: string; name: string }[]
+  /** `value` is the code the filter takes; `label` is the name, else the code. */
+  vendors: { value: string; label: string }[]
+  repairStatuses: string[]
+}
+
+export type DeclarationsPage = {
+  rows: DeclarationQueueRow[]
+  /** Matching the filters. */
+  total: number
+  /** The whole queue's counts, whatever the filters. */
+  summary: DeclarationQueueSummary
+  facets: DeclarationFacets
+}
+
+type FetchDeclarations = typeof getDeclarations
+
+export function parseDeclarationParams(raw: RawSearchParams): {
+  filters: DeclarationFilters
+  page: number
+} {
+  return {
+    filters: {
+      q: single(raw.q),
+      plant: single(raw.plant),
+      vendor: single(raw.vendor),
+      repairStatus: single(raw.repairStatus),
+    },
+    page: parsePage(raw.page) ?? 1,
+  }
+}
+
+export function isDeclarationFiltered(filters: DeclarationFilters): boolean {
+  return Boolean(filters.q || filters.plant || filters.vendor || filters.repairStatus)
+}
+
+/**
+ * The link to one page of the queue, keeping the filters. Page 1 drops `page`,
+ * so the plain screen and its first page are one URL.
+ */
+export function declarationsHref(filters: DeclarationFilters, page = 1): string {
+  const params = new URLSearchParams()
+  if (filters.q) params.set("q", filters.q)
+  if (filters.plant) params.set("plant", filters.plant)
+  if (filters.vendor) params.set("vendor", filters.vendor)
+  if (filters.repairStatus) params.set("repairStatus", filters.repairStatus)
+  if (page > 1) params.set("page", String(page))
+  const query = params.toString()
+  return query ? `${DECLARATIONS_PATH}?${query}` : DECLARATIONS_PATH
+}
+
+/**
+ * Outstanding rows only, and not as a default somebody can switch off: the
+ * table has no declaration-status column, so a Completed row would look
+ * exactly like an undeclared one (see `DeclarationsTable`).
+ */
+function declarationQuery(filters: DeclarationFilters): DeclarationQuery {
+  return {
+    outstandingOnly: true,
+    q: filters.q,
+    plant: filters.plant,
+    vendor: filters.vendor,
+    repairStatus: filters.repairStatus,
+  }
+}
+
+/**
+ * The dropdown values. The backend takes them before the filters, so choosing
+ * one plant does not take the other out of the list. A backend older than
+ * paging sends none; the page's rows are then the best there is.
+ */
+function facetsOf(body: ApiDeclarationPage): DeclarationFacets {
+  if (body.facets) {
+    return {
+      plants: body.facets.plants.map((p) => ({ plantId: p.plantId, name: p.name })),
+      vendors: body.facets.vendors.map((v) => ({ value: v.vendor, label: v.name ?? v.vendor })),
+      repairStatuses: body.facets.repairStatuses,
+    }
+  }
+  const plants = new Map<string, string>()
+  const vendors = new Map<string, string>()
+  const statuses = new Set<string>()
+  for (const item of body.items) {
+    if (item.plant) plants.set(item.plant.plantId, item.plant.name)
+    if (item.vendor) {
+      vendors.set(item.vendor, item.vendorName ?? vendors.get(item.vendor) ?? item.vendor)
+    }
+    if (item.repairStatus) statuses.add(item.repairStatus)
+  }
+  return {
+    plants: [...plants]
+      .map(([plantId, name]) => ({ plantId, name }))
+      .sort((a, b) => a.plantId.localeCompare(b.plantId)),
+    vendors: [...vendors]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    repairStatuses: [...statuses].sort(),
+  }
+}
+
+/**
+ * One page of the queue, with the counts and dropdown values around it.
+ *
+ * Unfiltered, that is one request. With a filter, a second one-row request
+ * without it reads the counts, because they describe the whole queue: "how
+ * much of the register is undeclared" must not change because somebody looked
+ * at one plant. The dropdown values come from the page's own request either
+ * way -- the backend takes them before the filters.
+ *
+ * Throws on failure, so a failed request is never shown as an empty queue.
+ */
+export async function loadDeclarationsPage(
+  filters: DeclarationFilters,
+  page: number,
+  {
+    pageSize = DEFAULT_PAGE_SIZE,
+    fetchPage = getDeclarations,
+  }: { pageSize?: number; fetchPage?: FetchDeclarations } = {},
+): Promise<DeclarationsPage> {
+  const request = { ...declarationQuery(filters), page, pageSize }
+  const [matching, whole] = isDeclarationFiltered(filters)
+    ? await Promise.all([
+        fetchPage(request),
+        fetchPage({ ...declarationQuery({}), pageSize: 1 }),
+      ])
+    : await fetchPage(request).then((body) => [body, body] as const)
 
   return {
-    rows,
-    log,
-    summary: summary ?? {
-      total: 0,
-      outstanding: 0,
-      byStatus: {},
-      attestationWindowDays: 0,
-    },
-    referenceDate,
-    truncated: rows.length < total,
+    rows: matching.items.map(toRow),
+    total: matching.total,
+    summary: toSummary(whole.meta),
+    facets: facetsOf(matching),
   }
+}
+
+/**
+ * Every row the filters match, for the export: the queue, not the page.
+ *
+ * Deduplicated by id, in case a page boundary moves while the export runs. A
+ * declaration recorded mid-export takes its row out of the queue and pulls the
+ * rest up one, so the row after it is missed: an export of a moving queue is
+ * as of when each page was read.
+ */
+export async function fetchAllDeclarations(
+  filters: DeclarationFilters,
+  fetchPage: FetchDeclarations = getDeclarations,
+): Promise<DeclarationQueueRow[]> {
+  const byId = new Map<string, DeclarationQueueRow>()
+  for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
+    const body = await fetchPage({ ...declarationQuery(filters), page, pageSize: EXPORT_PAGE_SIZE })
+    for (const row of body.items.map(toRow)) {
+      if (!byId.has(row.id)) byId.set(row.id, row)
+    }
+    if (body.items.length < EXPORT_PAGE_SIZE || page * EXPORT_PAGE_SIZE >= body.total) break
+  }
+  return [...byId.values()]
 }

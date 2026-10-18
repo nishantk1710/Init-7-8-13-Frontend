@@ -2,7 +2,6 @@ import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
-  NO_CRITICALITY,
   OVERDUE_STATUS_LABEL,
   isPartiallyReceived,
   justificationCellOf,
@@ -12,72 +11,18 @@ import {
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /**
- * The register's filtering and export, as plain functions over `RepairChain[]`.
+ * The register's export, as plain functions over `RepairChain[]`, testable
+ * without React.
  *
- * Pulled out of the table component so the rules are testable without React,
- * and so the CSV and the screen can never disagree about which rows a filter
- * matches: the export is built from exactly the array the table renders.
+ * The register's filters and search used to live here too, run in the browser
+ * over every line. Since 18-Oct-2026 the server runs them (`GET
+ * /api/i8/register`) and the screen asks for one page; the export asks for
+ * every line the same filters match (`fetchAllRegisterLines`), so the file is
+ * still the view it came from.
  */
 
-/** The "no filter" value every register dropdown uses. */
+/** The "no filter" value the I08 dropdowns use. */
 export const ALL = "all"
-
-/**
- * The Exceptions filter's one narrowing choice.
- *
- * Not "open exceptions only": live exception items have no status yet — they
- * are recomputed from the register on every read — so every item that exists
- * is by definition still being found. Calling them open would promise a
- * lifecycle this screen cannot show.
- */
-export const WITH_EXCEPTIONS = "with"
-
-export type RegisterFilters = {
-  plant: string
-  vendor: string
-  repairStatus: string
-  /** An `OverdueStatus`, or `ALL`. */
-  overdue: string
-  /** A criticality rating, `NO_CRITICALITY` for unrated lines, or `ALL`. */
-  criticality: string
-  declarationStatus: string
-  aging: string
-  /** `WITH_EXCEPTIONS`, or `ALL`. */
-  exceptions: string
-}
-
-export const NO_REGISTER_FILTERS: RegisterFilters = {
-  plant: ALL,
-  vendor: ALL,
-  repairStatus: ALL,
-  overdue: ALL,
-  criticality: ALL,
-  declarationStatus: ALL,
-  aging: ALL,
-  exceptions: ALL,
-}
-
-/** The rows matching every active filter. Client side, over the full register. */
-export function filterRegister(chains: RepairChain[], filters: RegisterFilters): RepairChain[] {
-  return chains.filter((c) => {
-    if (filters.plant !== ALL && c.plant.plantId !== filters.plant) return false
-    if (filters.vendor !== ALL && vendorLabel(c) !== filters.vendor) return false
-    if (filters.repairStatus !== ALL && c.repairStatus !== filters.repairStatus) return false
-    if (filters.overdue !== ALL && overdueStatusOf(c) !== filters.overdue) return false
-    if (filters.criticality !== ALL && (c.criticality ?? NO_CRITICALITY) !== filters.criticality) {
-      return false
-    }
-    if (filters.declarationStatus !== ALL && c.declarationStatus !== filters.declarationStatus) {
-      return false
-    }
-    if (filters.aging !== ALL && c.agingBucket !== filters.aging) return false
-    // A line whose exceptions could not be fetched is `undefined`, not []. It
-    // is excluded here rather than shown as clean: the filter asks for lines
-    // with findings, and "not checked" is not an answer to that.
-    if (filters.exceptions === WITH_EXCEPTIONS && (c.exceptions?.length ?? 0) === 0) return false
-    return true
-  })
-}
 
 function documentLabel(doc: SAPDocumentReference | undefined): string {
   if (!doc) return ""

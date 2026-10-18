@@ -7,7 +7,14 @@ vi.mock("@/lib/api/i8", async (importOriginal) => ({
   ...api,
 }))
 
-import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
+import {
+  activeExceptionFilters,
+  exceptionsHref,
+  fetchAllExceptions,
+  loadExceptionsPage,
+  loadLiveExceptions,
+  parseExceptionParams,
+} from "@/features/initiative-8/data/live-exceptions"
 
 /**
  * What this loader must not let through: `UNJUSTIFIED_ACQUISITION`.
@@ -139,5 +146,222 @@ describe("loadLiveExceptions", () => {
     api.getExceptions.mockResolvedValue(page([item(), unjustified()]))
 
     expect((await loadLiveExceptions()).truncated).toBe(false)
+  })
+})
+
+/**
+ * The Exceptions screen pages on the server. What these pin: the screen opens
+ * on Open and its URL says so only when it is not; the queue's own two
+ * parameters go on every request; and the dropdowns are not built from one
+ * page.
+ */
+
+describe("parseExceptionParams", () => {
+  it("opens on Open, with nothing else narrowing it", () => {
+    expect(parseExceptionParams({})).toEqual({
+      filters: {
+        q: undefined,
+        type: undefined,
+        plant: undefined,
+        open: false,
+        status: "OPEN",
+        repair: undefined,
+      },
+      page: 1,
+      id: undefined,
+    })
+  })
+
+  it("reads every filter, the page and the linked item", () => {
+    expect(
+      parseExceptionParams({
+        q: " pump ",
+        type: "OVERDUE_REPAIR",
+        plant: "1500",
+        open: "1",
+        status: "in_progress",
+        repair: "4500000677-20",
+        page: "3",
+        id: "EX-1",
+      }),
+    ).toEqual({
+      filters: {
+        q: "pump",
+        type: "OVERDUE_REPAIR",
+        plant: "1500",
+        open: true,
+        status: "IN_PROGRESS",
+        repair: "4500000677-20",
+      },
+      page: 3,
+      id: "EX-1",
+    })
+  })
+
+  it("reads status=all as every status", () => {
+    expect(parseExceptionParams({ status: "all" }).filters.status).toBeUndefined()
+  })
+
+  it("treats a repeated or malformed value as absent", () => {
+    expect(parseExceptionParams({ plant: ["1300", "1500"], page: "0", id: ["a", "b"] })).toMatchObject({
+      filters: { plant: undefined },
+      page: 1,
+      id: undefined,
+    })
+  })
+})
+
+describe("exceptionsHref", () => {
+  it("is the bare path for the screen as it opens", () => {
+    expect(exceptionsHref({ status: "OPEN" })).toBe("/repairable-spares/exceptions")
+  })
+
+  it("keeps the filters, says status=all for every status, and drops page 1", () => {
+    expect(
+      exceptionsHref({ q: "pump seal", open: true, status: undefined, repair: "4500000677-20" }, 2),
+    ).toBe("/repairable-spares/exceptions?q=pump+seal&open=1&status=all&repair=4500000677-20&page=2")
+    expect(exceptionsHref({ type: "OVERDUE_REPAIR", status: "CLOSED" }, 1)).toBe(
+      "/repairable-spares/exceptions?type=OVERDUE_REPAIR&status=CLOSED",
+    )
+  })
+
+  it("reads back as the same filters", () => {
+    const filters = {
+      q: "pump",
+      type: "OVERDUE_REPAIR",
+      plant: "1300",
+      open: true,
+      status: undefined,
+      repair: "4500000677-20",
+    }
+    const raw = Object.fromEntries(new URL(exceptionsHref(filters, 4), "http://x").searchParams)
+
+    expect(parseExceptionParams(raw)).toEqual({ filters, page: 4, id: undefined })
+  })
+})
+
+describe("activeExceptionFilters", () => {
+  it("does not count the status the screen opens on", () => {
+    expect(activeExceptionFilters({ status: "OPEN" })).toBe(0)
+    expect(activeExceptionFilters({ status: undefined })).toBe(1)
+    expect(activeExceptionFilters({ status: "OPEN", repair: "4500000677-20", q: "pump" })).toBe(2)
+  })
+})
+
+describe("loadExceptionsPage", () => {
+  it("asks for one page, with the queue's own two parameters always on", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item()]))
+
+    await loadExceptionsPage({ status: "OPEN", plant: "1300", q: "pump" }, 3, {
+      pageSize: 25,
+      fetchPage,
+    })
+
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+    expect(fetchPage).toHaveBeenCalledWith({
+      q: "pump",
+      plant: "1300",
+      status: "OPEN",
+      actionableOnly: true,
+      excludeType: "UNJUSTIFIED_ACQUISITION",
+      page: 3,
+      pageSize: 25,
+    })
+  })
+
+  it("counts every match, not the page", async () => {
+    const fetchPage = vi.fn().mockResolvedValue({ ...page([item()]), total: 240 })
+
+    expect((await loadExceptionsPage({}, 1, { fetchPage })).total).toBe(240)
+  })
+
+  it("takes the dropdowns from the server, adding the checks that run", async () => {
+    const fetchPage = vi.fn().mockResolvedValue({
+      ...page([item()]),
+      facets: {
+        plants: [
+          { plantId: "1300", name: "Black Mountain Mining" },
+          { plantId: "1500", name: "Gamsberg" },
+        ],
+        types: ["MISSING_ATTESTATION"],
+      },
+    })
+
+    const { facets } = await loadExceptionsPage({ plant: "1300" }, 1, { fetchPage })
+
+    // Choosing 1300 must not take 1500 out of the list.
+    expect(facets.plants.map((p) => p.plantId)).toEqual(["1300", "1500"])
+    // OVERDUE_REPAIR runs and found nothing on this page: still a choice. The
+    // dropped type is not, though the backend declares it.
+    expect(facets.types).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR"])
+  })
+
+  it("falls back to the page's rows when the backend sends no facets", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      page([item({ id: "EX-2", plant: { plantId: "1500", name: "Gamsberg" } }), item()]),
+    )
+
+    const { facets } = await loadExceptionsPage({}, 1, { fetchPage })
+
+    expect(facets.plants).toEqual([
+      { plantId: "1300", name: "Black Mountain Mining" },
+      { plantId: "1500", name: "Gamsberg" },
+    ])
+  })
+
+  it("keeps a dropped type off the screen even from a backend that ignores excludeType", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified()]))
+
+    const { rows, summary } = await loadExceptionsPage({}, 1, { fetchPage })
+
+    expect(rows.map((r) => r.type)).toEqual(["MISSING_ATTESTATION"])
+    expect(summary.typesRaised).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR"])
+    expect(summary.byType).toEqual({ MISSING_ATTESTATION: 1 })
+  })
+})
+
+describe("fetchAllExceptions", () => {
+  const batch = (start: number, count: number) =>
+    Array.from({ length: count }, (_, i) => item({ id: `EX-${start + i}` }))
+
+  it("pages until the count is reached, with the screen's filters", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ ...page(batch(0, 500)), total: 700 })
+      .mockResolvedValueOnce({ ...page(batch(500, 200)), total: 700 })
+
+    const rows = await fetchAllExceptions({ status: undefined, type: "OVERDUE_REPAIR" }, fetchPage)
+
+    expect(rows).toHaveLength(700)
+    expect(fetchPage).toHaveBeenCalledTimes(2)
+    expect(fetchPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "OVERDUE_REPAIR",
+        excludeType: "UNJUSTIFIED_ACQUISITION",
+        page: 2,
+        pageSize: 500,
+      }),
+    )
+  })
+
+  it("drops the repeat an item raised mid-export causes", async () => {
+    // One new item arrived between the requests, so the second page starts
+    // with the last item of the first.
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ ...page(batch(0, 500)), total: 701 })
+      .mockResolvedValueOnce({ ...page(batch(499, 202)), total: 701 })
+
+    const rows = await fetchAllExceptions({}, fetchPage)
+
+    expect(rows).toHaveLength(701)
+    expect(new Set(rows.map((r) => r.id)).size).toBe(701)
+  })
+
+  it("stops on a short page even if the count says more", async () => {
+    const fetchPage = vi.fn().mockResolvedValue({ ...page(batch(0, 3)), total: 9000 })
+
+    expect(await fetchAllExceptions({}, fetchPage)).toHaveLength(3)
+    expect(fetchPage).toHaveBeenCalledTimes(1)
   })
 })

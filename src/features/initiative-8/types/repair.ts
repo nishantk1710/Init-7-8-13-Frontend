@@ -296,10 +296,11 @@ export interface RepairChain {
   /**
    * The exception-queue items raised against this line.
    *
-   * Joined onto the register by the page, not served with it: the checks are
-   * recomputed by `GET /api/i8/exceptions` and the register knows nothing
-   * about them. Absent — not an empty array — when the exception fetch failed,
-   * so "no findings" and "could not be checked" stay distinguishable.
+   * Served with the register line since 18-Oct-2026 (`toRegisterLine`);
+   * until then the page loaded the whole exception queue and joined it here.
+   * Absent — not an empty array — where they were not read: the Overview, which
+   * has no use for them, or a backend older than that. So "no findings" and
+   * "could not be checked" stay distinguishable.
    */
   exceptions?: RepairLineException[]
 }
