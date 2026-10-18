@@ -359,6 +359,12 @@ export type ApiSessionSummary = {
   issuedAt: string
   expiresAt: string
   turns: number
+  /**
+   * Reservation items whose SGTXT names this session. Empty until the item
+   * text has been read (RESB extract or the UAT overlay) — "not linked yet".
+   * Absent on a backend older than the field.
+   */
+  linkedReservations?: ApiLinkedReservation[]
 }
 
 export type SessionListResponse = {
@@ -499,6 +505,8 @@ export function listSessions(params?: {
   flow?: string
   material?: string
   plant?: string
+  /** true: only sessions a reservation's SGTXT names; false: only those none does yet. */
+  linked?: boolean
   limit?: number
 }): Promise<SessionListResponse> {
   return apiFetch<SessionListResponse>(`/assistant/sessions${query(params)}`)
@@ -568,7 +576,7 @@ export function listJustifications(params?: {
   )
 }
 
-function query(params?: Record<string, string | number | undefined>): string {
+function query(params?: Record<string, string | number | boolean | undefined>): string {
   if (!params) return ""
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
