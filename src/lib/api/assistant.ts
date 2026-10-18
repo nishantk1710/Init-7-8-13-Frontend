@@ -382,7 +382,12 @@ export type JustificationRequest = {
 
 export type JustificationListResponse = {
   items: ApiJustification[]
+  /** Every justification matching the filters, not only the page returned.
+   *  An older backend sent the page's length here. */
   total: number
+  /** The plants and reasons present among the matches, for filter lists.
+   *  Optional: an older backend does not send it. */
+  facets?: { plants: string[]; reasonCategories: string[] }
   /** VZI's vocabulary, served rather than hard-coded. Seven placeholders today. */
   reasonCategories: string[]
   note: string
@@ -549,9 +554,18 @@ export function listJustifications(params?: {
   kind?: string
   material?: string
   plant?: string
+  /** Exact match on the stored category, e.g. `URGENT_BREAKDOWN`. */
+  reasonCategory?: string
+  /** Case-insensitive substring over material, free text, author, session and reason. */
+  q?: string
   limit?: number
+  /** Rows to skip, for paging. `total` counts every match, not the page. */
+  offset?: number
 }): Promise<JustificationListResponse> {
-  return apiFetch<JustificationListResponse>(`/justifications${query(params)}`)
+  const { reasonCategory, ...rest } = params ?? {}
+  return apiFetch<JustificationListResponse>(
+    `/justifications${query({ ...rest, reason_category: reasonCategory })}`
+  )
 }
 
 function query(params?: Record<string, string | number | undefined>): string {
