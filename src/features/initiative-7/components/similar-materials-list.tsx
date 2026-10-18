@@ -16,10 +16,10 @@ function stock(value: number | null): string {
   return value === null ? "—" : formatCount(value)
 }
 
-/** The top ten materials an OAR (cold-start) recommendation was sized from, best
- * match first, read verbatim from the backend's stored similarity result. Shown
- * beside the usage chart because a cold-start material has no usage of its own to
- * explain its numbers -- these neighbours are the evidence instead. */
+/** The materials an OAR (cold-start) recommendation was sized from (the backend
+ * keeps up to five), best match first, read verbatim from the stored similarity
+ * result. Shown beside the usage chart because a cold-start material has no usage
+ * of its own to explain its numbers -- these neighbours are the evidence instead. */
 export function SimilarMaterialsList({ recommendationId }: { recommendationId: string }) {
   const [state, setState] = useState<State>({ status: "loading" })
 
@@ -41,11 +41,13 @@ export function SimilarMaterialsList({ recommendationId }: { recommendationId: s
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
-        Top 10 similar materials
+        {state.status === "ready" && state.items.length > 0
+          ? `${state.items.length} similar ${state.items.length === 1 ? "material" : "materials"} used`
+          : "Similar materials"}
       </h4>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        The recommended reorder point, safety stock and max stock are worked out from these materials, best match first.
-        The ROP, Safety and Max shown are the values currently set in SAP for each material.
+        The recommended reorder point, safety stock and max stock are an average of these materials&apos; current SAP
+        values, giving more weight to the closer matches. Best match first.
       </p>
 
       {state.status === "loading" && <p className="mt-3 text-xs text-muted-foreground">Loading similar materials…</p>}

@@ -68,9 +68,10 @@ const CONVERSION_ELIGIBILITY_TONE:Record<string, "success" | "warning" | "defaul
 }
 
 const CONVERSION_TRIGGER_LABEL: Record<string, string> = {
+  CONSUMPTION_AND_CRITICALITY: "its usage and criticality level",
+  // Older recommendations, made under the retired either-or rule.
   CONSUMPTION_FREQUENCY: "how often it is used",
   PRODUCTION_IMPACT: "its criticality level",
-  I13_HOD_APPROVED_REQUEST: "a department-head request",
   NONE: "none",
   UNKNOWN: "not known",
 }

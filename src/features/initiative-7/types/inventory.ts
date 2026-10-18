@@ -132,19 +132,29 @@ export interface OarColdStartGuidance {
  * re-triggered in the frontend. Only meaningful when `isOar` is true; a
  * non-OAR (Min-Max) recommendation has no conversion decision to show.
  * `demandClass` is FR-2's pattern, carried here purely as supporting/
- * confidence context -- it is not one of the three OR'd triggers. */
+ * confidence context -- it plays no part in eligibility. The backend's rule is
+ * now an AND of usage (> 4 issues in 12 months) and a CRITICAL/IMPACT tier, so
+ * an eligible decision carries `CONSUMPTION_AND_CRITICALITY`; the two older
+ * single-condition values can still arrive on recommendations made before it. */
 export interface OarConversionInfo {
   isOar: boolean | null
   conversionEligibility: "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN" | null
-  conversionTrigger: "CONSUMPTION_FREQUENCY" | "PRODUCTION_IMPACT" | "I13_HOD_APPROVED_REQUEST" | "NONE" | "UNKNOWN" | null
+  conversionTrigger:
+    | "CONSUMPTION_AND_CRITICALITY"
+    | "CONSUMPTION_FREQUENCY"
+    | "PRODUCTION_IMPACT"
+    | "NONE"
+    | "UNKNOWN"
+    | null
   conversionDetail: string | null
   demandClass: string | null
   consumptionCount12m: number | null
   consumptionCountThreshold: number | null
-  /** Trigger 2 (criticality/tier) evidence -- null when unresolved. */
+  /** Whether the criticality condition (CRITICAL/IMPACT) held -- null when it
+   * could not be determined. */
   productionImpact: boolean | null
-  /** null when the I13 HOD ledger has no data for this material-plant yet
-   * (the stub's honest "unknown", never a fabricated false). */
+  /** Retired: the HOD trigger is no longer part of the rule, so this is null on
+   * every current recommendation. Still read so older rows keep working. */
   i13HodApproved: boolean | null
 }
 
