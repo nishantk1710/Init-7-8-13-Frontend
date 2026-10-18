@@ -175,6 +175,12 @@ export default async function I08JustificationsPage() {
             entries={entries.items.map(fromAssistant)}
             exportFilename="i08-new-acquisition-justifications.xlsx"
             filterable
+            showSource={false}
+            emptyMessage={{
+              title: "No new-unit justifications recorded yet.",
+              description:
+                "Nobody has yet chosen to buy a new unit while a repairable one exists. When someone does, the Spares Assistant asks them why at the reservation, and their reason appears here.",
+            }}
           />
         )}
       </div>

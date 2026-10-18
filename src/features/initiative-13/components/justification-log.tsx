@@ -54,26 +54,52 @@ export function JustificationLog({
   entries,
   exportFilename = "i13-justifications.xlsx",
   filterable = false,
+  showSource = true,
+  emptyMessage = {
+    title: "No justifications recorded for the selected filters.",
+    description:
+      "Nobody has yet gone ahead against the assistant's advice, or confirmed a plan-breach or no-plan exception, for this plant and material.",
+  },
 }: {
   entries: UnifiedJustification[]
   /** The export's filename. Initiative 08's justification page renders this
    *  log too, and a file of I08 records should not be named for I13. */
   exportFilename?: string
   /**
-   * Show the search and the plant/reason/captured dropdowns.
+   * Show the search and the plant/reason dropdowns.
    *
    * Opt-in rather than always on. I13 renders this log underneath its own
    * dashboard filters, which already narrow the entries handed in; a second
    * set of filters inside the component would be two controls for one job,
    * disagreeing with each other. I08's page has no such filters above it, and
    * a log nobody can search is one somebody pages through.
+   *
+   * There is no "captured" dropdown. I08 is the only screen that turns this
+   * on, and every entry it hands in came from the assistant, so the dropdown
+   * offered one choice that showed everything and one that was always empty.
    */
   filterable?: boolean
+  /**
+   * Say where each entry was captured: the tag on each card, the split in the
+   * count line, and the export's "Captured" column.
+   *
+   * I08 turns this off. Its page reads only the assistant's table, and the
+   * assistant asks for the reason before a new unit is ordered, so every
+   * entry there was captured at reservation time and the tag said the same
+   * thing on every card. I13 mixes in exception-queue confirmations, where
+   * the distinction is real, so it keeps the default.
+   */
+  showSource?: boolean
+  /**
+   * What to say when nothing has been recorded at all. The default is I13's:
+   * it talks about its dashboard filters and plan-breach exceptions, neither
+   * of which exists on I08's screen.
+   */
+  emptyMessage?: { title: string; description: string }
 }) {
   const [search, setSearch] = useState("")
   const [plant, setPlant] = useState<string>(ALL)
   const [reason, setReason] = useState<string>(ALL)
-  const [source, setSource] = useState<string>(ALL)
 
   // Built from the entries, never hard-coded: the reason vocabulary is
   // configuration the backend serves and VZI will change it.
@@ -92,7 +118,6 @@ export function JustificationLog({
     return entries.filter((entry) => {
       if (plant !== ALL && entry.plant !== plant) return false
       if (reason !== ALL && entry.reasonCategory !== reason) return false
-      if (source !== ALL && entry.source !== source) return false
       if (
         needle &&
         ![entry.material, entry.freeText, entry.author, entry.sessionId, entry.reasonCategory]
@@ -103,13 +128,13 @@ export function JustificationLog({
       }
       return true
     })
-  }, [entries, filterable, search, plant, reason, source])
+  }, [entries, filterable, search, plant, reason])
 
   const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
-    resetKey: [search, plant, reason, source].join("|"),
+    resetKey: [search, plant, reason].join("|"),
   })
 
-  const activeFilters = [plant !== ALL, reason !== ALL, source !== ALL, search.trim() !== ""].filter(
+  const activeFilters = [plant !== ALL, reason !== ALL, search.trim() !== ""].filter(
     Boolean,
   ).length
 
@@ -117,7 +142,7 @@ export function JustificationLog({
     downloadExcel(
       exportFilename,
       [
-        "Captured",
+        ...(showSource ? ["Captured"] : []),
         "Kind",
         "Material",
         "Plant",
@@ -129,7 +154,7 @@ export function JustificationLog({
         "Exception",
       ],
       filtered.map((entry) => [
-        sourceLabel(entry.source),
+        ...(showSource ? [sourceLabel(entry.source)] : []),
         entry.kind,
         entry.material,
         entry.plant,
@@ -167,26 +192,12 @@ export function JustificationLog({
         options={reasons.map((r) => ({ value: r, label: r.replace(/_/g, " ") }))}
         className="sm:w-56"
       />
-      {/* When it was captured. "Explained before the reservation was made" and
-          "explained weeks later when chased" are different kinds of evidence,
-          and this is how a reader asks for one of them. */}
-      <LogSelect
-        value={source}
-        onChange={setSource}
-        allLabel="Captured any time"
-        options={[
-          { value: "ASSISTANT", label: sourceLabel("ASSISTANT") },
-          { value: "EXCEPTION_QUEUE", label: sourceLabel("EXCEPTION_QUEUE") },
-        ]}
-        className="sm:w-56"
-      />
       <ClearFiltersButton
         activeCount={activeFilters}
         onClear={() => {
           setSearch("")
           setPlant(ALL)
           setReason(ALL)
-          setSource(ALL)
         }}
       />
     </FilterBar>
@@ -199,12 +210,12 @@ export function JustificationLog({
         <EmptyState
           title={
             entries.length === 0
-              ? "No justifications recorded for the selected filters."
+              ? emptyMessage.title
               : "No justifications match these filters."
           }
           description={
             entries.length === 0
-              ? "Nobody has yet gone ahead against the assistant's advice, or confirmed a plan-breach or no-plan exception, for this plant and material."
+              ? emptyMessage.description
               : `All ${formatCount(entries.length)} recorded justifications were filtered out. Clear the filters to see them.`
           }
         />
@@ -223,8 +234,9 @@ export function JustificationLog({
           {filtered.length === entries.length
             ? ""
             : ` of ${formatCount(entries.length)}`}{" "}
-          justification(s) · {fromAssistant} at reservation time,{" "}
-          {filtered.length - fromAssistant} chasing an exception
+          justification(s)
+          {showSource &&
+            ` · ${fromAssistant} at reservation time, ${filtered.length - fromAssistant} chasing an exception`}
         </p>
         <Button size="sm" variant="outline" onClick={exportExcel}>
           <Download className="size-3.5" />
@@ -249,16 +261,18 @@ export function JustificationLog({
                 {kindLabel(entry.kind)}
               </span>
               {/* Which moment this was captured in. See the note above. */}
-              <span
-                className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[11px]",
-                  entry.source === "ASSISTANT"
-                    ? "bg-secondary text-secondary-foreground"
-                    : "border border-border text-muted-foreground"
-                )}
-              >
-                {sourceLabel(entry.source)}
-              </span>
+              {showSource && (
+                <span
+                  className={cn(
+                    "rounded-md px-1.5 py-0.5 text-[11px]",
+                    entry.source === "ASSISTANT"
+                      ? "bg-secondary text-secondary-foreground"
+                      : "border border-border text-muted-foreground"
+                  )}
+                >
+                  {sourceLabel(entry.source)}
+                </span>
+              )}
               {/* The house format (`en-ZA`, "12 Oct 2026, 14:42"), not a bare
                   toLocaleString(). That renders in whatever locale the VIEWER's
                   browser is set to, so the same record read "10/12/2026" on one
