@@ -33,6 +33,38 @@ describe("High Stockout Risk KPI", () => {
   })
 })
 
+describe("High Stockout Risk KPI without a backend figure", () => {
+  // Only what the four cards read: the risk, a status, the stock figures and the money.
+  const rows = ["critical", "high", "low"].map((risk) => ({
+    risk,
+    status: "Approved",
+    current: { rop: 0, safetyStock: 0, maxStock: 0 },
+    recommended: { rop: 0, safetyStock: 0, maxStock: 0 },
+    impact: { workingCapital: 0 },
+  })) as unknown as Recommendation[]
+  const renderWith = (unavailable: string) =>
+    renderToStaticMarkup(
+      createElement(InventoryPortfolioKpis, { recommendations: rows, stockoutRiskUnavailable: unavailable }),
+    )
+
+  it("says Not available and why, instead of counting the rows it was given", () => {
+    const markup = renderWith("loading…")
+    expect(markup).toContain("Not available")
+    expect(markup).toContain("loading…")
+    expect(markup).not.toContain("66.7") // 2 of those 3 rows would otherwise read as 66.7%
+  })
+
+  it("keeps the as-of note off a figure that is not there", () => {
+    expect(renderWith("could not be loaded from the backend")).not.toContain("As of")
+  })
+
+  it("still counts the rows for the scenario dataset, which passes neither prop", () => {
+    expect(renderToStaticMarkup(createElement(InventoryPortfolioKpis, { recommendations: rows }))).toContain(
+      "66.7% of in-scope",
+    )
+  })
+})
+
 describe("Working Capital Impact KPI", () => {
   it("shows the backend's portfolio net release, not a sum of the fetched rows", () => {
     const markup = render({ amount: 2_500_000, currency: "USD" })

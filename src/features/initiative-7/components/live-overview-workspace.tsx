@@ -260,7 +260,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     criticalityLevel,
   })
   const criticalityTier = criticalityLevel ? CRITICALITY_RAW_TIER[criticalityLevel as Criticality] : undefined
-  const { summary: scopedSummary } = useLiveRecommendationSummary({
+  const {
+    summary: scopedSummary,
+    loading: summaryLoading,
+    error: summaryError,
+  } = useLiveRecommendationSummary({
     plant: plantParam,
     demandClass: demandClassParam,
     criticality: criticalityTier,
@@ -268,6 +272,17 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // The summary cannot be narrowed to Low, so for Low it would read as the whole portfolio under a
   // filter that says otherwise. Without it the KPIs and charts count the rows fetched above.
   const summary = criticalityLevel && !criticalityTier ? null : scopedSummary
+  // High Stockout Risk is a portfolio figure; counting the fetched rows in its place would pass a
+  // page of 200 off as the portfolio, so without a summary the card says why it has no number.
+  const stockoutUnavailable = summary
+    ? undefined
+    : criticalityLevel && !criticalityTier
+      ? "cannot be narrowed to this criticality"
+      : summaryError
+        ? "could not be loaded from the backend"
+        : summaryLoading
+          ? "loading…"
+          : "not available from the backend"
   const plantPositions = usePlantPositions()
   // Own plant filter, independent of the sidebar's Plant filter -- lets
   // someone compare adoption by plant without changing what the rest of the
@@ -388,6 +403,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
               }
             : undefined
         }
+        stockoutRiskUnavailable={stockoutUnavailable}
         excessInventoryOverride={
           summary
             ? {
@@ -449,7 +465,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             </ChartCard>
             <ChartCard
               title="Stockout risk by plant"
-              subtitle="Material-plants below their recommended reorder point, now."
+              subtitle="Fast and slow moving material-plants short of their lead-time need."
               span={6}
             >
               <StockoutPositionCard state={plantPositions} />

@@ -120,6 +120,7 @@ export function InventoryPortfolioKpis({
   recommendations = RECOMMENDATIONS,
   pendingApprovalOverride,
   stockoutRiskOverride,
+  stockoutRiskUnavailable,
   excessInventoryOverride,
   workingCapitalOverride,
 }: {
@@ -144,6 +145,11 @@ export function InventoryPortfolioKpis({
    * the consumption and bands were read as of. `asOf: null` means the usage has not been built, and
    * the card says "Not available" rather than showing 0. */
   stockoutRiskOverride?: { count: number; total: number; insufficient?: number; asOf?: string | null }
+  /** Why the portfolio figure above is not available (still loading, could not be loaded, ...).
+   * The card then says "Not available" with this as its caption, instead of counting whichever
+   * recommendations were fetched -- a page of rows is not the portfolio, and that count reads as
+   * the real figure. Live mode passes it whenever it has no backend summary to pass above. */
+  stockoutRiskUnavailable?: string
   /** Portfolio-wide { count, total, opportunity } for "Excess Inventory
    * Candidates", from GET /recommendations/summary's
    * excess_inventory_candidates_count / excess_inventory_opportunity.
@@ -166,7 +172,9 @@ export function InventoryPortfolioKpis({
   // From the backend: `asOf` is the date the figures were read as of (null = the usage behind them has
   // not been built). Absent on the scenario dataset, which still counts the rows it was given.
   const stockoutAsOf = stockoutRiskOverride?.asOf
-  const stockoutNotComputed = stockoutRiskOverride !== undefined && stockoutAsOf === null
+  const stockoutNotComputed =
+    stockoutRiskUnavailable !== undefined || (stockoutRiskOverride !== undefined && stockoutAsOf === null)
+  const stockoutNotComputedCaption = stockoutRiskUnavailable ?? "needs the stockout usage build"
   const stockoutInsufficient = stockoutRiskOverride?.insufficient ?? 0
   const stockoutNote = stockoutAsOf
     ? [
@@ -199,11 +207,11 @@ export function InventoryPortfolioKpis({
         suffix={stockoutNotComputed ? undefined : "Materials"}
         caption={
           stockoutNotComputed
-            ? "needs the stockout usage build"
+            ? stockoutNotComputedCaption
             : `${pct(stockoutRisk, stockoutRiskTotal)}% of ${stockoutAsOf ? "evaluated" : "in-scope"}`
         }
         captionMuted={stockoutNotComputed}
-        note={stockoutNote}
+        note={stockoutRiskUnavailable === undefined ? stockoutNote : undefined}
       />
       <PortfolioKpiCard
         title="Excess Inventory Candidates"

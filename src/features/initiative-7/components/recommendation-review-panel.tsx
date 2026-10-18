@@ -131,17 +131,23 @@ function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?
   )
 }
 
+const CONVERSION_CELL_LABEL: Record<string, string> = {
+  ELIGIBLE: "Eligible",
+  NOT_ELIGIBLE: "Not eligible",
+  UNKNOWN: "Not known yet",
+}
+
 /**
- * Compact "OAR → Min-Max · ELIGIBLE" badge, so a reader sees at a glance that this is an OAR
- * material and whether it could move to Min-Max. Same source and colouring as
- * OarConversionSection: the backend's own eligibility verdict, never re-derived here. Used in
- * the Recommendations table's Min-Max conversion column.
+ * "Eligible" / "Not eligible" badge for the Recommendations table's Min-Max conversion column:
+ * whether this OAR material could move to Min-Max. The column heading already says what is being
+ * decided, so the cell says only the verdict. Same source and colouring as OarConversionSection:
+ * the backend's own eligibility verdict, never re-derived here.
  */
 export function OarConversionLabel({ eligibility }: { eligibility: OarConversionInfo["conversionEligibility"] | undefined }) {
   return (
     <StatusBadge tone={eligibility ? CONVERSION_ELIGIBILITY_TONE[eligibility] : "warning"}>
       <ArrowRightLeft className="size-3" />
-      OAR → Min-Max · {(eligibility ?? "UNKNOWN").replace(/_/g, " ")}
+      {eligibility ? (CONVERSION_CELL_LABEL[eligibility] ?? eligibility) : CONVERSION_CELL_LABEL.UNKNOWN}
     </StatusBadge>
   )
 }
