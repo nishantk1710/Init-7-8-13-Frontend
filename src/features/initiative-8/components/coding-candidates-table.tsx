@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
@@ -503,18 +503,18 @@ export function CodingCandidatesTable({
                   </button>
                 </TableHead>
                 <TableHead>Screened At</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Evidence</span>
-                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visible.map((c) => (
                 <Fragment key={c.material.materialId}>
-                {/* The whole row opens the evidence, not only the chevron at
-                    the end -- so the row is the control, and carries the aria
-                    state the chevron button used to. The material cell used to
-                    open the Material 360 drawer instead, which on a coding
+                {/* The whole row opens the evidence, so the row is the control
+                    and carries the aria state. The chevron column that used to
+                    end each row is gone: once the row took the click it was
+                    only a marker, and the other I08 tables open on a row click
+                    without one. The open row's tint, and the evidence under it,
+                    show which row is open. The material cell used to open the
+                    Material 360 drawer instead, which on a coding
                     candidate has nothing to show: these materials are raised
                     from PO, PR and movement text, not from the shared
                     catalogue, so the drawer opened on "no catalog record". */}
@@ -601,27 +601,13 @@ export function CodingCandidatesTable({
                   <TableCell className="text-muted-foreground">
                     {formatScreenedAt(c.screenedAt)}
                   </TableCell>
-                  <TableCell>
-                    {/* A marker now, not a second control: the row takes the
-                        click, and a button inside it would toggle twice. */}
-                    <span
-                      aria-hidden="true"
-                      className="flex size-6 items-center justify-center text-muted-foreground"
-                    >
-                      {expanded.has(c.material.materialId) ? (
-                        <ChevronDown className="size-3.5" />
-                      ) : (
-                        <ChevronRight className="size-3.5" />
-                      )}
-                    </span>
-                  </TableCell>
                 </TableRow>
                 {expanded.has(c.material.materialId) && (
                   <TableRow>
                     {/* The evidence itself. Until now the only way to read the
                         text a verdict was reached on was to export the CSV,
                         which is a poor place to check a model's judgement. */}
-                    <TableCell colSpan={12} className="bg-muted/30">
+                    <TableCell colSpan={11} className="bg-muted/30">
                       <CandidateEvidence candidate={c} />
                     </TableCell>
                   </TableRow>
