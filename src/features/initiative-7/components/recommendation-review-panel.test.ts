@@ -76,21 +76,22 @@ describe("the Consumption history & forecast card", () => {
 })
 
 describe("OarConversionLabel", () => {
-  it("reads OAR → Min-Max · ELIGIBLE", () => {
+  it("reads Eligible", () => {
     const markup = renderToStaticMarkup(createElement(OarConversionLabel, { eligibility: "ELIGIBLE" }))
-    expect(markup).toContain("OAR → Min-Max · ELIGIBLE")
+    expect(markup).toContain("Eligible")
+    expect(markup).not.toContain("Not eligible")
   })
 
-  it("spells out NOT ELIGIBLE", () => {
+  it("reads Not eligible", () => {
     expect(renderToStaticMarkup(createElement(OarConversionLabel, { eligibility: "NOT_ELIGIBLE" }))).toContain(
-      "OAR → Min-Max · NOT ELIGIBLE",
+      "Not eligible",
     )
   })
 
-  it("says UNKNOWN, never a bare label, when the backend sent no verdict", () => {
-    for (const none of [null, undefined]) {
+  it("says Not known yet, never a bare label, when the backend sent no verdict", () => {
+    for (const none of [null, undefined, "UNKNOWN" as const]) {
       expect(renderToStaticMarkup(createElement(OarConversionLabel, { eligibility: none }))).toContain(
-        "OAR → Min-Max · UNKNOWN",
+        "Not known yet",
       )
     }
   })
