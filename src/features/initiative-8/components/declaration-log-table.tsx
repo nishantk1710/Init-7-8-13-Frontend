@@ -6,6 +6,7 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeclarationLogRow } from "@/features/initiative-8/data/live-declarations"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { cn, downloadExcel } from "@/lib/utils"
 
 /** The "no filter" value every dropdown here uses. */
@@ -96,6 +98,10 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
       return true
     })
   }, [allRows, search, condition, plant, inForceOnly])
+
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(rows, {
+    resetKey: [search, condition, plant, inForceOnly].join("|"),
+  })
 
   const activeFilters = [
     search.trim() !== "",
@@ -230,7 +236,7 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {paged.map((r) => (
               <TableRow
                 key={r.id}
                 className={r.supersededBy ? "opacity-60" : undefined}
@@ -295,7 +301,14 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
           </TableBody>
         </Table>
       </div>
-
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        noun="declarations"
+        onPageChange={setPage}
+      />
     </div>
   )
 }

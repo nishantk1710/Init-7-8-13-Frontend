@@ -6,6 +6,7 @@ import { Download } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -16,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, downloadExcel } from "@/lib/utils"
 import { FLOW_LABEL, flowLabel } from "@/lib/assistant/flow-labels"
@@ -89,6 +91,12 @@ export function SessionLogTable({
       return true
     })
   }, [sessions, flow, outcome, reservation, search])
+
+  // 25 to a page on screen; the filters, search and export still cover every
+  // loaded session.
+  const { paged, page, pageSize, total: filteredTotal, setPage } = usePaginatedRows(filtered, {
+    resetKey: [flow, outcome, reservation, search].join("|"),
+  })
 
   const activeFilters =
     (flow !== "all" ? 1 : 0) +
@@ -241,7 +249,7 @@ export function SessionLogTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((session) => (
+              {paged.map((session) => (
                 <TableRow key={session.sessionId} className="transition-colors hover:bg-ai-2/[0.04]">
                   <TableCell>
                     {/* What the requester typed into SAP: R…/n for a line of a
@@ -334,9 +342,18 @@ export function SessionLogTable({
         </div>
       )}
 
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={filteredTotal}
+        count={paged.length}
+        noun="sessions"
+        onPageChange={setPage}
+      />
+
       <div className="flex flex-col gap-1">
         <p className="text-[11px] text-muted-foreground">
-          Showing {filtered.length} of {sessions.length} loaded
+          {filtered.length} of {sessions.length} loaded sessions match
           {total > sessions.length && ` · ${total} recorded in total`}
         </p>
         {/* The backend's own note about what this list is and is not. Served
