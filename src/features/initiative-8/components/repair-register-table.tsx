@@ -10,7 +10,9 @@ import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -32,6 +34,7 @@ import {
   NO_REGISTER_FILTERS,
   REGISTER_CSV_HEADERS,
   WITH_EXCEPTIONS,
+  activeRegisterFilters,
   filterRegister,
   registerRowsToCsv,
   type RegisterFilters,
@@ -52,6 +55,7 @@ import {
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
 /** A plant the filter can offer. Structurally `PlantReference`, but the live
@@ -123,9 +127,15 @@ export function RepairRegisterTable({
   }
 
   // The same client-side filter over the full array the table has always done.
-  // ~1,200 rows is comfortably small enough for that, so the backend's
-  // server-side filter parameters can wait.
   const filtered = useMemo(() => filterRegister(chains, filters), [chains, filters])
+
+  // Drawn one page at a time. All 5,063 lines at once made a 35 MB page that
+  // took 27 seconds to arrive (measured 18-Oct-2026), and every filter change
+  // re-rendered thousands of rows. The filters, the count and the export still work on every line;
+  // only the drawing is paged. Any filter change goes back to page 1.
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(filtered, {
+    resetKey: JSON.stringify(filters),
+  })
 
   function exportExcel() {
     // Every row the filters match, not a page of them -- and nothing the
@@ -178,6 +188,15 @@ export function RepairRegisterTable({
   return (
     <div className="flex flex-col gap-4">
       <FilterBar>
+        {/* Drawn a page at a time, so the browser's own find sees one page.
+            This looks through every line -- see `filterRegister`. */}
+        <Input
+          value={filters.search}
+          onChange={(e) => setFilter("search")(e.target.value)}
+          placeholder="Search material, repair line, PO, PR…"
+          aria-label="Search the repair register"
+          className="h-9 w-full sm:w-64"
+        />
         <FilterSelect
           value={filters.plant}
           onChange={setFilter("plant")}
@@ -239,7 +258,7 @@ export function RepairRegisterTable({
           className="sm:w-48"
         />
         <ClearFiltersButton
-          activeCount={Object.values(filters).filter((v) => v !== ALL).length}
+          activeCount={activeRegisterFilters(filters)}
           onClear={() => setFilters(NO_REGISTER_FILTERS)}
         />
 
@@ -286,7 +305,7 @@ export function RepairRegisterTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => {
+              {paged.map((c) => {
                 const href = repairHref(c)
                 const overdue = overdueStatusOf(c)
                 return (
@@ -442,6 +461,15 @@ export function RepairRegisterTable({
           </Table>
         </div>
       )}
+
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        noun="repair lines"
+        onPageChange={setPage}
+      />
     </div>
   )
 }

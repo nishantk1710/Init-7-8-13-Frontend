@@ -424,6 +424,30 @@ export type ApiDeclarationMeta = {
   attestationWindowDays: number
 }
 
+/** One vendor the declaration queue can be narrowed to. */
+export type ApiVendorOption = {
+  /** The code — what the `vendor` filter takes. */
+  vendor: string
+  /** LFA1's name, where one was delivered. */
+  name: string | null
+}
+
+/**
+ * The values the declaration queue's filters can take. Taken after
+ * `outstandingOnly`/`status` and before the filters themselves, so a paged
+ * screen's dropdowns list every value rather than those on one page.
+ */
+export type ApiDeclarationFacets = {
+  plants: ApiPlantReference[]
+  vendors: ApiVendorOption[]
+  repairStatuses: string[]
+}
+
+export type ApiDeclarationPage = ApiPage<ApiDeclarationItem, ApiDeclarationMeta> & {
+  /** Absent from a backend older than server paging. */
+  facets?: ApiDeclarationFacets
+}
+
 /**
  * One row of `GET /api/i8/exceptions`.
  *
@@ -521,6 +545,22 @@ export type ApiExceptionMeta = {
   /** The justification check's own cutover — purchases before it count as
    *  pre-automation. Null means none is set. */
   justificationCutoverDate?: string | null
+}
+
+/**
+ * The values the exception queue's filters can take. Taken after `excludeType`
+ * and before every filter, so a paged screen's dropdowns list every value
+ * rather than those on one page.
+ */
+export type ApiExceptionFacets = {
+  plants: ApiPlantReference[]
+  /** Types present among the items; `meta.typesRaised` is the checks that run. */
+  types: string[]
+}
+
+export type ApiExceptionPage = ApiPage<ApiExceptionItem, ApiExceptionMeta> & {
+  /** Absent from a backend older than server paging. */
+  facets?: ApiExceptionFacets
 }
 
 /** One recorded attestation. */
@@ -697,6 +737,12 @@ export function getSnapshot(): Promise<ApiSnapshot> {
 
 export type DeclarationQuery = {
   plant?: string
+  /** A vendor CODE, as `facets.vendors` lists it. */
+  vendor?: string
+  /** Where the repair stands — PO Issued, At Vendor, Closed. */
+  repairStatus?: string
+  /** Material number or description, repair line or requisition. */
+  q?: string
   status?: string
   /** Only rows wanting attention — Required and Flagged. */
   outstandingOnly?: boolean
@@ -705,9 +751,7 @@ export type DeclarationQuery = {
 }
 
 /** `GET /api/i8/declarations` — the condition-to-repair declaration queue. */
-export function getDeclarations(
-  query: DeclarationQuery = {},
-): Promise<ApiPage<ApiDeclarationItem, ApiDeclarationMeta>> {
+export function getDeclarations(query: DeclarationQuery = {}): Promise<ApiDeclarationPage> {
   return apiFetch(`/i8/declarations${queryString(query)}`)
 }
 
@@ -722,6 +766,15 @@ export type ExceptionQuery = {
   owner?: string
   /** Only exceptions on repairs still out at a vendor — the actionable ones. */
   openOnly?: boolean
+  /** Leave out items raised before the control existed (`preAutomation`). */
+  actionableOnly?: boolean
+  /**
+   * Comma-separated types the queue does not carry. Unlike a filter, they come
+   * off the meta counts and the facets as well as the items.
+   */
+  excludeType?: string
+  /** Exception id, material number or description, or repair line. */
+  q?: string
   page?: number
   pageSize?: number
 }
@@ -735,10 +788,20 @@ export type ExceptionQuery = {
  * because the control did not exist before this platform — that number is the
  * business case for W5.3, not a bug in it.
  */
-export function getExceptions(
-  query: ExceptionQuery = {},
-): Promise<ApiPage<ApiExceptionItem, ApiExceptionMeta>> {
+export function getExceptions(query: ExceptionQuery = {}): Promise<ApiExceptionPage> {
   return apiFetch(`/i8/exceptions${queryString(query)}`)
+}
+
+/**
+ * `GET /api/i8/exceptions/{id}` — one item, with its status, owner and history.
+ *
+ * For a link to one item: the queue is paged, so the item may be on any page
+ * of it, or filtered off them all. An item the checks no longer raise still
+ * answers while it has a history, with `stillDetected` false; an id with
+ * neither is a 404.
+ */
+export function getException(exceptionId: string): Promise<ApiExceptionItem> {
+  return apiFetch(`/i8/exceptions/${encodeURIComponent(exceptionId)}`)
 }
 
 /**

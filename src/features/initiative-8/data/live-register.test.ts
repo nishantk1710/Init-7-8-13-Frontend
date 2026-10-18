@@ -10,6 +10,7 @@ import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import {
   NO_REGISTER_FILTERS,
   REGISTER_CSV_HEADERS,
+  activeRegisterFilters,
   filterRegister,
   registerRowsToCsv,
 } from "@/features/initiative-8/utils/register-view"
@@ -299,6 +300,50 @@ describe("filterRegister", () => {
   it("combines filters with AND", () => {
     const filters = { ...NO_REGISTER_FILTERS, repairStatus: "Closed", criticality: "CRITICAL" }
     expect(filterRegister(all, filters)).toHaveLength(0)
+  })
+})
+
+describe("filterRegister: the search box", () => {
+  // The register is drawn a page at a time, so the browser's own find sees
+  // one page. The search box is how a line on another page is found.
+  const pump = toRepairChain(apiRow())
+  const valve = toRepairChain(
+    apiRow({
+      id: "4500002000-10",
+      material: { materialId: "8000009999", materialCode: "8000009999", description: "GATE VALVE 4IN" },
+      repairPr: { type: "PR", documentNumber: "2000099999", line: "10" },
+      repairPo: { type: "PO", documentNumber: "4500002000", line: "10" },
+    }),
+  )
+  const found = (search: string) =>
+    filterRegister([pump, valve], { ...NO_REGISTER_FILTERS, search }).map((c) => c.id)
+
+  it("matches the material number and description, ignoring case", () => {
+    expect(found("8000009999")).toEqual(["4500002000-10"])
+    expect(found("gate valve")).toEqual(["4500002000-10"])
+  })
+
+  it("matches the repair line, and the PO and PR as the register shows them", () => {
+    expect(found("4500001052-1310")).toEqual(["4500001052-1310"])
+    expect(found("4500002000/10")).toEqual(["4500002000-10"])
+    expect(found("2000028388")).toEqual(["4500001052-1310"])
+  })
+
+  it("is no filter when blank", () => {
+    expect(found("   ")).toHaveLength(2)
+  })
+
+  it("combines with the dropdowns", () => {
+    const filters = { ...NO_REGISTER_FILTERS, search: "valve", plant: "1500" }
+    expect(filterRegister([pump, valve], filters)).toHaveLength(0)
+  })
+})
+
+describe("activeRegisterFilters", () => {
+  it("counts the search box only when it holds text", () => {
+    expect(activeRegisterFilters(NO_REGISTER_FILTERS)).toBe(0)
+    expect(activeRegisterFilters({ ...NO_REGISTER_FILTERS, search: "  " })).toBe(0)
+    expect(activeRegisterFilters({ ...NO_REGISTER_FILTERS, search: "pump", plant: "1300" })).toBe(2)
   })
 })
 

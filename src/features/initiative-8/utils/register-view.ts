@@ -33,6 +33,9 @@ export const ALL = "all"
 export const WITH_EXCEPTIONS = "with"
 
 export type RegisterFilters = {
+  /** The search box: free text, not a dropdown, so empty -- not `ALL` -- is
+   *  "no search". See `filterRegister` for what it looks in. */
+  search: string
   plant: string
   vendor: string
   repairStatus: string
@@ -47,6 +50,7 @@ export type RegisterFilters = {
 }
 
 export const NO_REGISTER_FILTERS: RegisterFilters = {
+  search: "",
   plant: ALL,
   vendor: ALL,
   repairStatus: ALL,
@@ -57,8 +61,25 @@ export const NO_REGISTER_FILTERS: RegisterFilters = {
   exceptions: ALL,
 }
 
-/** The rows matching every active filter. Client side, over the full register. */
+/** How many filters narrow the view: each dropdown off "all", and the search
+ *  box when it holds anything. */
+export function activeRegisterFilters(filters: RegisterFilters): number {
+  return Object.entries(filters).filter(([key, value]) =>
+    key === "search" ? value.trim() !== "" : value !== ALL
+  ).length
+}
+
+/**
+ * The rows matching every active filter. Client side, over the full register.
+ *
+ * The search box looks in the material number and description, the repair
+ * line as the detail page names it (`4500000677-20`), and the repair PO and PR
+ * as the register shows them (`4500000677/20`), ignoring case. The register is
+ * drawn a page at a time, so the browser's own find only sees one page; this
+ * is how a line is found among the rest.
+ */
 export function filterRegister(chains: RepairChain[], filters: RegisterFilters): RepairChain[] {
+  const needle = filters.search.trim().toLowerCase()
   return chains.filter((c) => {
     if (filters.plant !== ALL && c.plant.plantId !== filters.plant) return false
     if (filters.vendor !== ALL && vendorLabel(c) !== filters.vendor) return false
@@ -75,6 +96,18 @@ export function filterRegister(chains: RepairChain[], filters: RegisterFilters):
     // is excluded here rather than shown as clean: the filter asks for lines
     // with findings, and "not checked" is not an answer to that.
     if (filters.exceptions === WITH_EXCEPTIONS && (c.exceptions?.length ?? 0) === 0) return false
+    if (
+      needle &&
+      ![
+        c.id,
+        c.material.materialCode,
+        c.material.description,
+        documentLabel(c.repairPO),
+        documentLabel(c.repairPR),
+      ].some((field) => field?.toLowerCase().includes(needle))
+    ) {
+      return false
+    }
     return true
   })
 }

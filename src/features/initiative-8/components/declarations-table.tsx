@@ -1,20 +1,14 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import { Download, Loader2 } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -23,6 +17,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  PendingSpinner,
+  UrlSearchInput,
+  UrlSelect,
+  useUrlFilters,
+  withSelected,
+} from "@/features/initiative-8/components/url-filters"
+import {
+  DECLARATIONS_PATH,
+  declarationsHref,
+  fetchAllDeclarations,
+  type DeclarationFacets,
+  type DeclarationFilters,
+} from "@/features/initiative-8/data/live-declarations"
 import type {
   DeclarationQueueRow,
   DeclarationQueueSummary,
@@ -33,8 +41,6 @@ import { DeclarationFormDialog } from "@/features/initiative-8/components/declar
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 import { useMaterial360 } from "@/lib/material-360-context"
 
-const ALL = "all"
-
 /**
  * The repair lifecycle, in order, so the status filter offers PR Raised before
  * Closed rather than in whatever order the rows happened to arrive. Taken from
@@ -43,10 +49,16 @@ const ALL = "all"
 const REPAIR_STATUS_ORDER = Object.keys(REPAIR_STATUS_TONE) as RepairStatus[]
 
 export type DeclarationsTableProps = {
+  /** One page of the queue. */
   rows: DeclarationQueueRow[]
+  /** Matching the filters, across every page. */
+  total: number
+  page: number
+  pageSize: number
+  /** The whole queue's counts, whatever the filters. */
   summary: DeclarationQueueSummary
-  /** Set when the page loop stopped before reading every row. */
-  truncated?: boolean
+  facets: DeclarationFacets
+  filters: DeclarationFilters
   /**
    * The attestation form's fault categories, so a line can be declared from
    * this row rather than by navigating to the repair and back.
@@ -57,54 +69,31 @@ export type DeclarationsTableProps = {
   faultCategories?: string[]
 }
 
+/**
+ * The declaration queue, one server page at a time.
+ *
+ * The filters live in the URL and the server pages, searches and counts (see
+ * `loadDeclarationsPage`). The screen used to load all 5,153 rows and filter
+ * them here, which made it a 17 MB page.
+ */
 export function DeclarationsTable({
   rows,
+  total,
+  page,
+  pageSize,
   summary,
-  truncated = false,
+  facets,
+  filters,
   faultCategories = [],
 }: DeclarationsTableProps) {
   const { openMaterial360 } = useMaterial360()
+  const { push, isPending } = useUrlFilters(DECLARATIONS_PATH)
   const [declaring, setDeclaring] = useState<DeclarationQueueRow | null>(null)
   // A fresh form per opening, so a half-typed description cannot reappear
   // against a different part.
   const [formKey, setFormKey] = useState(0)
-
-  const [plant, setPlant] = useState<string>(ALL)
-  // Where the REPAIR stands, not the declaration: every row here is
-  // undeclared, and a part still at the vendor is a different kind of
-  // outstanding from one already back on the shelf.
-  const [repairStatus, setRepairStatus] = useState<string>(ALL)
-  const [vendor, setVendor] = useState<string>(ALL)
-  const [search, setSearch] = useState("")
-
-  // FR-10 asks for a plant filter on every screen, and the register is the
-  // only one that had one. Built from the rows rather than hard-coded: the
-  // plant scope is a backend setting (1300 and 1500 today) and a list typed
-  // out here would be a second place to change it.
-  const plants = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const row of rows) {
-      if (row.plant) seen.set(row.plant.plantId, row.plant.name ?? row.plant.plantId)
-    }
-    return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [rows])
-
-  // Only the statuses the queue actually holds, for the same reason the plant
-  // list is built from the rows: a filter offering a value that matches
-  // nothing reads as a broken filter.
-  const repairStatuses = useMemo(() => {
-    const seen = new Set(rows.map((row) => row.repairStatus).filter(Boolean) as RepairStatus[])
-    return REPAIR_STATUS_ORDER.filter((status) => seen.has(status))
-  }, [rows])
-
-  // Name when LFA1 gave one, else the code -- whatever the row carries. Rows
-  // with neither (no PO header on the repair line) match no vendor and drop
-  // out once one is picked, which is the honest answer: the vendor is not
-  // known from this data rather than being some other vendor.
-  const vendors = useMemo(() => {
-    const seen = new Set(rows.map((row) => row.vendor).filter(Boolean) as string[])
-    return [...seen].sort((a, b) => a.localeCompare(b))
-  }, [rows])
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   // Outstanding only, and not as a default somebody can switch off.
   //
@@ -119,77 +108,76 @@ export function DeclarationsTable({
   // above it count the same rows. A Flagged line was declared NOT repairable
   // and sent for repair anyway; it still wants somebody's attention, and the
   // tile already counts it.
-  const scoped = useMemo(() => rows.filter((row) => row.status !== "Completed"), [rows])
+  //
+  // The request asks for outstanding rows only. They are filtered again here
+  // so that a backend ignoring the parameter can never put a Completed row,
+  // with a Declare button, on screen; on the current one this removes nothing.
+  const visible = rows.filter((row) => row.status !== "Completed")
 
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    return scoped.filter((row) => {
-      if (plant !== ALL && row.plant?.plantId !== plant) return false
-      if (repairStatus !== ALL && row.repairStatus !== repairStatus) return false
-      if (vendor !== ALL && row.vendor !== vendor) return false
-      // Material code and description because that is what somebody is
-      // holding a part number for; repair line and requisition because that
-      // is what somebody arrives from a spreadsheet with.
-      if (
-        needle &&
-        ![
-          row.material.materialCode,
-          row.material.description,
-          row.relatedRepairId,
-          row.purchaseRequisition,
-        ]
-          .filter(Boolean)
-          .some((field) => String(field).toLowerCase().includes(needle))
-      ) {
-        return false
-      }
-      return true
-    })
-  }, [scoped, plant, repairStatus, vendor, search])
+  // Only the statuses the queue actually holds, in lifecycle order: a filter
+  // offering a value that matches nothing reads as a broken filter.
+  const repairStatuses = REPAIR_STATUS_ORDER.filter((status) =>
+    facets.repairStatuses.includes(status)
+  )
 
-  function exportExcel() {
-    downloadExcel(
-      "i08-declaration-queue.xlsx",
-      // Wider than the table on purpose, the same way the register's export
-      // is: the screen is for working the queue, the file is for somebody
-      // slicing it in Excel, and the repair line and requisition are what
-      // they need to join it to anything else.
-      [
-        "Material",
-        "Description",
-        "Plant",
-        "Vendor",
-        "Repair Status",
-        "Repair Line",
-        "Requisition",
-        "Requester Code",
-        "Declaration Status",
-        "Raised",
-      ],
-      filtered.map((row) => [
-        row.material.materialCode,
-        row.material.description ?? "",
-        row.plant?.name ?? row.plant?.plantId ?? "",
-        row.vendor ?? "",
-        row.repairStatus ?? "",
-        row.relatedRepairId,
-        row.purchaseRequisition ?? "",
-        row.requester ?? "",
-        row.status,
-        row.createdAt ?? "",
-      ])
-    )
-  }
+  // FR-10 asks for a plant filter on every screen. The plants, vendors and
+  // statuses come from the server, taken over the whole queue: one page of
+  // rows would offer only what is on it. A vendor is chosen by its code and
+  // shown by its LFA1 name where one was delivered. Rows with no vendor (no
+  // PO header on the repair line) match no vendor and drop out once one is
+  // picked, which is the honest answer: the vendor is not known from this data.
+  const plantNames = new Map(facets.plants.map((p) => [p.plantId, p.name]))
+  const vendorLabels = new Map(facets.vendors.map((v) => [v.value, v.label]))
 
-  const activeFilters =
-    [plant, repairStatus, vendor].filter((v) => v !== ALL).length +
-    (search.trim() === "" ? 0 : 1)
+  const activeFilters = [filters.q, filters.plant, filters.vendor, filters.repairStatus].filter(
+    Boolean
+  ).length
 
-  function clearFilters() {
-    setPlant(ALL)
-    setRepairStatus(ALL)
-    setVendor(ALL)
-    setSearch("")
+  /** Every match, not the page on screen -- see `fetchAllDeclarations`. */
+  async function exportExcel() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const all = await fetchAllDeclarations(filters)
+      const built = await downloadExcel(
+        "i08-declaration-queue.xlsx",
+        // Wider than the table on purpose, the same way the register's export
+        // is: the screen is for working the queue, the file is for somebody
+        // slicing it in Excel, and the repair line and requisition are what
+        // they need to join it to anything else.
+        [
+          "Material",
+          "Description",
+          "Plant",
+          "Vendor",
+          "Repair Status",
+          "Repair Line",
+          "Requisition",
+          "Requester Code",
+          "Declaration Status",
+          "Raised",
+        ],
+        all
+          .filter((row) => row.status !== "Completed")
+          .map((row) => [
+            row.material.materialCode,
+            row.material.description ?? "",
+            row.plant?.name ?? row.plant?.plantId ?? "",
+            row.vendor ?? "",
+            row.repairStatus ?? "",
+            row.relatedRepairId,
+            row.purchaseRequisition ?? "",
+            row.requester ?? "",
+            row.status,
+            row.createdAt ?? "",
+          ])
+      )
+      if (!built) setExportError("The Excel file could not be built.")
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -211,68 +199,92 @@ export function DeclarationsTable({
             Matched within ±{summary.attestationWindowDays} days of the repair line.
           </span>
         </div>
-        <Button size="sm" variant="outline" onClick={exportExcel}>
-          Export Excel
-        </Button>
+        <div className="flex items-center gap-2">
+          {exportError && (
+            <span role="alert" className="text-[11px] text-destructive">
+              Export failed: {exportError}
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void exportExcel()}
+            disabled={exporting || total === 0}
+          >
+            {exporting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            Export Excel
+          </Button>
+        </div>
       </div>
 
-      {truncated && (
-        <div
-          role="alert"
-          className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-foreground"
-        >
-          Showing the first {rows.length} of {summary.total} rows. This is a
-          partial queue, not an empty one — narrow by plant to see the rest.
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <FilterBar className="flex-1">
+          <UrlSelect
+            value={filters.plant ?? ""}
+            onChange={(value) => push({ plant: value })}
+            allLabel="All plants"
+            options={withSelected(
+              facets.plants.map((p) => p.plantId),
+              filters.plant
+            ).map((id) => ({ value: id, label: plantNames.get(id) ?? id }))}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.repairStatus ?? ""}
+            onChange={(value) => push({ repairStatus: value })}
+            allLabel="All repair statuses"
+            options={withSelected(repairStatuses, filters.repairStatus).map((s) => ({
+              value: s,
+              label: s,
+            }))}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.vendor ?? ""}
+            onChange={(value) => push({ vendor: value })}
+            allLabel="All vendors"
+            options={withSelected(
+              facets.vendors.map((v) => v.value),
+              filters.vendor
+            ).map((code) => ({ value: code, label: vendorLabels.get(code) ?? code }))}
+            className="sm:w-52"
+          />
 
-      <FilterBar>
-        <FilterSelect
-          value={plant}
-          onChange={setPlant}
-          allLabel="All plants"
-          options={plants.map(([id, name]) => ({ value: id, label: name }))}
-          className="sm:w-44"
-        />
-        <FilterSelect
-          value={repairStatus}
-          onChange={setRepairStatus}
-          allLabel="All repair statuses"
-          options={repairStatuses.map((s) => ({ value: s, label: s }))}
-          className="sm:w-44"
-        />
-        <FilterSelect
-          value={vendor}
-          onChange={setVendor}
-          allLabel="All vendors"
-          options={vendors.map((v) => ({ value: v, label: v }))}
-          className="sm:w-52"
-        />
+          <UrlSearchInput
+            value={filters.q ?? ""}
+            onCommit={(value) => push({ q: value })}
+            placeholder="Search material, repair line, PR…"
+            ariaLabel="Search the declaration queue"
+            className="sm:w-64"
+          />
 
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search material, repair line, PR…"
-          aria-label="Search the declaration queue"
-          className="h-9 w-full sm:w-64"
-        />
+          <ClearFiltersButton
+            activeCount={activeFilters}
+            onClear={() =>
+              push({ plant: undefined, repairStatus: undefined, vendor: undefined, q: undefined })
+            }
+          />
 
-        <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
+          {/* How much of the queue is in front of you. The counts in the band
+              above are over the whole queue on purpose, so without this a
+              filtered view gives no number at all. */}
+          <span className="text-xs text-muted-foreground sm:ml-auto">
+            {formatCount(total)} of {formatCount(summary.total)} rows
+          </span>
+        </FilterBar>
+        <PendingSpinner pending={isPending} />
+      </div>
 
-        {/* How much of the queue is in front of you. The counts in the band
-            above are over the whole queue on purpose, so without this a
-            filtered view gives no number at all. */}
-        <span className="text-xs text-muted-foreground sm:ml-auto">
-          {formatCount(filtered.length)} of {formatCount(scoped.length)} rows
-        </span>
-      </FilterBar>
-
-      {filtered.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           No declarations match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -287,7 +299,7 @@ export function DeclarationsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => (
+              {visible.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>
                     <MaterialIdentity
@@ -342,6 +354,15 @@ export function DeclarationsTable({
         </div>
       )}
 
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={visible.length}
+        noun="repair lines"
+        hrefFor={(p) => declarationsHref(filters, p)}
+      />
+
       {declaring && (
         <DeclarationFormDialog
           key={formKey}
@@ -362,51 +383,5 @@ export function DeclarationsTable({
         />
       )}
     </div>
-  )
-}
-
-/**
- * One filter dropdown, with "all" as a first-class option rather than an empty
- * value.
- *
- * A near-copy of the register's control of the same name. It is copied rather
- * than imported because that one is private to `repair-register-table.tsx`,
- * and lifting it out would put this change into a file it otherwise has no
- * business in -- the two should be merged into `components/shared/` the next
- * time either is touched for its own sake.
- */
-function FilterSelect({
-  value,
-  onChange,
-  allLabel,
-  options,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  allLabel: string
-  options: { value: string; label: string }[]
-  className?: string
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
-      <SelectTrigger className={cn("h-9 w-full", className)}>
-        <SelectValue placeholder={allLabel}>
-          {(selected: string) =>
-            selected === ALL
-              ? allLabel
-              : (options.find((o) => o.value === selected)?.label ?? selected)
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }

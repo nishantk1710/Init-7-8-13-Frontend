@@ -2,6 +2,17 @@
  * The live exception queue — `GET /api/i8/exceptions` as the rows the
  * Exceptions screen renders.
  *
+ * ## Two ways in
+ *
+ * The Exceptions screen asks for ONE page (`loadExceptionsPage`), and the
+ * server searches, filters and counts. It used to load the whole queue and
+ * filter it in the browser, which made it a 17 MB page that took ten seconds
+ * to arrive.
+ *
+ * `loadLiveExceptions` still loads all of it, for the two readers that join it
+ * to repair lines: the register's Exceptions column, and the repair detail
+ * page's own short list (which asks for one line with `repair`).
+ *
  * ## Expect this to be large, and say so
  *
  * Every historical repair line raises `MISSING_ATTESTATION`, because the
@@ -37,20 +48,27 @@ import type {
   RepairChain,
   RepairLineException,
 } from "@/features/initiative-8/types/repair"
+import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
   ApiExceptionEvent,
   ApiExceptionItem,
   ApiExceptionMeta,
+  ApiExceptionPage,
   ExceptionQuery,
 } from "@/lib/api/i8"
 import { formatApiDateTime } from "@/lib/api/format"
 import { formatApiDate, getExceptions } from "@/lib/api/i8"
+import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 function orUndefined<T>(value: T | null | undefined): T | undefined {
   return value ?? undefined
 }
 
-function toRow(row: ApiExceptionItem): ExceptionQueueRow {
+/**
+ * One wire item as the row the screens render. Exported for the exception
+ * drawer, which shows the item a write sends back.
+ */
+export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
   return {
     id: row.id,
     // A plain string, never switched over exhaustively: the backend declares
@@ -220,7 +238,7 @@ export async function loadLiveExceptions(
       : undefined
     total = body.total
 
-    rows.push(...body.items.map(toRow))
+    rows.push(...body.items.map(toExceptionRow))
 
     // Stops on the total, or on an empty page -- never on a row count of its
     // own, which is what let the fetch stop short of everything before.
@@ -291,4 +309,210 @@ export function attachLineExceptions(
     ...chain,
     exceptions: byLine.get(chain.id) ?? [],
   }))
+}
+
+// --- One page, for the Exceptions screen ------------------------------------
+
+export const EXCEPTIONS_PATH = "/repairable-spares/exceptions"
+
+/**
+ * The status the screen opens on, and what an absent `?status=` means.
+ *
+ * Not "every status": the queue runs to thousands of rows and almost all of it
+ * is historical, so starting on everything would bury the handful somebody can
+ * act on. `?status=all` asks for every status. There is no blended "Open + In
+ * progress" choice: it was a fifth, synthetic option and was removed on
+ * request.
+ */
+export const DEFAULT_EXCEPTION_STATUS: ExceptionStatus = "OPEN"
+
+/** `?status=` for every status. */
+export const ALL_STATUSES = "all"
+
+/** A ceiling on export requests, so a backend that ignored `page` and kept
+ *  returning full pages could never loop forever. 200 x 500 rows. */
+const MAX_EXPORT_PAGES = 200
+
+/** What the queue can be narrowed by. Each is a URL parameter of the same name. */
+export type ExceptionFilters = {
+  q?: string
+  type?: string
+  plant?: string
+  /** `?open=1`: only repairs still out at a vendor. */
+  open?: boolean
+  /** One status, or undefined for every status (`?status=all`). */
+  status?: string
+  /** One repair line, as the register keys it: the link its Exceptions
+   *  column and the repair detail page follow. */
+  repair?: string
+}
+
+export type ExceptionFacets = {
+  plants: { plantId: string; name: string }[]
+  types: string[]
+}
+
+export type ExceptionsPage = {
+  rows: ExceptionQueueRow[]
+  /** Matching the filters. */
+  total: number
+  /** The whole queue's counts, whatever the filters. */
+  summary: ExceptionQueueSummary
+  facets: ExceptionFacets
+}
+
+type FetchExceptions = typeof getExceptions
+
+export function parseExceptionParams(raw: RawSearchParams): {
+  filters: ExceptionFilters
+  page: number
+  /** `?id=`: open this item's drawer. */
+  id?: string
+} {
+  const status = single(raw.status)
+  return {
+    filters: {
+      q: single(raw.q),
+      type: single(raw.type),
+      plant: single(raw.plant),
+      open: single(raw.open) === "1",
+      status:
+        status === undefined
+          ? DEFAULT_EXCEPTION_STATUS
+          : status.toLowerCase() === ALL_STATUSES
+            ? undefined
+            : status.toUpperCase(),
+      repair: single(raw.repair),
+    },
+    page: parsePage(raw.page) ?? 1,
+    id: single(raw.id),
+  }
+}
+
+/** How many filters narrow the queue. The default status is not one: counting
+ *  it would show "1 filter" on an untouched screen. */
+export function activeExceptionFilters(filters: ExceptionFilters): number {
+  return [
+    filters.q,
+    filters.type,
+    filters.plant,
+    filters.open,
+    filters.repair,
+    filters.status !== DEFAULT_EXCEPTION_STATUS,
+  ].filter(Boolean).length
+}
+
+/**
+ * The link to one page of the queue, keeping the filters. Page 1 drops `page`
+ * and the default status drops `status`, so the plain screen is one URL.
+ */
+export function exceptionsHref(filters: ExceptionFilters, page = 1): string {
+  const params = new URLSearchParams()
+  if (filters.q) params.set("q", filters.q)
+  if (filters.type) params.set("type", filters.type)
+  if (filters.plant) params.set("plant", filters.plant)
+  if (filters.open) params.set("open", "1")
+  if (filters.status === undefined) params.set("status", ALL_STATUSES)
+  else if (filters.status !== DEFAULT_EXCEPTION_STATUS) params.set("status", filters.status)
+  if (filters.repair) params.set("repair", filters.repair)
+  if (page > 1) params.set("page", String(page))
+  const query = params.toString()
+  return query ? `${EXCEPTIONS_PATH}?${query}` : EXCEPTIONS_PATH
+}
+
+/**
+ * The request for what the screen shows.
+ *
+ * Two parameters are always on, because they say what this queue is rather
+ * than narrow it: `excludeType` takes out the checks it no longer carries
+ * (`DROPPED_TYPES`), counts included, and `actionableOnly` leaves out lines
+ * raised before the control existed, which are a reason rather than work. The
+ * second filters nothing until VZI supplies the cutover date.
+ */
+function exceptionQuery(filters: ExceptionFilters): ExceptionQuery {
+  return {
+    q: filters.q,
+    type: filters.type,
+    plant: filters.plant,
+    openOnly: filters.open || undefined,
+    status: filters.status,
+    repair: filters.repair,
+    actionableOnly: true,
+    excludeType: [...DROPPED_TYPES].join(","),
+  }
+}
+
+/** Neither a dropped type nor a pre-automation line. The backend leaves both
+ *  out already; this guards one older than paging, which ignores the two
+ *  parameters. On the current one it removes nothing. */
+function shown(row: ExceptionQueueRow): boolean {
+  return !DROPPED_TYPES.has(row.type) && !row.preAutomation
+}
+
+/**
+ * The dropdown values. The types that run are offered as well as those that
+ * found something, so a running check that found nothing is still a choice.
+ * A backend older than paging sends no facets; the page's rows are then the
+ * best there is.
+ */
+function facetsOf(
+  body: ApiExceptionPage,
+  rows: ExceptionQueueRow[],
+  typesRaised: string[],
+): ExceptionFacets {
+  const plants = body.facets
+    ? body.facets.plants.map((p) => ({ plantId: p.plantId, name: p.name }))
+    : [
+        ...new Map(
+          rows.flatMap((row) => (row.plant ? [[row.plant.plantId, row.plant] as const] : [])),
+        ).values(),
+      ].sort((a, b) => a.plantId.localeCompare(b.plantId))
+  const types = new Set([...typesRaised, ...(body.facets?.types ?? rows.map((r) => r.type))])
+  return { plants, types: [...types].filter((t) => !DROPPED_TYPES.has(t)).sort() }
+}
+
+/**
+ * One page of the queue, with the counts and dropdown values around it -- in
+ * one request, because the summary describes the whole check whatever the
+ * filters and the facets are taken before them.
+ *
+ * Throws on failure, the same contract as `loadLiveExceptions`.
+ */
+export async function loadExceptionsPage(
+  filters: ExceptionFilters,
+  page: number,
+  {
+    pageSize = DEFAULT_PAGE_SIZE,
+    fetchPage = getExceptions,
+  }: { pageSize?: number; fetchPage?: FetchExceptions } = {},
+): Promise<ExceptionsPage> {
+  const body = await fetchPage({ ...exceptionQuery(filters), page, pageSize })
+  const rows = body.items.map(toExceptionRow).filter(shown)
+  // The backend has taken the dropped types off the counts already. This
+  // takes them out of `typesRaised` and `byType` for one that has not.
+  const summary = withoutDroppedTypes(toSummary(body.meta), [])
+  return { rows, total: body.total, summary, facets: facetsOf(body, rows, summary.typesRaised) }
+}
+
+/**
+ * Every item the filters match, for the export: the queue, not the page.
+ *
+ * Fetched in the largest pages the backend serves. Deduplicated by id, because
+ * the queue is recomputed on every read and an item raised mid-export pushes
+ * the rest down a row. One resolved mid-export pulls them up instead, and that
+ * row is missed: an export of a moving queue is as of when each page was read.
+ */
+export async function fetchAllExceptions(
+  filters: ExceptionFilters,
+  fetchPage: FetchExceptions = getExceptions,
+): Promise<ExceptionQueueRow[]> {
+  const byId = new Map<string, ExceptionQueueRow>()
+  for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
+    const body = await fetchPage({ ...exceptionQuery(filters), page, pageSize: PAGE_SIZE })
+    for (const row of body.items.map(toExceptionRow)) {
+      if (shown(row) && !byId.has(row.id)) byId.set(row.id, row)
+    }
+    if (body.items.length < PAGE_SIZE || page * PAGE_SIZE >= body.total) break
+  }
+  return [...byId.values()]
 }

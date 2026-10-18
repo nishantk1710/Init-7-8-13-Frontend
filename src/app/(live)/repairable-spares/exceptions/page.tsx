@@ -1,9 +1,19 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { ExceptionsTable } from "@/features/initiative-8/components/exceptions-table"
-import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
+import {
+  exceptionsHref,
+  loadExceptionsPage,
+  parseExceptionParams,
+  toExceptionRow,
+  type ExceptionsPage,
+} from "@/features/initiative-8/data/live-exceptions"
+import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
+import { getException } from "@/lib/api/i8"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
   title: "Repair Exceptions — Spares AI",
@@ -53,39 +63,56 @@ export const metadata: Metadata = {
  *
  * Still missing from FR-11: email. There is no notification of any kind, so a
  * queue nobody opens is a queue nobody reads.
+ *
+ * ## Paged on the server
+ *
+ * `?q=`, `?type=`, `?plant=`, `?open=`, `?status=`, `?repair=` and `?page=`
+ * are read here, and the backend searches, filters, counts and pages. The
+ * screen used to load all 5,978 items and filter them in the browser: a 17 MB
+ * page that took ten seconds to arrive. See `loadExceptionsPage`.
  */
-/** A query value as one string; a repeated parameter (`?id=a&id=b`) takes the first. */
-function single(value: string | string[] | undefined): string | undefined {
-  const first = Array.isArray(value) ? value[0] : value
-  return first?.trim() ? first.trim() : undefined
-}
-
 /**
  * `?id=EX-…` opens that item's drawer; `?repair=4500000677-20` narrows the
  * queue to one repair line — the link the register's Exceptions column uses.
  *
- * The page is keyed by both, so following a second link while already here
- * starts from that link rather than from the last one's state.
+ * The table is keyed by `id`, so following a second item link while already
+ * here opens that item rather than keeping the last one's state.
  */
 export default async function I08ExceptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; repair?: string }>
+  searchParams: Promise<RawSearchParams>
 }) {
-  const params = await searchParams
-  const id = single(params.id)
-  const repair = single(params.repair)
-
   // Recomputed from the register and the attestation table, both of which
   // change under the page. A build-time snapshot would be wrong by lunchtime.
   await connection()
 
-  let data: Awaited<ReturnType<typeof loadLiveExceptions>> | null = null
+  const { filters, page, id } = parseExceptionParams(await searchParams)
+
+  // The linked item is fetched by id beside the page, not looked for on it:
+  // it may be on any page, or filtered off them all. Best-effort -- a failure
+  // costs the drawer, never the queue.
+  const linked = id
+    ? getException(id)
+        .then(toExceptionRow)
+        .catch(() => undefined)
+    : Promise.resolve(undefined)
+
+  let data: ExceptionsPage | null = null
   let loadError: string | null = null
   try {
-    data = await loadLiveExceptions()
+    data = await loadExceptionsPage(filters, page)
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
+  }
+  const initialItem = await linked
+
+  // Past the end -- a stale link, or a filter that now matches fewer: go to
+  // the last page there is rather than show an empty one. Outside the try:
+  // `redirect` throws, and the catch would swallow it as a load error.
+  if (data) {
+    const lastPage = pageCountOf(data.total, DEFAULT_PAGE_SIZE)
+    if (page > lastPage) redirect(exceptionsHref(filters, lastPage))
   }
 
   return (
@@ -116,12 +143,15 @@ export default async function I08ExceptionsPage({
           </div>
         ) : (
           <ExceptionsTable
-            key={`${id ?? ""}|${repair ?? ""}`}
+            key={id ?? ""}
             rows={data.rows}
+            total={data.total}
+            page={page}
+            pageSize={DEFAULT_PAGE_SIZE}
             summary={data.summary}
-            truncated={data.truncated}
-            initialId={id}
-            initialRepair={repair}
+            facets={data.facets}
+            filters={filters}
+            initialItem={initialItem}
           />
         )}
       </div>

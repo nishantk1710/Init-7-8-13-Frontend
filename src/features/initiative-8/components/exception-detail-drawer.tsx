@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toExceptionRow } from "@/features/initiative-8/data/live-exceptions"
 import type {
   ExceptionEvent,
   ExceptionQueueRow,
@@ -25,7 +26,7 @@ import {
   exceptionTypeLabel,
 } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
-import { appendExceptionEvent } from "@/lib/api/i8"
+import { appendExceptionEvent, type ApiExceptionItem } from "@/lib/api/i8"
 import { useMaterial360 } from "@/lib/material-360-context"
 
 /** What each history entry's verb reads as. */
@@ -61,6 +62,12 @@ export type ExceptionDetailDrawerProps = {
   exception?: ExceptionQueueRow
   open: boolean
   onOpenChange: (open: boolean) => void
+  /**
+   * The item as a write left it. The queue is paged, so the refresh after a
+   * write may no longer carry the item at all -- moved off an Open-filtered
+   * page, say -- and the drawer then shows this rather than going blank.
+   */
+  onChanged?: (exception: ExceptionQueueRow) => void
 }
 
 /**
@@ -87,6 +94,7 @@ export function ExceptionDetailDrawer({
   exception,
   open,
   onOpenChange,
+  onChanged,
 }: ExceptionDetailDrawerProps) {
   const router = useRouter()
   const { openMaterial360 } = useMaterial360()
@@ -98,10 +106,11 @@ export function ExceptionDetailDrawer({
   if (!exception) return null
 
   /** Run one write, report it, and re-read the queue. */
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(action: () => Promise<ApiExceptionItem>, success: string) {
     setBusy(true)
     try {
-      await action()
+      const written = await action()
+      onChanged?.(toExceptionRow(written))
       toast.success(success)
       setNote("")
       setComment("")

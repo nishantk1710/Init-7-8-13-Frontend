@@ -23,12 +23,15 @@
  * reaches a server component as a client reference, not as its value.
  */
 
+import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import {
   listJustifications,
   type ApiJustification,
   type JustificationListResponse,
 } from "@/lib/api/assistant"
 import { DEFAULT_PAGE_SIZE, pageOffset, parsePage } from "@/lib/pagination"
+
+export type { RawSearchParams }
 
 /** The only kind that is I08's -- see the page for why. */
 export const I08_JUSTIFICATION_KIND = "NEW_ACQUISITION"
@@ -61,19 +64,6 @@ export type JustificationsPage = {
 }
 
 type FetchPage = typeof listJustifications
-
-/** Next hands `searchParams` as possibly-repeated values. */
-export type RawSearchParams = Record<string, string | string[] | undefined>
-
-/**
- * One value, or undefined. A repeated parameter is a malformed link, not a
- * list to pick from -- the rule the I13 screens apply.
- */
-function single(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return undefined
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : undefined
-}
 
 export function parseJustificationParams(raw: RawSearchParams): {
   filters: JustificationFilters
