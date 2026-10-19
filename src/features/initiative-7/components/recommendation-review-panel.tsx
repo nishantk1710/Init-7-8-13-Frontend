@@ -85,7 +85,8 @@ const CONVERSION_ELIGIBILITY_LABEL: Record<string, string> = {
 /**
  * FRS SOP 3.1.1 -- OAR-to-Min-Max conversion suggestion. Only rendered when
  * the caller has already confirmed `rec.oarConversion` is present (i.e. the
- * material is in OAR scope AND conversion.evaluate() actually ran); this
+ * backend made a conversion decision -- for a cold-start or a standard-path
+ * OAR material alike); this
  * component never re-derives OAR scope or re-evaluates triggers itself, it
  * only displays the backend's decision. Demand class is shown as supporting
  * confidence context, never as a fourth trigger.
@@ -111,7 +112,9 @@ function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?
         )}
       </div>
       <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-        <Fact label="Times used, last 12 months">
+        {/* A count of issue transactions -- the Min-Max rule's measure -- not units: one issue
+            of 2 units is 1 here and 2 on the chart and in Annual consumption. */}
+        <Fact label="Times issued, last 12 months">
           {oar.consumptionCount12m ?? "—"}
           {oar.consumptionCountThreshold != null && (
             <span className="text-muted-foreground"> (needs more than {oar.consumptionCountThreshold})</span>
@@ -319,7 +322,7 @@ export function RecommendationReviewPanel({
             )}
           </Fact>
           <Fact label="Unit price">{formatMoney(rec.unitPrice, rec.currency)}</Fact>
-          <Fact label="Annual consumption">
+          <Fact label="Annual consumption (last 12 months)">
             {rec.unavailable?.includes("consumption") ? <NotAvailable /> : <>{formatCount(rec.annualConsumption)} units</>}
           </Fact>
           <Fact label="Working capital">

@@ -145,6 +145,7 @@ function LiveRecommendationsWorkspace({
         typeFilterLabel="Recommendation"
         showStatusFilter={false}
         showConfidenceFilter={filters.type === "oar"}
+        showConversionFilter={filters.type === "oar"}
         showCircuitFilter={hasRealCircuit(data ?? [])}
         mergeCriticalIntoHigh
       />
@@ -167,7 +168,12 @@ function LiveRecommendationsWorkspace({
         />
       ) : (
         <>
-          <RecommendationReviewTable recommendations={filtered} showMinMaxConversion={filters.type === "oar"} />
+          <RecommendationReviewTable
+            recommendations={filtered}
+            // Any listed row with a backend conversion decision -- cold-start or
+            // standard-path -- brings the column in, under whichever filter.
+            showMinMaxConversion={filters.type === "oar" || filtered.some((rec) => rec.conversionEligibility)}
+          />
           {total > 0 && (
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">

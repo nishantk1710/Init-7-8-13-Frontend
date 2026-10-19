@@ -321,6 +321,11 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
  * guarantee), never recalculated. */
 export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Recommendation {
   const status = mapStatus(detail.status)
+  // Actual usage over the latest 12 months of the series the chart draws (complete, oldest
+  // first, zero months included). Not forecast x 12: an OAR material has no forecast, and its
+  // real usage is still known.
+  const history = detail.demand.consumption_history
+  const lastTwelveMonthsUsage = history.slice(-12).reduce((sum, point) => sum + (toNumber(point.quantity) ?? 0), 0)
   const criticality = mapCriticality(detail.criticality.value)
   const factors: RecommendationFactor[] = detail.blocking_reason
     ? [{ label: "Blocked", detail: detail.blocking_reason }]
@@ -354,11 +359,11 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     unavailable: [
       ...(toNumber(detail.lead_time.days) == null ? (["leadTime"] as const) : []),
       ...(toNumber(detail.service_level.service_level) == null ? (["serviceLevel"] as const) : []),
-      ...(toNumber(detail.demand.forecast_rate) == null ? (["consumption"] as const) : []),
+      ...(history.length === 0 ? (["consumption"] as const) : []),
     ],
     unitPrice: toNumber(detail.unit_price) ?? 0,
     currency: detail.currency ?? null,
-    annualConsumption: (toNumber(detail.demand.forecast_rate) ?? 0) * 12,
+    annualConsumption: lastTwelveMonthsUsage,
     workingCapitalImpact:
       detail.impact.status === "AVAILABLE"
         ? -(toNumber(detail.impact.safety_stock_delta) ?? 0) * (toNumber(detail.unit_price) ?? 0)
@@ -390,10 +395,12 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
           note: `Similarity: ${detail.oar.similarity_status ?? "unknown"} · Estimate: ${detail.oar.estimate_status ?? "unknown"}`,
         }
       : undefined,
-    // FRS SOP 3.1.1 -- only OAR materials have a conversion decision at all;
-    // a Min-Max (non-OAR) recommendation never ran conversion.evaluate(), so
-    // showing this for is_oar === false/null would be a fabricated section.
-    oarConversion: detail.oar.is_oar
+    // FRS SOP 3.1.1 -- shown whenever the backend made a conversion decision,
+    // on either path: an OAR (ND/PD/blank) material can be cold-start or have
+    // enough history for a normal forecast, and the backend evaluates both. A
+    // material it did not evaluate (not OAR, or an older row) has no decision,
+    // and inventing a section for it would be a fabricated "not eligible".
+    oarConversion: detail.oar.conversion_eligibility
       ? {
           isOar: detail.oar.is_oar,
           conversionEligibility:
@@ -429,6 +436,8 @@ export interface RecommendationListParams {
    * declining and normal together (everything that is not OAR). */
   type?: "oar" | "declining" | "normal" | "stock_item"
   confidence?: string
+  /** ELIGIBLE | NOT_ELIGIBLE -- the OAR -> Min-Max conversion decision, applied in SQL. */
+  conversionEligibility?: string
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -466,6 +475,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.isOar !== undefined) search.set("is_oar", String(params.isOar))
   if (params.type) search.set("type", params.type)
   if (params.confidence) search.set("confidence", params.confidence)
+  if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)

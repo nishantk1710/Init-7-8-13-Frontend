@@ -81,6 +81,8 @@ export function listParamsFromFilters(filters: DashboardFilterState, page: numbe
     type: chosen(filters.type) as RecommendationListParams["type"],
     // Only OAR recommendations carry a confidence, so it narrows nothing else.
     confidence: filters.type === "oar" ? chosen(filters.confidence) : undefined,
+    // Only OAR recommendations carry a Min-Max conversion decision, likewise.
+    conversionEligibility: filters.type === "oar" ? chosen(filters.conversion) : undefined,
     search: search || undefined,
     criticalityLevel: chosen(filters.criticality),
     demandClass: DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern],

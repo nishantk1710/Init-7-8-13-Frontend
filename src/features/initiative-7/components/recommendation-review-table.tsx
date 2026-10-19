@@ -289,7 +289,7 @@ export function RecommendationReviewTable({
                     </TableCell>
                     {showMinMaxConversion && (
                       <TableCell>
-                        {rec.demandType === "OAR" ? (
+                        {rec.conversionEligibility ? (
                           <OarConversionLabel eligibility={rec.conversionEligibility} />
                         ) : (
                           <span className="text-muted-foreground">—</span>

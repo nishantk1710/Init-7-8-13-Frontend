@@ -64,6 +64,13 @@ describe("listParamsFromFilters", () => {
     })
   })
 
+  it("sends a Min-Max conversion decision only with the OAR group", () => {
+    expect(listParamsFromFilters(filters({ type: "oar", conversion: "ELIGIBLE" }), 1).conversionEligibility).toBe("ELIGIBLE")
+    expect(listParamsFromFilters(filters({ type: "oar", conversion: "NOT_ELIGIBLE" }), 1).conversionEligibility).toBe("NOT_ELIGIBLE")
+    expect(listParamsFromFilters(filters({ type: "oar" }), 1).conversionEligibility).toBeUndefined()
+    expect(listParamsFromFilters(filters({ type: "stock_item", conversion: "ELIGIBLE" }), 1).conversionEligibility).toBeUndefined()
+  })
+
   it("sends a confidence only with the OAR group, never alone or with Stock item", () => {
     expect(listParamsFromFilters(filters({ type: "oar", confidence: "HIGH" }), 1).confidence).toBe("HIGH")
     expect(listParamsFromFilters(filters({ type: "oar" }), 1).confidence).toBeUndefined()
