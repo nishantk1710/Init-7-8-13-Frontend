@@ -24,6 +24,8 @@ export const MISSING_PRICE = {
   TOKEN_VALUE: "TOKEN_VALUE",
   NO_NEW_VALUATION: "NO_NEW_VALUATION",
   NOT_IN_MBEW: "NOT_IN_MBEW",
+  /** The MBEW read failed or timed out — says nothing about the material. */
+  LOOKUP_FAILED: "LOOKUP_FAILED",
 } as const
 
 /** Rand to the cent — the hover text quotes the exact value MBEW holds. */
@@ -48,6 +50,8 @@ export function newItemPriceTitle(price: NewItemPrice): string {
       return `No price: this material is valued by condition at ${at}, with no NEW valuation.`
     case MISSING_PRICE.NOT_IN_MBEW:
       return `No price: this material has no MBEW valuation record at ${at}.`
+    case MISSING_PRICE.LOOKUP_FAILED:
+      return "Price not available: the MBEW lookup did not answer in time. Reload the page to try again."
     default:
       // A reason this build does not know yet still says something true.
       return price.missing ? `No price at ${at} (${price.missing}).` : `No price at ${at}.`

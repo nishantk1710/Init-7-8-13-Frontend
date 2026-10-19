@@ -105,6 +105,12 @@ describe("newItemPriceTitle", () => {
     )
   })
 
+  it("does not blame the material when the lookup itself failed", () => {
+    expect(newItemPriceTitle({ plant: "1300", missing: "LOOKUP_FAILED" })).toBe(
+      "Price not available: the MBEW lookup did not answer in time. Reload the page to try again.",
+    )
+  })
+
   it("still says something true about a reason it does not know", () => {
     expect(newItemPriceTitle({ plant: "1300", missing: "SOMETHING_NEW" })).toBe(
       "No price at plant 1300 (SOMETHING_NEW).",
