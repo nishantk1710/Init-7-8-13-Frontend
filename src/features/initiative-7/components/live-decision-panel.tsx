@@ -98,8 +98,12 @@ export function LiveDecisionActions({
 
   async function handleSend() {
     const accepted = await submit(DEMO_ACTOR_ID)
-    if (accepted) {
-      toast.success(convertToMinMax ? "Sent for conversion to Min-Max" : "Sent for approval", {
+    if (accepted && convertToMinMax) {
+      toast.success("Sent for conversion to Min-Max", {
+        description: "It is now in the Action Center, where it is reviewed and approved.",
+      })
+    } else if (accepted) {
+      toast.success("Sent for approval", {
         description: "It is now in the Action Center, where it is reviewed and approved.",
       })
     }
