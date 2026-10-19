@@ -16,11 +16,13 @@ describe("lifecycleView", () => {
     expect(lifecycleView("RESERVED").explanation).toMatch(/no purchase requisition is linked/)
   })
 
-  it("keeps an untraceable or shared PR as 'PR raised', and says why on hover", () => {
-    expect(lifecycleView("PR_NOT_FOUND").label).toBe("PR raised")
+  it("never says 'PR raised' when the PR's progress cannot be seen", () => {
+    for (const status of ["PR_NOT_FOUND", "PR_SHARED"]) {
+      expect(lifecycleView(status).label).toBe("PR – status unknown")
+      expect(lifecycleView(status).explanation).toMatch(/may already be ordered or received/)
+    }
     expect(lifecycleView("PR_NOT_FOUND").explanation).toMatch(/not in the data the platform holds/)
-    expect(lifecycleView("PR_SHARED").label).toBe("PR raised")
-    expect(lifecycleView("PR_SHARED").explanation).toMatch(/other reservations also name/)
+    expect(lifecycleView("PR_SHARED").explanation).toMatch(/other reservations name the same PR/)
   })
 
   it("marks partial stages amber and issued green", () => {

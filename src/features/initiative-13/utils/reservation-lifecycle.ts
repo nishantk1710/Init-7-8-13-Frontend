@@ -4,11 +4,12 @@
  * Five stages in the order things happen, so a business user reads one simple
  * flow: **Reserved -> PR raised -> PO raised -> Received -> Issued**, with
  * "Partly" where only some of the quantity got there. The backend keeps the
- * precise value (`lifecycle_status`); the cases a user does not need as a
- * status of their own -- a PR that cannot be traced, or one several
- * reservations share -- are still "PR raised" (SAP says a PR exists) and are
- * explained on hover. Nothing here claims a step the data does not show: a
- * reservation with no requisition is **Reserved**, never "PR raised".
+ * precise value (`lifecycle_status`). Where a PR is named but its progress
+ * cannot be seen -- not in the extract, or shared by several reservations --
+ * the label is **PR – status unknown**, never "PR raised": that would claim no
+ * PO exists, when it may already be ordered or received. The hover says why.
+ * Nothing here claims a step the data does not show: a reservation with no
+ * requisition is **Reserved**.
  */
 
 type Tone = "default" | "success" | "warning"
@@ -28,15 +29,15 @@ const VIEWS: Record<string, LifecycleView> = {
     tone: "default",
   },
   PR_NOT_FOUND: {
-    label: "PR raised",
+    label: "PR – status unknown",
     explanation:
-      "The reservation names a purchase requisition, but that PR is not in the data the platform holds (another plant, older than the 3-year extract, or deleted), so its PO and receipts cannot be shown.",
+      "A purchase requisition is named on the reservation, but it is not in the data the platform holds (another plant, older than the 3-year extract, or deleted). It may already be ordered or received; the platform cannot see how far it got.",
     tone: "default",
   },
   PR_SHARED: {
-    label: "PR raised",
+    label: "PR – status unknown",
     explanation:
-      "The reservation names a purchase requisition that other reservations also name, so its PO and receipts cannot be attributed to this one.",
+      "A purchase requisition is named on the reservation, but other reservations name the same PR, so its PO and receipts cannot be attributed to this one. It may already be ordered or received; the platform cannot tell for this reservation.",
     tone: "default",
   },
   ORDERED: {
