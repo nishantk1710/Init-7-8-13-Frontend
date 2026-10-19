@@ -96,3 +96,33 @@ describe("OarConversionLabel", () => {
     }
   })
 })
+
+describe("the Min-Max section's usage facts", () => {
+  const section = (oar: Partial<OarConversionInfo>) => render(rec({ oarConversion: { ...OAR, ...oar } }))
+
+  it("shows Times issued and Usage pattern when both are there", () => {
+    const markup = section({ consumptionCount12m: 6, demandClass: "INTERMITTENT" })
+    expect(markup).toContain("Times issued, last 12 months")
+    expect(markup).toContain("Usage pattern")
+    expect(markup).toContain("INTERMITTENT")
+  })
+
+  it("leaves out a count of 0 and an unknown count", () => {
+    expect(section({ consumptionCount12m: 0 })).not.toContain("Times issued, last 12 months")
+    expect(section({ consumptionCount12m: null })).not.toContain("Times issued, last 12 months")
+  })
+
+  it("leaves out a usage pattern that was never worked out", () => {
+    expect(section({ demandClass: "UNCLASSIFIED" })).not.toContain("Usage pattern")
+    expect(section({ demandClass: null })).not.toContain("Usage pattern")
+  })
+
+  it("drops the whole facts row, and keeps the badge and the Reason, when there is nothing to show", () => {
+    const markup = section({ consumptionCount12m: 0, demandClass: "UNCLASSIFIED" })
+    expect(markup).not.toContain("Times issued, last 12 months")
+    expect(markup).not.toContain("Usage pattern")
+    expect(markup).not.toContain("Not enough history")
+    expect(markup).toContain("Move from OAR to Min-Max ordering")
+    expect(markup).toContain("Used 14 times in the last 12 months.")
+  })
+})

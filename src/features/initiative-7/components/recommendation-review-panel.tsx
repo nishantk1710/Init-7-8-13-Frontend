@@ -94,6 +94,12 @@ const CONVERSION_ELIGIBILITY_LABEL: Record<string, string> = {
 function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?: ReactNode }) {
   const eligibility = oar.conversionEligibility
   const trigger = oar.conversionTrigger
+  // Each fact is shown only when there is something to say. A count of 0 or an unknown one says
+  // nothing the Reason below does not already ("It was used 0 times..."), and "Not enough history"
+  // is the stand-in for a usage pattern that was never worked out.
+  const timesIssued = oar.consumptionCount12m != null && oar.consumptionCount12m > 0 ? oar.consumptionCount12m : null
+  const usagePattern = oar.demandClass && oar.demandClass !== "UNCLASSIFIED" ? oar.demandClass : null
+  const hasFacts = timesIssued !== null || usagePattern !== null
 
   return (
     <div className="rounded-lg border border-border bg-background p-3">
@@ -111,19 +117,23 @@ function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?
           </span>
         )}
       </div>
-      <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-        {/* A count of issue transactions -- the Min-Max rule's measure -- not units: one issue
-            of 2 units is 1 here and 2 on the chart and in Annual consumption. */}
-        <Fact label="Times issued, last 12 months">
-          {oar.consumptionCount12m ?? "—"}
-          {oar.consumptionCountThreshold != null && (
-            <span className="text-muted-foreground"> (needs more than {oar.consumptionCountThreshold})</span>
+      {hasFacts && (
+        <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+          {/* A count of issue transactions -- the Min-Max rule's measure -- not units: one issue
+              of 2 units is 1 here and 2 on the chart and in Annual consumption. */}
+          {timesIssued !== null && (
+            <Fact label="Times issued, last 12 months">
+              {timesIssued}
+              {oar.consumptionCountThreshold != null && (
+                <span className="text-muted-foreground"> (needs more than {oar.consumptionCountThreshold})</span>
+              )}
+            </Fact>
           )}
-        </Fact>
-        <Fact label="Usage pattern">{oar.demandClass === "UNCLASSIFIED" ? "Not enough history" : (oar.demandClass ?? "—")}</Fact>
-      </dl>
+          {usagePattern !== null && <Fact label="Usage pattern">{usagePattern}</Fact>}
+        </dl>
+      )}
       {(oar.conversionDetail || reason) && (
-        <div className="mt-2.5 border-t border-border pt-2.5">
+        <div className={hasFacts ? "mt-2.5 border-t border-border pt-2.5" : "mt-2.5"}>
           <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">Reason</dt>
           <dd className="mt-0.5 text-[13px] leading-relaxed text-foreground">
             {oar.conversionDetail && <p>{oar.conversionDetail}</p>}

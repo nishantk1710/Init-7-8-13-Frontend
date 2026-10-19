@@ -6,9 +6,6 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, TriangleAlert } from "lu
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ALL_FILTER, MIN_MAX_CONVERSION_OPTIONS } from "@/features/initiative-7/components/dashboard-filters"
 import {
   Table,
   TableBody,
@@ -164,7 +161,7 @@ function LiveExpandedRecommendationPanel({
         <LiveDecisionActions
           recommendationId={detail.id}
           onChanged={refetch}
-          convertToMinMax={detail.oarConversion?.conversionEligibility === "ELIGIBLE"}
+          convertToMinMax={Boolean(detail.oarConversion)}
         />
       }
     />
@@ -192,17 +189,11 @@ function ExpandedRecommendationPanel({
 export function RecommendationReviewTable({
   recommendations,
   showMinMaxConversion = false,
-  conversionFilter = ALL_FILTER,
-  onConversionFilterChange,
 }: {
   recommendations: Recommendation[]
   /** Adds the Min-Max conversion column. Meant for a list of OAR recommendations: no other
    * recommendation has a conversion decision. */
   showMinMaxConversion?: boolean
-  /** The Min-Max conversion filter's value, and what changes it. With a handler, the column's
-   * header carries the dropdown (All / Eligible / Not eligible). */
-  conversionFilter?: string
-  onConversionFilterChange?: (value: string) => void
 }) {
   const { stateFor } = useInventoryWorkflow()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -222,14 +213,8 @@ export function RecommendationReviewTable({
 
   if (recommendations.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         No recommendations match these filters.
-        {/* The header dropdown is gone with the table; keep a way back to the full list. */}
-        {onConversionFilterChange && conversionFilter !== ALL_FILTER && (
-          <Button size="sm" variant="outline" onClick={() => onConversionFilterChange(ALL_FILTER)}>
-            Show all Min-Max results
-          </Button>
-        )}
       </div>
     )
   }
@@ -249,35 +234,7 @@ export function RecommendationReviewTable({
               <TableHead className="text-right">Value change</TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
-              {showMinMaxConversion && (
-                <TableHead>
-                  {onConversionFilterChange ? (
-                    <div className="flex flex-col gap-1">
-                      <span>Min-Max conversion</span>
-                      <Select
-                        value={conversionFilter}
-                        onValueChange={(v) => onConversionFilterChange(v ?? ALL_FILTER)}
-                      >
-                        <SelectTrigger className="h-7 w-[8.5rem] text-xs font-normal" aria-label="Filter by Min-Max conversion">
-                          <SelectValue placeholder="All">
-                            {(v: string) => MIN_MAX_CONVERSION_OPTIONS.find((o) => o.value === v)?.label ?? "All"}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ALL_FILTER}>All</SelectItem>
-                          {MIN_MAX_CONVERSION_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    "Min-Max conversion"
-                  )}
-                </TableHead>
-              )}
+              {showMinMaxConversion && <TableHead>Min-Max conversion</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -78,9 +78,9 @@ export function LiveDecisionActions({
   recommendationId: string
   onChanged: () => void
   surface?: DecisionSurface
-  /** The backend found this OAR material eligible to move to Min-Max ordering: the one action on
-   * its page is then worded as that conversion, not as a generic "approval". It goes through the
-   * same chain either way. */
+  /** An OAR material (the backend made a Min-Max conversion decision for it): the one action on
+   * its page is worded as that conversion, not as a generic "approval". It goes through the same
+   * chain either way. */
   convertToMinMax?: boolean
 }) {
   const { submitting, error, act, submit, lastState } = useLiveApproval(recommendationId, onChanged)
