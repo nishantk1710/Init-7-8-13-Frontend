@@ -1,10 +1,10 @@
 import type { ApiSessionSummary } from "@/lib/api/assistant"
 
 /**
- * What the session log's Reservation column says about one session.
+ * What the session log's Reservation column says about one session, for both
+ * flows: the backend links any session whose ID is in a reservation's item
+ * text (SGTXT), OAR or Repairable alike.
  *
- * - `not-applicable` -- a Repairable Spares session: those are not linked to a
- *   reservation through its item text (SGTXT), so there is nothing to show.
  * - `unknown` -- the backend did not send `linkedReservations` (one older than
  *   the field). Never shown as "not linked": that would be a claim.
  * - `not-linked` -- no reservation's SGTXT names this session *yet*. The link
@@ -13,13 +13,11 @@ import type { ApiSessionSummary } from "@/lib/api/assistant"
  * - `linked` -- one or more reservation items name it.
  */
 export type SessionReservationState =
-  | { kind: "not-applicable" }
   | { kind: "unknown" }
   | { kind: "not-linked" }
   | { kind: "linked"; refs: string[]; fromUat: boolean }
 
 export function sessionReservationState(session: ApiSessionSummary): SessionReservationState {
-  if (session.flow !== "i13") return { kind: "not-applicable" }
   const links = session.linkedReservations
   if (links === undefined) return { kind: "unknown" }
   if (links.length === 0) return { kind: "not-linked" }
@@ -45,10 +43,20 @@ export function reservationSearchTerms(session: ApiSessionSummary): string[] {
   ])
 }
 
-/** The exported cell: blank for a repairable session or an unknown state. */
+/** The exported cell: blank when the state is unknown. */
 export function reservationExportCell(session: ApiSessionSummary): string {
   const state = sessionReservationState(session)
   if (state.kind === "linked") return state.refs.join(", ") + (state.fromUat ? " (UAT)" : "")
   if (state.kind === "not-linked") return "Not linked"
   return ""
+}
+
+/**
+ * Where a session's linked reservations open. OAR: the Utilization Ledger's
+ * reservations for the session. Repairable: the ledger lists OAR materials
+ * only and would be empty, so the session trace, which lists the links.
+ */
+export function linkedReservationsHref(session: { flow: string; sessionId: string }): string {
+  const id = encodeURIComponent(session.sessionId)
+  return session.flow === "i13" ? `/oar-utilization/ledger?view=reservations&session=${id}` : `/assistant/sessions/${id}`
 }

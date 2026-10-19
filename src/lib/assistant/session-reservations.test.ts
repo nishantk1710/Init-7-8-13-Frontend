@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { ApiLinkedReservation, ApiSessionSummary } from "@/lib/api/assistant"
 import {
+  linkedReservationsHref,
   matchesReservationFilter,
   reservationExportCell,
   reservationSearchTerms,
@@ -40,8 +41,11 @@ function link(number: string, item: string, source = "SGTXT"): ApiLinkedReservat
 }
 
 describe("sessionReservationState", () => {
-  it("is not applicable to a repairable session", () => {
-    expect(sessionReservationState(session({ flow: "i08" }))).toEqual({ kind: "not-applicable" })
+  it("reads a repairable session's links like an OAR one", () => {
+    expect(sessionReservationState(session({ flow: "i08" }))).toEqual({ kind: "not-linked" })
+    expect(
+      sessionReservationState(session({ flow: "i08", sessionId: "SW3JPZV37R", linkedReservations: [link("2038856", "1")] }))
+    ).toEqual({ kind: "linked", refs: ["2038856/1"], fromUat: false })
   })
 
   it("is unknown when the backend sends no field, never 'not linked'", () => {
@@ -63,17 +67,17 @@ describe("sessionReservationState", () => {
 describe("the Reservation filter", () => {
   const linked = session({ linkedReservations: [link("1061840", "1")] })
   const notLinked = session()
-  const repairable = session({ flow: "i08" })
+  const repairableLinked = session({ flow: "i08", linkedReservations: [link("2038856", "1")] })
+  const repairableNotLinked = session({ flow: "i08" })
+  const all = [linked, notLinked, repairableLinked, repairableNotLinked]
 
   it("keeps everything on All", () => {
-    expect([linked, notLinked, repairable].every((s) => matchesReservationFilter(s, "all"))).toBe(true)
+    expect(all.every((s) => matchesReservationFilter(s, "all"))).toBe(true)
   })
 
-  it("splits linked from not linked, leaving repairable sessions out of both", () => {
-    expect([linked, notLinked, repairable].filter((s) => matchesReservationFilter(s, "linked"))).toEqual([linked])
-    expect([linked, notLinked, repairable].filter((s) => matchesReservationFilter(s, "not-linked"))).toEqual([
-      notLinked,
-    ])
+  it("splits linked from not linked, for both flows", () => {
+    expect(all.filter((s) => matchesReservationFilter(s, "linked"))).toEqual([linked, repairableLinked])
+    expect(all.filter((s) => matchesReservationFilter(s, "not-linked"))).toEqual([notLinked, repairableNotLinked])
   })
 })
 
@@ -85,11 +89,19 @@ describe("search and export", () => {
     ])
   })
 
-  it("exports the references, 'Not linked', or blank", () => {
+  it("exports the references, 'Not linked', or blank when unknown", () => {
     expect(reservationExportCell(session({ linkedReservations: [link("1061840", "1", "UAT_SGTXT")] }))).toBe(
       "1061840/1 (UAT)"
     )
     expect(reservationExportCell(session())).toBe("Not linked")
-    expect(reservationExportCell(session({ flow: "i08" }))).toBe("")
+    expect(reservationExportCell(session({ flow: "i08" }))).toBe("Not linked")
+    expect(reservationExportCell(session({ linkedReservations: undefined }))).toBe("")
+  })
+
+  it("opens OAR links in the ledger and repairable ones on the trace", () => {
+    expect(linkedReservationsHref({ flow: "i13", sessionId: "S7K2M9QX4P" })).toBe(
+      "/oar-utilization/ledger?view=reservations&session=S7K2M9QX4P"
+    )
+    expect(linkedReservationsHref({ flow: "i08", sessionId: "SW3JPZV37R" })).toBe("/assistant/sessions/SW3JPZV37R")
   })
 })
