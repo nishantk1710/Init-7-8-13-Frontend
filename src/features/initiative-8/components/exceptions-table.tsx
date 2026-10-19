@@ -73,7 +73,7 @@ const HOW_IT_WORKS: Record<string, string> = {
   MISSING_SESSION_ID:
     "An 80-series reservation whose item text (SGTXT) carries no valid Spares Assistant session for that part -- blank, an ID nobody issued, or another part's session.",
   OVERDUE_REPAIR:
-    "A repair PO line past its EKET delivery date plus the grace period, with units still at the vendor.",
+    "A repair PO line SAP still has open (not marked delivery completed), past its EKET delivery date plus the grace period.",
 }
 
 /**

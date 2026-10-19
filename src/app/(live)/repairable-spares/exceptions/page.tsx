@@ -123,7 +123,7 @@ export default async function I08ExceptionsPage({
             from the queue since 14-Oct-2026 (see ALL_CHECKS in the table). */}
         <PageHeader
           title="Repair Exceptions"
-          description="Repair lines sent away with no condition declaration, and repairs still at the vendor past their due date."
+          description="Repair lines sent away with no condition declaration, and open repairs past their due date."
         />
 
         {data === null ? (
