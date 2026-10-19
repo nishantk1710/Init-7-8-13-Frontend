@@ -6,7 +6,6 @@ import { ArrowRight, Boxes, CircleSlash, Copy, Loader2, Plus, Search, Sparkles, 
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
-import { DepartmentField } from "@/components/assistant/request/department-field"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
 import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
@@ -33,7 +32,6 @@ import {
   isDuplicate,
   isReady,
   lineFromPreview,
-  needsDepartment,
   oarNeedsJustification,
   opensSession,
   pendingLine,
@@ -70,13 +68,12 @@ function newDraftKey(): string {
  * numbered `/1`, `/2` … in the order it was added.
  *
  * One request is for one plant: the first material added fixes it. Department
- * is per line, from that plant's codes; the header picker fills many lines at
- * once and is never a default a line silently takes.
+ * is per line, from that plant's codes, picked in each row -- there is no
+ * request-wide department (removed after UAT, 19 Oct).
  */
 export function RequestBuilder() {
   const router = useRouter()
   const [requester, setRequester] = useState("")
-  const [bulkDepartment, setBulkDepartment] = useState("")
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -103,8 +100,6 @@ export function RequestBuilder() {
 
   const readyCount = sessionRows.filter(isReady).length
   const headerReady = requester.trim().length > 0
-  const awaitingDepartment = sessionRows.filter((row) => needsDepartment(row) && !row.department).length
-  const departmentLines = sessionRows.filter(needsDepartment).length
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
 
@@ -162,26 +157,11 @@ export function RequestBuilder() {
     const next = rows.filter((row) => row.key !== key)
     setRows(next)
     if (key === refusedKey) setRefusedKey(null)
-    // The last row gone frees the plant; the codes picked were that plant's.
-    if (next.length === 0) setBulkDepartment("")
   }
 
   function changePlant() {
     setRows([])
-    setBulkDepartment("")
     setRefusedKey(null)
-  }
-
-  /** Put the header's department on lines: only those without one, or all of them. */
-  function fillDepartment(onlyEmpty: boolean) {
-    if (!bulkDepartment) return
-    setRows((current) =>
-      current.map((row) =>
-        opensSession(row) && needsDepartment(row) && (!onlyEmpty || !row.department)
-          ? { ...row, department: bulkDepartment }
-          : row
-      )
-    )
   }
 
   function applyToOar(change: (row: OarLine) => OarLine) {
@@ -259,7 +239,7 @@ export function RequestBuilder() {
 
       <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
         <AiEyebrow>1 · Who is it for</AiEyebrow>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <LabelledInput
             id="req-requester"
             label="Requester"
@@ -284,42 +264,10 @@ export function RequestBuilder() {
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <DepartmentField
-              key={requestPlant ?? "none"}
-              id="req-department"
-              label="Department for many lines"
-              plant={requestPlant}
-              departments={departments.all}
-              value={bulkDepartment}
-              onChange={setBulkDepartment}
-              invalid={false}
-            />
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Button
-                type="button"
-                size="xs"
-                variant="outline"
-                disabled={!bulkDepartment || awaitingDepartment === 0}
-                onClick={() => fillDepartment(true)}
-              >
-                Fill {awaitingDepartment} line{awaitingDepartment === 1 ? "" : "s"} without one
-              </Button>
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                disabled={!bulkDepartment || departmentLines === 0}
-                onClick={() => fillDepartment(false)}
-              >
-                Set on all {departmentLines}
-              </Button>
-            </div>
-          </div>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          One request is for one plant. Each material picks its own department from that plant&rsquo;s list, so one
-          request can serve several departments. Use the picker above to fill many lines at once.
+          One request is for one plant. Each material picks its own department from that plant&rsquo;s list, in its
+          row below, so one request can serve several departments.
         </p>
       </section>
 
@@ -342,7 +290,7 @@ export function RequestBuilder() {
           <SectionTitle
             icon={<Boxes className="size-4" />}
             title="OAR materials"
-            subtitle="Planned-on-demand (I13): the assistant suggests a quantity first, then the consumption window."
+            subtitle="Planned-on-demand (OAR) spares: the assistant suggests a quantity first, then the consumption window."
             count={oarRows.length}
           />
           <OarApplyAll rows={oarRows} reasons={reasons} onApply={applyToOar} />
@@ -364,7 +312,7 @@ export function RequestBuilder() {
           <SectionTitle
             icon={<Wrench className="size-4" />}
             title="Repairable materials"
-            subtitle="80-series (I08): use the unit that exists, or say why a new one is needed."
+            subtitle="Repairable spares: use the unit that exists, or say why a new one is needed."
             count={repairableRows.length}
           />
           <JustificationApplyAll

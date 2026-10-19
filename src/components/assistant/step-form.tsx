@@ -40,6 +40,18 @@ import { cn } from "@/lib/utils"
  *
  * Everything else is the server's 422, mapped onto the field it names.
  */
+/** The justification's two fields: reason category and the reason in words. */
+const MARKED_REQUIRED = new Set(["reason_category", "free_text"])
+
+/** A red asterisk saying "this must be answered". */
+export function RequiredMark() {
+  return (
+    <span className="text-destructive" aria-hidden title="Required">
+      *
+    </span>
+  )
+}
+
 export function StepForm({
   step,
   active,
@@ -262,6 +274,10 @@ function FieldRow({
             optional
           </span>
         )}
+        {/* The justification is the exception the other way round: it is the
+            one answer people try to skip, so it says plainly that it cannot be
+            (UAT, 19 Oct). The same marker as the multi-material screen. */}
+        {field.required && MARKED_REQUIRED.has(field.name) && <RequiredMark />}
       </Label>
 
       <FieldInput

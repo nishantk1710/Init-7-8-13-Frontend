@@ -42,7 +42,7 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
       },
       {
         href: `/oar-utilization/watch?${scope}`,
-        label: "WATCH",
+        label: "Live Consumption Tracking",
         what: "cover and acquired-vs-plan for this part, now measured against your plan",
       },
       {

@@ -241,7 +241,7 @@ function OarRow({
             </div>
             {!declined && !row.windowEdited && suggestedWindow && (
               <span className="text-[11px] text-muted-foreground">
-                Suggested: {suggestedWindow.months} month{suggestedWindow.months === 1 ? "" : "s"} at {row.rate}/month
+                Suggested: {suggestedWindow.months} month{suggestedWindow.months === 1 ? "" : "s"} at {figure(row.rate)}/month
               </span>
             )}
             {!declined && !suggestedWindow && row.rate <= 0 && (
@@ -318,7 +318,8 @@ function OarRow({
 /** A backend figure as a plain number ("4.000" -> "4"); a dash when absent. */
 export function figure(value: unknown): string {
   const n = toNumber(value)
-  return n === null ? "—" : String(n)
+  // At most two decimals: a monthly rate of 1/3 reads 0.33, not 0.3333333333.
+  return n === null ? "—" : String(Math.round(n * 100) / 100)
 }
 
 export function RowStatus({

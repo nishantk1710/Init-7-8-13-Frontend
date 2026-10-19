@@ -5,7 +5,6 @@ import Link from "next/link"
 import { ChevronRight, MessagesSquare } from "lucide-react"
 import { toast } from "sonner"
 
-import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
 import { RiskBadge } from "@/components/shared/risk-badge"
@@ -168,12 +167,6 @@ export function ActExceptionsBoard({
                           className="flex items-center gap-1"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <AskAssistantLink
-                            materialId={exception.material}
-                            plant={exception.plant}
-                            variant="chip"
-                            label="Ask"
-                          />
                           {/* The exception's OWN session, where it has one —
                               a plan breach or a quantity override knows the
                               exact conversation it came from, which is a

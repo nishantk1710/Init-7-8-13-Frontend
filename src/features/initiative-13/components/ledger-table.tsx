@@ -3,7 +3,6 @@
 import { Fragment, useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 
-import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import {
   DELIVERY_STATE_LABELS,
@@ -304,17 +303,6 @@ export function UtilizationLedgerTable({
                           ) : (
                             <span className="font-medium">{entry.material}</span>
                           )}
-                          {/* Stops the click reaching the row's expand handler:
-                              following the link and opening the drawer are
-                              different intents on the same pixel. */}
-                          <span onClick={(event) => event.stopPropagation()}>
-                            <AskAssistantLink
-                              materialId={entry.material}
-                              plant={entry.plant}
-                              variant="chip"
-                              label="Ask"
-                            />
-                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
