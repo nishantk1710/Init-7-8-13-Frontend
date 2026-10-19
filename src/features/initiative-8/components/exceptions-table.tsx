@@ -73,7 +73,7 @@ const HOW_IT_WORKS: Record<string, string> = {
   MISSING_SESSION_ID:
     "An 80-series reservation whose item text (SGTXT) carries no valid Spares Assistant session for that part -- blank, an ID nobody issued, or another part's session.",
   OVERDUE_REPAIR:
-    "A repair PO line past its EKET delivery date plus the grace period, with units still at the vendor.",
+    "A repair PO line SAP still has open (not marked delivery completed), past its EKET delivery date plus the grace period.",
 }
 
 /**
@@ -169,7 +169,6 @@ export function ExceptionsTable({
           "Plant",
           "Repair Line",
           "Raised At",
-          "Open Repair",
           "Pre-automation",
           "Status",
           "Owner",
@@ -183,7 +182,6 @@ export function ExceptionsTable({
           row.plant?.name ?? row.plant?.plantId ?? "",
           row.repairLine,
           row.raisedAt ?? "",
-          row.isOpenRepair ? "Yes" : "No",
           row.preAutomation ? "Yes" : "No",
           EXCEPTION_STATUS_LABEL[row.status],
           row.owner ?? "",
@@ -293,14 +291,6 @@ export function ExceptionsTable({
             className="sm:w-[200px]"
           />
 
-          <UrlSelect
-            value={filters.open ? "1" : ""}
-            onChange={(value) => update({ open: value || undefined })}
-            allLabel="All repairs"
-            options={[{ value: "1", label: "Open repairs only" }]}
-            className="sm:w-[220px]"
-          />
-
           {/* FR-11: the queue is worked, so it filters by where the work is.
               Starts on OPEN, the first of the four real statuses; the URL
               says `status=all` for every status, and nothing for the default. */}
@@ -361,7 +351,6 @@ export function ExceptionsTable({
               update({
                 type: undefined,
                 plant: undefined,
-                open: undefined,
                 status: undefined,
                 q: undefined,
                 repair: undefined,
@@ -442,23 +431,21 @@ export function ExceptionsTable({
                   <TableCell className="text-muted-foreground">
                     {row.plant?.name ?? row.plant?.plantId ?? "—"}
                   </TableCell>
+                  {/* No "open / received" note under the line since
+                      19-Oct-2026: every repair line an item names is open in
+                      SAP, so the note could only ever say one thing. */}
                   <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      {row.repairId ? (
-                        <Link
-                          href={`/repairable-spares/repair-register/${row.repairId}`}
-                          className="text-foreground hover:underline"
-                          title="Open this repair line in the register"
-                        >
-                          {row.repairLine}
-                        </Link>
-                      ) : (
-                        <span className="text-foreground">{row.repairLine}</span>
-                      )}
-                      <span className="text-[11px] text-muted-foreground">
-                        {row.isOpenRepair ? "Repair still open" : "Repair received"}
-                      </span>
-                    </div>
+                    {row.repairId ? (
+                      <Link
+                        href={`/repairable-spares/repair-register/${row.repairId}`}
+                        className="text-foreground hover:underline"
+                        title="Open this repair line in the register"
+                      >
+                        {row.repairLine}
+                      </Link>
+                    ) : (
+                      <span className="text-foreground">{row.repairLine}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">
                     {row.raisedAt ?? "—"}

@@ -1,5 +1,4 @@
 import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
-import type { ApiVendorTurnaround } from "@/lib/api/i8"
 import { ALL } from "@/features/initiative-8/utils/register-view"
 import {
   NO_CRITICALITY,
@@ -207,6 +206,10 @@ export type StatusBucket = {
  *
  * The register's own Repair Status column and filter still show all five, so
  * the distinction stays one click away wherever it does occur.
+ *
+ * Live, neither occurs any more: since 19-Oct-2026 the register serves only
+ * lines SAP still has open, so the chart draws PO Issued and At Vendor and the
+ * Received / Closed bucket drops out as empty.
  */
 const STATUS_BUCKETS: { label: string; statuses: RepairStatus[]; color: string }[] = [
   { label: "PR Raised", statuses: ["PR Raised"], color: "var(--chart-4)" },
@@ -229,64 +232,6 @@ export function repairStatusBuckets(chains: RepairChain[]): StatusBucket[] {
     color: bucket.color,
     count: chains.filter((c) => bucket.statuses.includes(c.repairStatus)).length,
   })).filter((bucket) => bucket.count > 0)
-}
-
-/** Below this, a turnaround average is an anecdote and is labelled as one. */
-export const THIN_TURNAROUND_SAMPLE = 3
-
-/** How many turnaround bars fit the card before they stop being readable. */
-export const TURNAROUND_LIMIT = 10
-
-/** One bar on the vendor turnaround chart. */
-export type TurnaroundBar = {
-  vendor: string
-  averageDays: number
-  sample: number
-  minDays: number | null
-  maxDays: number | null
-  openCount: number
-  overdueCount: number
-}
-
-/**
- * Vendor turnaround bars, slowest first, with the counts needed to say what
- * was left out.
- *
- * An average needs BOTH ends of the clock — a 541 dispatch and a goods receipt
- * on the same line. Most vendors on the live register have neither, and a
- * vendor missing from a turnaround chart reads as "this vendor has no
- * repairs", which is a different and wrong claim. So the unmeasurable ones are
- * counted here rather than silently dropped.
- *
- * Returns `measurable` and `total` alongside the bars so the card's subtitle is
- * written from the same numbers that drew them and the two cannot disagree.
- */
-export function turnaroundBars(
-  vendors: ApiVendorTurnaround[],
-  limit: number = TURNAROUND_LIMIT,
-): { bars: TurnaroundBar[]; measurable: number; total: number; hidden: number } {
-  const measurable = vendors.filter((v) => v.avgTurnaroundDays !== null)
-  const ranked = measurable
-    .map((v) => ({
-      // An unnamed vendor shows its code. No LFA1 row was delivered for some
-      // of them -- a code is a fact, an invented name is not.
-      vendor: v.vendorName ?? v.vendor,
-      averageDays: Math.round(v.avgTurnaroundDays as number),
-      sample: v.turnaroundSample,
-      minDays: v.minTurnaroundDays === null ? null : Math.round(v.minTurnaroundDays),
-      maxDays: v.maxTurnaroundDays === null ? null : Math.round(v.maxTurnaroundDays),
-      openCount: v.openCount,
-      overdueCount: v.overdueCount,
-    }))
-    // Slowest at the top: those are the ones worth a conversation.
-    .sort((a, b) => b.averageDays - a.averageDays || a.vendor.localeCompare(b.vendor))
-
-  return {
-    bars: ranked.slice(0, limit),
-    measurable: measurable.length,
-    total: vendors.length,
-    hidden: Math.max(0, ranked.length - limit),
-  }
 }
 
 export type OverviewMetrics = {

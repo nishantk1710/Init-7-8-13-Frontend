@@ -37,10 +37,12 @@ the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
   counts and pages. The dropdown values come back as `facets`, because one
   page of rows cannot supply them. The controls are in
   `components/url-filters.tsx`. Export fetches every match in batches of 500.
-- **The register's own two rules run on the server too.** It leaves out the
-  PO-issued lines blocked in SAP or partly received (`excludeHeld`; the
-  Overview applies the same rule in `isListedInRegister`), and each line
-  arrives with its exceptions, so the screen no longer loads the whole
+- **The register serves open lines only.** Since 19-Oct-2026 a repair line is
+  open while SAP has it open: not "Delivery completed" (EKPO.ELIKZ), deleted
+  or blocked. Goods receipts are not read. The backend leaves the rest out and
+  counts them in `meta` (`excludedDeliveryCompletedLines`,
+  `excludedBlockedLines`, `excludedDeletedLines`), which the caption names.
+  Each line arrives with its exceptions, so the screen does not load the whole
   exception queue to fill one column.
 - **Not paged:** the Overview, whose charts describe every line
   (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
@@ -56,8 +58,7 @@ the workspace):
   name opens the repair too, not the Material 360 drawer; Material 360 is on
   the detail page.
 - **Columns run from what a repair is doing to reference data.** Criticality,
-  SOH, ROP, Repair PR and Repair PO are last. "Blocked in SAP" sits under
-  Repair Status so it stays on screen. The CSV follows the same order.
+  SOH, ROP, Repair PR and Repair PO are last. The CSV follows the same order.
 - **The queues are screens of their own again.** The Declaration and
   Exception queues were folded into the register on 08-Oct-2026 and came back
   on 12-Oct, after the FRS audit. The register tells you the state of one
@@ -87,20 +88,30 @@ FRS does not require them:
   attestation is recorded or it is not.
 - **No `In Transit Return` repair status.** It is not an FRS stage, and
   nothing in the data can show it.
-- **No receipt-status column, new-unit cost or free-text notes.** A partial
-  receipt is shown as a mark on the repair status, which is the only thing
-  the receipt status added.
+- **No receipt-status column, new-unit cost or free-text notes.**
+
+Removed on 19-Oct-2026, when the register moved to SAP's "Delivery completed"
+flag (`I08_Delivery_Completed_Plan.md` in the workspace):
+
+- **No closed lines, no goods receipts.** Every line is open in SAP, so there
+  is no partial-receipt mark, no "Blocked in SAP" badge and no "open repairs
+  only" filter on the Exceptions screen.
+- **No vendor turnaround.** The Register's Turnaround column, the detail
+  page's Turnaround figure and the Overview's Vendor turnaround card are gone.
+  The figure was dispatch to goods receipt over closed repairs, and stores
+  post most 541s on the day of the receipt, so it measured posting practice.
 
 ## Types and helpers
 
 - `types/repair.ts` holds the domain types. `RepairStatus` is
-  `PR Raised | PO Issued | At Vendor | Received | Closed`. `PR Raised` is not
-  emitted today but stays, because FRS acceptance criterion 3 counts open
-  repair PR lines. `DeclarationStatus` is `Required | Completed | Flagged`;
-  `Flagged` means the attestation did *not* find the part repairable and it
-  went for repair anyway.
-- `utils/status.ts` holds the tone maps, the status orders, the overdue and
-  lead-time helpers, and `isPartiallyReceived`.
+  `PR Raised | PO Issued | At Vendor | Received | Closed`. Live lines are
+  `PO Issued` or `At Vendor` only; `Received` and `Closed` stay for the
+  scenario fixtures. `PR Raised` is not emitted today but stays, because FRS
+  acceptance criterion 3 counts open repair PR lines. `DeclarationStatus` is
+  `Required | Completed | Flagged`; `Flagged` means the attestation did *not*
+  find the part repairable and it went for repair anyway.
+- `utils/status.ts` holds the tone maps, the status orders, and the overdue
+  and lead-time helpers.
 - `utils/register-view.ts` holds the register's CSV export. The CSV is built
   from every line the filters match, not from the page on screen.
 - `utils/attestation.ts` holds the attestation form's rules (conditions,

@@ -1,7 +1,7 @@
 /**
  * The Initiative 8 overview, from the backend.
  *
- * Every KPI and chart on the overview reads one of five sources, and nothing
+ * Every KPI and chart on the overview reads one of three sources, and nothing
  * else:
  *
  *   register      `GET /api/i8/register` (via `loadLiveRegister`) — the rows,
@@ -9,11 +9,13 @@
  *   universe      `GET /api/i8/universe` — how many repairable materials exist,
  *                 and the stock they hold, by plant
  *   declarations  `GET /api/i8/declarations` — its `meta` only
- *   turnaround    `GET /api/i8/vendors/turnaround` — dispatch to goods receipt
  *
- * The register is the page: if it fails, the overview says so. The other three
+ * The register is the page: if it fails, the overview says so. The other two
  * are best-effort, and a failure shows as "could not be loaded" on the tiles
  * that needed it rather than taking the page down or, worse, as a zero.
+ *
+ * No vendor turnaround since 19-Oct-2026: it was dispatch to goods receipt
+ * over closed repairs, and the register serves only lines SAP still has open.
  *
  * ## Rows, not `meta`
  *
@@ -25,18 +27,8 @@
 
 import { loadLiveRegister, type LiveRegister } from "@/features/initiative-8/data/live-register"
 import type { UniverseRow } from "@/features/initiative-8/utils/overview-view"
-import type {
-  ApiDeclarationMeta,
-  ApiUniverseItem,
-  ApiUniverseMeta,
-  ApiVendorTurnaround,
-} from "@/lib/api/i8"
-import {
-  getDeclarations,
-  getUniverse,
-  getVendorTurnaround,
-  toNumber,
-} from "@/lib/api/i8"
+import type { ApiDeclarationMeta, ApiUniverseItem, ApiUniverseMeta } from "@/lib/api/i8"
+import { getDeclarations, getUniverse, toNumber } from "@/lib/api/i8"
 
 /** The API caps pageSize at 500. */
 const PAGE_SIZE = 500
@@ -81,29 +73,16 @@ export type LiveOverview = {
   /** Null when that source could not be read — shown as such, never as 0. */
   universe: LiveUniverse | null
   declarations: ApiDeclarationMeta | null
-  /**
-   * Vendor turnaround -- dispatch to goods receipt, over COMPLETED repairs.
-   *
-   * FR-10 asks for this on the dashboard, and the 09-Oct audit found the
-   * endpoint had been live all along with no screen calling it. The vendor
-   * chart beside it counts OPEN lines and says so in its own footnote: the
-   * two answer different questions and neither substitutes for the other.
-   */
-  vendorTurnaround: ApiVendorTurnaround[] | null
 }
 
 /** Throws only if the register fails; the rest degrade to null. */
 export async function loadLiveOverview(): Promise<LiveOverview> {
-  const [register, universe, declarations, vendorTurnaround] =
-    await Promise.all([
-      loadLiveRegister(),
-      loadUniverse().catch(() => null),
-      getDeclarations({ pageSize: 1 })
-        .then((body) => body.meta)
-        .catch(() => null),
-      getVendorTurnaround()
-        .then((body) => body.items)
-        .catch(() => null),
-    ])
-  return { register, universe, declarations, vendorTurnaround }
+  const [register, universe, declarations] = await Promise.all([
+    loadLiveRegister(),
+    loadUniverse().catch(() => null),
+    getDeclarations({ pageSize: 1 })
+      .then((body) => body.meta)
+      .catch(() => null),
+  ])
+  return { register, universe, declarations }
 }

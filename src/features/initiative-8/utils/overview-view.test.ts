@@ -10,11 +10,8 @@ import {
   repairStatusBuckets,
   stockByPlant,
   summariseOverview,
-  THIN_TURNAROUND_SAMPLE,
-  turnaroundBars,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import type { ApiVendorTurnaround } from "@/lib/api/i8"
 
 /**
  * The dashboard's aggregations and FR-10 filters.
@@ -34,7 +31,6 @@ function chain(overrides: Partial<RepairChain> = {}): RepairChain {
     qtyUnderRepair: 1,
     repairPR: { type: "PR", documentNumber: "2000028376" },
     repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
     declarationStatus: "Required",
     overdueStatus: "OVERDUE",
     daysOpen: 535,
@@ -278,78 +274,5 @@ describe("repairStatusBuckets", () => {
     const buckets = repairStatusBuckets([chain({ repairStatus: "PR Raised" })])
 
     expect(buckets.map((b) => b.label)).toEqual(["PR Raised"])
-  })
-})
-
-describe("turnaroundBars", () => {
-  function vendor(overrides: Partial<ApiVendorTurnaround> = {}): ApiVendorTurnaround {
-    return {
-      vendor: "400709",
-      vendorName: "Acme Repairs",
-      totalLines: 4,
-      openCount: 1,
-      overdueCount: 0,
-      receivedCount: 3,
-      avgTurnaroundDays: 12,
-      minTurnaroundDays: 8,
-      maxTurnaroundDays: 20,
-      turnaroundSample: 3,
-      onTimeRate: null,
-      avgDaysOpen: null,
-      ...overrides,
-    }
-  }
-
-  it("drops vendors with no measurable average but still counts them", () => {
-    const result = turnaroundBars([
-      vendor({ vendor: "A", vendorName: "A" }),
-      vendor({
-        vendor: "B",
-        vendorName: "B",
-        avgTurnaroundDays: null,
-        minTurnaroundDays: null,
-        maxTurnaroundDays: null,
-        turnaroundSample: 0,
-      }),
-    ])
-
-    expect(result.bars.map((b) => b.vendor)).toEqual(["A"])
-    // The footnote needs both numbers: a vendor absent from the chart must not
-    // read as a vendor with no repairs.
-    expect(result.measurable).toBe(1)
-    expect(result.total).toBe(2)
-  })
-
-  it("puts the slowest vendor first", () => {
-    const result = turnaroundBars([
-      vendor({ vendor: "fast", vendorName: "Fast", avgTurnaroundDays: 5 }),
-      vendor({ vendor: "slow", vendorName: "Slow", avgTurnaroundDays: 90 }),
-    ])
-
-    expect(result.bars.map((b) => b.vendor)).toEqual(["Slow", "Fast"])
-  })
-
-  it("shows an unnamed vendor's code rather than inventing a name", () => {
-    const result = turnaroundBars([vendor({ vendor: "400709", vendorName: null })])
-
-    expect(result.bars[0]?.vendor).toBe("400709")
-  })
-
-  it("reports what it had to leave off the card", () => {
-    const many = Array.from({ length: 14 }, (_, i) =>
-      vendor({ vendor: `v${i}`, vendorName: `V${i}`, avgTurnaroundDays: i + 1 }),
-    )
-
-    const result = turnaroundBars(many, 10)
-
-    expect(result.bars).toHaveLength(10)
-    expect(result.hidden).toBe(4)
-  })
-
-  it("keeps the sample size, so a mean of one can be marked as one", () => {
-    const result = turnaroundBars([vendor({ turnaroundSample: 1 })])
-
-    expect(result.bars[0]?.sample).toBe(1)
-    expect(THIN_TURNAROUND_SAMPLE).toBeGreaterThan(1)
   })
 })

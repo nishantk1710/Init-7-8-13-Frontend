@@ -14,9 +14,9 @@
  *                be tied to this line. Modelled at material+plant level or left
  *                out — never linked by a guess."
  *   dispatched  "No 541 movement attributable to this line."
- *   at vendor   "Measured across the extract, NO open repair line has an
- *                attachable 541 — dispatch movements exist only for repairs
- *                that have already come back."
+ *   at vendor   "No dispatch movement attributable to this line, so time at the
+ *                vendor cannot be measured. Stores post most 541s on the day
+ *                of the goods receipt, so few open lines have one."
  *
  * A stage rendered as blank looks like a field somebody forgot. A stage that
  * says why it is blank is the product. So the adapter carries `evidence`
@@ -34,13 +34,13 @@ export type LiveRepairDetail = {
   timeline: TimelineEvent[]
 }
 
-/** Stages that mean something happened, so a date makes them a success. */
+/** Stages that mean something happened, so a date makes them a success. No
+ *  "received" stage since 19-Oct-2026: every line served is open in SAP. */
 const COMPLETED_TONE: Record<string, TimelineEvent["tone"]> = {
   attested: "success",
   po_raised: "default",
   dispatched: "default",
   at_vendor: "warning",
-  received: "success",
 }
 
 function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {

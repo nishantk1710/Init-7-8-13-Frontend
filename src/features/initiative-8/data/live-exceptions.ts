@@ -101,7 +101,6 @@ export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
     title: row.title,
     detail: row.detail,
     raisedAt: row.raisedAt ? formatApiDate(row.raisedAt) : undefined,
-    isOpenRepair: row.isOpenRepair,
     preAutomation: row.preAutomation,
     // Defaults for a backend that does not serve the lifecycle yet. OPEN and
     // unassigned is what an untouched item genuinely is, so an older API and
@@ -298,13 +297,16 @@ export const ALL_STATUSES = "all"
  *  returning full pages could never loop forever. 200 x 500 rows. */
 const MAX_EXPORT_PAGES = 200
 
-/** What the queue can be narrowed by. Each is a URL parameter of the same name. */
+/**
+ * What the queue can be narrowed by. Each is a URL parameter of the same name.
+ *
+ * No "open repairs only" since 19-Oct-2026: every repair line an item names is
+ * open in SAP, so the filter could only ever return the whole queue.
+ */
 export type ExceptionFilters = {
   q?: string
   type?: string
   plant?: string
-  /** `?open=1`: only repairs still out at a vendor. */
-  open?: boolean
   /** One status, or undefined for every status (`?status=all`). */
   status?: string
   /** One repair line, as the register keys it: the link its Exceptions
@@ -340,7 +342,6 @@ export function parseExceptionParams(raw: RawSearchParams): {
       q: single(raw.q),
       type: single(raw.type),
       plant: single(raw.plant),
-      open: single(raw.open) === "1",
       status:
         status === undefined
           ? DEFAULT_EXCEPTION_STATUS
@@ -361,7 +362,6 @@ export function activeExceptionFilters(filters: ExceptionFilters): number {
     filters.q,
     filters.type,
     filters.plant,
-    filters.open,
     filters.repair,
     filters.status !== DEFAULT_EXCEPTION_STATUS,
   ].filter(Boolean).length
@@ -376,7 +376,6 @@ export function exceptionsHref(filters: ExceptionFilters, page = 1): string {
   if (filters.q) params.set("q", filters.q)
   if (filters.type) params.set("type", filters.type)
   if (filters.plant) params.set("plant", filters.plant)
-  if (filters.open) params.set("open", "1")
   if (filters.status === undefined) params.set("status", ALL_STATUSES)
   else if (filters.status !== DEFAULT_EXCEPTION_STATUS) params.set("status", filters.status)
   if (filters.repair) params.set("repair", filters.repair)
@@ -399,7 +398,6 @@ function exceptionQuery(filters: ExceptionFilters): ExceptionQuery {
     q: filters.q,
     type: filters.type,
     plant: filters.plant,
-    openOnly: filters.open || undefined,
     status: filters.status,
     repair: filters.repair,
     actionableOnly: true,

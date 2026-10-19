@@ -14,6 +14,10 @@ import type { MaterialReference, PlantReference, SAPDocumentReference } from "@/
  * tells "shipped back" apart from "still at the vendor". "PR Raised" is not
  * emitted today -- the register is built from PO lines -- but FRS acceptance
  * criterion 3 counts open repair PR lines too, so the stage stays.
+ *
+ * The live register emits "PO Issued" and "At Vendor" only: since 19-Oct-2026
+ * it serves the lines SAP still has open, and none other. "Received" and
+ * "Closed" remain for the scenario fixtures in `data/repair-chains.ts`.
  */
 export type RepairStatus =
   | "PR Raised"
@@ -21,13 +25,6 @@ export type RepairStatus =
   | "At Vendor"
   | "Received"
   | "Closed"
-
-/** Physical receipt state of the repaired unit(s) back into stores. */
-export type ReceiptStatus =
-  | "Not Yet Shipped"
-  | "Awaiting Receipt"
-  | "Partially Received"
-  | "Received"
 
 /**
  * Condition-to-repair declaration status (FR-4).
@@ -64,6 +61,10 @@ export type AgingBucket = string
  * `daysRemainingInRepair` directly: that field is now optional, and
  * `undefined < 0` is `false`, which would silently mark an undated line as
  * on time.
+ *
+ * The backend never sends "RECEIVED" since 19-Oct-2026 -- every line it serves
+ * is open in SAP. It stays here for the scenario fixtures, whose closed rows
+ * `overdueStatusOf()` reads as received.
  */
 export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
 
@@ -92,8 +93,9 @@ export type LeadTimeStatus =
   | "NO_LEAD_TIME"
 
 /**
- * A single repairable material's active (or recently closed) repair chain —
- * the core entity behind the Repair Register and Repair Detail pages.
+ * A single repairable material's repair chain — the core entity behind the
+ * Repair Register and Repair Detail pages. Live, every one is a repair PO line
+ * SAP still has open (not "Delivery completed", deleted or blocked).
  */
 export interface RepairChain {
   id: string
@@ -118,7 +120,8 @@ export interface RepairChain {
    */
   reorderPoint?: number
 
-  /** Units physically out for repair right now (0 once received/closed). */
+  /** Units out for repair: the whole ordered quantity until SAP closes the
+   *  line (0 on a closed scenario fixture). */
   qtyUnderRepair: number
   repairPR: SAPDocumentReference
   repairPO?: SAPDocumentReference
@@ -139,7 +142,6 @@ export interface RepairChain {
   vendorName?: string
 
   repairStatus: RepairStatus
-  receiptStatus: ReceiptStatus
   declarationStatus: DeclarationStatus
   /**
    * The attestation covering this line, when one does.
@@ -167,21 +169,18 @@ export interface RepairChain {
   /**
    * How long this repair has been out: whole days from the repair PO line's
    * creation date (`EKPO.ERDAT`, falling back to the PO header's `EKKO.AEDAT`)
-   * to the receipt, or to the reference date while the unit is still away. Not
-   * measured from the PR, despite the column's name.
+   * to the reference date. Not measured from the PR, despite the column's name.
    *
-   * Stops at the receipt, so a closed line reads its turnaround rather than
-   * how old the record is — otherwise a July-2026 extract read with an
-   * unpinned `I8_REFERENCE_DATE` shows a long-closed line in the hundreds.
-   * The backend serves the same number as `daysElapsed`, and `agingBucket` is
-   * the band this falls in.
+   * It keeps counting until SAP closes the line ("Delivery completed"), and the
+   * line then leaves the register. The backend serves the same number as
+   * `daysElapsed`, and `agingBucket` is the band this falls in.
    */
   daysOpen: number
   agingBucket: AgingBucket
 
   /**
-   * The repair's actual duration: raised to received, or raised to the
-   * reference date while the unit is still out. The same clock as `daysOpen`.
+   * The repair's duration so far: raised to the reference date. The same clock
+   * as `daysOpen`.
    *
    * This is what `leadTimeStatus` and `daysOverLeadTime` are computed from.
    * Optional because the mock-data path does not produce it.
@@ -195,13 +194,6 @@ export interface RepairChain {
    *  a line 200 days open but 3 days at the vendor is not the same problem
    *  as one 200 days open and 190 at the vendor. */
   daysInCurrentStage?: number
-
-  /** Days between dispatch to the vendor and the goods receipt.
-   *
-   *  Only meaningful once the line has come back -- turnaround is measured
-   *  from a 541 to a receipt, so an open line has no turnaround YET rather
-   *  than a turnaround of zero. */
-  daysAtVendor?: number
 
   /**
    * The planned delivery time this line is measured against, in calendar days.
@@ -236,6 +228,10 @@ export interface RepairChain {
    */
   daysRemainingInRepair?: number
 
+  /**
+   * When a closed scenario fixture came back. Never set on a live line: the
+   * register serves only lines SAP still has open, and reads no goods receipts.
+   */
   receivedAt?: string
 
   /**
@@ -264,12 +260,6 @@ export interface RepairChain {
    * when no rating exists — "not recorded", never "NORMAL".
    */
   criticality?: string
-
-  /**
-   * The repair PO line is blocked in SAP. Still a live line — it stays in
-   * every count and is flagged on screen rather than hidden.
-   */
-  poBlocked?: boolean
 
   // --- The declaration, in full ------------------------------------------
   // The Declaration Queue screen was folded into the register on 08-Oct-2026;
@@ -496,9 +486,9 @@ export interface ExceptionQueueRow {
   /** Says what is missing AND what was searched for — a finding nobody can
    *  trace to a rule is a finding nobody will act on. */
   detail: string
-  /** The repair line's own date, not when the check ran. */
+  /** The repair line's own date, not when the check ran. Every repair line
+   *  an item names is open in SAP. */
   raisedAt?: string
-  isOpenRepair: boolean
   /**
    * The line predates the control, so the gap is explained by when it was
    * raised rather than by anyone failing to act. Render it as a reason, not a
@@ -601,9 +591,9 @@ export interface DeclarationQueueRow {
   repairPO?: SAPDocumentReference
   /** The vendor the part went to — its name when known, else its code. */
   vendor?: string
-  /** Where the REPAIR stands. Not `status`, which is the declaration. */
+  /** Where the REPAIR stands -- PO Issued or At Vendor: every row is on a
+   *  repair SAP still has open. Not `status`, which is the declaration. */
   repairStatus?: RepairStatus
-  hasActiveRepair: boolean
   status: DeclarationStatus
   declaredBy?: string
   declaredAt?: string

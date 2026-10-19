@@ -72,13 +72,8 @@ export async function RepairRegisterPage({
           title="Repair Register"
           description={
             data
-              ? registerDescription(
-                  data.meta,
-                  data.referenceDate,
-                  data.sourceLoadedAt,
-                  data.meta.heldLines,
-                )
-              : "Every repairable material currently in, or eligible for, a repair chain."
+              ? registerDescription(data.meta, data.referenceDate, data.sourceLoadedAt)
+              : "The repair lines SAP still has open."
           }
         />
         {data === null ? (

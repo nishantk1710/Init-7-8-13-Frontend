@@ -51,7 +51,6 @@ import {
   REPAIR_STATUS_TONE,
   UNKNOWN,
   exceptionTypeLabel,
-  isPartiallyReceived,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -316,7 +315,6 @@ export function RepairRegisterTable({
                 <TableHead>Expected Return</TableHead>
                 <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
-                <TableHead className="text-right">Turnaround</TableHead>
                 <TableHead>Declaration Status</TableHead>
                 <TableHead>Exceptions</TableHead>
                 <TableHead>Criticality</TableHead>
@@ -353,28 +351,13 @@ export function RepairRegisterTable({
                       {vendorLabel(c)}
                     </TableCell>
                     <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
+                    {/* PO Issued or At Vendor: every line is open in SAP. A
+                        blocked, deleted or "Delivery completed" line is not
+                        served at all, so there is nothing to flag here. */}
                     <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
-                          {c.repairStatus}
-                        </StatusBadge>
-                        {/* The one thing the old receipt-status column said that
-                            this one does not. */}
-                        {isPartiallyReceived(c) && (
-                          <span className="text-[10px] italic text-warning">
-                            partially received
-                          </span>
-                        )}
-                        {/* Moved here from under the Repair PO, which is now the
-                            last column: a blocked line must stay on screen.
-                            Blocked, not deleted -- still a live line and still
-                            counted, so it is flagged rather than hidden. */}
-                        {c.poBlocked && (
-                          <StatusBadge tone="danger" className="h-4 px-1.5 text-[10px]">
-                            Blocked in SAP
-                          </StatusBadge>
-                        )}
-                      </div>
+                      <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
+                        {c.repairStatus}
+                      </StatusBadge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.expectedReturn ?? UNKNOWN}
@@ -384,22 +367,13 @@ export function RepairRegisterTable({
                         {OVERDUE_STATUS_LABEL[overdue]}
                       </StatusBadge>
                     </TableCell>
-                    {/* Plain number, no verdict -- the lead-time mark has its
-                        own column. Days open runs from the PO line date to the
-                        receipt, or to the reference date while the unit is
-                        still out, so a closed line reads its turnaround and
-                        never a "200" beside a "within the 21-day planned time"
-                        verdict. */}
+                    {/* Plain number, no verdict. Days open runs from the PO
+                        line date to the reference date: the line is open in
+                        SAP until it is marked delivery completed, and then it
+                        leaves the register. No Turnaround column since
+                        19-Oct-2026 -- it was dispatch to goods receipt, and
+                        goods receipts are not read. */}
                     <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
-                    {/* Turnaround is dispatch to goods receipt, so a line still
-                        at the vendor has no turnaround YET rather than one of
-                        zero -- the dash says that, a 0 would not. */}
-                    <TableCell
-                      className="text-right text-muted-foreground tabular-nums"
-                      title="Measured from dispatch to the vendor (541) to goods receipt, so only for lines that came back"
-                    >
-                      {c.daysAtVendor ?? UNKNOWN}
-                    </TableCell>
                     {/* Who declared and when, under the status -- what the
                         Declaration Queue showed in two columns of its own. The
                         condition, the next action and the form are on the
