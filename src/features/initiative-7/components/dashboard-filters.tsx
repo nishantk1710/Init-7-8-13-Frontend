@@ -69,6 +69,9 @@ export interface DashboardFilterState {
   /** Live mode (Recommendations page, OAR only). How sure the similarity engine is of an
    * OAR recommendation: "HIGH", "MEDIUM" or "LOW". Only OAR rows carry one. */
   confidence: string
+  /** Live mode (Recommendations page, OAR only). The OAR -> Min-Max conversion decision:
+   * "ELIGIBLE" or "NOT_ELIGIBLE", as the backend stores it. Applied in SQL. */
+  conversion: string
   /** Live mode only. Reconciliation result against SAP change-document
    * evidence (see use-live-adoption.ts) -- "Adopted" / "Partially adopted" /
    * "Not adopted" / "Unknown", the same 4 values Adoption Tracking's table
@@ -92,6 +95,12 @@ export const CONFIDENCE_OPTIONS = [
   { value: "HIGH", label: "High" },
   { value: "MEDIUM", label: "Medium" },
   { value: "LOW", label: "Low" },
+] as const
+
+/** The OAR Min-Max conversion filter's options, as the backend stores them. */
+export const MIN_MAX_CONVERSION_OPTIONS = [
+  { value: "ELIGIBLE", label: "Eligible" },
+  { value: "NOT_ELIGIBLE", label: "Not eligible" },
 ] as const
 
 /** Whether a row's risk satisfies the Stockout Risk filter. With the merged tiers, "high" also
@@ -118,6 +127,7 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   recommendation: RECOMMENDATION_FILTER_CALCULATED,
   type: ALL_FILTER,
   confidence: ALL_FILTER,
+  conversion: ALL_FILTER,
   sapAdoption: ALL_FILTER,
 }
 
@@ -173,6 +183,7 @@ export function DashboardFilters({
   typeFilterLabel = "Type",
   showStatusFilter = true,
   showConfidenceFilter = false,
+  showConversionFilter = false,
   resetFilters = EMPTY_DASHBOARD_FILTERS,
   hiddenDemandPatterns = [],
   mergeCriticalIntoHigh = false,
@@ -208,6 +219,9 @@ export function DashboardFilters({
   /** Adds the OAR confidence dropdown (High / Medium / Low). Offered only where the rows
    * on view are OAR ones, since no other recommendation carries a confidence. */
   showConfidenceFilter?: boolean
+  /** Adds the OAR Min-Max conversion dropdown (Eligible / Not eligible). Offered only where
+   * the rows on view are OAR ones, since only they carry a conversion decision. */
+  showConversionFilter?: boolean
   /** What "Clear filters" puts back, and what counts as "no filter set". Every filter off by
    * default; the Recommendations page passes its own starting point (OAR), since it has no "All". */
   resetFilters?: DashboardFilterState
@@ -379,6 +393,26 @@ export function DashboardFilters({
             <SelectContent>
               <SelectItem value={ALL_FILTER}>All</SelectItem>
               {CONFIDENCE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
+
+      {showConversionFilter && (
+        <FilterField label="Min-Max conversion">
+          <Select value={value.conversion} onValueChange={(v) => set("conversion", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">
+                {(v: string) => MIN_MAX_CONVERSION_OPTIONS.find((o) => o.value === v)?.label ?? "All"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {MIN_MAX_CONVERSION_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>

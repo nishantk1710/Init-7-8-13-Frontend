@@ -460,9 +460,9 @@ describe("mapDetailToRecommendation", () => {
     expect(oar.oarColdStart?.confidence).toBe("High")
   })
 
-  it("builds OAR conversion info only when the backend marks the recommendation as OAR", () => {
-    const notOar = mapDetailToRecommendation(detailFixture())
-    expect(notOar.oarConversion).toBeUndefined()
+  it("builds conversion info whenever the backend made a conversion decision", () => {
+    const noDecision = mapDetailToRecommendation(detailFixture())
+    expect(noDecision.oarConversion).toBeUndefined()
 
     const oar = mapDetailToRecommendation(
       detailFixture({
@@ -495,6 +495,54 @@ describe("mapDetailToRecommendation", () => {
       productionImpact: null,
       i13HodApproved: null,
     })
+  })
+
+  it("annual consumption is actual usage over the last 12 months, with or without a forecast", () => {
+    const months = Array.from({ length: 14 }, (_, i) => ({
+      period: `2025-${String((i % 12) + 1).padStart(2, "0")}-01`,
+      quantity: i === 0 ? "50" : i === 9 ? "2" : "0",
+    }))
+    const oar = mapDetailToRecommendation(
+      detailFixture({
+        demand: { demand_class: "UNCLASSIFIED", history_status: "COLD_START", model: null, forecast_rate: null, consumption_history: months },
+      }),
+    )
+    // The first month (50) falls outside the latest 12; only the 2 counts.
+    expect(oar.annualConsumption).toBe(2)
+    expect(oar.unavailable).not.toContain("consumption")
+
+    const none = mapDetailToRecommendation(
+      detailFixture({
+        demand: { demand_class: "UNCLASSIFIED", history_status: "NO_HISTORY", model: null, forecast_rate: null, consumption_history: [] },
+      }),
+    )
+    expect(none.unavailable).toContain("consumption")
+  })
+
+  it("builds conversion info for a standard-path (not cold-start) OAR material too", () => {
+    const standard = mapDetailToRecommendation(
+      detailFixture({
+        oar: {
+          is_oar: false,
+          similarity_status: null,
+          estimate_status: null,
+          neighbour_count: null,
+          best_similarity: null,
+          confidence: null,
+          conversion_eligibility: "ELIGIBLE",
+          conversion_trigger: "CONSUMPTION_AND_CRITICALITY",
+          conversion_detail: "It was used 7 times in the last 12 months.",
+          demand_class: "INTERMITTENT",
+          consumption_count_12m: 7,
+          consumption_count_threshold: 4,
+          production_impact: true,
+          i13_hod_approved: null,
+        },
+      }),
+    )
+    expect(standard.oarConversion?.isOar).toBe(false)
+    expect(standard.oarConversion?.conversionEligibility).toBe("ELIGIBLE")
+    expect(standard.oarConversion?.conversionTrigger).toBe("CONSUMPTION_AND_CRITICALITY")
   })
 
   it("preserves an unresolved I13 HOD approval as null, never a fabricated false", () => {
