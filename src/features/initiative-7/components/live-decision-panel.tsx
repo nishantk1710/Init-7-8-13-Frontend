@@ -73,10 +73,15 @@ export function LiveDecisionActions({
   recommendationId,
   onChanged,
   surface = "recommendation",
+  convertToMinMax = false,
 }: {
   recommendationId: string
   onChanged: () => void
   surface?: DecisionSurface
+  /** The backend found this OAR material eligible to move to Min-Max ordering: the one action on
+   * its page is then worded as that conversion, not as a generic "approval". It goes through the
+   * same chain either way. */
+  convertToMinMax?: boolean
 }) {
   const { submitting, error, act, submit, lastState } = useLiveApproval(recommendationId, onChanged)
   const { state: loadedWorkflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
@@ -93,7 +98,11 @@ export function LiveDecisionActions({
 
   async function handleSend() {
     const accepted = await submit(DEMO_ACTOR_ID)
-    if (accepted) {
+    if (accepted && convertToMinMax) {
+      toast.success("Sent for conversion to Min-Max", {
+        description: "It is now in the Action Center, where it is reviewed and approved.",
+      })
+    } else if (accepted) {
       toast.success("Sent for approval", {
         description: "It is now in the Action Center, where it is reviewed and approved.",
       })
@@ -133,11 +142,13 @@ export function LiveDecisionActions({
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[13px] text-muted-foreground">
-          Not yet submitted — sending it for approval starts the chain with the first role in its route.
+          {convertToMinMax
+            ? "Not yet submitted — converting it from OAR to Min-Max ordering starts the approval chain with the first role in its route."
+            : "Not yet submitted — sending it for approval starts the chain with the first role in its route."}
         </p>
         <Button size="sm" className="self-start" disabled={submitting} onClick={handleSend}>
           <Send className="size-3.5" />
-          Send for approval
+          {convertToMinMax ? "Convert OAR into Min-Max" : "Send for approval"}
         </Button>
         {error && <p className="text-[12px] text-destructive">{error.message}</p>}
       </div>
