@@ -638,6 +638,13 @@ export interface ReservationLedgerRow {
   sessionId: string | null
   sgtxt: string | null
   uatSimulated: boolean
+  /**
+   * Nothing issued, and required before the earliest goods movement held: an
+   * issue would predate the data, so the issued quantity is not known.
+   */
+  issuedBeforeHistory: boolean
+  /** The earliest goods movement the platform holds; null when not recorded. */
+  movementHistoryStart: string | null
 }
 
 /**

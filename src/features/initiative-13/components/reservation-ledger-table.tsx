@@ -6,6 +6,7 @@ import { MessagesSquare } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import { deliveryStatus } from "@/features/initiative-13/utils/delivery-status"
+import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -105,9 +106,9 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                 receivedQuantity={row.receivedQuantity}
                 orderedQuantity={row.orderedQuantity}
               />
-              <TableCell className="text-right text-foreground">{qty(row.issuedQuantity)}</TableCell>
+              <IssuedCell row={row} />
               <TableCell>
-                <StatusBadge>{row.lifecycleStatus.replaceAll("_", " ")}</StatusBadge>
+                <LifecycleBadge status={row.lifecycleStatus} />
               </TableCell>
               <TableCell>
                 {row.sessionId ? (
@@ -131,5 +132,28 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+/** Issued, or "—" when it cannot be known (the reservation predates the movement history). */
+function IssuedCell({ row }: { row: ReservationLedgerRow }) {
+  const unknown = issuedUnknownReason(row)
+  if (unknown) {
+    return (
+      <TableCell className="text-right text-muted-foreground" title={unknown}>
+        —
+      </TableCell>
+    )
+  }
+  return <TableCell className="text-right text-foreground">{qty(row.issuedQuantity)}</TableCell>
+}
+
+/** The lifecycle as a label that never claims more than the data shows, explained on hover. */
+function LifecycleBadge({ status }: { status: string }) {
+  const view = lifecycleView(status)
+  return (
+    <span title={view.explanation || undefined}>
+      <StatusBadge tone={view.tone}>{view.label}</StatusBadge>
+    </span>
   )
 }
