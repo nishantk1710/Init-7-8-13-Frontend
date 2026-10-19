@@ -3,18 +3,31 @@ import { describe, expect, it } from "vitest"
 import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
 
 describe("lifecycleView", () => {
-  it("never calls a reservation without a PR 'PR created'", () => {
-    expect(lifecycleView("RESERVED").label).toBe("Reserved (no PR)")
-    expect(lifecycleView("RESERVED").explanation).toMatch(/names no purchase requisition/)
+  it("reads as five stages in the order things happen", () => {
+    expect(
+      ["RESERVED", "PR_CREATED", "ORDERED", "RECEIVED", "ISSUED"].map((s) => lifecycleView(s).label)
+    ).toEqual(["Reserved", "PR raised", "PO raised", "Received", "Issued"])
+    expect(lifecycleView("PARTIALLY_RECEIVED").label).toBe("Partly received")
+    expect(lifecycleView("PARTIALLY_ISSUED").label).toBe("Partly issued")
   })
 
-  it("names the two unresolved PR cases", () => {
-    expect(lifecycleView("PR_NOT_FOUND").label).toBe("PR not found")
-    expect(lifecycleView("PR_SHARED").label).toBe("PR shared")
+  it("never says a requisition exists when the reservation names none", () => {
+    expect(lifecycleView("RESERVED").label).toBe("Reserved")
+    expect(lifecycleView("RESERVED").explanation).toMatch(/no purchase requisition is linked/)
   })
 
-  it("keeps PR created for a real PR with no PO", () => {
-    expect(lifecycleView("PR_CREATED").label).toBe("PR created")
+  it("keeps an untraceable or shared PR as 'PR raised', and says why on hover", () => {
+    expect(lifecycleView("PR_NOT_FOUND").label).toBe("PR raised")
+    expect(lifecycleView("PR_NOT_FOUND").explanation).toMatch(/not in the data the platform holds/)
+    expect(lifecycleView("PR_SHARED").label).toBe("PR raised")
+    expect(lifecycleView("PR_SHARED").explanation).toMatch(/other reservations also name/)
+  })
+
+  it("marks partial stages amber and issued green", () => {
+    expect(lifecycleView("PARTIALLY_RECEIVED").tone).toBe("warning")
+    expect(lifecycleView("PARTIALLY_ISSUED").tone).toBe("warning")
+    expect(lifecycleView("ISSUED").tone).toBe("success")
+    expect(lifecycleView("RESERVED").tone).toBe("default")
   })
 
   it("falls back to a readable form of a value it does not know", () => {
