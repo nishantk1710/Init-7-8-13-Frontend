@@ -4,7 +4,6 @@ import type {
   ExceptionStatus,
   LeadTimeStatus,
   OverdueStatus,
-  ReceiptStatus,
   RepairChain,
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
@@ -17,18 +16,6 @@ export const REPAIR_STATUS_TONE: Record<RepairStatus, Tone> = {
   "At Vendor": "warning",
   Received: "success",
   Closed: "success",
-}
-
-/**
- * True when some, but not all, of the line has come back.
- *
- * The one thing the receipt status says that the repair status does not —
- * the other three values map one-to-one onto PO Issued, At Vendor and
- * Received — so it is shown as a mark on the repair status rather than as a
- * second status column.
- */
-export function isPartiallyReceived(chain: { receiptStatus: ReceiptStatus }): boolean {
-  return chain.receiptStatus === "Partially Received"
 }
 
 export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
@@ -96,11 +83,12 @@ export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
   "Closed",
 ]
 
+/** What the register's due-date filter offers. No RECEIVED: every line the
+ *  register serves is open in SAP, so it could only ever find nothing. */
 export const OVERDUE_STATUSES: readonly OverdueStatus[] = [
   "OVERDUE",
   "ON_TIME",
   "NO_DUE_DATE",
-  "RECEIVED",
 ]
 
 export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
@@ -246,10 +234,11 @@ export function overdueStatusOf(chain: RepairChain): OverdueStatus {
 }
 
 /**
- * Still out: the unit has not come back. The same test the register's
- * `openLines` count uses, so a chart built on it agrees with the KPI beside
- * it. Not `repairStatus !== "Closed"` — a line can read "Received" without
- * being closed, and it is back all the same.
+ * Still out: the unit has not come back. Every live line is -- the register
+ * serves only lines SAP still has open -- so this matters for the scenario
+ * fixtures, whose closed rows it leaves out. Not `repairStatus !== "Closed"`:
+ * a fixture can read "Received" without being closed, and it is back all the
+ * same.
  */
 export function isOpenRepair(chain: RepairChain): boolean {
   return overdueStatusOf(chain) !== "RECEIVED"

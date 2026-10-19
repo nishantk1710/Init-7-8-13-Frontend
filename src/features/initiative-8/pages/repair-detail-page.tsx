@@ -27,7 +27,6 @@ import {
   formatDaysRemaining,
   hasNoDueDate,
   isOpenRepair,
-  isPartiallyReceived,
   isRepairOverdue,
   justificationCellOf,
   orUnknown,
@@ -106,9 +105,13 @@ export function RepairDetailPage({
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="mx-auto flex max-w-5xl flex-col gap-4">
           <PageHeader title="Repair not found" />
+          {/* The register lists only the repair lines SAP still has open, so
+              a link saved from a declaration, a justification or an older
+              screen can name a line SAP has since closed. Said, rather than
+              left to read as a broken link. */}
           <EmptyState
-            title={`No repair chain "${repairId}"`}
-            description="No repair line with this id exists in the register."
+            title={`No open repair line "${repairId}"`}
+            description="The register lists only the repair lines SAP still has open. This line may since have been marked delivery completed, blocked or deleted in SAP, and is no longer tracked here."
           />
         </div>
       </div>
@@ -183,15 +186,6 @@ export function RepairDetailPage({
           </AlertBanner>
         )}
 
-        {/* A PO blocked in SAP is not a slow vendor -- the unit is not going
-            anywhere until somebody unblocks it, and days-open keeps counting. */}
-        {chain.poBlocked && (
-          <AlertBanner tone="warning" title="Repair PO blocked in SAP">
-            This purchase order carries a block. The repair cannot progress until it
-            is released, however long the line has been open.
-          </AlertBanner>
-        )}
-
         {chain.declarationStatus === "Flagged" && (
           <AlertBanner tone="warning" title="Sent for repair against the assessment">
             A recorded condition assessment did not find this part repairable, and a
@@ -205,9 +199,6 @@ export function RepairDetailPage({
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <SAPDocumentChip doc={chain.repairPR} />
               {chain.repairPO && <SAPDocumentChip doc={chain.repairPO} />}
-              {isPartiallyReceived(chain) && (
-                <StatusBadge tone="warning">Partially received</StatusBadge>
-              )}
             </div>
             {/* The backend's timeline: it carries the evidence for every
                 stage, including the ones it cannot prove. */}
@@ -239,14 +230,6 @@ export function RepairDetailPage({
                 </dd>
                 <dt className="text-muted-foreground">Days open</dt>
                 <dd className="text-right text-foreground">{chain.daysOpen}</dd>
-                {/* Turnaround: dispatch to goods receipt. Absent, not 0, while
-                    the unit is still out -- it has no turnaround YET. */}
-                <dt className="text-muted-foreground">Turnaround</dt>
-                <dd className="text-right text-foreground">
-                  {chain.daysAtVendor === undefined
-                    ? UNKNOWN
-                    : `${chain.daysAtVendor} days`}
-                </dd>
                 <dt className="text-muted-foreground">Reorder point</dt>
                 <dd className="text-right text-foreground">
                   {chain.reorderPoint ?? UNKNOWN}

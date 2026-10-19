@@ -97,7 +97,8 @@ const PER_SOURCE = 100
 export const getInitiative8LiveActions = cache(async (): Promise<LiveActions> => {
   const [declarations, overdue] = await Promise.all([
     getDeclarations({ outstandingOnly: true, pageSize: PER_SOURCE }),
-    getRegister({ overdueOnly: true, openOnly: true, pageSize: PER_SOURCE }),
+    // Every register line is open in SAP, so overdue alone is the filter.
+    getRegister({ overdueOnly: true, pageSize: PER_SOURCE }),
   ])
 
   const decisions: GlobalAction[] = declarations.items.map((d) => {

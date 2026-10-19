@@ -156,12 +156,13 @@ describe("getInitiative8LiveActions", () => {
     expect(actions[1].createdAt).toBe("2025-04-07")
   })
 
-  it("asks only for outstanding declarations and overdue open repairs, capped", async () => {
+  it("asks only for outstanding declarations and overdue repairs, capped", async () => {
+    // No openOnly: every register line is open in SAP since 19-Oct-2026.
     api.getDeclarations.mockResolvedValue(declarationsPage({}))
     api.getRegister.mockResolvedValue({ items: [], total: 0 })
     await getInitiative8LiveActions()
     expect(api.getDeclarations).toHaveBeenCalledWith({ outstandingOnly: true, pageSize: 100 })
-    expect(api.getRegister).toHaveBeenCalledWith({ overdueOnly: true, openOnly: true, pageSize: 100 })
+    expect(api.getRegister).toHaveBeenCalledWith({ overdueOnly: true, pageSize: 100 })
   })
 
   it("names the vendor and the days overdue on a repair action", async () => {

@@ -44,13 +44,18 @@
  *
  * `loadLiveRegister` still loads every line, for the Overview, whose charts
  * and tiles describe the whole register rather than a page of it.
+ *
+ * ## Open lines only
+ *
+ * Since 19-Oct-2026 every line the backend serves is open in SAP: a line
+ * marked "Delivery completed", deleted or blocked is not in the register, and
+ * goods receipts are not read. The register `meta` counts what was left out.
  */
 
 import { DROPPED_TYPES } from "@/features/initiative-8/data/live-exceptions"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
   DeclarationCondition,
-  ReceiptStatus,
   RepairChain,
   RepairJustification,
   RepairStatus,
@@ -61,7 +66,6 @@ import {
   NO_CRITICALITY,
   REPAIR_STATUS_ORDER,
   UNKNOWN_VENDOR,
-  isPartiallyReceived,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import type {
@@ -79,13 +83,6 @@ import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 /** The backend's max_page_size: as few round trips as the API allows, for the
  *  Overview's full load and the Register's export. */
 const PAGE_SIZE = 500
-
-const RECEIPT_STATUSES: readonly ReceiptStatus[] = [
-  "Not Yet Shipped",
-  "Awaiting Receipt",
-  "Partially Received",
-  "Received",
-]
 
 const CONDITIONS: readonly DeclarationCondition[] = [
   "Repairable",
@@ -189,7 +186,6 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     vendorName: orUndefined(row.vendorName),
 
     repairStatus: oneOf(row.repairStatus, REPAIR_STATUS_ORDER, "PR Raised"),
-    receiptStatus: oneOf(row.receiptStatus, RECEIPT_STATUSES, "Not Yet Shipped"),
     declarationStatus: oneOf(row.declarationStatus, DECLARATION_STATUSES, "Required"),
     overdueStatus: row.overdueStatus,
     // A second signal beside overdueStatus, never a replacement for it: this
@@ -197,8 +193,9 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // and a row can be ON_TIME and BEYOND_LEAD_TIME at the same time.
     leadTimeStatus: row.leadTimeStatus,
 
-    // Both stop at the receipt. daysElapsed is what the lead-time verdict is
-    // measured on; daysOpen is the same clock, served for the column.
+    // Both run to the reference date: the line is open in SAP. daysElapsed is
+    // what the lead-time verdict is measured on; daysOpen is the same clock,
+    // served for the column.
     daysOpen: row.daysOpen ?? 0,
     daysElapsed: orUndefined(row.daysElapsed),
     // Not a closed-set oneOf(): the bands are backend configuration
@@ -211,14 +208,12 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     raisedAt: formatApiDate(row.raisedAt),
     poIssuedAt: row.poIssuedAt ? formatApiDate(row.poIssuedAt) : undefined,
     daysInCurrentStage: row.daysInCurrentStage ?? undefined,
-    daysAtVendor: row.daysAtVendor ?? undefined,
     sentToVendorAt: row.sentToVendorAt ? formatApiDate(row.sentToVendorAt) : undefined,
     // Undefined on the 63 lines with no schedule line. Nobody ever agreed a
     // return date for them, and those are precisely the lines nobody is
     // chasing — so no placeholder date is invented.
     expectedReturn: row.expectedReturn ? formatApiDate(row.expectedReturn) : undefined,
     daysRemainingInRepair: orUndefined(row.daysRemainingInRepair),
-    receivedAt: row.receivedAt ? formatApiDate(row.receivedAt) : undefined,
 
     // Undefined when the repair line carries no net price -- never 0, which
     // would render as R 0.00 and read as a free repair.
@@ -236,8 +231,6 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // Undefined when ZMM065 has no rating -- never defaulted to NORMAL, which
     // would quietly downgrade an unrated part.
     criticality: orUndefined(row.criticality),
-    // A blocked PO line is still a live repair: kept, and flagged on screen.
-    poBlocked: row.poBlocked ?? false,
 
     // What the Declaration Queue used to show per row. The attestation is a
     // full timestamp; the register shows its date, the way the queue did.
@@ -336,9 +329,10 @@ export function buildRegisterOptions(chains: RepairChain[]): RegisterOptions {
 
 /**
  * The register page's header line. Says what is left out as well as what is
- * in: a register that silently dropped the lines deleted in SAP would disagree
- * with an EKPO row count and nobody could say why. Each extra clause appears
- * only when the backend serves its count.
+ * in: the register lists only the repair lines SAP still has open (since
+ * 19-Oct-2026), and a total with nothing to say what SAP closed would not
+ * reconcile with an EKPO row count or with SAP's own open-PO list. Each "not
+ * shown" figure appears only when the backend serves it and it is not zero.
  *
  * **It does not name the source, and that is deliberate.** This line used to
  * begin "N repair lines from the July extract", in static text, while the
@@ -352,29 +346,17 @@ export function registerDescription(
   meta: ApiRegisterMeta,
   referenceDate: string,
   sourceLoadedAt?: string | null,
-  /** Lines the register does not list — see `isListedInRegister`. Named here
-   *  for exactly the reason in this function's note: 5,155 in the caption over
-   *  5,063 in the table, with nothing to explain the gap, is how a number
-   *  stops being trusted. */
-  unlistedLines?: number
 ): string {
-  let text =
-    `${meta.totalLines.toLocaleString()} repair lines — ` +
-    `${meta.openLines.toLocaleString()} still open, as at ${referenceDate}.`
-  if (meta.excludedDeletedLines) {
-    text += ` ${meta.excludedDeletedLines.toLocaleString()} lines deleted in SAP are excluded.`
-  }
-  if (unlistedLines) {
-    text +=
-      unlistedLines === 1
-        ? " 1 PO-issued line blocked in SAP or partly received is not listed."
-        : ` ${unlistedLines.toLocaleString()} PO-issued lines blocked in SAP or partly received are not listed.`
-  }
-  if (meta.blockedLines) {
-    text +=
-      meta.blockedLines === 1
-        ? " 1 line blocked in SAP is included and flagged."
-        : ` ${meta.blockedLines.toLocaleString()} lines blocked in SAP are included and flagged.`
+  let text = `${meta.openLines.toLocaleString()} open repair lines, as at ${referenceDate}.`
+  const notShown = [
+    [meta.excludedDeliveryCompletedLines, "delivery completed"],
+    [meta.excludedBlockedLines, "blocked"],
+    [meta.excludedDeletedLines, "deleted"],
+  ]
+    .filter((entry): entry is [number, string] => Boolean(entry[0]))
+    .map(([count, what]) => `${count.toLocaleString()} ${what}`)
+  if (notShown.length > 0) {
+    text += ` Not shown: ${listed(notShown)} in SAP.`
   }
   if (sourceLoadedAt) {
     text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`
@@ -382,59 +364,9 @@ export function registerDescription(
   return text
 }
 
-/**
- * Whether the register lists this line.
- *
- * Since 14-Oct-2026 it does not list a PO-issued line that is blocked in SAP,
- * or that has already come back in part: what the register is being read for
- * is the lines a PO has gone out on and nothing has happened to yet, and a
- * line held up in SAP or half-returned is a different conversation with a
- * different owner.
- *
- * Scoped to `PO Issued` deliberately, because that is the stage the request
- * named. A partially received line At Vendor, or a blocked line already
- * Closed, stays listed and keeps its flag — on live data that is two lines of
- * 5,155, and dropping them would be this filter deciding something nobody
- * asked it to decide.
- *
- * Nothing is deleted. The line is still in SAP, still on the backend's own
- * counts, and still reachable at its own detail page; it is this one listing
- * that leaves it out, and the register's caption says so.
- *
- * The Register screen pages on the server, which applies this rule itself
- * (`excludeHeld`, `is_held` in the backend's `register.py`). This copy is for
- * the Overview, which still loads every line. The two must agree.
- */
-export function isListedInRegister(
-  chain: Pick<RepairChain, "repairStatus" | "receiptStatus" | "poBlocked">,
-): boolean {
-  if (chain.repairStatus !== "PO Issued") return true
-  return !chain.poBlocked && !isPartiallyReceived(chain)
-}
-
-/**
- * The backend's counts, restated over the lines the register lists.
- *
- * `meta` is computed over every line the API sent, the dropped ones included,
- * and the caption is built from it. Left alone it would describe a register
- * nobody can see — "5,155 repair lines, 824 still open" over a table holding
- * 5,063 and 732. Every dropped line is PO-issued and therefore open on the
- * backend's own count, which is what makes both subtractions safe.
- */
-function metaForListed(
-  meta: ApiRegisterMeta,
-  listed: RepairChain[],
-  unlisted: number,
-): ApiRegisterMeta {
-  return {
-    ...meta,
-    totalLines: Math.max(0, meta.totalLines - unlisted),
-    openLines: Math.max(0, meta.openLines - unlisted),
-    // The flags as they stand in what is listed. `undefined` rather than 0 so
-    // the caption drops the clause entirely rather than announcing a zero.
-    blockedLines: listed.filter((chain) => chain.poBlocked).length || undefined,
-    partiallyReceivedLines: listed.filter(isPartiallyReceived).length,
-  }
+/** "a", "a and b", "a, b and c". */
+function listed(parts: string[]): string {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]
 }
 
 /**
@@ -465,8 +397,6 @@ async function loadRegisterSettings(
 
 export type LiveRegister = RegisterOptions & {
   chains: RepairChain[]
-  /** How many lines `isListedInRegister` left out, for the caption to name. */
-  unlistedLines: number
   /** The currently configured aging bands (`GET /api/i8/snapshot`'s
    *  `rules.agingBands`), for the chart and the filter dropdown to render
    *  instead of a hard-coded list. Falls back to `DEFAULT_AGING_BUCKETS` if
@@ -509,18 +439,11 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
 
   const { agingBands, sourceLoadedAt } = await loadRegisterSettings()
 
-  // Dropped before anything is derived from the rows, so the filter options,
-  // the table's own count and the caption all describe one register rather
-  // than three overlapping ones.
-  const listed = chains.filter(isListedInRegister)
-  const unlistedLines = chains.length - listed.length
-
   return {
-    chains: listed,
-    unlistedLines,
-    ...buildRegisterOptions(listed),
+    chains,
+    ...buildRegisterOptions(chains),
     agingBands,
-    meta: metaForListed(meta!, listed, unlistedLines),
+    meta: meta!,
     referenceDate,
     sourceLoadedAt,
   }
@@ -625,11 +548,11 @@ export function registerHref(filters: RegisterFilters, page = 1): string {
 /**
  * The request for what the screen shows.
  *
- * Two parameters are always on, because they say what this listing is rather
- * than narrow it: `excludeHeld` leaves out the PO-issued lines blocked in SAP
- * or partly back (`isListedInRegister`), counts included, and
- * `excludeExceptionType` keeps the Exceptions column to the checks the
- * exception queue carries (`DROPPED_TYPES`).
+ * One parameter is always on, because it says what this listing is rather
+ * than narrows it: `excludeExceptionType` keeps the Exceptions column to the
+ * checks the exception queue carries (`DROPPED_TYPES`). Nothing is held back
+ * from the listing itself any more -- every line the backend serves is open
+ * in SAP.
  */
 function registerQuery(filters: RegisterFilters): RegisterQuery {
   return {
@@ -642,7 +565,6 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     declarationStatus: filters.declarationStatus,
     agingBucket: filters.aging,
     withExceptions: filters.exceptions || undefined,
-    excludeHeld: true,
     excludeExceptionType: [...DROPPED_TYPES].join(","),
   }
 }

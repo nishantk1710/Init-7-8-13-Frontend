@@ -20,7 +20,6 @@ import { RepairableStockByPlantChart } from "@/features/initiative-8/components/
 import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs-by-vendor-chart"
 import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
 import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
-import { VendorTurnaroundChart } from "@/features/initiative-8/components/vendor-turnaround-chart"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   ALL,
@@ -30,12 +29,11 @@ import {
   openLinesByVendor,
   overviewSummaryRows,
   summariseOverview,
-  turnaroundBars,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
 import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
-import type { ApiUniverseMeta, ApiVendorTurnaround } from "@/lib/api/i8"
+import type { ApiUniverseMeta } from "@/lib/api/i8"
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
 export type OverviewDashboardProps = {
@@ -45,7 +43,6 @@ export type OverviewDashboardProps = {
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
   /** Outstanding declarations over the whole register. Not filterable. */
   pendingDeclarations?: number
-  vendorTurnaround: ApiVendorTurnaround[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
   criticalityOptions: string[]
@@ -70,13 +67,16 @@ export type OverviewDashboardProps = {
  * Two tiles cannot be filtered at all: pending declarations and unjustified
  * new purchases come from a `meta` the backend computes over everything. The
  * strip under the filters and the export say so rather than silently narrowing.
+ *
+ * Every line is open in SAP: since 19-Oct-2026 the register serves no line SAP
+ * has marked "Delivery completed", so there is no vendor turnaround here either
+ * -- it was dispatch to goods receipt over closed repairs.
  */
 export function OverviewDashboard({
   chains,
   agingBands,
   universe,
   pendingDeclarations,
-  vendorTurnaround,
   plantOptions,
   vendorOptions,
   criticalityOptions,
@@ -90,12 +90,6 @@ export function OverviewDashboard({
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
   const vendors = useMemo(() => openLinesByVendor(slice.chains), [slice])
-  // Computed from the same helper the chart draws with, so the footnote's
-  // "N of M" can never disagree with the bars above it.
-  const turnaround = useMemo(
-    () => (vendorTurnaround ? turnaroundBars(vendorTurnaround) : null),
-    [vendorTurnaround],
-  )
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
@@ -204,7 +198,7 @@ export function OverviewDashboard({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <ChartCard
           title="Repair status distribution"
-          subtitle={`All ${formatCount(metrics.totalLines)} repair lines, by current lifecycle stage`}
+          subtitle={`The ${formatCount(metrics.totalLines)} open repair lines, by current lifecycle stage`}
           span={6}
         >
           <RepairStatusChart chains={slice.chains} />
@@ -219,28 +213,6 @@ export function OverviewDashboard({
           span={6}
         >
           <RepairsByVendorChart data={vendors.top} />
-        </ChartCard>
-        {/* FR-10's vendor turnaround. Deliberately NEXT TO "Repairs by
-            vendor", which counts open lines: the two look like the same
-            question and are not, and putting them apart would let either be
-            read as the other. */}
-        <ChartCard
-          title="Vendor turnaround"
-          subtitle={
-            turnaround && turnaround.bars.length > 0
-              ? `Average days, dispatch to goods receipt — slowest ${turnaround.bars.length} of ${turnaround.measurable} measurable vendors`
-              : "Dispatch to goods receipt, over closed repairs only"
-          }
-          span={6}
-        >
-          {vendorTurnaround ? (
-            <VendorTurnaroundChart vendors={vendorTurnaround} />
-          ) : (
-            <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-              Vendor turnaround could not be loaded, so it is not shown. This is
-              not &ldquo;no turnaround measured&rdquo;.
-            </div>
-          )}
         </ChartCard>
         {/* FR-9's "aging bands per lifecycle stage". Next to Repair aging,
             which buckets the whole-repair clock: the two look like the same
@@ -263,7 +235,7 @@ export function OverviewDashboard({
         <ChartCard
           title="Repairable stock by plant"
           subtitle="Stock on hand across the repairable universe (every 80-series material and plant)"
-          span={6}
+          span={12}
         >
           {universe ? (
             <RepairableStockByPlantChart data={metrics.stock.plants} />

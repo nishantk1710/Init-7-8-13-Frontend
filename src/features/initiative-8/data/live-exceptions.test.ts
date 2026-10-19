@@ -38,7 +38,6 @@ function item(overrides: Record<string, unknown> = {}) {
     title: "No condition-to-repair attestation",
     detail: "No attestation was found.",
     raisedAt: "2018-09-04",
-    isOpenRepair: false,
     preAutomation: false,
     status: "OPEN",
     owner: null,
@@ -163,7 +162,6 @@ describe("parseExceptionParams", () => {
         q: undefined,
         type: undefined,
         plant: undefined,
-        open: false,
         status: "OPEN",
         repair: undefined,
       },
@@ -172,13 +170,16 @@ describe("parseExceptionParams", () => {
     })
   })
 
+  it("ignores the old ?open=1 filter: every repair line it names is open in SAP", () => {
+    expect(parseExceptionParams({ open: "1" }).filters).not.toHaveProperty("open")
+  })
+
   it("reads every filter, the page and the linked item", () => {
     expect(
       parseExceptionParams({
         q: " pump ",
         type: "OVERDUE_REPAIR",
         plant: "1500",
-        open: "1",
         status: "in_progress",
         repair: "4500000677-20",
         page: "3",
@@ -189,7 +190,6 @@ describe("parseExceptionParams", () => {
         q: "pump",
         type: "OVERDUE_REPAIR",
         plant: "1500",
-        open: true,
         status: "IN_PROGRESS",
         repair: "4500000677-20",
       },
@@ -218,8 +218,8 @@ describe("exceptionsHref", () => {
 
   it("keeps the filters, says status=all for every status, and drops page 1", () => {
     expect(
-      exceptionsHref({ q: "pump seal", open: true, status: undefined, repair: "4500000677-20" }, 2),
-    ).toBe("/repairable-spares/exceptions?q=pump+seal&open=1&status=all&repair=4500000677-20&page=2")
+      exceptionsHref({ q: "pump seal", status: undefined, repair: "4500000677-20" }, 2),
+    ).toBe("/repairable-spares/exceptions?q=pump+seal&status=all&repair=4500000677-20&page=2")
     expect(exceptionsHref({ type: "OVERDUE_REPAIR", status: "CLOSED" }, 1)).toBe(
       "/repairable-spares/exceptions?type=OVERDUE_REPAIR&status=CLOSED",
     )
@@ -230,7 +230,6 @@ describe("exceptionsHref", () => {
       q: "pump",
       type: "OVERDUE_REPAIR",
       plant: "1300",
-      open: true,
       status: undefined,
       repair: "4500000677-20",
     }

@@ -3,7 +3,6 @@ import {
   JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
   OVERDUE_STATUS_LABEL,
-  isPartiallyReceived,
   justificationCellOf,
   overdueStatusOf,
   vendorLabel,
@@ -33,6 +32,9 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
  * The export's columns, in the order the screen shows them: what a repair is
  * doing first, the declaration and justification next, then the reference
  * columns (criticality, stock, SAP documents) the screen keeps at the end.
+ *
+ * No turnaround, partial-receipt or blocked columns since 19-Oct-2026: every
+ * line is open in SAP, and goods receipts are not read.
  */
 export const REGISTER_CSV_HEADERS = [
   "Line",
@@ -43,9 +45,6 @@ export const REGISTER_CSV_HEADERS = [
   "Qty under repair",
   "Repair status",
   "Days in current stage",
-  "Turnaround (days)",
-  "Partially received",
-  "Blocked in SAP",
   "Expected return",
   "Overdue status",
   "Days open",
@@ -86,12 +85,7 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
       vendorLabel(c),
       c.qtyUnderRepair,
       c.repairStatus,
-      // Empty, never 0: an open line has no turnaround YET, and a 0 in a
-      // spreadsheet cell asserts "came back the same day".
       c.daysInCurrentStage ?? "",
-      c.daysAtVendor ?? "",
-      isPartiallyReceived(c) ? "Yes" : "No",
-      c.poBlocked ? "Yes" : "No",
       c.expectedReturn ?? "",
       OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
       c.daysOpen,

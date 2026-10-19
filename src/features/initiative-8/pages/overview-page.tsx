@@ -20,9 +20,9 @@ const DESCRIPTION =
  * every register and universe row is fetched once on the server and filtered
  * in the browser, the same way the register table has always worked.
  *
- * Every tile and chart reads the backend: the register, the repairable
- * universe, the declaration and exception checks' meta, and the vendor
- * turnaround. See `data/live-overview.ts` for which figure comes from where.
+ * Every tile and chart reads the backend: the register (the repair lines SAP
+ * still has open), the repairable universe and the declaration check's meta.
+ * See `data/live-overview.ts` for which figure comes from where.
  * The eight hand-written fixture chains this page used to total up are gone
  * from it; nothing on screen is invented.
  *
@@ -68,7 +68,7 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, declarations, vendorTurnaround } = live
+  const { register, universe, declarations } = live
 
   return (
     <Shell
@@ -88,7 +88,6 @@ export async function RefurbishableSparesOverviewPage() {
         agingBands={register.agingBands}
         universe={universe}
         pendingDeclarations={declarations?.outstanding}
-        vendorTurnaround={vendorTurnaround}
         plantOptions={register.plantOptions}
         vendorOptions={register.vendorOptions}
         criticalityOptions={register.criticalityOptions}

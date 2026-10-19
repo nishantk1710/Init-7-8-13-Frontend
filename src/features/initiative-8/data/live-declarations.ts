@@ -67,7 +67,6 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
     // name is not, and "Unknown vendor" is reserved for a line with neither.
     vendor: row.vendorName ?? row.vendor ?? undefined,
     repairStatus: (row.repairStatus as RepairStatus | null) ?? undefined,
-    hasActiveRepair: row.hasActiveRepair,
     status: row.status,
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? formatApiDate(row.declaredAt) : undefined,

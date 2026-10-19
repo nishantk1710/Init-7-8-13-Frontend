@@ -60,8 +60,9 @@ export type ApiSAPDocumentReference = {
   line: string | null
 }
 
-/** Where a repair line stands against its promised date. */
-export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+/** Where a repair line stands against its promised date. Never "received":
+ *  every line the register serves is open in SAP. */
+export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE"
 
 /**
  * Where a repair line stands against the material's planned delivery time.
@@ -80,7 +81,12 @@ export type ApiLeadTimeStatus =
   | "BEYOND_LEAD_TIME"
   | "NO_LEAD_TIME"
 
-/** One row of `GET /api/i8/register`. One material + one repair PO line. */
+/**
+ * One row of `GET /api/i8/register`. One material + one repair PO line that
+ * SAP still has open: since 19-Oct-2026 a line marked "Delivery completed",
+ * deleted or blocked is not served, and goods receipts are not read -- so no
+ * row carries a receipt status, a receipt date or a turnaround.
+ */
 export type ApiRepairChain = {
   /** `{EBELN}-{EBELP}`. The register key as one string. */
   id: string
@@ -101,14 +107,13 @@ export type ApiRepairChain = {
   /** Null unless the vendor master knows this vendor — it usually does not. */
   vendorName: string | null
 
+  /** "PO Issued", or "At Vendor" once a dispatch (the 541) is attributable. */
   repairStatus: string
-  receiptStatus: string
   overdueStatus: ApiOverdueStatus
   leadTimeStatus: ApiLeadTimeStatus
   declarationStatus: "Required" | "Completed" | "Flagged"
 
-  /** Raised to received, or raised to today while still out — the same number
-   * as `daysElapsed`. A closed line shows its turnaround, not the record's age. */
+  /** Raised to today — the same number as `daysElapsed`. */
   daysOpen: number | null
   /** The band `daysOpen` falls in. */
   agingBucket: string | null
@@ -119,11 +124,7 @@ export type ApiRepairChain = {
    * Null on every Gamsberg line: the planning extract omits plant 1500.
    */
   leadTimeDays: number | null
-  /**
-   * Raised to received, or raised to today while still out. What
-   * `leadTimeStatus` is measured on — it stops when the unit comes back, so a
-   * repair that finished on time does not drift into breach.
-   */
+  /** Raised to today. What `leadTimeStatus` is measured on. */
   daysElapsed: number | null
   /**
    * Positive once past the planned time, negative while inside it. Null when
@@ -131,8 +132,6 @@ export type ApiRepairChain = {
    * long this takes" cannot average in as "finished exactly on time".
    */
   daysOverLeadTime: number | null
-  /** Only computable for completed repairs in the current extract. */
-  daysAtVendor: number | null
   daysInCurrentStage: number | null
   /** Negative once the promised date has passed. Null when there is no date. */
   daysRemainingInRepair: number | null
@@ -142,10 +141,8 @@ export type ApiRepairChain = {
   poIssuedAt: string | null
   sentToVendorAt: string | null
   expectedReturn: string | null
-  receivedAt: string | null
 
   orderedQty: string
-  receivedQty: string
   unit: string | null
   /** Net order price of the repair line. Decimal, sent as a string. */
   repairCost: string | null
@@ -158,10 +155,6 @@ export type ApiRepairChain = {
    *  against them. */
   corroboratedByDocType: boolean
   hasPoHeader: boolean
-  /** SAP's delivery-complete flag. Reported, not trusted: it is set on 1,025
-   *  lines of which only 436 have any goods receipt. */
-  deliveryCompleted: boolean
-  reversals: number
   scheduleLines: number
 
   /**
@@ -170,12 +163,6 @@ export type ApiRepairChain = {
    * backend in use serves it.
    */
   criticality?: string | null
-  /**
-   * The PO line is blocked in SAP (EKPO.LOEKZ = 'S'). Still a live repair line
-   * and still counted — flagged, not excluded. Deleted lines ('L') are the ones
-   * the register leaves out; see `ApiRegisterMeta.excludedDeletedLines`.
-   */
-  poBlocked?: boolean
 
   // The Declaration Queue and Justifications screens, folded into the register
   // on 08-Oct-2026: what they showed per line now travels on the line. Optional
@@ -241,49 +228,42 @@ export type ApiRepairJustification = {
   unjustifiedPurchases: ApiUnjustifiedPurchase[]
 }
 
+/**
+ * The register's counts. Every line counted is open in SAP; the `excluded*`
+ * figures say how many repair lines SAP has deleted, closed or blocked, each
+ * counted under the first of the three that applies.
+ */
 export type ApiRegisterMeta = {
   totalLines: number
+  /** The same number as `totalLines`: every listed line is open in SAP. */
   openLines: number
-  receivedLines: number
   overdueLines: number
   noDueDateLines: number
-  linesWithoutDueDate: number
-  /** The population the two counts below were measured over. Short of
-   *  `totalLines` while the planning extract omits Gamsberg. */
+  /** The population the count below was measured over. Short of `totalLines`
+   *  while the planning extract omits Gamsberg. */
   linesWithLeadTime: number
   linesBeyondLeadTime: number
-  /** The actionable half: still out, and already past the planned time. */
-  openLinesBeyondLeadTime: number
-  partiallyReceivedLines: number
-  linesWithReversals: number
   linesOnEightySeries: number
   linesWithPoHeader: number
   linesCorroboratedByDocType: number
   linesWithDispatch: number
-  /** Measured at zero: no open repair has a dispatch movement on record. */
-  openLinesWithDispatch: number
   distinctMaterials: number
   distinctVendors: number
   vendorsResolvedToAName: number
   candidatesScanned: number
-  /** PO lines deleted in SAP (EKPO.LOEKZ = 'L'), left out of every count above.
-   *  Optional until every backend in use serves it. */
+  /** PO lines deleted in SAP (EKPO.LOEKZ = 'L'). */
   excludedDeletedLines?: number
-  /** Lines blocked in SAP — included above, flagged with `poBlocked`. */
-  blockedLines?: number
-  /**
-   * PO-issued lines blocked in SAP or partly received, left out by
-   * `excludeHeld`. With it, `totalLines`, `openLines`, `blockedLines` and
-   * `partiallyReceivedLines` describe the lines listed. Zero without it, and
-   * absent from a backend older than server paging.
-   */
-  heldLines?: number
+  /** Repair lines SAP has closed -- "Delivery completed", EKPO.ELIKZ --
+   *  whatever was received against them. Optional until every backend in use
+   *  serves it. */
+  excludedDeliveryCompletedLines?: number
+  /** Repair lines blocked in SAP (EKPO.LOEKZ = 'S'). */
+  excludedBlockedLines?: number
 }
 
 /**
- * The values the register's filters can take. Taken after `excludeHeld` and
- * before every filter, so a paged screen's dropdowns list every value rather
- * than those on one page.
+ * The values the register's filters can take. Taken before every filter, so a
+ * paged screen's dropdowns list every value rather than those on one page.
  */
 export type ApiRegisterFacets = {
   plants: ApiPlantReference[]
@@ -378,30 +358,6 @@ export type ApiUniverseDetail = {
   repairLines: ApiRepairChain[]
 }
 
-export type ApiVendorTurnaround = {
-  vendor: string
-  vendorName: string | null
-  totalLines: number
-  openCount: number
-  overdueCount: number
-  receivedCount: number
-  /** Over COMPLETED repairs only. Null when none has both ends of the clock. */
-  avgTurnaroundDays: number | null
-  minTurnaroundDays: number | null
-  maxTurnaroundDays: number | null
-  /** How many repairs the average came from. A mean of one is not a record. */
-  turnaroundSample: number
-  onTimeRate: number | null
-  avgDaysOpen: number | null
-}
-
-export type ApiVendorResponse = {
-  items: ApiVendorTurnaround[]
-  total: number
-  referenceDate: string
-  note: string
-}
-
 export type ApiSnapshot = {
   referenceDate: string
   builtAt: string
@@ -432,7 +388,6 @@ export type ApiDeclarationItem = {
    * was delivered. Populated on all 1,225 repair lines, 27 distinct values.
    */
   requester: string | null
-  hasActiveRepair: boolean
   relatedRepairId: string
   /** The same repair line, unjoined — so the declaration form can send FR-4's
    *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
@@ -441,7 +396,8 @@ export type ApiDeclarationItem = {
   vendor?: string | null
   /** LFA1's name for that vendor, where one was delivered. */
   vendorName?: string | null
-  /** Where the REPAIR stands — not the declaration status, which is `status`. */
+  /** Where the REPAIR stands — PO Issued or At Vendor, never closed: every row
+   *  is a repair SAP still has open. Not the declaration status (`status`). */
   repairStatus?: string | null
   /**
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
@@ -519,7 +475,6 @@ export type ApiExceptionItem = {
   detail: string
   /** The repair line's own date, not when the check ran. */
   raisedAt: string | null
-  isOpenRepair: boolean
   /**
    * The line predates the attestation control, so the gap is explained by when
    * it was raised rather than by anyone failing to act. Render it as a reason,
@@ -708,9 +663,8 @@ export type RegisterQuery = {
   material?: string
   status?: string
   overdueOnly?: boolean
-  /** OVERDUE, ON_TIME, NO_DUE_DATE or RECEIVED. */
+  /** OVERDUE, ON_TIME or NO_DUE_DATE. */
   overdueStatus?: string
-  openOnly?: boolean
   /** The rating the line shows, or the literal `none` for unrated lines. */
   criticality?: string
   /** Required, Completed or Flagged. */
@@ -721,9 +675,6 @@ export type RegisterQuery = {
   /** Comma-separated exception types left out of each line's `exceptions`
    *  and of `withExceptions`. */
   excludeExceptionType?: string
-  /** Leave out PO-issued lines blocked in SAP or partly received, as the
-   *  Repair Register screen does; `meta` then describes the lines listed. */
-  excludeHeld?: boolean
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
   page?: number
@@ -777,11 +728,6 @@ export function getRepairLine(
   )
 }
 
-/** `GET /api/i8/vendors/turnaround` — vendor analytics over completed repairs. */
-export function getVendorTurnaround(): Promise<ApiVendorResponse> {
-  return apiFetch("/i8/vendors/turnaround")
-}
-
 /**
  * `GET /api/i8/snapshot` — every headline count plus the rules that produced
  * them. The endpoint to quote in the UAT pack, because its figures are
@@ -795,7 +741,7 @@ export type DeclarationQuery = {
   plant?: string
   /** A vendor CODE, as `facets.vendors` lists it. */
   vendor?: string
-  /** Where the repair stands — PO Issued, At Vendor, Closed. */
+  /** Where the repair stands — PO Issued or At Vendor. */
   repairStatus?: string
   /** Material number or description, repair line or requisition. */
   q?: string
@@ -820,8 +766,6 @@ export type ExceptionQuery = {
   status?: string
   /** An owner, or the literal `unassigned`. */
   owner?: string
-  /** Only exceptions on repairs still out at a vendor — the actionable ones. */
-  openOnly?: boolean
   /** Leave out items raised before the control existed (`preAutomation`). */
   actionableOnly?: boolean
   /**

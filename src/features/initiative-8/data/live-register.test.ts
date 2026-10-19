@@ -4,7 +4,6 @@ import {
   activeRegisterFilters,
   buildRegisterOptions,
   fetchAllRegisterLines,
-  isListedInRegister,
   loadRegisterPage,
   parseRegisterParams,
   registerDescription,
@@ -60,7 +59,6 @@ function apiRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
     vendor: "0001000123",
     vendorName: null,
     repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
     overdueStatus: "OVERDUE",
     leadTimeStatus: "BEYOND_LEAD_TIME",
     declarationStatus: "Required",
@@ -69,16 +67,13 @@ function apiRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
     leadTimeDays: 31,
     daysElapsed: 526,
     daysOverLeadTime: 495,
-    daysAtVendor: null,
     daysInCurrentStage: 526,
     daysRemainingInRepair: -500,
     raisedAt: "2025-04-07",
     poIssuedAt: "2025-04-07",
     sentToVendorAt: null,
     expectedReturn: "2025-05-07",
-    receivedAt: null,
     orderedQty: "1.000",
-    receivedQty: "0.000",
     unit: "EA",
     repairCost: "8914.34",
     newUnitLeadTimeDays: 31,
@@ -86,11 +81,8 @@ function apiRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
     docType: "ZREP",
     corroboratedByDocType: true,
     hasPoHeader: true,
-    deliveryCompleted: false,
-    reversals: 0,
     scheduleLines: 1,
     criticality: null,
-    poBlocked: false,
     ...overrides,
   }
 }
@@ -178,7 +170,23 @@ describe("toRepairChain", () => {
 
   it("carries overdueStatus through, so the UI never redoes the date maths", () => {
     expect(isRepairOverdue(toRepairChain(apiRow()))).toBe(true)
-    expect(isRepairOverdue(toRepairChain(apiRow({ overdueStatus: "RECEIVED" })))).toBe(false)
+    expect(isRepairOverdue(toRepairChain(apiRow({ overdueStatus: "ON_TIME" })))).toBe(false)
+  })
+
+  it("reads every live line as open -- the register serves no other kind", () => {
+    // Since 19-Oct-2026 a line SAP has marked "Delivery completed", deleted or
+    // blocked is not served at all, so nothing here can read as back.
+    for (const overdueStatus of ["OVERDUE", "ON_TIME", "NO_DUE_DATE"] as const) {
+      expect(isOpenRepair(toRepairChain(apiRow({ overdueStatus })))).toBe(true)
+    }
+  })
+
+  it("carries no receipt fields -- goods receipts are not read", () => {
+    const chain = toRepairChain(apiRow())
+    expect(chain).not.toHaveProperty("receiptStatus")
+    expect(chain).not.toHaveProperty("poBlocked")
+    expect(chain).not.toHaveProperty("daysAtVendor")
+    expect(chain.receivedAt).toBeUndefined()
   })
 
   it("carries the real declaration status, which W5.3 now computes", () => {
@@ -191,10 +199,9 @@ describe("toRepairChain", () => {
     // Guards the day one side adds a value. An unrecognised status must not go
     // through a Record<Union, Tone> lookup and take the table down.
     const chain = toRepairChain(
-      apiRow({ repairStatus: "Teleported", receiptStatus: "Vaporised" } as Partial<ApiRepairChain>),
+      apiRow({ repairStatus: "Teleported" } as Partial<ApiRepairChain>),
     )
     expect(chain.repairStatus).toBe("PR Raised")
-    expect(chain.receiptStatus).toBe("Not Yet Shipped")
   })
 
   it("shows the material number when no description exists anywhere", () => {
@@ -218,7 +225,7 @@ describe("toRepairChain", () => {
   })
 })
 
-describe("criticality and blocked PO lines", () => {
+describe("criticality", () => {
   it("carries a criticality rating through", () => {
     expect(toRepairChain(apiRow({ criticality: "CRITICAL" })).criticality).toBe("CRITICAL")
   })
@@ -229,32 +236,20 @@ describe("criticality and blocked PO lines", () => {
     expect(toRepairChain(apiRow({ criticality: null })).criticality).toBeUndefined()
     expect(toRepairChain(apiRow({ criticality: undefined })).criticality).toBeUndefined()
   })
-
-  it("flags a blocked PO line and keeps it", () => {
-    expect(toRepairChain(apiRow({ poBlocked: true })).poBlocked).toBe(true)
-  })
-
-  it("reads a backend that predates poBlocked as not blocked", () => {
-    expect(toRepairChain(apiRow({ poBlocked: undefined })).poBlocked).toBe(false)
-  })
 })
 
 describe("buildRegisterOptions", () => {
   const chains = [
-    toRepairChain(apiRow({ id: "a", repairStatus: "Closed", overdueStatus: "RECEIVED", criticality: "NORMAL" })),
+    toRepairChain(apiRow({ id: "a", repairStatus: "At Vendor", criticality: "NORMAL" })),
     toRepairChain(apiRow({ id: "b", repairStatus: "PO Issued", criticality: "CRITICAL" })),
-    toRepairChain(apiRow({ id: "c", repairStatus: "Received", overdueStatus: "RECEIVED" })),
+    toRepairChain(apiRow({ id: "c", repairStatus: "At Vendor" })),
     toRepairChain(apiRow({ id: "d", repairStatus: "PO Issued", vendor: null, vendorName: null })),
   ]
 
   it("offers only the repair statuses the data actually has, in lifecycle order", () => {
-    // Three occur in the July extract, not the six the type allows. A status
-    // no row has is a filter that can only ever return nothing.
-    expect(buildRegisterOptions(chains).repairStatusOptions).toEqual([
-      "PO Issued",
-      "Received",
-      "Closed",
-    ])
+    // Two occur live -- every line is open in SAP -- not the five the type
+    // allows. A status no row has is a filter that can only ever return nothing.
+    expect(buildRegisterOptions(chains).repairStatusOptions).toEqual(["PO Issued", "At Vendor"])
   })
 
   it("lists criticalities most severe first, with unrated lines findable last", () => {
@@ -277,7 +272,7 @@ describe("buildRegisterOptions", () => {
 
 /**
  * The Register screen pages on the server. What these pin: the URL reads back
- * as the filters it was written from, the listing's own two parameters go on
+ * as the filters it was written from, the listing's own parameter goes on
  * every request, the dropdowns are the server's in the order the screen always
  * had them, and each line's exceptions arrive with it. The filters themselves
  * run in the backend and are tested there (`tests/test_i8_queue_paging.py`).
@@ -363,7 +358,11 @@ function registerPage(
     page: 1,
     pageSize: 25,
     referenceDate: "2026-10-18",
-    meta: { totalLines: 5063, openLines: 735, heldLines: 92 } as ApiRegisterMeta,
+    meta: {
+      totalLines: 104,
+      openLines: 104,
+      excludedDeliveryCompletedLines: 4965,
+    } as ApiRegisterMeta,
     ...extra,
   }
 }
@@ -374,7 +373,7 @@ describe("loadRegisterPage", () => {
     sourceLoadedAt: "2026-10-18T03:40:00Z",
   })
 
-  it("asks for one page, with the listing's own two parameters always on", async () => {
+  it("asks for one page, with the listing's own parameter always on", async () => {
     const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
 
     await loadRegisterPage({ plant: "1300", q: "pump", exceptions: true }, 3, {
@@ -383,25 +382,27 @@ describe("loadRegisterPage", () => {
       fetchSnapshot,
     })
 
+    // No excludeHeld since 19-Oct-2026: every line the backend serves is open
+    // in SAP, so there is nothing to hold back from the listing.
     expect(fetchPage).toHaveBeenCalledTimes(1)
     expect(fetchPage).toHaveBeenCalledWith({
       q: "pump",
       plant: "1300",
       withExceptions: true,
-      excludeHeld: true,
       excludeExceptionType: "UNJUSTIFIED_ACQUISITION",
       page: 3,
       pageSize: 25,
     })
   })
 
-  it("counts every match, and keeps the listed register's counts for the caption", async () => {
-    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()], { total: 240 }))
+  it("counts every match, and keeps the register's counts for the caption", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()], { total: 40 }))
 
     const page = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
 
-    expect(page.total).toBe(240)
-    expect(page.meta.heldLines).toBe(92)
+    expect(page.total).toBe(40)
+    expect(page.meta.openLines).toBe(104)
+    expect(page.meta.excludedDeliveryCompletedLines).toBe(4965)
     expect(page.agingBands).toEqual(["0-15", "16-30"])
     expect(page.sourceLoadedAt).toBe("2026-10-18T03:40:00Z")
   })
@@ -419,7 +420,7 @@ describe("loadRegisterPage", () => {
             { vendor: "100234", name: "Acme Rewinds" },
           ],
           hasUnknownVendor: true,
-          repairStatuses: ["Closed", "At Vendor", "PO Issued"],
+          repairStatuses: ["At Vendor", "PO Issued"],
           criticalities: ["NORMAL", "CRITICAL"],
           hasUnrated: true,
         },
@@ -435,7 +436,7 @@ describe("loadRegisterPage", () => {
       { value: "100234", label: "Acme Rewinds" },
       { value: "none", label: "Unknown vendor" },
     ])
-    expect(facets.repairStatuses).toEqual(["PO Issued", "At Vendor", "Closed"])
+    expect(facets.repairStatuses).toEqual(["PO Issued", "At Vendor"])
     expect(facets.criticalities).toEqual([
       { value: "CRITICAL", label: "CRITICAL" },
       { value: "NORMAL", label: "NORMAL" },
@@ -511,7 +512,7 @@ describe("fetchAllRegisterLines", () => {
 
     expect(chains).toHaveLength(700)
     expect(fetchPage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ vendor: "none", excludeHeld: true, page: 2, pageSize: 500 }),
+      expect.objectContaining({ vendor: "none", page: 2, pageSize: 500 }),
     )
   })
 
@@ -636,11 +637,10 @@ describe("registerRowsToCsv", () => {
     expect(cell("Criticality")).toBe("")
   })
 
-  it("carries the overdue status, the blocked flag and the lead-time verdict", () => {
-    const [row] = registerRowsToCsv([toRepairChain(apiRow({ poBlocked: true }))])
+  it("carries the overdue status and the lead-time verdict", () => {
+    const [row] = registerRowsToCsv([toRepairChain(apiRow())])
     const cell = (header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
     expect(cell("Overdue status")).toBe("Overdue")
-    expect(cell("Blocked in SAP")).toBe("Yes")
     // The label the screen shows, matching the overdue column beside it --
     // not the raw enum.
     expect(cell("Lead-time status")).toBe("Beyond")
@@ -686,17 +686,12 @@ describe("registerRowsToCsv", () => {
     expect(cell(bare, "Justification")).toBe("")
   })
 
-  it("flags a partial receipt in place of the old receipt-status column", () => {
-    // The only thing the receipt status said that the repair status does not.
-    expect(REGISTER_CSV_HEADERS).not.toContain("Receipt status")
-    const cell = (row: (string | number)[], header: string) =>
-      row[REGISTER_CSV_HEADERS.indexOf(header)]
-    const [partial, whole] = registerRowsToCsv([
-      toRepairChain(apiRow({ receiptStatus: "Partially Received" })),
-      toRepairChain(apiRow({ receiptStatus: "Received" })),
-    ])
-    expect(cell(partial, "Partially received")).toBe("Yes")
-    expect(cell(whole, "Partially received")).toBe("No")
+  it("exports no turnaround, partial-receipt or blocked column", () => {
+    // Every line is open in SAP and goods receipts are not read (19-Oct-2026),
+    // so each would be the same value on every row.
+    for (const gone of ["Turnaround (days)", "Partially received", "Blocked in SAP", "Receipt status"]) {
+      expect(REGISTER_CSV_HEADERS).not.toContain(gone)
+    }
   })
 })
 
@@ -707,76 +702,48 @@ describe("overdueStatusOf and isOpenRepair", () => {
     )
   })
 
-  it("counts a line reading 'Received' as back, not open", () => {
-    // One live line reads Received without being Closed. `!== "Closed"` would
-    // call it open and put the overview's aging chart one off the KPI.
-    const chain = toRepairChain(apiRow({ repairStatus: "Received", overdueStatus: "RECEIVED" }))
-    expect(isOpenRepair(chain)).toBe(false)
+  it("still reads a closed scenario fixture as back, not open", () => {
+    // The live register serves open lines only; the fixtures behind the
+    // cross-initiative selectors still carry a closed repair.
+    const closed = REPAIR_CHAINS.find((chain) => chain.repairStatus === "Closed")
+    expect(closed).toBeDefined()
+    expect(isOpenRepair(closed!)).toBe(false)
     expect(isOpenRepair(toRepairChain(apiRow()))).toBe(true)
   })
 })
 
-describe("isListedInRegister", () => {
-  /**
-   * The register stopped listing PO-issued lines that are blocked in SAP or
-   * already partly back, on 14-Oct-2026. On live data that is 92 lines of
-   * 5,155: 89 blocked and 3 partly received.
-   */
-  const listed = (overrides: Partial<ApiRepairChain> = {}) =>
-    isListedInRegister(toRepairChain(apiRow({ repairStatus: "PO Issued", ...overrides })))
-
-  it("lists a PO-issued line with nothing against it", () => {
-    expect(listed()).toBe(true)
-  })
-
-  it("does not list one blocked in SAP", () => {
-    expect(listed({ poBlocked: true })).toBe(false)
-  })
-
-  it("does not list one that has already come back in part", () => {
-    expect(listed({ receiptStatus: "Partially Received" })).toBe(false)
-  })
-
-  it("leaves every other stage alone, flags and all", () => {
-    // Scoped to the stage the request named. Two live lines sit here -- one
-    // Closed and blocked, one At Vendor and partly received -- and dropping
-    // them would be this filter deciding something nobody asked it to.
-    const atVendor = apiRow({ repairStatus: "At Vendor", receiptStatus: "Partially Received" })
-    const closed = apiRow({ repairStatus: "Closed", poBlocked: true })
-    expect(isListedInRegister(toRepairChain(atVendor))).toBe(true)
-    expect(isListedInRegister(toRepairChain(closed))).toBe(true)
-  })
-})
-
 describe("registerDescription", () => {
-  const meta = { totalLines: 1181, openLines: 744 } as ApiRegisterMeta
+  const meta = { totalLines: 104, openLines: 104 } as ApiRegisterMeta
 
-  it("says how many deleted lines were left out, and how many blocked ones kept", () => {
-    const text = registerDescription({ ...meta, excludedDeletedLines: 44, blockedLines: 72 }, "2026-09-24")
-    expect(text).toContain("44 lines deleted in SAP are excluded")
-    expect(text).toContain("72 lines blocked in SAP are included and flagged")
-  })
-
-  it("names the lines the register does not list, so the counts can be reconciled", () => {
-    // 5,155 in the caption over 5,063 in the table, with nothing to explain
-    // the gap, is how a number stops being trusted.
-    const text = registerDescription(meta, "2026-09-24", null, 92)
-    expect(text).toContain(
-      "92 PO-issued lines blocked in SAP or partly received are not listed",
+  it("leads with the open lines, which is every line it lists", () => {
+    expect(registerDescription(meta, "2026-10-15")).toContain(
+      "104 open repair lines, as at 2026-10-15.",
     )
   })
 
-  it("reads as one line, not as '1 lines'", () => {
-    expect(registerDescription({ ...meta, blockedLines: 1 }, "2026-09-24", null, 1)).toContain(
-      "1 PO-issued line blocked in SAP or partly received is not listed. 1 line blocked in SAP is included and flagged.",
+  it("says what SAP closed, blocked or deleted, so the total can be reconciled", () => {
+    const text = registerDescription(
+      {
+        ...meta,
+        excludedDeliveryCompletedLines: 4965,
+        excludedBlockedLines: 68,
+        excludedDeletedLines: 44,
+      },
+      "2026-10-15",
     )
+    expect(text).toContain("Not shown: 4,965 delivery completed, 68 blocked and 44 deleted in SAP.")
+  })
+
+  it("names only the exclusions that occurred", () => {
+    const text = registerDescription({ ...meta, excludedDeliveryCompletedLines: 7 }, "2026-10-15")
+    expect(text).toContain("Not shown: 7 delivery completed in SAP.")
+    expect(text).not.toContain("blocked")
+    expect(text).not.toContain("deleted")
   })
 
   it("says nothing about exclusions a backend does not report", () => {
-    const text = registerDescription(meta, "2026-09-24")
-    expect(text).not.toContain("deleted")
-    expect(text).not.toContain("blocked")
-    expect(text).not.toContain("not listed")
+    const text = registerDescription(meta, "2026-10-15")
+    expect(text).not.toContain("Not shown")
   })
 
   // The caption used to open "1,181 repair lines from the July extract" in
@@ -790,7 +757,7 @@ describe("registerDescription", () => {
       expect(text).not.toContain("July")
       expect(text).not.toContain("extract")
     }
-    expect(withStamp).toContain("1,181 repair lines — 744 still open")
+    expect(withStamp).toContain("104 open repair lines")
   })
 
   it("reports how fresh the data is when the backend says", () => {

@@ -26,7 +26,6 @@ function chain(overrides: Partial<RepairChain> = {}): RepairChain {
     qtyUnderRepair: 1,
     repairPR: { type: "PR", documentNumber: "2000028376" },
     repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
     declarationStatus: "Required",
     daysOpen: 40,
     agingBucket: "31-45",
@@ -136,7 +135,6 @@ describe("lead time, as a signal of its own", () => {
     ({
       id: "4500000001-00010",
       repairStatus: "At Vendor",
-      receiptStatus: "Awaiting Receipt",
       declarationStatus: "Required",
       daysOpen: 90,
       agingBucket: "60+",

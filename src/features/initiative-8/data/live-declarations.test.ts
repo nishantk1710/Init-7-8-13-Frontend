@@ -26,7 +26,6 @@ function item(n: number, overrides: Record<string, unknown> = {}) {
     },
     plant: { plantId: "1300", name: "Black Mountain Mining" },
     requester: "10316",
-    hasActiveRepair: true,
     relatedRepairId: `450000000${n}-10`,
     repairPo: { type: "PO", documentNumber: `450000000${n}`, line: "10" },
     vendor: "100234",
