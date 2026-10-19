@@ -135,8 +135,8 @@ export default async function I08DeclarationsPage({
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
             <p className="mt-3 text-xs text-muted-foreground">
               This is not &ldquo;nothing outstanding&rdquo; — it is a failed
-              request. Check that the backend is running and that its I08 data
-              has finished building.
+              request. Check that the backend is running and that its
+              repairable-spares data has finished building.
             </p>
           </div>
         ) : (

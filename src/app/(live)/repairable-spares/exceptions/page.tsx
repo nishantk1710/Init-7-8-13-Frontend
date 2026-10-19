@@ -138,7 +138,8 @@ export default async function I08ExceptionsPage({
             <p className="mt-3 text-xs text-muted-foreground">
               This is not &ldquo;no exceptions&rdquo; — it is a failed request,
               and on this screen the two mean opposite things. Check that the
-              backend is running and that its I08 data has finished building.
+              backend is running and that its repairable-spares data has finished
+              building.
             </p>
           </div>
         ) : (

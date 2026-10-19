@@ -23,7 +23,7 @@ function quickActionsFor(materialId: string, route: ReturnType<typeof classifyMa
         // WATCH, narrowed to this material (FR-6). This replaced a link to the
         // Redeployment screen, which is out of scope (FRS §3.2, D10).
         {
-          label: "View WATCH Metrics",
+          label: "View Live Consumption Tracking",
           href: `/oar-utilization/watch?material=${encodeURIComponent(materialId)}`,
         },
       ]

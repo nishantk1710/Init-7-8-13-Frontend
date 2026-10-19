@@ -222,7 +222,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         description={
           live
             ? `${formatCount(live.total ?? live.count)} OAR reservation lines received and not issued for 30 days or more, oldest receipt first.`
-            : "OAR reservation lines received into stock and not issued for 30 days or more (FR-6)."
+            : "OAR reservation lines received into stock and not issued for 30 days or more."
         }
       />
       <WatchTabs searchParams={searchParams} active="grni" />
