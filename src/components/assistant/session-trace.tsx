@@ -458,6 +458,7 @@ function Field({
 function OutcomeBadge({ outcome }: { outcome: string }) {
   return (
     <span
+      title="AI session status"
       className={cn(
         "rounded-full px-2 py-0.5 text-[11px] font-semibold",
         outcome === "COMPLETED" && "bg-success/15 text-success",

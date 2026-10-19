@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { MessagesSquare } from "lucide-react"
 
-import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -68,12 +67,6 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
               <TableCell className="font-medium text-foreground">
                 <div className="flex flex-col gap-0.5">
                   <MaterialName material={plan.material} description={plan.materialDescription} />
-                  <AskAssistantLink
-                    materialId={plan.material}
-                    plant={plan.plant}
-                    variant="chip"
-                    label="Ask"
-                  />
                 </div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(plan.plant)}</TableCell>

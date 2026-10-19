@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import type { Justification } from "@/lib/assistant/request/lines"
+import { RequiredMark } from "@/components/assistant/step-form"
 import { cn } from "@/lib/utils"
 
 /**
@@ -95,9 +96,16 @@ export function JustificationFields({
     <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
       <span className="text-xs font-medium text-foreground">{prompt}</span>
       <div className="grid gap-2 sm:grid-cols-[14rem_1fr]">
+        <label htmlFor={`${idPrefix}-reason`} className="text-[11px] font-medium text-muted-foreground">
+          Reason <RequiredMark />
+        </label>
+        <label htmlFor={`${idPrefix}-text`} className="hidden text-[11px] font-medium text-muted-foreground sm:block">
+          In your own words <RequiredMark />
+        </label>
         <select
           id={`${idPrefix}-reason`}
           aria-label="Reason"
+          aria-required
           className={SELECT_CLASS}
           value={value.reasonCategory}
           aria-invalid={showErrors && !value.reasonCategory}
@@ -110,9 +118,13 @@ export function JustificationFields({
             </option>
           ))}
         </select>
+        <label htmlFor={`${idPrefix}-text`} className="text-[11px] font-medium text-muted-foreground sm:hidden">
+          In your own words <RequiredMark />
+        </label>
         <Textarea
           id={`${idPrefix}-text`}
           aria-label="In your own words"
+          aria-required
           rows={1}
           placeholder="In your own words -- the part a reviewer actually reads"
           value={value.freeText}
@@ -129,9 +141,8 @@ export function JustificationFields({
  * One line's department: a code from the plant's list
  * (`GET /assistant/departments?plant=`, the plant's own codes).
  *
- * A native select rather than the searchable `DepartmentField`: it sits inside
- * a horizontally scrolling table, which would clip a popover. The searchable
- * one is in the header, for setting many lines at once.
+ * A native select rather than a searchable popover: it sits inside a table,
+ * which would clip one.
  *
  * While the backend's list has not loaded, a 5-digit code can be typed
  * instead -- the backend then accepts any code of that shape, as the opener does.

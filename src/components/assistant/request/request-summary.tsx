@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Boxes, CircleSlash, FlaskConical, Info, Link2, Loader2, Wrench } from "lucide-react"
+import { Boxes, CircleSlash, FlaskConical, Loader2, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
-import { AiEyebrow, AiIconBadge } from "@/components/assistant/ai-visuals"
+import { AiEyebrow } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
 import { LinkSimulator } from "@/components/assistant/request/link-simulator"
@@ -23,7 +23,7 @@ import {
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-import { isDeclined, lineReference, outcomeSentence } from "@/lib/assistant/request/record"
+import { isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 
 /** A submitted request: its reference, every line's `/n`, and what SAP has linked so far. */
 export function RequestSummary({ requestId }: { requestId: string }) {
@@ -43,52 +43,19 @@ export function RequestSummary({ requestId }: { requestId: string }) {
     )
   }
 
-  const toReserve = request.lines.filter((l) => !isDeclined(l))
-
   return (
     <div className="flex flex-col gap-5">
       <DemoBanner>This request is held in this browser only. The reference cannot link to a real reservation.</DemoBanner>
 
-      <section className="ai-glow animate-ai-message-in flex flex-col gap-4 rounded-2xl border border-ai-2/20 bg-card p-5">
-        <div className="flex flex-wrap items-start gap-4">
-          <AiIconBadge className="hidden sm:inline-flex">
-            <Link2 className="size-4" />
-          </AiIconBadge>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              Your request reference
-            </span>
-            <CopyReference value={request.requestId} size="lg" />
-            <span className="text-xs text-muted-foreground">
-              {request.requestedFor ?? "—"} · plant {request.plant} ·{" "}
-              {request.departments.length === 0
-                ? "no department"
-                : `${request.departments.length} department${request.departments.length === 1 ? "" : "s"} (${request.departments.join(", ")})`}{" "}
-              · {new Date(request.issuedAt).toLocaleString("en-GB")}
-            </span>
-          </div>
-          <div className="flex flex-col items-end gap-3">
-            <dl className="grid grid-cols-3 gap-4 text-center">
-              <Stat term="Lines" value={request.lines.length} />
-              <Stat term="To reserve" value={toReserve.length} />
-              <Stat term="No session" value={request.skipped.length} />
-            </dl>
-            <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
-          </div>
-        </div>
-        <div className="flex gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          <span>
-            On each SAP reservation item, type that line&rsquo;s reference into the item text (SGTXT), e.g.{" "}
-            <span className="font-mono text-foreground">{lineReference(request.requestId, 1)}</span>. The{" "}
-            <span className="font-mono">/n</span> helps a reader, but the link is made by request + material + plant,
-            so a missing or wrong <span className="font-mono">/n</span> still links -- with a note.
+      <section className="flex flex-col gap-3">
+        {/* The per-line references are what the requester needs; the request's
+            own reference is in the page title (UAT, 19 Oct: no summary card). */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <AiEyebrow>Lines</AiEyebrow>
+          <span className="text-xs text-muted-foreground">
+            Type each line&rsquo;s reference into the item text (SGTXT) of its SAP reservation item.
           </span>
         </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <AiEyebrow>Lines</AiEyebrow>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full min-w-[1080px] text-sm">
             <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
@@ -188,15 +155,6 @@ function LiveLinks({ request, onSimulated }: { request: ApiRequest; onSimulated:
         </div>
       )}
     </section>
-  )
-}
-
-function Stat({ term, value }: { term: string; value: number }) {
-  return (
-    <div className="flex flex-col">
-      <dd className="text-xl font-semibold text-foreground">{value}</dd>
-      <dt className="text-[11px] text-muted-foreground">{term}</dt>
-    </div>
   )
 }
 

@@ -1,6 +1,5 @@
 "use client"
 
-import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -93,10 +92,6 @@ export function WatchTable({
                   <TableCell className="text-foreground">
                     <div className="flex flex-col gap-0.5">
                       <MaterialName material={m.material} description={m.materialDescription} />
-                      {/* Both identifiers are real here and come from the
-                          backend, so this opens a session directly rather
-                          than asking for a plant the row already knows. */}
-                      <AskAssistantLink materialId={m.material} plant={m.plant} />
                       <SessionChips
                         sessions={sessionsByKey?.get(`${m.material}::${m.plant}`)}
                       />

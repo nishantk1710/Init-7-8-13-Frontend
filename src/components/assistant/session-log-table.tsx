@@ -121,7 +121,7 @@ export function SessionLogTable({
         "Department",
         "Opened from",
         "Turns",
-        "Outcome",
+        "AI session status",
         "Issued",
         "Expires",
         "Reservation",
@@ -168,7 +168,7 @@ export function SessionLogTable({
           ]}
         />
         <FilterGroup
-          label="Outcome"
+          label="AI session status"
           value={outcome}
           onChange={setOutcome}
           options={[
@@ -244,7 +244,7 @@ export function SessionLogTable({
                 <TableHead>Department</TableHead>
                 <TableHead>Opened from</TableHead>
                 <TableHead>Turns</TableHead>
-                <TableHead>Outcome</TableHead>
+                <TableHead>AI session status</TableHead>
                 <TableHead>Issued</TableHead>
                 <TableHead>Reservation</TableHead>
               </TableRow>

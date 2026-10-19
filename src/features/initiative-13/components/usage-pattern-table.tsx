@@ -1,6 +1,5 @@
 "use client"
 
-import { AskAssistantLink } from "@/components/assistant/ask-assistant-link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -78,7 +77,6 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               <TableCell className="font-medium text-foreground">
                 <div className="flex flex-col gap-0.5">
                   <MaterialName material={row.material} description={row.materialDescription} />
-                  <AskAssistantLink materialId={row.material} plant={row.plant} variant="chip" label="Ask" />
                 </div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
