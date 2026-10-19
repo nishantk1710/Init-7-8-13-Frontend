@@ -22,6 +22,7 @@ import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, downloadExcel } from "@/lib/utils"
 import { FLOW_LABEL, flowLabel } from "@/lib/assistant/flow-labels"
 import {
+  linkedReservationsHref,
   matchesReservationFilter,
   reservationExportCell,
   reservationSearchTerms,
@@ -368,23 +369,16 @@ export function SessionLogTable({
 const MAX_REFS_SHOWN = 2
 
 /**
- * The reservation(s) whose SGTXT names this session. Each links to the
- * Utilization Ledger's reservations filtered to this session, as the trace
- * does. "Not linked" is "not read yet", not "never": the link appears once the
+ * The reservation(s) whose SGTXT names this session. OAR links to the
+ * Utilization Ledger's reservations for this session; Repairable to the
+ * session trace, since the ledger lists OAR materials only. "Not linked" is "not read yet", not "never": the link appears once the
  * item text reaches the platform.
  */
 function ReservationCell({ session }: { session: ApiSessionSummary }) {
   const state = sessionReservationState(session)
-  if (state.kind === "not-applicable" || state.kind === "unknown") {
+  if (state.kind === "unknown") {
     return (
-      <span
-        className="text-muted-foreground"
-        title={
-          state.kind === "unknown"
-            ? "Not available from this backend"
-            : "Repairable Spares sessions are not linked through the reservation's item text"
-        }
-      >
+      <span className="text-muted-foreground" title="Not available from this backend">
         —
       </span>
     )
@@ -404,9 +398,9 @@ function ReservationCell({ session }: { session: ApiSessionSummary }) {
   return (
     <span className="flex flex-wrap items-center gap-1">
       <Link
-        href={`/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(session.sessionId)}`}
+        href={linkedReservationsHref(session)}
         className="font-mono whitespace-nowrap text-ai-2 underline-offset-4 hover:underline"
-        title={`Open in the Utilization Ledger: ${state.refs.join(", ")}`}
+        title={`${session.flow === "i13" ? "Open in the Utilization Ledger" : "Open the session trace"}: ${state.refs.join(", ")}`}
       >
         {shown.join(", ")}
       </Link>

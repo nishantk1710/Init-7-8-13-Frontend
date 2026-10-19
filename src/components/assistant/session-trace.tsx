@@ -24,6 +24,7 @@ import type {
   ApiTurn,
   SessionTraceResponse,
 } from "@/lib/api/assistant"
+import { linkedReservationsHref } from "@/lib/assistant/session-reservations"
 import { summariseAnswer } from "@/lib/assistant/transcript"
 import { formatInstant, formatWindow, planStatusLabel } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
@@ -118,6 +119,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       <Linkage
         note={trace.linkageNote}
         sessionId={trace.sessionId}
+        flow={trace.flow}
         linked={trace.linkedReservations ?? []}
       />
     </div>
@@ -350,10 +352,12 @@ function JustificationCard({
 function Linkage({
   note,
   sessionId,
+  flow,
   linked,
 }: {
   note: string
   sessionId: string
+  flow: string
   linked: ApiLinkedReservation[]
 }) {
   return (
@@ -367,12 +371,20 @@ function Linkage({
         <ul className="flex flex-col gap-1.5">
           {linked.map((l) => (
             <li key={`${l.reservationNumber}/${l.reservationItem}`} className="flex flex-wrap items-center gap-2 text-sm">
-              <Link
-                href={`/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(sessionId)}`}
-                className="font-mono text-primary underline-offset-4 hover:underline"
-              >
-                {l.reservationNumber}/{l.reservationItem}
-              </Link>
+              {/* The ledger lists OAR materials only: a repairable's reservation
+                  would open an empty page, so it is shown, not linked. */}
+              {flow === "i13" ? (
+                <Link
+                  href={linkedReservationsHref({ flow, sessionId })}
+                  className="font-mono text-primary underline-offset-4 hover:underline"
+                >
+                  {l.reservationNumber}/{l.reservationItem}
+                </Link>
+              ) : (
+                <span className="font-mono text-foreground">
+                  {l.reservationNumber}/{l.reservationItem}
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">
                 item text &ldquo;{l.sgtxt ?? ""}&rdquo;
               </span>
