@@ -138,6 +138,7 @@ function RecommendationDetailView({
                     recommendationId={recommendation.id}
                     onChanged={() => onLiveChanged?.()}
                     surface={decide ? "action-center" : "recommendation"}
+                    convertToMinMax={recommendation.oarConversion?.conversionEligibility === "ELIGIBLE"}
                   />
                 ) : (
                   <DecisionActions recommendation={recommendation} />
