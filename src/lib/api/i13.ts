@@ -1114,6 +1114,8 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     sessionId: str(raw.session_id),
     sgtxt: str(raw.sgtxt),
     uatSimulated: Boolean(raw.uat_simulated),
+    issuedBeforeHistory: Boolean(raw.issued_before_history),
+    movementHistoryStart: str(raw.movement_history_start),
   }
 }
 
