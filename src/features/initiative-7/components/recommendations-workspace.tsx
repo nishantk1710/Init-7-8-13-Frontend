@@ -173,13 +173,6 @@ function LiveRecommendationsWorkspace({
             // Any listed row with a backend conversion decision -- cold-start or
             // standard-path -- brings the column in, under whichever filter.
             showMinMaxConversion={filters.type === "oar" || filtered.some((rec) => rec.conversionEligibility)}
-            // The same filter as the panel's dropdown, reachable from the column itself (OAR view only).
-            conversionFilter={filters.conversion}
-            onConversionFilterChange={
-              filters.type === "oar"
-                ? (conversion) => setFilters(normaliseRecommendationFilters({ ...filters, conversion }))
-                : undefined
-            }
           />
           {total > 0 && (
             <div className="flex items-center justify-between gap-3">
