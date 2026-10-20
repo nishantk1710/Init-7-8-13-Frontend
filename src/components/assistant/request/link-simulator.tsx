@@ -50,13 +50,13 @@ export function LinkSimulator({ request }: { request: RequestRecord }) {
   const typo = id.slice(0, 4) + (id[4] === "7" ? "8" : "7") + id.slice(5)
 
   const presets: { label: string; text: string }[] = [
-    { label: "Correct /n", text: lineReference(id, ownNo) },
-    { label: "No /n", text: id },
+    { label: "Header text", text: id },
+    { label: "Old style /n", text: lineReference(id, ownNo) },
     { label: "Wrong /n", text: lineReference(id, otherNo) },
     { label: "Dash + words", text: `Mill 3 shutdown ${id}-${ownNo}` },
     { label: "Lower case, spaced", text: `${id.slice(0, 5).toLowerCase()} ${id.slice(5).toLowerCase()}/${ownNo}` },
-    { label: "Typo", text: lineReference(typo, ownNo) },
-    { label: "Other request", text: lineReference(requestIdFrom("ZZZZ9999"), 1) },
+    { label: "Typo", text: typo },
+    { label: "Other request", text: requestIdFrom("ZZZZ9999") },
     { label: "Nothing typed", text: "urgent - for mill 3" },
   ]
 

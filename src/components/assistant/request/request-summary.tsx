@@ -25,7 +25,12 @@ import { ApiError } from "@/lib/api/client"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 
-/** A submitted request: its reference, every line's `/n`, and what SAP has linked so far. */
+/**
+ * A submitted request: the reference to type into SAP, every line's `R…/n`, and
+ * what SAP has linked so far. A request is one SAP reservation: the bare `R…`
+ * goes into its header text, and SAP copies that to every item. The `/n` is how
+ * a line is quoted here; linking tells the lines apart by material and plant.
+ */
 export function RequestSummary({ requestId }: { requestId: string }) {
   const { data: request, error, loading, reload } = useRequest(requestId)
   if (loading) return <Skeleton className="h-64 w-full rounded-2xl" />
@@ -47,20 +52,27 @@ export function RequestSummary({ requestId }: { requestId: string }) {
     <div className="flex flex-col gap-5">
       <DemoBanner>This request is held in this browser only. The reference cannot link to a real reservation.</DemoBanner>
 
+      <section className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
+        <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Type in SAP</span>
+        <CopyReference value={request.requestId} size="lg" />
+        <span className="text-xs text-muted-foreground">
+          Create one reservation for this request and type this reference into its header text. SAP copies it to
+          every item&rsquo;s text (SGTXT). Do not add /1, /2.
+        </span>
+      </section>
+
       <section className="flex flex-col gap-3">
-        {/* The per-line references are what the requester needs; the request's
-            own reference is in the page title (UAT, 19 Oct: no summary card). */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <AiEyebrow>Lines</AiEyebrow>
           <span className="text-xs text-muted-foreground">
-            Type each line&rsquo;s reference into the item text (SGTXT) of its SAP reservation item.
+            Each SAP item is matched to its line by material and plant.
           </span>
         </div>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full min-w-[1080px] text-sm">
             <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
               <tr>
-                <th className="px-3 py-2 font-medium">Reference for SGTXT</th>
+                <th className="px-3 py-2 font-medium">Reference</th>
                 <th className="px-3 py-2 font-medium">Material</th>
                 <th className="px-3 py-2 font-medium">Department</th>
                 <th className="px-3 py-2 font-medium">Decision</th>
@@ -128,7 +140,7 @@ function LiveLinks({ request, onSimulated }: { request: ApiRequest; onSimulated:
     setBusy(true)
     try {
       await simulateRequestReservation(request.requestId)
-      toast.success("Simulated SAP reservation created", { description: "Its items carry each line's reference." })
+      toast.success("Simulated SAP reservation created", { description: "Its items carry the request reference." })
       onSimulated()
     } catch (error) {
       toast.error("Could not simulate", {
@@ -151,7 +163,7 @@ function LiveLinks({ request, onSimulated }: { request: ApiRequest; onSimulated:
             {busy ? <Loader2 className="animate-spin" /> : <FlaskConical />}
             Simulate SAP reservation (UAT)
           </Button>
-          <span>UAT only: stands in for the requester typing each line&rsquo;s reference into SAP.</span>
+          <span>UAT only: stands in for the requester typing the request reference into SAP.</span>
         </div>
       )}
     </section>
@@ -170,7 +182,7 @@ function LineRow({ line }: { line: ApiRequestLine }) {
   return (
     <tr className="border-t border-border align-top">
       <td className="px-3 py-3">
-        <CopyReference value={line.reference} />
+        <span className="font-mono font-semibold tracking-wider text-foreground">{line.reference}</span>
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-0.5">

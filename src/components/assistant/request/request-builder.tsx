@@ -380,8 +380,8 @@ export function RequestBuilder() {
             </span>
           </span>
           <span className="text-[11px] text-muted-foreground">
-            Submitting records every line, or nothing, and gives one request reference. Each line is quoted as
-            reference/1, /2 … on the SAP reservation.
+            Submitting records every line, or nothing, and gives one request reference. Type it once into the SAP
+            reservation&rsquo;s header text; lines are shown here as reference/1, /2 …
           </span>
         </div>
         <Button type="button" onClick={submit} disabled={submitting} className={cn(AI_BUTTON, "h-9 gap-1.5 px-4")}>

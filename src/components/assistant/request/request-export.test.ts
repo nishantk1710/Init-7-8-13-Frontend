@@ -85,6 +85,12 @@ describe("requestExportModel", () => {
     })
   })
 
+  it("tells the requester to type the bare request reference into the SAP header", () => {
+    expect(Object.fromEntries(model.details)["Type in SAP"]).toBe("R46WFYXS1R")
+    expect(model.note).toContain("type R46WFYXS1R into its header text")
+    expect(model.note).not.toContain("R46WFYXS1R/")
+  })
+
   it("uses the screen's decision sentence and quantities", () => {
     expect(model.lines[0][3]).toEqual(["New unit -- none exists in stock or on repair."])
     expect(model.lines[1][3]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year -- justified."])
