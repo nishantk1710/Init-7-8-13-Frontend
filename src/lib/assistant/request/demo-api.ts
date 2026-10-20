@@ -75,7 +75,7 @@ function previewOf(materialId: string, plant: string): ApiPreviewLine {
       return {
         ...named,
         kind: "i13",
-        reason: "OAR by MRP type: planned on demand.",
+        reason: "OAR by MRP controller: planned on demand.",
         facts: {
           stockOnHand: String(f.stockOnHand),
           openPoQuantity: String(f.openPoQuantity),
@@ -241,7 +241,7 @@ export async function searchRequestMaterials(q: string): Promise<ApiMaterialMatc
     plant: m.plant,
     plantName: m.plantName,
     flowHint: m.routing.kind === "i13" ? "i13" : m.routing.kind === "i08" ? "i08" : "none",
-    mrpType: null,
+    mrpController: null,
   }))
 }
 

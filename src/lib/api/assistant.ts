@@ -110,6 +110,11 @@ export type ApiRouting = {
   materialScope: string
   mrpType: string | null
   /**
+   * MARC's MRP controller (DISPO) — the OAR rule since 20 Oct 2026: `OAR` is
+   * OAR, anything else (or blank) is not. Absent from an older backend.
+   */
+  mrpController?: string | null
+  /**
    * The flow that lost the tie. 97.6% of 80-series rows are also OAR, so this is
    * populated on almost every I08 session. Recorded so the decision stays
    * reviewable rather than looking arbitrary.
@@ -414,7 +419,8 @@ export type ApiMaterialMatch = {
   plant: string
   plantName: string | null
   flowHint: ApiFlow
-  mrpType: string | null
+  /** MARC's MRP controller (DISPO), which the I13 half of `flowHint` is read from. */
+  mrpController?: string | null
 }
 
 export type MaterialSearchResponse = {

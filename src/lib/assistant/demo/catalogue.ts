@@ -6,8 +6,6 @@
  */
 
 import type { ApiMaterialMatch, MaterialSearchResponse } from "@/lib/api/assistant"
-import startI08Fixture from "@/lib/api/__fixtures__/01-start-i08-choice.json"
-import startI13Fixture from "@/lib/api/__fixtures__/04-start-i13-choice.json"
 
 export const DEMO_REPAIRABLE: ApiMaterialMatch = {
   materialId: "8000005632",
@@ -16,9 +14,7 @@ export const DEMO_REPAIRABLE: ApiMaterialMatch = {
   plant: "1300",
   plantName: "Black Mountain Mining",
   flowHint: "i08",
-  // Taken from the fixture's routing rather than written out: MRP-type codes
-  // belong to lib/material-scope (see no-leakage.test.ts).
-  mrpType: startI08Fixture.routing.mrpType,
+  mrpController: null,
 }
 
 export const DEMO_OAR: ApiMaterialMatch = {
@@ -30,7 +26,7 @@ export const DEMO_OAR: ApiMaterialMatch = {
   plant: "1300",
   plantName: "Black Mountain Mining",
   flowHint: "i13",
-  mrpType: startI13Fixture.routing.mrpType,
+  mrpController: null,
 }
 
 export const DEMO_MATERIALS: readonly ApiMaterialMatch[] = [DEMO_REPAIRABLE, DEMO_OAR]

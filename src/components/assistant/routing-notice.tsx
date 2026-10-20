@@ -40,6 +40,7 @@ export function OutOfScopeNotice({ routing }: { routing: ApiRouting }) {
         <Detail label="Material" value={routing.materialId} />
         <Detail label="Plant" value={routing.plant} />
         <Detail label="Scope" value={routing.materialScope} />
+        {routing.mrpController && <Detail label="MRP controller" value={routing.mrpController} />}
         {routing.mrpType && <Detail label="MRP type" value={routing.mrpType} />}
       </dl>
 
