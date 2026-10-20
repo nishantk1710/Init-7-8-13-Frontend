@@ -204,11 +204,11 @@ export function reasonLabel(value: string): string {
     .join(" ")
 }
 
-/** A reference with a copy button, for `R…` and `R…/n`. */
+/** A reference with a copy button: the bare `R…` the requester types into SAP. */
 export function CopyReference({
   value,
   size = "md",
-  hint = "Type it into the reservation item's text (SGTXT) in SAP.",
+  hint = "Type it into the reservation's header text in SAP.",
 }: {
   value: string
   size?: "md" | "lg"

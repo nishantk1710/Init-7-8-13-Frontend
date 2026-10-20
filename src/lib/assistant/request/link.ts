@@ -3,8 +3,9 @@
  *
  * The line is found by **request ID + material + plant**. A request never holds
  * the same material at the same plant twice, so that pair already names one
- * line; the `/n` the requester types is read as a cross-check, never as the
- * key. A wrong or missing `/n` still links, with a warning where it disagrees.
+ * line. The requester types the bare request ID into the reservation header,
+ * and SAP copies it to every item, so no `/n` is the normal case. An older
+ * `R…/n` still links, with a warning where the `/n` names another line.
  *
  * Read from the text explicitly rather than through the session tokeniser:
  * `R…/2`, `R…-2`, `R… / 2` and a bare `R…` all parse, I/L and O are read as 1
@@ -139,7 +140,7 @@ export function resolveLink(
     let warn = false
     const ours = lineReference(request.requestId, line.lineNo)
     if (ref.lineNo === null) {
-      notes.push(`No line number typed. Matched to ${ours} by material and plant.`)
+      notes.push(`Matched to ${ours} by material and plant.`)
     } else if (ref.lineNo === line.lineNo) {
       notes.push(`Matched ${ours}.`)
     } else {

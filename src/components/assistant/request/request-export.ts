@@ -6,7 +6,7 @@
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
-import { isDeclined, lineReference, outcomeSentence } from "@/lib/assistant/request/record"
+import { isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 import {
   downloadDocument,
   exportFilename,
@@ -17,7 +17,7 @@ import {
 } from "@/lib/export-document"
 
 export const LINE_COLUMNS = [
-  "Reference for SGTXT",
+  "Reference",
   "Material",
   "Department",
   "Decision",
@@ -77,7 +77,7 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
     subtitle: "What was decided for each material, and how to quote it in SAP.",
     generatedAt: now.toLocaleString("en-GB"),
     details: [
-      ["Request reference", request.requestId],
+      ["Type in SAP", request.requestId],
       ["Requested for", request.requestedFor ?? "—"],
       ["Plant", request.plant],
       ["Departments", request.departments.length === 0 ? "No department" : request.departments.join(", ")],
@@ -87,9 +87,8 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
       ["No session", String(request.skipped.length)],
     ],
     note:
-      "On each SAP reservation item, type that line's reference into the item text (SGTXT), e.g. " +
-      `${lineReference(request.requestId, 1)}. The /n helps a reader, but the link is made by request + material + plant, ` +
-      "so a missing or wrong /n still links -- with a note.",
+      `Create one SAP reservation for this request and type ${request.requestId} into its header text -- without /1, /2. ` +
+      "SAP copies it to every item's text (SGTXT), and each item is matched to its line by material and plant.",
     lines: request.lines.map(lineCells),
     skipped: request.skipped.map((s) => ({ materialId: s.materialId, plant: s.plant, reason: s.reason })),
     linkSummary:

@@ -314,6 +314,14 @@ describe("the demo's link simulator", () => {
     expect(requestReferencesIn(`${id.slice(0, 4)} ${id.slice(4)}/2`)[0]).toMatchObject({ requestId: id, valid: true })
   })
 
+  it("links the bare header reference by material, with no warning", () => {
+    expect(resolveLink({ ...pump, sgtxt: id }, find)).toMatchObject({
+      status: "LINKED",
+      line: { lineNo: 2 },
+      notes: [`Matched to ${id}/2 by material and plant.`],
+    })
+  })
+
   it("links by material, warning on a wrong /n or a declined line", () => {
     expect(resolveLink({ ...pump, sgtxt: `${id}/2` }, find)).toMatchObject({ status: "LINKED", line: { lineNo: 2 } })
     expect(resolveLink({ ...pump, sgtxt: `${id}/1` }, find).status).toBe("LINKED_WITH_WARNING")
