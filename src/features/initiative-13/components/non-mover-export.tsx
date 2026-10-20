@@ -26,7 +26,8 @@ export function NonMoverExport({ filters }: { filters: WatchFilters }) {
             "Plant",
             "Aging band",
             "Months of cover",
-            "Days since movement",
+            "Days since last issue",
+            "Days since last movement",
             "Consumption (12m)",
             "Acquired vs plan",
           ],
@@ -38,6 +39,8 @@ export function NonMoverExport({ filters }: { filters: WatchFilters }) {
             // calculated, and a 0 would read as "no cover left" — the opposite
             // of what an unconsumed part means.
             row.monthsOfCover ?? "",
+            // The band's basis (SOP 3.15), then FR-6's separate figure.
+            row.daysSinceLastIssue ?? "Never issued",
             row.daysSinceLastMovement ?? "",
             row.consumptionCount12m,
             row.acquiredVsPlanStatus,

@@ -282,10 +282,18 @@ export async function UtilisationDashboardPage({
                     )}
                     <NonMoverTable
                       rows={nonMoverRows}
-                      page={pageOf("non-movers")}
                       total={nonMovers.total}
-                      hrefFor={hrefFor("non-movers")}
                       filters={filters}
+                      pagination={
+                        <TablePagination
+                          page={pageOf("non-movers")}
+                          pageSize={DEFAULT_PAGE_SIZE}
+                          total={nonMovers.total}
+                          count={nonMovers.count}
+                          noun="non-movers"
+                          hrefFor={hrefFor("non-movers")}
+                        />
+                      }
                     />
                   </div>
                 ) : (
@@ -297,10 +305,18 @@ export async function UtilisationDashboardPage({
                 {watch ? (
                   <AcquiredVsPlanPanel
                     rows={watch.rows}
-                    page={pageOf("plan")}
                     total={watch.total}
-                    hrefFor={hrefFor("plan")}
                     filters={filters}
+                    pagination={
+                      <TablePagination
+                        page={pageOf("plan")}
+                        pageSize={DEFAULT_PAGE_SIZE}
+                        total={watch.total}
+                        count={watch.count}
+                        noun="positions"
+                        hrefFor={hrefFor("plan")}
+                      />
+                    }
                   />
                 ) : (
                   <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
