@@ -43,8 +43,8 @@ function CriticalBadge({ value }: { value: boolean | null }) {
  * joined in from W6.5 (§ see `attachCriticalImpactIndicator`) — the two
  * FRS-required drilldown dimensions.
  *
- * One server page of 25, most recent activity first (the backend's order, by
- * last goods movement), out of every non-mover the filters match -- not the
+ * One server page of 25, most recently issued first (the backend's order, by
+ * last issue, never issued last), out of every non-mover the filters match -- not the
  * non-movers among a first batch of positions. The export fetches all of them.
  */
 export function NonMoverTable({
@@ -67,7 +67,16 @@ export function NonMoverTable({
   async function exportExcel() {
     downloadExcel(
       "i13-non-movers.xlsx",
-      ["Material", "Plant", "Aging band", "Days since movement", "Stock on hand", "Consumption (12m)", "Critical impact"],
+      [
+        "Material",
+        "Plant",
+        "Aging band",
+        "Days since last issue",
+        "Days since last movement",
+        "Stock on hand",
+        "Consumption (12m)",
+        "Critical impact",
+      ],
       nonMoverRowsToCsv(await exportNonMoverRows(filters))
     )
   }
@@ -86,7 +95,7 @@ export function NonMoverTable({
       <div className="flex items-center justify-between">
         <p className="text-[11px] text-muted-foreground">
           {formatCount(total ?? rows.length)} non-moving position{(total ?? rows.length) === 1 ? "" : "s"}, most
-          recent activity first
+          recently issued first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
@@ -96,7 +105,13 @@ export function NonMoverTable({
             <TableRow>
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Idle for</TableHead>
+              {/* Two figures, both FRS: the band is measured from the last
+                  issue (SOP 3.15), and FR-6 also asks for the last movement,
+                  which includes receipts. One column called "Idle for" showed
+                  only the second, so a non-mover received last week read
+                  "idle for 7 days". */}
+              <TableHead className="text-right">Since last issue</TableHead>
+              <TableHead className="text-right">Since last movement</TableHead>
               <TableHead className="text-right">Stock on hand</TableHead>
               <TableHead className="text-right">Consumption (12m)</TableHead>
               <TableHead>Critical impact</TableHead>
@@ -110,7 +125,14 @@ export function NonMoverTable({
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
                 <TableCell className="text-right text-foreground">
-                  {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : "—"}
+                  {row.daysSinceLastIssue !== null ? (
+                    <IdleFor days={row.daysSinceLastIssue} />
+                  ) : (
+                    <span className="text-muted-foreground">Never issued</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {row.daysSinceLastMovement !== null ? `${formatCount(row.daysSinceLastMovement)} days` : "—"}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
                   {row.stockOnHand !== null ? formatCount(row.stockOnHand) : "—"}

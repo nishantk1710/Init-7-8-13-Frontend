@@ -146,6 +146,19 @@ describe("nonMoverRowsToCsv", () => {
     expect(csv[0][csv[0].length - 1]).toBe("Yes")
     expect(csv[1][csv[1].length - 1]).toBe("Unknown")
   })
+
+  it("puts days since last issue -- the band's basis -- before days since last movement", () => {
+    const [row] = nonMoverRowsToCsv(
+      attachCriticalImpactIndicator(
+        [watchRow({ daysSinceLastIssue: 900, daysSinceLastMovement: 7 }), watchRow({ daysSinceLastIssue: null })],
+        []
+      )
+    )
+    expect(row.slice(3, 5)).toEqual([900, 7])
+    expect(nonMoverRowsToCsv(attachCriticalImpactIndicator([watchRow({ daysSinceLastIssue: null })], []))[0][3]).toBe(
+      "Never issued"
+    )
+  })
 })
 
 describe("selectConfirmedExceptions (justification log)", () => {

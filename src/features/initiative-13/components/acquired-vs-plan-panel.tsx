@@ -27,7 +27,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** Acquired vs. Plan (§9): backend-computed `acquired_vs_plan_status` and
  * variance, rendered as-is — no tolerance/comparison rule is recreated
- * here. One server page of 25, most recent activity first; the export fetches
+ * here. One server page of 25, most recently issued first; the export fetches
  * every position the filters match. */
 export function AcquiredVsPlanPanel({
   rows,
@@ -62,7 +62,7 @@ export function AcquiredVsPlanPanel({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-[11px] text-muted-foreground">
-          {formatCount(total ?? rows.length)} position{(total ?? rows.length) === 1 ? "" : "s"}, most recent activity
+          {formatCount(total ?? rows.length)} position{(total ?? rows.length) === 1 ? "" : "s"}, most recently issued
           first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />

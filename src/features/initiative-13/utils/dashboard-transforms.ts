@@ -74,6 +74,9 @@ export function nonMoverRowsToCsv(rows: NonMoverRow[]): (string | number)[][] {
     r.material,
     r.plant,
     r.agingBand,
+    // The band is measured from the last issue (SOP 3.15); the last movement
+    // (receipts included) is FR-6's separate figure. Both, labelled.
+    r.daysSinceLastIssue ?? "Never issued",
     r.daysSinceLastMovement ?? "",
     r.stockOnHand ?? "",
     r.consumptionCount12m,
