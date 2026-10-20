@@ -32,6 +32,10 @@ export type I13SearchParams = {
   acquiredVsPlanStatus?: string
   type?: string
   status?: string
+  /** Ledger screen, procurement view: filtered by the backend over every line. */
+  procurementStatus?: string
+  utilisationStatus?: string
+  deliveryStatus?: string
   /** Ledger screen: `reservations` shows the reservation-anchored ledger. */
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
@@ -67,6 +71,9 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     acquiredVsPlanStatus: single(raw.acquiredVsPlanStatus),
     type: single(raw.type),
     status: single(raw.status),
+    procurementStatus: single(raw.procurementStatus),
+    utilisationStatus: single(raw.utilisationStatus),
+    deliveryStatus: single(raw.deliveryStatus),
     view: single(raw.view),
     session: single(raw.session),
     tab: single(raw.tab),

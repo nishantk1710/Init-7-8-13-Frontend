@@ -6,6 +6,7 @@ import { ArrowRight, Clock3, FileText } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { PageHeader } from "@/components/shared/page-header"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
@@ -14,7 +15,6 @@ import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import {
   LoadFailure,
   PlanProvenanceNote,
-  RowCapNote,
   SectionUnavailable,
 } from "@/features/initiative-13/components/load-states"
 import { NonMoverExport } from "@/features/initiative-13/components/non-mover-export"
@@ -22,17 +22,13 @@ import { NonMoverTable } from "@/features/initiative-13/components/non-mover-tab
 import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
-import {
-  attachCriticalImpactIndicator,
-  filterNonMovers,
-} from "@/features/initiative-13/utils/dashboard-transforms"
-import { resolveDetailTab } from "@/features/initiative-13/utils/detail-tabs"
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { attachCriticalImpactIndicator } from "@/features/initiative-13/utils/dashboard-transforms"
+import { resolveDetailTab, type DetailTabId } from "@/features/initiative-13/utils/detail-tabs"
+import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   EXCEPTION_STATUS_LABEL,
   EXCEPTION_STATUS_ORDER,
   EXCEPTION_STATUS_TONE,
-  orderedCounts,
   PLAN_STATUS_LABEL,
   PLAN_STATUS_ORDER,
   PLAN_STATUS_TONE,
@@ -41,7 +37,16 @@ import type { AcquiredVsPlanStatus, ActExceptionStatus } from "@/lib/api/i13"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { formatApiDateTime } from "@/lib/api/format"
 import { buttonVariants } from "@/components/ui/button"
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
+
+const PATH = "/oar-utilization"
+
+/** `{STATUS: n}` from a count endpoint, in display order, unknown keys last. */
+function inOrder(counts: Record<string, number>, order: readonly string[]): { key: string; count: number }[] {
+  const extra = Object.keys(counts).filter((k) => !order.includes(k))
+  return [...order, ...extra].map((key) => ({ key, count: counts[key] ?? 0 }))
+}
 
 /** Demo mode only: the plans captured in this browser's demo sessions. */
 const DemoPlans = dynamic(() =>
@@ -73,6 +78,11 @@ const DemoPlans = dynamic(() =>
  * other section degrades on its own, a 404 reading as "not available" rather
  * than as an error.
  *
+ * The bars and tab badges are counted by the backend over every row the
+ * filters match; each table is one server page of 25 (`?tab=` and `?page=`).
+ * They used to be computed from the first 1,000 WATCH rows and 1,000
+ * exceptions, so they described a slice and said so only in small print.
+ *
  * ## The transforms this page performs
  *
  * Grouping, joining and filtering fields the backend already computed —
@@ -87,56 +97,57 @@ export async function UtilisationDashboardPage({
 }) {
   await connection()
 
-  const dashboard = await loadLiveDashboard({
+  const filters = {
     plant: searchParams.plant,
     material: searchParams.material,
     agingBand: searchParams.agingBand,
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
-  })
-
-  const { watch } = dashboard
+  }
   const initialTab = resolveDetailTab(searchParams.tab)
+  const page = searchParams.page ?? 1
+  const dashboard = await loadLiveDashboard(filters, { tab: initialTab, page })
 
-  const nonMoverRows = watch
+  const { watch, watchCounts, nonMovers } = dashboard
+  /** The page a tab is showing: the URL's for the open tab, else its first. */
+  const pageOf = (tab: DetailTabId) => (tab === initialTab ? page : 1)
+  const hrefFor = (tab: DetailTabId) => (p: number) => pageHref(PATH, { ...searchParams, tab }, p)
+
+  const nonMoverRows = nonMovers
     ? attachCriticalImpactIndicator(
-        filterNonMovers(watch.rows),
+        nonMovers.rows,
         dashboard.reclassification.status === "ready"
           ? dashboard.reclassification.data.rows
           : []
       )
     : []
 
-  const planSegments = watch
-    ? orderedCounts(watch.rows, (r) => r.acquiredVsPlanStatus, PLAN_STATUS_ORDER).map(
-        ({ key, count }) => ({
-          key,
-          count,
-          label: PLAN_STATUS_LABEL[key as AcquiredVsPlanStatus] ?? key,
-          tone: PLAN_STATUS_TONE[key as AcquiredVsPlanStatus] ?? "neutral",
-        })
-      )
+  const planSegments = watchCounts
+    ? inOrder(watchCounts.byAcquiredVsPlanStatus, PLAN_STATUS_ORDER).map(({ key, count }) => ({
+        key,
+        count,
+        label: PLAN_STATUS_LABEL[key as AcquiredVsPlanStatus] ?? key,
+        tone: PLAN_STATUS_TONE[key as AcquiredVsPlanStatus] ?? "neutral",
+      }))
     : []
 
   const exceptionSegments =
-    dashboard.exceptions.status === "ready"
-      ? orderedCounts(dashboard.exceptions.data.rows, (r) => r.status, EXCEPTION_STATUS_ORDER).map(
-          ({ key, count }) => ({
-            key,
-            count,
-            label: EXCEPTION_STATUS_LABEL[key as ActExceptionStatus] ?? key,
-            tone: EXCEPTION_STATUS_TONE[key as ActExceptionStatus] ?? "neutral",
-          })
-        )
+    dashboard.exceptionCounts.status === "ready"
+      ? inOrder(dashboard.exceptionCounts.data.byStatus, EXCEPTION_STATUS_ORDER).map(({ key, count }) => ({
+          key,
+          count,
+          label: EXCEPTION_STATUS_LABEL[key as ActExceptionStatus] ?? key,
+          tone: EXCEPTION_STATUS_TONE[key as ActExceptionStatus] ?? "neutral",
+        }))
       : []
 
   const capturedPlanCount =
-    dashboard.plans.status === "ready" ? dashboard.plans.data.count : null
+    dashboard.plans.status === "ready" ? (dashboard.plans.data.total ?? dashboard.plans.data.count) : null
   const referencePlanCount =
     dashboard.summary.status === "ready" ? dashboard.summary.data.referencePlanCount : null
 
   const unroutedExceptions =
-    dashboard.exceptions.status === "ready"
-      ? dashboard.exceptions.data.count - dashboard.exceptions.data.ownedCount
+    dashboard.exceptionCounts.status === "ready"
+      ? dashboard.exceptionCounts.data.total - dashboard.exceptionCounts.data.withRequester
       : 0
 
   return (
@@ -153,7 +164,7 @@ export async function UtilisationDashboardPage({
                   ? `Data as of ${formatApiDateTime(watch.calculatedAt)}`
                   : "Computation time not recorded"}
               </span>
-              {watch && <NonMoverExport rows={watch.rows} />}
+              {watchCounts && <NonMoverExport filters={filters} />}
               {dashboard.reportEnabled && (
                 <Link
                   href="/oar-utilization/report"
@@ -189,7 +200,7 @@ export async function UtilisationDashboardPage({
             subtitle="Received quantity against the consumption plan, per material"
             span={6}
           >
-            {watch ? (
+            {watchCounts ? (
               <div className="flex h-full flex-col gap-4">
                 <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
                 <PlanProvenanceNote
@@ -208,8 +219,8 @@ export async function UtilisationDashboardPage({
             subtitle="Where each follow-up sits in the confirmation workflow"
             span={6}
           >
-            {dashboard.exceptions.status === "ready" ? (
-              dashboard.exceptions.data.count === 0 ? (
+            {dashboard.exceptionCounts.status === "ready" ? (
+              dashboard.exceptionCounts.data.total === 0 ? (
                 <QuietState
                   title="No exceptions in the queue"
                   description="Nothing is waiting on a requester or escalated."
@@ -226,7 +237,7 @@ export async function UtilisationDashboardPage({
                 </div>
               )
             ) : (
-              <SectionFallback section={dashboard.exceptions} what="exceptions" />
+              <SectionFallback section={dashboard.exceptionCounts} what="exceptions" />
             )}
             <div className="mt-4 flex justify-end">
               <Link
@@ -251,9 +262,9 @@ export async function UtilisationDashboardPage({
               </div>
               <div className="-mx-1 overflow-x-auto px-1 pb-2">
                 <TabsList variant="line" className="h-9">
-                  <DetailTab value="non-movers" label="Non-movers" count={watch ? nonMoverRows.length : null} />
-                  <DetailTab value="plan" label="Acquired vs plan" count={watch?.rows.length ?? null} />
-                  <DetailTab value="plans" label="Captured plans" count={sectionCount(dashboard.plans, (d) => d.count)} />
+                  <DetailTab value="non-movers" label="Non-movers" count={nonMovers?.total ?? null} />
+                  <DetailTab value="plan" label="Acquired vs plan" count={watchCounts?.total ?? null} />
+                  <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
                   <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
                 </TabsList>
               </div>
@@ -261,7 +272,7 @@ export async function UtilisationDashboardPage({
 
             <div className="p-4 sm:p-5">
               <TabsContent value="non-movers">
-                {watch ? (
+                {nonMovers ? (
                   <div className="flex flex-col gap-3">
                     {dashboard.reclassification.status === "unavailable" && (
                       <p className="text-xs text-muted-foreground">
@@ -269,7 +280,13 @@ export async function UtilisationDashboardPage({
                         available from this backend.
                       </p>
                     )}
-                    <NonMoverTable rows={nonMoverRows} />
+                    <NonMoverTable
+                      rows={nonMoverRows}
+                      page={pageOf("non-movers")}
+                      total={nonMovers.total}
+                      hrefFor={hrefFor("non-movers")}
+                      filters={filters}
+                    />
                   </div>
                 ) : (
                   <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
@@ -278,7 +295,13 @@ export async function UtilisationDashboardPage({
 
               <TabsContent value="plan">
                 {watch ? (
-                  <AcquiredVsPlanPanel rows={watch.rows} />
+                  <AcquiredVsPlanPanel
+                    rows={watch.rows}
+                    page={pageOf("plan")}
+                    total={watch.total}
+                    hrefFor={hrefFor("plan")}
+                    filters={filters}
+                  />
                 ) : (
                   <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
                 )}
@@ -297,11 +320,13 @@ export async function UtilisationDashboardPage({
                       reference plans.
                     </p>
                     <PlansTable plans={dashboard.plans.data.rows} />
-                    <RowCapNote
-                      atLimit={dashboard.plans.data.atLimit}
-                      count={dashboard.plans.data.count}
+                    <TablePagination
+                      page={pageOf("plans")}
+                      pageSize={DEFAULT_PAGE_SIZE}
                       total={dashboard.plans.data.total}
-                      noun="captured plan"
+                      count={dashboard.plans.data.count}
+                      noun="captured plans"
+                      hrefFor={hrefFor("plans")}
                     />
                   </div>
                 ) : (

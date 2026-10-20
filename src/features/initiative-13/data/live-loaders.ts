@@ -33,10 +33,13 @@
  */
 
 import {
+  getI13ActExceptionCounts,
   getI13ActExceptionsList,
+  getI13ActUtilisationCounts,
   getI13ActUtilisationList,
-  getI13ConsumptionPlans,
+  getI13ConsumptionPlansList,
   getI13Grni,
+  getI13LedgerCounts,
   getI13LedgerList,
   getI13ReclassificationList,
   getI13ReservationLedgerList,
@@ -45,6 +48,7 @@ import {
   getI13Validation,
   getI13Zmm065Uploads,
   type ActException,
+  type ActExceptionCounts,
   type ConsumptionPlan,
   type GrniEntry,
   type I13Summary,
@@ -53,6 +57,7 @@ import {
   type UsagePattern,
   type UtilisationLedgerEntry,
   type ValidationResult,
+  type WatchCounts,
   type WatchMetric,
   type Zmm065Upload,
 } from "@/lib/api/i13"
@@ -174,23 +179,41 @@ export async function loadLiveWatch(filters: WatchFilters = {}, paging?: Paging)
 
 export type LedgerFilters = { plant?: string; material?: string }
 
+export type ProcurementLedgerFilters = LedgerFilters & {
+  procurementStatus?: string
+  utilisationStatus?: string
+  deliveryStatus?: string
+}
+
 export type LiveLedger = Capped<UtilisationLedgerEntry> & {
   plantOptions: string[]
-  /** How many rows reached each linkage state — FRS AC-3's "reported, not inferred". */
+  /**
+   * Lines per linkage state across every line the filters match — FRS AC-3's
+   * "reported, not inferred". From `/ledger/counts`, not from the page.
+   */
   linkageCounts: Record<string, number>
 }
 
-export async function loadLiveLedger(filters: LedgerFilters = {}): Promise<LiveLedger> {
-  const { items: rows, total } = await getI13LedgerList({
+/**
+ * One page of procurement lines, newest first, with the counts the header
+ * states. Every filter runs on the backend over the whole ledger.
+ */
+export async function loadLiveLedger(
+  filters: ProcurementLedgerFilters = {},
+  paging?: Paging
+): Promise<LiveLedger> {
+  const scope = {
     plant: filters.plant || undefined,
     material: filters.material || undefined,
-    limit: ROW_CAP,
-  })
-  const linkageCounts: Record<string, number> = {}
-  for (const row of rows) {
-    linkageCounts[row.linkageStatus] = (linkageCounts[row.linkageStatus] ?? 0) + 1
+    procurementStatus: filters.procurementStatus || undefined,
+    utilisationStatus: filters.utilisationStatus || undefined,
+    deliveryStatus: filters.deliveryStatus || undefined,
   }
-  return { ...cap(rows, total), plantOptions: plantsOf(rows), linkageCounts }
+  const [{ items: rows, total }, counts] = await Promise.all([
+    getI13LedgerList({ ...scope, ...pageRequest(paging) }),
+    getI13LedgerCounts(scope),
+  ])
+  return { ...cap(rows, total), plantOptions: plantsOf(rows), linkageCounts: counts.byLinkageStatus }
 }
 
 export type ActExceptionFilters = {
@@ -321,13 +344,36 @@ export type LivePlans = Capped<ConsumptionPlan> & {
  * **not** in this list, by design: the backend keeps them apart, and the whole
  * value of this screen is being able to say which is which.
  */
-export async function loadLivePlans(filters: LedgerFilters = {}): Promise<LivePlans> {
-  const rows = await getI13ConsumptionPlans({
+export async function loadLivePlans(filters: LedgerFilters = {}, paging?: Paging): Promise<LivePlans> {
+  const { items: rows, total } = await getI13ConsumptionPlansList({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
-    limit: 500,
+    // The route's own maximum is 500.
+    ...pageRequest(paging, 500),
   })
-  return { ...cap(rows), plantOptions: plantsOf(rows) }
+  return { ...cap(rows, total), plantOptions: plantsOf(rows) }
+}
+
+/**
+ * WATCH totals for the dashboard — by acquired-vs-plan status and aging band,
+ * over every OAR row the filters match. The bars and tab badges read these
+ * instead of counting a page of rows.
+ */
+export function loadLiveWatchCounts(filters: WatchFilters = {}): Promise<WatchCounts> {
+  return getI13ActUtilisationCounts({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    agingBand: filters.agingBand || undefined,
+    acquiredVsPlanStatus: filters.acquiredVsPlanStatus || undefined,
+  })
+}
+
+/** The whole ACT queue by status, and how many have a requester — the dashboard's bar. */
+export function loadLiveExceptionCounts(scope: LedgerFilters = {}): Promise<ActExceptionCounts> {
+  return getI13ActExceptionCounts({
+    plant: scope.plant || undefined,
+    material: scope.material || undefined,
+  })
 }
 
 /** The KPI counts, scoped to the same plant/material as the rest of the dashboard. */

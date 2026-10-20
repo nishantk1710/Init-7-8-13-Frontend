@@ -1,25 +1,24 @@
 "use client"
 
-import { Download } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import type { WatchMetric } from "@/lib/api/i13"
+import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
+import { ExportButton } from "@/features/initiative-13/components/export-button"
+import { exportWatchRows } from "@/features/initiative-13/export-actions"
 import { downloadExcel } from "@/lib/utils"
 
 /**
  * Excel export of the full WATCH set — FR-10's "with filters and export".
  *
- * A one-button client component so the dashboard around it can stay a server
- * component: `downloadExcel` builds a workbook and clicks an anchor, which is browser
- * work. Exporting the rows the page already holds means the export always
- * matches what is on screen, including the current filters.
+ * Every OAR position the current filters match, fetched when the button is
+ * pressed: the dashboard itself only holds a page of 25. A client component so
+ * the dashboard around it can stay a server component — `downloadExcel` builds
+ * a workbook and clicks an anchor, which is browser work.
  */
-export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
+export function NonMoverExport({ filters }: { filters: WatchFilters }) {
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={() =>
+    <ExportButton
+      label="Export all materials"
+      onExport={async () => {
+        const rows = await exportWatchRows(filters)
         downloadExcel(
           "oar-consumption-tracking.xlsx",
           [
@@ -44,10 +43,7 @@ export function NonMoverExport({ rows }: { rows: WatchMetric[] }) {
             row.acquiredVsPlanStatus,
           ])
         )
-      }
-    >
-      <Download className="size-3.5" />
-      Export all materials
-    </Button>
+      }}
+    />
   )
 }
