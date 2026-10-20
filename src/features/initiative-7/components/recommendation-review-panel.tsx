@@ -11,7 +11,7 @@ import { SimilarMaterialsList } from "@/features/initiative-7/components/similar
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import type { Criticality, DemandPattern, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
-import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
+import { hasRecentConsumption, serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
 
 /** ABC class from the criticality tier, most severe first. */
 export const CRITICALITY_CODE: Record<Criticality, string> = {
@@ -262,9 +262,9 @@ export function RecommendationReviewPanel({
           </div>
         </div>
 
-        {/* No usage at this plant: nothing to chart, so no card (such a material is sized from
-            similar materials, listed below). */}
-        {rec.consumptionHistory.length > 0 && (
+        {/* No usage in the last 12 months (no series at all, or a series of zeros): nothing to
+            chart, so no card (such a material is sized from similar materials, listed below). */}
+        {hasRecentConsumption(rec) && (
           <div className="rounded-lg border border-border bg-background p-3">
             <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">
               Consumption history &amp; forecast

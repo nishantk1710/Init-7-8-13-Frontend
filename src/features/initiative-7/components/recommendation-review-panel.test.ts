@@ -73,6 +73,24 @@ describe("the Consumption history & forecast card", () => {
     expect(markup).not.toContain("Consumption history &amp; forecast")
     expect(markup).not.toContain("No usage history to show")
   })
+
+  it("is gone when the series is only zeros — the backend sends a month with no usage as a 0", () => {
+    const zeros = Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, qty: 0 }))
+    const markup = render(rec({ consumptionHistory: zeros }))
+    expect(markup).not.toContain("Consumption history &amp; forecast")
+  })
+
+  it("is gone when the only usage is older than the last 12 months", () => {
+    const older = [{ period: "Old", qty: 9 }, ...Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, qty: 0 }))]
+    const markup = render(rec({ consumptionHistory: older }))
+    expect(markup).not.toContain("Consumption history &amp; forecast")
+  })
+
+  it("is there when any one of the last 12 months has usage", () => {
+    const some = Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, qty: i === 3 ? 2 : 0 }))
+    const markup = render(rec({ consumptionHistory: some }))
+    expect(markup).toContain("Consumption history &amp; forecast")
+  })
 })
 
 describe("OarConversionLabel", () => {
