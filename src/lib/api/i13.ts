@@ -510,16 +510,35 @@ export function getI13Ledger(params?: {
   return apiFetch<RawRecord[]>(`/i13/ledger${query}`).then((rows) => rows.map(toLedgerEntry))
 }
 
-/** `GET /i13/ledger` with the population total from `X-Total-Count`. */
-export function getI13LedgerList(params?: {
+/** What the procurement view narrows by, all applied by the backend over every line. */
+export type LedgerListFilters = {
   plant?: string
   material?: string
-  limit?: number
-  offset?: number
-}): Promise<ApiList<UtilisationLedgerEntry>> {
-  const query = buildQuery({
+  procurementStatus?: string
+  utilisationStatus?: string
+  /** `DELIVERED`, `PARTIAL`, `NOT_DELIVERED` or `NO_PO` — see `utils/delivery-status.ts`. */
+  deliveryStatus?: string
+}
+
+function ledgerFilterQuery(params?: LedgerListFilters) {
+  return {
     plant: params?.plant,
     material: params?.material,
+    procurement_status: params?.procurementStatus,
+    utilisation_status: params?.utilisationStatus,
+    delivery_status: params?.deliveryStatus,
+  }
+}
+
+/**
+ * `GET /i13/ledger` with the population total from `X-Total-Count`. Newest
+ * first (PR date, else first goods receipt) on the stored snapshot.
+ */
+export function getI13LedgerList(
+  params?: LedgerListFilters & { limit?: number; offset?: number }
+): Promise<ApiList<UtilisationLedgerEntry>> {
+  const query = buildQuery({
+    ...ledgerFilterQuery(params),
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })
@@ -527,6 +546,33 @@ export function getI13LedgerList(params?: {
     ...list,
     items: list.items.map(toLedgerEntry),
   }))
+}
+
+export type LedgerCounts = {
+  total: number
+  /** Lines per linkage status (`FULL_CHAIN`, `PR_ONLY`, `UNMATCHED`, ...). */
+  byLinkageStatus: Record<string, number>
+}
+
+/** `GET /i13/ledger/counts` — the procurement view's header, over every matching line. */
+export function getI13LedgerCounts(params?: LedgerListFilters): Promise<LedgerCounts> {
+  return apiFetch<RawRecord>(`/i13/ledger/counts${buildQuery(ledgerFilterQuery(params))}`).then((raw) => ({
+    total: countValue(raw.total),
+    byLinkageStatus: countsOf(raw.by_linkage_status),
+  }))
+}
+
+function countsOf(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (value && typeof value === "object") {
+    for (const [key, n] of Object.entries(value as Record<string, unknown>)) out[key] = countValue(n)
+  }
+  return out
+}
+
+/** A count from a JSON body: a number (or numeric string), else 0. */
+function countValue(value: unknown): number {
+  return toCount(typeof value === "number" || typeof value === "string" ? value : undefined)
 }
 
 export function getI13LedgerEntry(ledgerId: string): Promise<UtilisationLedgerEntry> {
@@ -693,6 +739,22 @@ export function getI13ConsumptionPlans(params?: {
   return apiFetch<ConsumptionPlan[]>(`/i13/consumption-plans${query}`)
 }
 
+/** `GET /i13/consumption-plans`, one page, newest first, with the total from `X-Total-Count`. */
+export function getI13ConsumptionPlansList(params?: {
+  material?: string
+  plant?: string
+  limit?: number
+  offset?: number
+}): Promise<ApiList<ConsumptionPlan>> {
+  const query = buildQuery({
+    material: params?.material,
+    plant: params?.plant,
+    limit: params?.limit,
+    offset: params?.offset,
+  })
+  return apiFetchList<ConsumptionPlan>(`/i13/consumption-plans${query}`)
+}
+
 /**
  * `GET /i13/quantity-suggestion/compute` — FR-3, without a conversation.
  *
@@ -743,9 +805,12 @@ export function getI13ActUtilisation(params?: {
   )
 }
 
-/** `GET /i13/act/utilisation` with the population total from `X-Total-Count`. */
+/**
+ * `GET /i13/act/utilisation` with the population total from `X-Total-Count`.
+ * Most recent activity (last goods movement) first unless `sort: "material"`.
+ */
 export function getI13ActUtilisationList(
-  params?: Parameters<typeof getI13ActUtilisation>[0]
+  params?: Parameters<typeof getI13ActUtilisation>[0] & { sort?: "recent" | "material" }
 ): Promise<ApiList<WatchMetric>> {
   const query = buildQuery({
     plant: params?.plant,
@@ -753,12 +818,43 @@ export function getI13ActUtilisationList(
     aging_band: params?.agingBand,
     grni: params?.grni === undefined ? undefined : String(params.grni),
     acquired_vs_plan_status: params?.acquiredVsPlanStatus,
+    sort: params?.sort,
     limit: params?.limit,
     offset: params?.offset,
   })
   return apiFetchList<RawRecord>(`/i13/act/utilisation${query}`).then((list) => ({
     ...list,
     items: list.items.map(toWatchMetric),
+  }))
+}
+
+export type WatchCounts = {
+  total: number
+  byAcquiredVsPlanStatus: Record<string, number>
+  byAgingBand: Record<string, number>
+}
+
+/**
+ * `GET /i13/act/utilisation/counts` — OAR WATCH rows in total, by
+ * acquired-vs-plan status and by aging band, over every row the filters match.
+ * What the dashboard's bars and tab badges read instead of loading rows.
+ */
+export function getI13ActUtilisationCounts(params?: {
+  plant?: string
+  material?: string
+  agingBand?: string
+  acquiredVsPlanStatus?: string
+}): Promise<WatchCounts> {
+  const query = buildQuery({
+    plant: params?.plant,
+    material: params?.material,
+    aging_band: params?.agingBand,
+    acquired_vs_plan_status: params?.acquiredVsPlanStatus,
+  })
+  return apiFetch<RawRecord>(`/i13/act/utilisation/counts${query}`).then((raw) => ({
+    total: countValue(raw.total),
+    byAcquiredVsPlanStatus: countsOf(raw.by_acquired_vs_plan_status),
+    byAgingBand: countsOf(raw.by_aging_band),
   }))
 }
 
@@ -801,6 +897,27 @@ export function getI13ActExceptionsList(
   return apiFetchList<RawRecord>(`/i13/act/exceptions${query}`).then((list) => ({
     ...list,
     items: list.items.map(toActException),
+  }))
+}
+
+export type ActExceptionCounts = {
+  total: number
+  byStatus: Record<string, number>
+  /** Exceptions with a requester to route to; the rest reach nobody. */
+  withRequester: number
+}
+
+/** `GET /i13/act/exceptions/counts` — the whole queue by status, for the dashboard's bar. */
+export function getI13ActExceptionCounts(params?: {
+  plant?: string
+  material?: string
+  type?: string
+}): Promise<ActExceptionCounts> {
+  const query = buildQuery({ plant: params?.plant, material: params?.material, type: params?.type })
+  return apiFetch<RawRecord>(`/i13/act/exceptions/counts${query}`).then((raw) => ({
+    total: countValue(raw.total),
+    byStatus: countsOf(raw.by_status),
+    withRequester: countValue(raw.with_requester),
   }))
 }
 

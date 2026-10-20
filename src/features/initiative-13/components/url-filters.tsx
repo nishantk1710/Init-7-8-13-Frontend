@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DELIVERY_STATE_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
 import {
@@ -69,6 +70,9 @@ export function I13UrlFilters({
     | "acquiredVsPlanStatus"
     | "type"
     | "status"
+    | "procurementStatus"
+    | "utilisationStatus"
+    | "deliveryStatus"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -182,6 +186,36 @@ export function I13UrlFilters({
           />
         )}
 
+        {fields.includes("procurementStatus") && (
+          <UrlSelect
+            label="All procurement statuses"
+            width="sm:w-48"
+            value={searchParams.get("procurementStatus") ?? ""}
+            options={PROCUREMENT_STATUSES.map((value) => ({ value, label: words(value) }))}
+            onChange={(value) => push({ procurementStatus: value })}
+          />
+        )}
+
+        {fields.includes("utilisationStatus") && (
+          <UrlSelect
+            label="All utilization statuses"
+            width="sm:w-48"
+            value={searchParams.get("utilisationStatus") ?? ""}
+            options={UTILISATION_STATUSES.map((value) => ({ value, label: words(value) }))}
+            onChange={(value) => push({ utilisationStatus: value })}
+          />
+        )}
+
+        {fields.includes("deliveryStatus") && (
+          <UrlSelect
+            label="All delivery statuses"
+            width="sm:w-48"
+            value={searchParams.get("deliveryStatus") ?? ""}
+            options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
+            onChange={(value) => push({ deliveryStatus: value })}
+          />
+        )}
+
         <ClearFiltersButton activeCount={activeCount} onClear={clearAll} />
       </FilterBar>
 
@@ -197,6 +231,18 @@ export function I13UrlFilters({
       </span>
     </div>
   )
+}
+
+const PROCUREMENT_STATUSES = ["OPEN", "PARTIALLY_RECEIVED", "RECEIVED"] as const
+const UTILISATION_STATUSES = ["NOT_ISSUED", "PARTIALLY_ISSUED", "FULLY_ISSUED"] as const
+
+/** `PARTIALLY_RECEIVED` -> "Partially Received", as the ledger's badges read. */
+function words(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((w) => (w[0]?.toUpperCase() ?? "") + w.slice(1))
+    .join(" ")
 }
 
 function labelFor(labels: Record<string, string>, value: string): string {

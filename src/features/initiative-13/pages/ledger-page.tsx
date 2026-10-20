@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
-import { LoadFailure, RowCapNote } from "@/features/initiative-13/components/load-states"
+import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ReservationLedgerTable } from "@/features/initiative-13/components/reservation-ledger-table"
 import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative-13/data/live-loaders"
@@ -120,7 +120,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
           description={
             searchParams.session
               ? `Reservations whose item text carries session ${searchParams.session}.`
-              : "Every OAR reservation item, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
+              : "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
           }
         />
         <ViewToggle searchParams={searchParams} active="reservations" />
@@ -149,7 +149,14 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
   )
 }
 
+/**
+ * Server-paged, newest first: 25 lines a page out of the whole OAR ledger
+ * (~44k lines), with every filter -- plant, material and the three statuses --
+ * applied by the backend. The header's numbers come from `/ledger/counts`, so
+ * they describe every matching line rather than the lines on screen.
+ */
 async function ProcurementView({ searchParams }: { searchParams: I13SearchParams }) {
+  const page = searchParams.page ?? 1
   // The try/catch wraps ONLY the fetch. Building JSX inside it would put the
   // render under the same handler as the request, so an error thrown while
   // rendering would be reported as a failed load -- the opposite of this page's
@@ -157,12 +164,22 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
   let live: Awaited<ReturnType<typeof loadLiveLedger>> | null = null
   let loadError: string | null = null
   try {
-    live = await loadLiveLedger({
-      plant: searchParams.plant,
-      material: searchParams.material,
-    })
+    live = await loadLiveLedger(
+      {
+        plant: searchParams.plant,
+        material: searchParams.material,
+        procurementStatus: searchParams.procurementStatus,
+        utilisationStatus: searchParams.utilisationStatus,
+        deliveryStatus: searchParams.deliveryStatus,
+      },
+      { page, pageSize: DEFAULT_PAGE_SIZE }
+    )
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
+  }
+  // Past the end goes to the last page. Outside the try: redirect() throws.
+  if (live?.total && page > pageCountOf(live.total, DEFAULT_PAGE_SIZE)) {
+    redirect(pageHref(PATH, searchParams, pageCountOf(live.total, DEFAULT_PAGE_SIZE)))
   }
 
   const unmatched = live?.linkageCounts.UNMATCHED ?? 0
@@ -174,14 +191,17 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           title="Utilization Ledger"
           description={
             live
-              ? `${formatCount(live.count)} OAR procurement lines, each anchored from purchase requisition through goods issue. ` +
+              ? `${formatCount(live.total ?? live.count)} OAR procurement lines, newest first, each anchored from purchase requisition through goods issue. ` +
                 `${formatCount(unmatched)} could not be stitched and are shown as unmatched rather than inferred.`
               : "Every OAR purchase-requisition item, anchored end-to-end from reservation through goods issue."
           }
         />
         <ViewToggle searchParams={searchParams} active="lines" />
 
-        <I13UrlFilters fields={["plant", "material"]} plants={live?.plantOptions} />
+        <I13UrlFilters
+          fields={["plant", "material", "procurementStatus", "utilisationStatus", "deliveryStatus"]}
+          plants={live?.plantOptions}
+        />
 
         {live === null ? (
           // Shown as a failure, never as an empty table. "No reservations" and
@@ -189,15 +209,15 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           <LoadFailure what="utilization ledger" message={loadError} />
         ) : (
           <>
-            {/* Keyed on the server filters, so a new plant/material starts the
-                table over: page 1, status filters cleared. Paged in the browser
-                (not via ?page=) because its two status filters are still local
-                and must see every row loaded, not one page of them. */}
-            <UtilizationLedgerTable
-              key={`${searchParams.plant ?? ""}|${searchParams.material ?? ""}`}
-              entries={live.rows}
+            <UtilizationLedgerTable entries={live.rows} />
+            <TablePagination
+              page={page}
+              pageSize={DEFAULT_PAGE_SIZE}
+              total={live.total}
+              count={live.count}
+              noun="ledger lines"
+              hrefFor={(p) => pageHref(PATH, searchParams, p)}
             />
-            <RowCapNote atLimit={live.atLimit} count={live.count} total={live.total} noun="ledger line" />
           </>
         )}
 

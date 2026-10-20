@@ -25,21 +25,26 @@
 import { ApiError } from "@/lib/api/client"
 import {
   getI13AllJustifications,
+  type ActExceptionCounts,
   type I13Summary,
+  type WatchCounts,
 } from "@/lib/api/i13"
 import { listSummaryReports } from "@/lib/api/i13-report"
 import type { UnifiedJustification } from "@/lib/assistant/justifications"
 import {
-  loadLiveActExceptions,
+  loadLiveExceptionCounts,
   loadLivePlans,
   loadLiveReclassification,
   loadLiveSummary,
   loadLiveWatch,
-  type LiveActExceptions,
+  loadLiveWatchCounts,
   type LivePlans,
   type LiveReclassification,
   type LiveWatch,
+  type Paging,
 } from "@/features/initiative-13/data/live-loaders"
+import type { DetailTabId } from "@/features/initiative-13/utils/detail-tabs"
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
 
 /** A section that is allowed to be missing without the page being broken. */
 export type Section<T> =
@@ -80,12 +85,20 @@ export type DashboardFilters = {
 }
 
 export type LiveDashboard = {
-  /** The one official dependency. Null means the page cannot render its core. */
+  /**
+   * The one official dependency: WATCH totals, for the plan-coverage bar and
+   * the tab badges. Counted by the backend over every OAR row the filters
+   * match. Null means the page cannot render its core.
+   */
+  watchCounts: WatchCounts | null
+  /** The acquired-vs-plan tab: one page of WATCH rows, most recent activity first. */
   watch: LiveWatch | null
   watchError: string | null
+  /** The non-movers tab: one page of NON_MOVING rows, most recent activity first. */
+  nonMovers: LiveWatch | null
   summary: Section<I13Summary>
   reclassification: Section<LiveReclassification>
-  exceptions: Section<LiveActExceptions>
+  exceptionCounts: Section<ActExceptionCounts>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
   /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
@@ -94,27 +107,57 @@ export type LiveDashboard = {
   reportEnabled: boolean
 }
 
+/** Nothing to fetch: an aging-band filter other than NON_MOVING leaves no non-movers. */
+const NO_ROWS: LiveWatch = {
+  rows: [],
+  count: 0,
+  total: 0,
+  atLimit: false,
+  plantOptions: [],
+  agingBandOptions: [],
+  calculatedAt: null,
+}
+
+function failure(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * The dashboard's data, one page per tab.
+ *
+ * The bars and badges come from count endpoints, so they describe every row
+ * the filters match. The tables load one page of 25 each: the active tab
+ * (`?tab=`) at `?page=`, the others at page 1 -- a tab opened without a
+ * navigation shows its first page, and its pager links carry its own `tab`.
+ */
 export async function loadLiveDashboard(
-  filters: DashboardFilters = {}
+  filters: DashboardFilters = {},
+  view: { tab: DetailTabId; page: number } = { tab: "non-movers", page: 1 }
 ): Promise<LiveDashboard> {
   const scope = { plant: filters.plant, material: filters.material }
+  const pageOf = (tab: DetailTabId): Paging => ({
+    page: view.tab === tab ? view.page : 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+  })
+  const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
 
-  // All six in flight together. Sequentially this would be six round trips
-  // deep on a screen whose whole job is to be glanced at.
-  const [watchResult, summary, reclassification, exceptions, justifications, plans, reportEnabled] =
+  // All in flight together. Sequentially this would be eight round trips deep
+  // on a screen whose whole job is to be glanced at.
+  const [counts, watch, nonMovers, summary, reclassification, exceptionCounts, justifications, plans, reportEnabled] =
     await Promise.all([
-      loadLiveWatch(filters).then(
+      loadLiveWatchCounts(filters).then(
         (data) => ({ ok: true as const, data }),
-        (error: unknown) => ({
-          ok: false as const,
-          message: error instanceof Error ? error.message : String(error),
-        })
+        (error: unknown) => ({ ok: false as const, message: failure(error) })
       ),
+      loadLiveWatch(filters, pageOf("plan")).catch(() => null),
+      nonMoverFilter
+        ? loadLiveWatch({ ...filters, agingBand: "NON_MOVING" }, pageOf("non-movers")).catch(() => null)
+        : Promise.resolve(NO_ROWS),
       section(loadLiveSummary(scope)),
       section(loadLiveReclassification(scope, { allPositions: true })),
-      section(loadLiveActExceptions(scope)),
+      section(loadLiveExceptionCounts(scope)),
       section(getI13AllJustifications(scope)),
-      section(loadLivePlans(scope)),
+      section(loadLivePlans(scope, pageOf("plans"))),
       listSummaryReports({ limit: 1 }).then(
         () => true,
         () => false
@@ -122,11 +165,13 @@ export async function loadLiveDashboard(
     ])
 
   return {
-    watch: watchResult.ok ? watchResult.data : null,
-    watchError: watchResult.ok ? null : watchResult.message,
+    watchCounts: counts.ok ? counts.data : null,
+    watch: counts.ok ? watch : null,
+    watchError: counts.ok ? (watch ? null : "Unable to load consumption tracking rows.") : counts.message,
+    nonMovers,
     summary,
     reclassification,
-    exceptions,
+    exceptionCounts,
     justifications,
     plans,
     reportEnabled,
