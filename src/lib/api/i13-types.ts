@@ -146,6 +146,8 @@ export interface UtilisationLedgerEntry {
   latestGrDate: string | null
   firstGiDate: string | null
   latestGiDate: string | null
+  /** EKET-EINDT of the PO line's next schedule line still to deliver; null with no PO / no EKET row. */
+  expectedDeliveryDate: string | null
 
   procurementStatus: ProcurementStatus
   utilisationStatus: LedgerUtilisationStatus
@@ -633,6 +635,8 @@ export interface ReservationLedgerRow {
   issuedQuantity: number | null
   firstGrDate: string | null
   lastGrDate: string | null
+  /** EKET-EINDT of the linked PO line's next schedule line still to deliver. */
+  expectedDeliveryDate: string | null
   lastIssueDate: string | null
   lifecycleStatus: string
   sessionId: string | null

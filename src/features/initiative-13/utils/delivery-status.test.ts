@@ -16,6 +16,8 @@ describe("deliveryStatus", () => {
       state: "DELIVERED",
       date: "2026-10-10",
       firstDate: "2026-10-03",
+      expectedDate: null,
+      overdue: false,
     })
   })
 
@@ -31,6 +33,8 @@ describe("deliveryStatus", () => {
       state: "NOT_DELIVERED",
       date: null,
       firstDate: null,
+      expectedDate: null,
+      overdue: false,
     })
   })
 
@@ -82,5 +86,55 @@ describe("deliveryStatusFromProcurement", () => {
 describe("DELIVERY_STATE_LABELS", () => {
   it("labels every state", () => {
     expect(Object.keys(DELIVERY_STATE_LABELS).sort()).toEqual(["DELIVERED", "NOT_DELIVERED", "NO_PO", "PARTIAL"])
+  })
+})
+
+describe("expected delivery (EKET-EINDT)", () => {
+  const TODAY = "2026-10-21"
+
+  it("a line not delivered carries its expected date", () => {
+    const status = deliveryStatus({ ...base, receivedQuantity: 0, expectedDeliveryDate: "2026-10-25" }, TODAY)
+    expect(status).toMatchObject({ state: "NOT_DELIVERED", expectedDate: "2026-10-25", overdue: false })
+  })
+
+  it("is overdue once the expected date has passed", () => {
+    const status = deliveryStatus({ ...base, receivedQuantity: 0, expectedDeliveryDate: "2026-10-12" }, TODAY)
+    expect(status).toMatchObject({ expectedDate: "2026-10-12", overdue: true })
+  })
+
+  it("due today is not overdue yet", () => {
+    const status = deliveryStatus({ ...base, receivedQuantity: 0, expectedDeliveryDate: TODAY }, TODAY)
+    expect(status.overdue).toBe(false)
+  })
+
+  it("a partial delivery carries the next expected date for the rest", () => {
+    const status = deliveryStatus({ ...base, receivedQuantity: 5, expectedDeliveryDate: "2026-11-05" }, TODAY)
+    expect(status).toMatchObject({ state: "PARTIAL", date: "2026-10-10", expectedDate: "2026-11-05", overdue: false })
+  })
+
+  it("a delivered line never shows an expected date or overdue", () => {
+    const status = deliveryStatus({ ...base, expectedDeliveryDate: "2026-10-01" }, TODAY)
+    expect(status).toMatchObject({ state: "DELIVERED", expectedDate: null, overdue: false })
+  })
+
+  it("no EKET row: no expected date, not overdue", () => {
+    const status = deliveryStatus({ ...base, receivedQuantity: 0, expectedDeliveryDate: null }, TODAY)
+    expect(status).toMatchObject({ expectedDate: null, overdue: false })
+  })
+
+  it("the lines view follows the same rule", () => {
+    const line = { hasPo: true, firstGrDate: null, latestGrDate: null, expectedDeliveryDate: "2026-10-12" }
+    expect(deliveryStatusFromProcurement({ ...line, procurementStatus: "OPEN" }, TODAY)).toMatchObject({
+      state: "NOT_DELIVERED",
+      expectedDate: "2026-10-12",
+      overdue: true,
+    })
+    expect(deliveryStatusFromProcurement({ ...line, procurementStatus: "RECEIVED" }, TODAY)).toMatchObject({
+      expectedDate: null,
+      overdue: false,
+    })
+    expect(
+      deliveryStatusFromProcurement({ ...line, hasPo: false, procurementStatus: "OPEN" }, TODAY)
+    ).toMatchObject({ state: "NO_PO", expectedDate: null })
   })
 })

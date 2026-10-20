@@ -6,6 +6,10 @@
  * dates. The backend's GR dates skip reversal rows but still include the 101
  * they reversed, so a fully reversed receipt has a date and zero received --
  * that line must read "Not delivered", and only the quantities can say so.
+ *
+ * A line not (fully) delivered also carries when the rest is expected:
+ * EKET-EINDT of its PO line's next open schedule line (UAT, 21 Oct), and
+ * whether that date has already passed.
  */
 
 export type DeliveryState = "DELIVERED" | "PARTIAL" | "NOT_DELIVERED" | "NO_PO"
@@ -16,6 +20,25 @@ export interface DeliveryStatus {
   date: string | null
   /** Earliest receipt, for the tooltip when there were several. */
   firstDate: string | null
+  /** EKET-EINDT for what is still to come; only on NOT_DELIVERED and PARTIAL. */
+  expectedDate: string | null
+  /** The expected date is before today and the line is still not fully delivered. */
+  overdue: boolean
+}
+
+/** Today as `YYYY-MM-DD` (UTC, the backend's dates are plain dates). */
+export function todayIso(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10)
+}
+
+function withExpected(
+  status: Omit<DeliveryStatus, "expectedDate" | "overdue">,
+  expectedDeliveryDate: string | null | undefined,
+  today: string
+): DeliveryStatus {
+  const open = status.state === "NOT_DELIVERED" || status.state === "PARTIAL"
+  const expectedDate = open ? (expectedDeliveryDate ?? null) : null
+  return { ...status, expectedDate, overdue: expectedDate !== null && expectedDate < today }
 }
 
 export interface DeliveryInput {
@@ -25,6 +48,7 @@ export interface DeliveryInput {
   orderedQuantity: number | null
   firstGrDate: string | null
   latestGrDate: string | null
+  expectedDeliveryDate?: string | null
 }
 
 /**
@@ -32,7 +56,11 @@ export interface DeliveryInput {
  * received is open, less than ordered is partial, otherwise received -- an
  * unknown ordered quantity cannot make a receipt partial.
  */
-export function deliveryStatus(input: DeliveryInput): DeliveryStatus {
+export function deliveryStatus(input: DeliveryInput, today: string = todayIso()): DeliveryStatus {
+  return withExpected(receiptStatus(input), input.expectedDeliveryDate, today)
+}
+
+function receiptStatus(input: DeliveryInput): Omit<DeliveryStatus, "expectedDate" | "overdue"> {
   const firstDate = input.firstGrDate ?? input.latestGrDate
   const date = input.latestGrDate ?? input.firstGrDate
   if (!input.hasPo) return { state: "NO_PO", date: null, firstDate: null }
@@ -45,12 +73,25 @@ export function deliveryStatus(input: DeliveryInput): DeliveryStatus {
 }
 
 /** The lines view gets the backend's procurement status instead of the ordered quantity. */
-export function deliveryStatusFromProcurement(input: {
+export function deliveryStatusFromProcurement(
+  input: {
+    hasPo: boolean
+    procurementStatus: "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED"
+    firstGrDate: string | null
+    latestGrDate: string | null
+    expectedDeliveryDate?: string | null
+  },
+  today: string = todayIso()
+): DeliveryStatus {
+  return withExpected(procurementReceipt(input), input.expectedDeliveryDate, today)
+}
+
+function procurementReceipt(input: {
   hasPo: boolean
   procurementStatus: "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED"
   firstGrDate: string | null
   latestGrDate: string | null
-}): DeliveryStatus {
+}): Omit<DeliveryStatus, "expectedDate" | "overdue"> {
   const firstDate = input.firstGrDate ?? input.latestGrDate
   const date = input.latestGrDate ?? input.firstGrDate
   if (!input.hasPo) return { state: "NO_PO", date: null, firstDate: null }
