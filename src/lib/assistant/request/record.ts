@@ -66,6 +66,13 @@ export function outcomeSentence(line: ApiRequestLine): string {
     : `Procure ${quantity} -- above the suggested ${plain(line.suggestedQuantity)}, justified.`
 }
 
+/** The request's department as shown: the one department, or -- for a request
+ * from before 21 Oct whose lines named several -- all of them. */
+export function departmentLabel(request: Pick<ApiRequest, "department" | "departments">): string {
+  if (request.department) return request.department
+  return request.departments.length > 0 ? request.departments.join(", ") : "—"
+}
+
 /** The distinct departments a request serves, in line order. */
 export function departmentsOf(request: Pick<ApiRequest, "lines">): string[] {
   return [...new Set(request.lines.map((l) => l.department).filter((d): d is string => !!d))]

@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
-import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
+import { Chip, DemoBanner, DepartmentSelect, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { useDepartments } from "@/components/assistant/request/use-requests"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,13 +67,15 @@ function newDraftKey(): string {
  * filled in. Submitting records the whole request, or nothing; each line is
  * numbered `/1`, `/2` … in the order it was added.
  *
- * One request is for one plant: the first material added fixes it. Department
- * is per line, from that plant's codes, picked in each row -- there is no
- * request-wide department (removed after UAT, 19 Oct).
+ * One request is for one plant and one department (UAT, 21 Oct): the first
+ * material added fixes the plant, and the requester picks the department once,
+ * from that plant's codes, for every material on the request.
  */
 export function RequestBuilder() {
   const router = useRouter()
   const [requester, setRequester] = useState("")
+  /** Picked for one plant; a different plant (or an emptied request) clears it. */
+  const [picked, setPicked] = useState<{ plant: string | null; code: string }>({ plant: null, code: "" })
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -97,9 +99,10 @@ export function RequestBuilder() {
   const requestPlant = rows.length > 0 ? rows[0].plant : null
   const plantName = PLANTS.find((p) => p.sapPlantCode === requestPlant)?.name ?? null
   const departments = useDepartments(requestPlant)
+  const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
-  const headerReady = requester.trim().length > 0
+  const headerReady = requester.trim().length > 0 && department.length > 0
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
 
@@ -188,7 +191,7 @@ export function RequestBuilder() {
       setShowErrors(true)
       toast.error("Some rows still need answers", {
         description: !headerReady
-          ? "Fill in the requester first."
+          ? "Fill in the requester and pick the department first."
           : pendingCount > 0
             ? "Wait for every material to finish checking."
             : "Each row's status says what is missing.",
@@ -202,6 +205,7 @@ export function RequestBuilder() {
         idempotencyKey: draftKey.current,
         plant: requestPlant ?? "",
         requestedFor: requester.trim(),
+        department,
         lines: submitted.map(answersOf),
       })
       router.push(`/assistant/requests/${request.requestId}`)
@@ -239,7 +243,7 @@ export function RequestBuilder() {
 
       <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
         <AiEyebrow>1 · Who is it for</AiEyebrow>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
             id="req-requester"
             label="Requester"
@@ -264,10 +268,29 @@ export function RequestBuilder() {
               </div>
             )}
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="req-department" className="text-sm font-medium text-foreground">
+              Department
+            </label>
+            {requestPlant ? (
+              <DepartmentSelect
+                id="req-department"
+                codes={departments.own}
+                label="Department for this request"
+                value={department}
+                invalid={showErrors && !department}
+                onChange={(code) => setPicked({ plant: requestPlant, code })}
+              />
+            ) : (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground">
+                Pick once the plant is set
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          One request is for one plant. Each material picks its own department from that plant&rsquo;s list, in its
-          row below, so one request can serve several departments.
+          One request is for one plant and one department. The first material you add sets the plant; the department
+          you pick applies to every material on the request.
         </p>
       </section>
 
@@ -298,7 +321,6 @@ export function RequestBuilder() {
             rows={oarRows}
             lineNumbers={lineNumbers}
             showErrors={showErrors}
-            departments={departments.own}
             reasons={reasons}
             refusedKey={refusedKey}
             onChange={update}
@@ -331,7 +353,6 @@ export function RequestBuilder() {
             rows={repairableRows}
             lineNumbers={lineNumbers}
             showErrors={showErrors}
-            departments={departments.own}
             reasons={reasons}
             refusedKey={refusedKey}
             onChange={update}

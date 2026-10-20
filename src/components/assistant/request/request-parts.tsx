@@ -138,11 +138,11 @@ export function JustificationFields({
 }
 
 /**
- * One line's department: a code from the plant's list
- * (`GET /assistant/departments?plant=`, the plant's own codes).
+ * The request's department: a code from the plant's list
+ * (`GET /assistant/departments?plant=`, the plant's own codes), picked once in
+ * the request header for every line.
  *
- * A native select rather than a searchable popover: it sits inside a table,
- * which would clip one.
+ * A native select: short list, and it behaves the same everywhere.
  *
  * While the backend's list has not loaded, a 5-digit code can be typed
  * instead -- the backend then accepts any code of that shape, as the opener does.
@@ -154,7 +154,9 @@ export function DepartmentSelect({
   label,
   invalid,
   disabled,
+  id,
 }: {
+  id?: string
   codes: readonly string[]
   value: string
   onChange: (code: string) => void
@@ -165,11 +167,12 @@ export function DepartmentSelect({
   if (codes.length === 0) {
     return (
       <input
+        id={id}
         aria-label={label}
         inputMode="numeric"
         maxLength={5}
         placeholder="5 digits"
-        className={cn(SELECT_CLASS, "w-28 font-mono")}
+        className={cn(SELECT_CLASS, "w-full font-mono")}
         value={value}
         disabled={disabled}
         aria-invalid={invalid}
@@ -179,8 +182,9 @@ export function DepartmentSelect({
   }
   return (
     <select
+      id={id}
       aria-label={label}
-      className={cn(SELECT_CLASS, "w-28 font-mono")}
+      className={cn(SELECT_CLASS, "w-full font-mono")}
       value={value}
       disabled={disabled}
       aria-invalid={invalid}

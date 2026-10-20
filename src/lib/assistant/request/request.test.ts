@@ -11,7 +11,6 @@ import {
   isReady,
   lineFromPreview,
   lineIssues,
-  needsDepartment,
   oarNeedsJustification,
   pendingLine,
   withSuggestedWindow,
@@ -102,13 +101,13 @@ describe("rows built from the preview", () => {
       "2027-06-15",
       0.5,
     ])
-    expect(lineIssues(line)).toEqual(["department", "purpose"])
+    expect(lineIssues(line)).toEqual(["purpose"])
   })
 
   it("leave the quantity blank when nothing is suggested, and then ask a reason for any", () => {
     const line = oar(null)
     expect(line.quantity).toBe("")
-    const typed = withSuggestedWindow({ ...line, department: "10100", quantity: "3" }, TODAY)
+    const typed = withSuggestedWindow({ ...line, quantity: "3" }, TODAY)
     expect(oarNeedsJustification(typed)).toBe(true)
     expect(lineIssues(typed)).toEqual(["reason", "explanation", "purpose"])
   })
@@ -118,22 +117,21 @@ describe("rows built from the preview", () => {
     expect(withSuggestedWindow({ ...edited, quantity: "1" }, TODAY).windowEnd).toBe("2026-12-31")
   })
 
-  it("need nothing once marked not needed -- not even a department", () => {
+  it("need nothing once marked not needed", () => {
     const line = { ...oar("4"), decision: "not_needed" as const }
     expect(isReady(line)).toBe(true)
-    expect(needsDepartment(line)).toBe(false)
   })
 
   it("ask a repairable row to decide only when a unit exists", () => {
     expect(repair(true).decision).toBeNull()
-    expect(lineIssues({ ...repair(true), department: "10300" })).toEqual(["decision"])
-    expect(lineIssues({ ...repair(true), department: "10300", decision: "proceed_new" })).toEqual([
+    expect(lineIssues(repair(true))).toEqual(["decision"])
+    expect(lineIssues({ ...repair(true), decision: "proceed_new" })).toEqual([
       "reason",
       "explanation",
     ])
     const none = repair(false)
     expect(none.decision).toBe("proceed_new")
-    expect(isReady({ ...none, department: "40100" })).toBe(true)
+    expect(isReady(none)).toBe(true)
   })
 
   it("keep a material that opens no session, with the backend's reason", () => {
@@ -152,14 +150,9 @@ describe("rows built from the preview", () => {
   })
 
   it("re-checked after a 409 keep what was typed and take the new figures", () => {
-    const typed: OarLine = { ...oar("4"), department: "10100", quantity: "6", purpose: "Mill 3" }
+    const typed: OarLine = { ...oar("4"), quantity: "6", purpose: "Mill 3" }
     const rechecked = lineFromPreview(oarPreview("3"), typed.key, typed) as OarLine
-    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose, rechecked.department]).toEqual([
-      3,
-      "6",
-      "Mill 3",
-      "10100",
-    ])
+    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose]).toEqual([3, "6", "Mill 3"])
     expect(rechecked.changed).toBe(true)
   })
 })
@@ -168,7 +161,6 @@ describe("what submit sends", () => {
   it("sends an OAR line's answers, a reason only when one is needed, and what was shown as suggested", () => {
     const line: OarLine = {
       ...oar("4"),
-      department: "10100",
       quantity: "6",
       purpose: " Mill 3 ",
       justification: { reasonCategory: "OTHER", freeText: " two spares " },
@@ -176,7 +168,6 @@ describe("what submit sends", () => {
     expect(answersOf(line)).toEqual({
       materialId: "1000000123",
       plant: "1300",
-      department: "10100",
       decision: "proceed",
       quantity: "6",
       windowStart: "2026-10-15",
@@ -191,20 +182,19 @@ describe("what submit sends", () => {
 
   it("sends a declined OAR line with nothing but the decision", () => {
     const answers = answersOf({ ...oar("4"), decision: "not_needed" })
-    expect(answers).toMatchObject({ decision: "not_needed", quantity: null, department: null })
+    expect(answers).toMatchObject({ decision: "not_needed", quantity: null })
+    expect(answers).not.toHaveProperty("department")
   })
 
   it("sends a repairable line's decision and reason", () => {
     const line: RepairableLine = {
       ...repair(true),
-      department: "10300",
       decision: "proceed_new",
       justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
     }
     expect(answersOf(line)).toEqual({
       materialId: "8000005632",
       plant: "1300",
-      department: "10300",
       decision: "proceed_new",
       reasonCategory: "URGENT_BREAKDOWN",
       freeText: "Down",
@@ -263,6 +253,7 @@ function sampleRequest(): ApiRequest {
     requester: "op",
     origin: "PLATFORM",
     issuedAt: "2026-10-15T08:00:00Z",
+    department: null,
     departments: ["10100", "10300"],
     lines: [
       line(1, {}),
