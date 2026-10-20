@@ -14,7 +14,7 @@ export type RequestRouting =
   | { kind: "i08"; facts: RepairableFacts; alsoMatchedOar: boolean }
   /** In the catalogue, but no assistant session is needed (a consumable). */
   | { kind: "out_of_scope"; reason: string }
-  /** OAR by MRP type, but WATCH has no row for it -- live returns a 422. */
+  /** OAR by MRP controller, but WATCH has no row for it -- live returns a 422. */
   | { kind: "data_gap"; reason: string }
 
 export type OarFacts = {
