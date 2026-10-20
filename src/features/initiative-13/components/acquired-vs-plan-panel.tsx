@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -10,12 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { TablePagination } from "@/components/shared/table-pagination"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
 import { exportWatchRows } from "@/features/initiative-13/export-actions"
 import type { WatchMetric } from "@/lib/api/i13"
-import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
 import { acquiredVsPlanRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import {
   badgeTone,
@@ -32,15 +31,19 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * every position the filters match. */
 export function AcquiredVsPlanPanel({
   rows,
-  page,
   total,
-  hrefFor,
+  pagination,
   filters,
 }: {
   rows: WatchMetric[]
-  page: number
   total: number | null
-  hrefFor: (page: number) => string
+  /**
+   * The pager, rendered by the server page and handed in as a node. Not built
+   * here from an `hrefFor` function: a function cannot cross from a server
+   * component to a client one, and passing one made the dashboard fail to
+   * render at all.
+   */
+  pagination: ReactNode
   filters: WatchFilters
 }) {
   async function exportExcel() {
@@ -51,7 +54,7 @@ export function AcquiredVsPlanPanel({
     )
   }
 
-  if (rows.length === 0 && page === 1) {
+  if (rows.length === 0 && !total) {
     return <EmptyState title="No acquired-vs-plan data for the selected filters." />
   }
 
@@ -118,14 +121,7 @@ export function AcquiredVsPlanPanel({
           </TableBody>
         </Table>
       </div>
-      <TablePagination
-        page={page}
-        pageSize={DEFAULT_PAGE_SIZE}
-        total={total}
-        count={rows.length}
-        noun="positions"
-        hrefFor={hrefFor}
-      />
+      {pagination}
     </div>
   )
 }

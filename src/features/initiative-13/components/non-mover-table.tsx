@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -10,13 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { TablePagination } from "@/components/shared/table-pagination"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
 import { exportNonMoverRows } from "@/features/initiative-13/export-actions"
 import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
-import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
 import { downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -50,15 +49,19 @@ function CriticalBadge({ value }: { value: boolean | null }) {
  */
 export function NonMoverTable({
   rows,
-  page,
   total,
-  hrefFor,
+  pagination,
   filters,
 }: {
   rows: NonMoverRow[]
-  page: number
   total: number | null
-  hrefFor: (page: number) => string
+  /**
+   * The pager, rendered by the server page and handed in as a node. Not built
+   * here from an `hrefFor` function: a function cannot cross from a server
+   * component to a client one, and passing one made the dashboard fail to
+   * render at all.
+   */
+  pagination: ReactNode
   filters: WatchFilters
 }) {
   async function exportExcel() {
@@ -69,7 +72,7 @@ export function NonMoverTable({
     )
   }
 
-  if (rows.length === 0 && page === 1) {
+  if (rows.length === 0 && !total) {
     return (
       <EmptyState
         title="No non-moving materials"
@@ -121,14 +124,7 @@ export function NonMoverTable({
           </TableBody>
         </Table>
       </div>
-      <TablePagination
-        page={page}
-        pageSize={DEFAULT_PAGE_SIZE}
-        total={total}
-        count={rows.length}
-        noun="non-movers"
-        hrefFor={hrefFor}
-      />
+      {pagination}
     </div>
   )
 }
