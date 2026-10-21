@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { SessionTraceResponse } from "@/lib/api/assistant"
 import { toDocx, toPdf, toTxt, type ExportBlock } from "@/lib/export-document"
 
-import { sessionDocument } from "./session-export"
+import { exportId, sessionDocument } from "./session-export"
 
 const i13: SessionTraceResponse = {
   materialDescription: "EXTINGUISHER FIRE 9 KG",
@@ -203,9 +203,11 @@ describe("sessionDocument", () => {
     expect(rows).toMatchObject({
       "Request line": "R5B61EQBGQ/2",
       "Type in SAP": "R5B61EQBGQ",
-      "Session ID": "S8K2M4P6Q9",
     })
     expect(rows).not.toHaveProperty("Session reference")
+    expect(text(doc.blocks)).not.toContain("S8K2M4P6Q9")
+    expect(exportId({ ...i13, requestId: "R5B61EQBGQ", lineNo: 2 })).toBe("R5B61EQBGQ-2")
+    expect(exportId(i13)).toBe("S8K2M4P6Q9")
     expect(text(doc.blocks)).toContain("request R5B61EQBGQ for this material")
   })
 

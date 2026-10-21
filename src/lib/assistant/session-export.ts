@@ -135,7 +135,6 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
           ? ([
               ["Request line", identity.label],
               ["Type in SAP", identity.sapText],
-              ["Session ID", trace.sessionId],
             ] as [string, string][])
           : ([["Session reference", trace.sessionId]] as [string, string][])),
         ["Flow", flowLabel(trace.flow)],
@@ -249,5 +248,12 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
 
 export function downloadSession(trace: SessionTraceResponse, format: ExportFormat): Promise<boolean> {
   const now = new Date()
-  return downloadDocument(sessionDocument(trace, now), format, exportFilename("session", trace.sessionId, format, now))
+  return downloadDocument(sessionDocument(trace, now), format, exportFilename("session", exportId(trace), format, now))
+}
+
+/** The file name's ID: `R…-n` for a request line (no slash in a file name), the session ID otherwise. */
+export function exportId(trace: SessionTraceResponse): string {
+  const { requestId, lineNo } = sessionIdentity(trace)
+  if (!requestId) return trace.sessionId
+  return lineNo !== null ? `${requestId}-${lineNo}` : requestId
 }
