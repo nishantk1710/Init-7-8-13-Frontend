@@ -3,6 +3,7 @@
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
   TableBody,
@@ -105,13 +106,11 @@ export function WatchTable({
                     {m.monthsOfCover !== null ? (
                       m.monthsOfCover.toFixed(1)
                     ) : (
-                      <span className="text-muted-foreground" title={m.monthsOfCoverReason ?? undefined}>
-                        Insufficient consumption history
-                      </span>
+                      <EmptyValue kind="noConsumptionHistory" />
                     )}
                   </TableCell>
                   <TableCell className="text-right text-foreground">
-                    {m.daysSinceLastMovement !== null ? `${m.daysSinceLastMovement}d` : "—"}
+                    {m.daysSinceLastMovement !== null ? `${m.daysSinceLastMovement}d` : <EmptyValue kind="noMovement" />}
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     {formatCount(m.consumptionCount12m)} ({formatCount(m.consumedQty12m ?? 0)} qty)
@@ -120,18 +119,16 @@ export function WatchTable({
                     {m.inventoryTurns !== null ? (
                       m.inventoryTurns.toFixed(2)
                     ) : (
-                      <span className="text-muted-foreground" title={m.inventoryTurnsReason ?? undefined}>
-                        Not available
-                      </span>
+                      <EmptyValue kind="noConsumptionHistory" />
                     )}
                   </TableCell>
                   <TableCell>
                     {m.grNotIssuedFlag ? (
                       <StatusBadge tone="danger">
-                        {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged"}
+                        {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
                       </StatusBadge>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <EmptyValue kind="noGrNotIssued" />
                     )}
                   </TableCell>
                   <TableCell>

@@ -8,6 +8,8 @@ import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/de
 import { EmptyState } from "@/components/shared/empty-state"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
 import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
 import {
   Table,
@@ -45,13 +47,11 @@ function label(value: string): string {
     .join(" ")
 }
 
-function Quantity({ value }: { value: number | null }) {
+function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
   return (
     <TableCell className="text-right text-foreground">
       {value === null ? (
-        <span className="text-muted-foreground" title="Not recorded">
-          —
-        </span>
+        <EmptyValue kind={empty} />
       ) : (
         formatCount(value)
       )}
@@ -229,17 +229,17 @@ export function UtilizationLedgerTable({
                         <span className="text-muted-foreground">Not linked</span>
                       )}
                     </TableCell>
-                    {/* An em-dash where the backend recorded nothing, not a
+                    {/* A label where the backend recorded nothing, not a
                         zero. "No goods receipt was recorded" and "zero units
                         arrived" are different findings on this table, and the
                         adapter keeps them apart precisely so this cell can. */}
-                    <Quantity value={entry.receivedQuantity} />
+                    <Quantity value={entry.receivedQuantity} empty="noGrYet" />
                     <DeliveredOnCell
                       status={deliveryOf(entry)}
                       receivedQuantity={entry.receivedQuantity}
                     />
-                    <Quantity value={entry.issuedQuantity} />
-                    <Quantity value={entry.openQuantity} />
+                    <Quantity value={entry.issuedQuantity} empty="notIssued" />
+                    <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <TableCell>
                       <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
                         {label(entry.procurementStatus)}

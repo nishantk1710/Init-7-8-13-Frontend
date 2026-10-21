@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { EMPTY_LABEL } from "@/features/initiative-13/utils/empty-labels"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -202,7 +204,7 @@ export function ActExceptionsBoard({
                           }}
                         />
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <EmptyValue kind="noReservationLinked" />
                       )}
                     </TableCell>
                     <TableCell className="text-foreground">
@@ -224,7 +226,11 @@ export function ActExceptionsBoard({
                       {formatApiDateTime(exception.detectedAt)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatApiDateTime(exception.requesterDueAt)}
+                      {exception.requesterDueAt ? (
+                        formatApiDateTime(exception.requesterDueAt)
+                      ) : (
+                        <EmptyValue kind="noDueDate" />
+                      )}
                     </TableCell>
                     <TableCell
                       className="text-right"
@@ -301,14 +307,16 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
 
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
         <span className="text-muted-foreground">
-          Routing: <span className="text-foreground">{exception.routingStatus ?? "—"}</span>
+          Routing: <span className="text-foreground">{exception.routingStatus ?? EMPTY_LABEL.notRouted.label}</span>
         </span>
         <span className="text-muted-foreground">
           Assignee:{" "}
           <span className="text-foreground">
             {exception.currentAssigneeId
-              ? `${exception.currentAssigneeId} (${exception.currentAssigneeType ?? "?"})`
-              : "—"}
+              ? exception.currentAssigneeType
+                ? `${exception.currentAssigneeId} (${exception.currentAssigneeType})`
+                : exception.currentAssigneeId
+              : EMPTY_LABEL.unassigned.label}
           </span>
         </span>
         {exception.escalatedAt && (

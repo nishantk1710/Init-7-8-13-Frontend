@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
   TableBody,
@@ -88,16 +89,16 @@ export function AcquiredVsPlanPanel({
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(r.plant)}</TableCell>
                 <TableCell className="text-right text-foreground">
-                  {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : "—"}
+                  {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : <EmptyValue kind="noPlanCaptured" />}
                 </TableCell>
-                {/* Em-dash, not zero. A null received quantity means nothing
+                {/* A label, not zero. A null received quantity means nothing
                     was recorded; zero means nothing arrived. On a variance
                     table the two point at different problems. */}
                 <TableCell className="text-right text-foreground">
-                  {r.receivedQuantity !== null ? formatCount(r.receivedQuantity) : "—"}
+                  {r.receivedQuantity !== null ? formatCount(r.receivedQuantity) : <EmptyValue kind="noneRecorded" />}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
-                  {r.issuedQuantity !== null ? formatCount(r.issuedQuantity) : "—"}
+                  {r.issuedQuantity !== null ? formatCount(r.issuedQuantity) : <EmptyValue kind="noneRecorded" />}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
                   {r.acquiredVsPlanVarianceQuantity !== null ? (
@@ -108,7 +109,7 @@ export function AcquiredVsPlanPanel({
                       )}
                     </>
                   ) : (
-                    "—"
+                    <EmptyValue kind="noPlanToCompare" />
                   )}
                 </TableCell>
                 <TableCell>

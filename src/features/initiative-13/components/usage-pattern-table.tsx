@@ -2,6 +2,7 @@
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
   TableBody,
@@ -84,7 +85,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
                 {row.agingBand ? (
                   <StatusBadge tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusBadge>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <EmptyValue kind="notClassified" />
                 )}
               </TableCell>
               <TableCell>
@@ -96,16 +97,18 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
               <TableCell className="text-right text-foreground">
-                {row.stockOnHand === null ? "—" : formatCount(row.stockOnHand)}
+                {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
               </TableCell>
               <TableCell className="text-right text-foreground">
-                {row.averageMonthlyConsumption === null ? "—" : row.averageMonthlyConsumption.toFixed(1)}
+                {row.averageMonthlyConsumption === null ? (
+                  <EmptyValue kind="noConsumptionHistory" />
+                ) : (
+                  row.averageMonthlyConsumption.toFixed(1)
+                )}
               </TableCell>
               <TableCell className="text-right text-foreground">
                 {row.monthsOfCover === null ? (
-                  <span className="text-muted-foreground" title="No consumption to divide by">
-                    —
-                  </span>
+                  <EmptyValue kind="noConsumptionHistory" />
                 ) : (
                   row.monthsOfCover.toFixed(1)
                 )}

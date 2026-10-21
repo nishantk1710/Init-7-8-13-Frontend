@@ -3,6 +3,7 @@
 import { EmptyState } from "@/components/shared/empty-state"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
   TableBody,
@@ -75,7 +76,7 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
                     doc={{ type: "PO", documentNumber: row.poNumber, line: row.poItem ?? undefined }}
                   />
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <EmptyValue kind="noPoLinked" />
                 )}
               </TableCell>
               <TableCell className="text-right text-foreground">{formatCount(row.receivedQuantity)}</TableCell>
