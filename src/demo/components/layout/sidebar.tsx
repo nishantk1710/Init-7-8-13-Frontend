@@ -5,8 +5,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Plus } from "lucide-react"
 
-// The one live import in the demo tree: the shared Data source toggle, the
-// only way back to live now that the demo strip is gone.
+// The live imports in the demo tree: the shared Data source toggle, the only
+// way back to live now that the demo strip is gone, and the signed-in user,
+// since the test sign-in is the same in both modes.
+import { SidebarAccount } from "@/components/auth/sidebar-account"
 import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@demo/components/shared/theme-toggle"
 import {
@@ -219,6 +221,7 @@ export function Sidebar() {
       </NavSection>
 
       <div className="mt-auto border-t border-border py-1">
+        <SidebarAccount />
         <DataModeToggle />
         <ThemeToggle />
       </div>

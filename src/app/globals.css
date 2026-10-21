@@ -173,3 +173,34 @@
     @apply bg-popover text-popover-foreground;
   }
 }
+/* Vedanta Zinc International palette, taken from the logo
+   (public/brand/vedanta-zinc-logo.png): blue #005da4, green #73b522, plus
+   deeper blues and a lighter green for text on dark backgrounds. */
+@theme {
+  --color-brand: #005da4;
+  --color-brand-strong: #0454a0;
+  --color-brand-deep: #063a73;
+  --color-brand-navy: #04213f;
+  --color-brand-green: #73b522;
+  --color-brand-green-light: #9bd35a;
+}
+
+@theme inline {
+  --color-brand-link: var(--brand-link);
+}
+
+/* The sign-in pages wear the brand; the rest of the app keeps its theme.
+   Re-pointing --primary and --ring here recolours the shared Button and
+   Input inside without touching them. */
+.brand-scope {
+  --primary: #005da4;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --brand-link: #005da4;
+}
+
+.dark .brand-scope {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --brand-link: #7cb9ee;
+}
