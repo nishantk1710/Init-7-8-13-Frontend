@@ -51,6 +51,8 @@ import { RecommendationStatusChart } from "@/features/initiative-7/components/re
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { KpiCard } from "@/features/initiative-7/components/report-kpi-card"
+import { QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
+import { StockPolicyRow } from "@/features/initiative-7/components/quarterly-stock-policy-row"
 import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quarterly-snapshot-report"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
@@ -59,10 +61,7 @@ import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api
 import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
 import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
-import type {
-  ApiBaselineComparisonRow,
-  ApiUndefinedManagementMetric,
-} from "@/features/initiative-7/types/api"
+import type { ApiUndefinedManagementMetric } from "@/features/initiative-7/types/api"
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
@@ -146,67 +145,21 @@ function UndefinedKpiCard({
   )
 }
 
-/** The mockup's "How the stock policy is changing" table -- Current (SAP) /
- * Recommended / Change, one row per metric, with REAL mean values (not
- * populated-counts) -- sourced from Section 12's baseline_comparison.rows,
- * the one place the report already computes the mean current value, mean
- * recommended value, and their delta/delta% over rows where both are
- * populated (see BaselineComparisonRow's own docstring on the backend: never
- * derived from two separately-scoped aggregates). A missing SAP baseline
- * (baseline_value === null, e.g. Safety Stock's confirmed 0-populated
- * current_safety_stock) renders as an explicit dash + "not set in SAP" via
- * AvailabilityValue, never a bare 0 or an invented number. */
-function StockPolicyRow({
-  label,
-  sublabel,
-  row,
-}: {
-  label: string
-  sublabel: string
-  row: ApiBaselineComparisonRow
-}) {
-  const currentAvailable = row.baseline_value !== null
-  const recommendedAvailable = row.recommendation_value !== null
-  const changeKnown = row.delta !== null
-
-  const deltaTone = row.delta === null ? "text-muted-foreground" : Number(row.delta) >= 0 ? "text-success" : "text-destructive"
-
+/** Shown above a report saved before the management view existed (report version 1.1 and earlier). Its charts are
+ * built from a sample of the 200 newest recommendations and some of its cards say "Not configured", so it is offered
+ * for regeneration rather than presented as the period's full picture. */
+function RegenerateBanner({ onRegenerate, generating }: { onRegenerate: () => void; generating: boolean }) {
   return (
-    <TableRow>
-      <TableCell>
-        {label} <span className="text-xs text-muted-foreground">· {sublabel}</span>
-      </TableCell>
-      <TableCell className="text-right">
-        {currentAvailable ? (
-          <span className="tabular-nums">{formatDecimal(row.baseline_value, 0)}</span>
-        ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
-        )}
-      </TableCell>
-      <TableCell className="text-right">
-        {recommendedAvailable ? (
-          <span className="tabular-nums">{formatDecimal(row.recommendation_value, 0)}</span>
-        ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
-        )}
-      </TableCell>
-      <TableCell className={cn("text-right tabular-nums", deltaTone)}>
-        {changeKnown ? (
-          <>
-            {Number(row.delta) >= 0 ? "+" : ""}
-            {formatDecimal(row.delta, 0)}
-            {row.delta_percentage !== null && (
-              <span className="ml-1">
-                ({Number(row.delta_percentage) >= 0 ? "+" : ""}
-                {formatDecimal(row.delta_percentage, 0)}%)
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-    </TableRow>
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3">
+      <p className="min-w-[260px] flex-1 text-xs leading-relaxed text-foreground">
+        This report was saved before the management view existed. Its stockout and status charts come from a sample of
+        the 200 newest recommendations, not from this period. Regenerate it to see the updated figures.
+      </p>
+      <Button size="sm" variant="outline" onClick={onRegenerate} disabled={generating}>
+        <RefreshCw className={cn("size-3.5", generating && "animate-spin")} />
+        {generating ? "Regenerating…" : "Regenerate"}
+      </Button>
+    </div>
   )
 }
 
@@ -321,7 +274,7 @@ export function QuarterlyReportsWorkspace() {
   // indexed, whitelisted field instead of inventing a ranking. The heading
   // says "recent", not "top", because that is what the data now is.
   const { data: materials, total: materialsTotal, loading: materialsLoading } = useLiveRecommendations(
-    report
+    report && !report.management
       ? {
           sort: "generated_at",
           sortDesc: true,
@@ -336,7 +289,7 @@ export function QuarterlyReportsWorkspace() {
   // which need the full set to group by circuit/compute a forecast series,
   // not just the 5-row "top changes" preview above.
   const { data: chartRecommendations } = useLiveRecommendations(
-    report ? { pageSize: 200 } : {},
+    report && !report.management ? { pageSize: 200 } : {},
   )
 
   // No circuit in the data means every row reads "Unassigned": the table
@@ -500,8 +453,11 @@ export function QuarterlyReportsWorkspace() {
             />
           )}
 
-          {report && (
+          {report && report.management && <QuarterlyManagementView report={report} management={report.management} />}
+
+          {report && !report.management && (
             <>
+              <RegenerateBanner onRegenerate={generate} generating={generating} />
               {/* --- KPI row: real metrics + honestly-undefined ones --------- */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <UndefinedKpiCard
