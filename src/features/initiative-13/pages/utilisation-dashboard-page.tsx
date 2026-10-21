@@ -42,6 +42,15 @@ import { cn, formatCount } from "@/lib/utils"
 
 const PATH = "/oar-utilization"
 
+/**
+ * Consumption Plan Coverage card, hidden for now (UAT, 21 Oct). Plans are
+ * captured only by assistant sessions since go-live, and the SAP extract ends
+ * before it, so almost every position reads "No plan"; and its "received" is
+ * goods receipts on reservation-linked POs only, while most OAR reservations
+ * are issued from stock. Set to true to bring it back.
+ */
+const SHOW_PLAN_COVERAGE = false
+
 /** `{STATUS: n}` from a count endpoint, in display order, unknown keys last. */
 function inOrder(counts: Record<string, number>, order: readonly string[]): { key: string; count: number }[] {
   const extra = Object.keys(counts).filter((k) => !order.includes(k))
@@ -195,29 +204,31 @@ export async function UtilisationDashboardPage({
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <ChartCard
-            title="Consumption Plan Coverage"
-            subtitle="Received quantity against the consumption plan, per material"
-            span={6}
-          >
-            {watchCounts ? (
-              <div className="flex h-full flex-col gap-4">
-                <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
-                <PlanProvenanceNote
-                  capturedCount={capturedPlanCount}
-                  referenceCount={referencePlanCount}
-                  className="mt-auto"
-                />
-              </div>
-            ) : (
-              <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
-            )}
-          </ChartCard>
+          {SHOW_PLAN_COVERAGE && (
+            <ChartCard
+              title="Consumption Plan Coverage"
+              subtitle="Received quantity against the consumption plan, per material"
+              span={6}
+            >
+              {watchCounts ? (
+                <div className="flex h-full flex-col gap-4">
+                  <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
+                  <PlanProvenanceNote
+                    capturedCount={capturedPlanCount}
+                    referenceCount={referencePlanCount}
+                    className="mt-auto"
+                  />
+                </div>
+              ) : (
+                <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
+              )}
+            </ChartCard>
+          )}
 
           <ChartCard
             title="Exception status"
             subtitle="Where each follow-up sits in the confirmation workflow"
-            span={6}
+            span={SHOW_PLAN_COVERAGE ? 6 : 12}
           >
             {dashboard.exceptionCounts.status === "ready" ? (
               dashboard.exceptionCounts.data.total === 0 ? (

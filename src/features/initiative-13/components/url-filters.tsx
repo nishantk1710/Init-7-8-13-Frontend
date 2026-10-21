@@ -66,6 +66,7 @@ export function I13UrlFilters({
   fields: readonly (
     | "plant"
     | "material"
+    | "reservation"
     | "agingBand"
     | "acquiredVsPlanStatus"
     | "type"
@@ -128,6 +129,15 @@ export function I13UrlFilters({
             placeholder="Material"
             value={searchParams.get("material") ?? ""}
             onCommit={(value) => push({ material: value })}
+            className="sm:w-44"
+          />
+        )}
+
+        {fields.includes("reservation") && (
+          <DebouncedInput
+            placeholder="Reservation ID"
+            value={searchParams.get("reservation") ?? ""}
+            onCommit={(value) => push({ reservation: value })}
             className="sm:w-44"
           />
         )}
