@@ -337,36 +337,39 @@ export function exceptionTypeLabel(type: string): string {
 }
 
 /**
- * FR-11's workflow vocabulary.
+ * FR-11's workflow vocabulary: open or closed, and nothing in between.
  *
  * A closed set, unlike the exception TYPES above: each status has behaviour
- * attached (what the default filter shows, which ones the queue may resolve by
- * itself), so adding a sixth is a conversation rather than a config change.
+ * attached (what the default filter shows, which ones the queue may close by
+ * itself), so adding a third is a conversation rather than a config change.
  */
-export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = [
-  "OPEN",
-  "IN_PROGRESS",
-  "RESOLVED",
-  "CLOSED",
-]
+export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = ["OPEN", "CLOSED"]
 
 export const EXCEPTION_STATUS_LABEL: Record<ExceptionStatus, string> = {
   OPEN: "Open",
-  IN_PROGRESS: "In progress",
-  RESOLVED: "Resolved",
   CLOSED: "Closed",
 }
 
 export const EXCEPTION_STATUS_TONE: Record<ExceptionStatus, Tone> = {
   OPEN: "danger",
-  IN_PROGRESS: "warning",
-  RESOLVED: "success",
   CLOSED: "default",
 }
 
-/** Still being worked — what the queue shows unless asked otherwise. */
-export const ACTIVE_EXCEPTION_STATUSES: readonly ExceptionStatus[] = ["OPEN", "IN_PROGRESS"]
+/**
+ * What the two retired statuses read as. History is never rewritten, so a
+ * backend older than 21-Oct-2026 — and an old `?status=` link — can still say
+ * IN_PROGRESS or RESOLVED.
+ */
+const LEGACY_EXCEPTION_STATUS: Record<string, ExceptionStatus> = {
+  IN_PROGRESS: "OPEN",
+  RESOLVED: "CLOSED",
+}
 
-export function isOpenException(row: { status: ExceptionStatus }): boolean {
-  return ACTIVE_EXCEPTION_STATUSES.includes(row.status)
+/** A status off the wire or the URL in today's vocabulary; undefined when it
+ *  is neither a current nor a retired one. */
+export function toExceptionStatus(raw: string | null | undefined): ExceptionStatus | undefined {
+  if (!raw) return undefined
+  const upper = raw.trim().toUpperCase()
+  if ((EXCEPTION_STATUSES as readonly string[]).includes(upper)) return upper as ExceptionStatus
+  return LEGACY_EXCEPTION_STATUS[upper]
 }

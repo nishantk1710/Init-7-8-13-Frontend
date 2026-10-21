@@ -514,7 +514,12 @@ export interface ExceptionQueueRow {
   history: ExceptionEvent[]
 }
 
-export type ExceptionStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+/**
+ * Two since 21-Oct-2026. In progress said what the owner already says, and
+ * Resolved behaved exactly like Closed. Who closed an item — a person, or the
+ * check no longer finding it — is in its history, not its status.
+ */
+export type ExceptionStatus = "OPEN" | "CLOSED"
 
 /** One thing that happened to an exception. */
 export interface ExceptionEvent {

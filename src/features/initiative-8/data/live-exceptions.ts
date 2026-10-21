@@ -49,6 +49,7 @@ import type {
   ExceptionStatus,
 } from "@/features/initiative-8/types/repair"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
+import { toExceptionStatus } from "@/features/initiative-8/utils/status"
 import type {
   ApiExceptionEvent,
   ApiExceptionItem,
@@ -105,8 +106,9 @@ export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
     // Defaults for a backend that does not serve the lifecycle yet. OPEN and
     // unassigned is what an untouched item genuinely is, so an older API and
     // a brand-new finding read the same way -- which is correct, because they
-    // are the same thing.
-    status: row.status ?? "OPEN",
+    // are the same thing. A backend older than 21-Oct-2026 can still say
+    // IN_PROGRESS or RESOLVED; those read as OPEN and CLOSED.
+    status: toExceptionStatus(row.status) ?? "OPEN",
     owner: row.owner ?? undefined,
     stillDetected: row.stillDetected ?? true,
     history: (row.history ?? []).map(toEvent),
@@ -117,7 +119,7 @@ function toEvent(event: ApiExceptionEvent): ExceptionEvent {
   return {
     id: event.id,
     kind: event.kind,
-    status: (event.status as ExceptionStatus | null) ?? undefined,
+    status: toExceptionStatus(event.status),
     owner: event.owner ?? undefined,
     actor: event.actor,
     text: event.text,
@@ -342,12 +344,14 @@ export function parseExceptionParams(raw: RawSearchParams): {
       q: single(raw.q),
       type: single(raw.type),
       plant: single(raw.plant),
+      // An old bookmark's ?status=RESOLVED or IN_PROGRESS is read as the
+      // status it became, so the dropdown names it and the link still works.
       status:
         status === undefined
           ? DEFAULT_EXCEPTION_STATUS
           : status.toLowerCase() === ALL_STATUSES
             ? undefined
-            : status.toUpperCase(),
+            : (toExceptionStatus(status) ?? status.toUpperCase()),
       repair: single(raw.repair),
     },
     page: parsePage(raw.page) ?? 1,

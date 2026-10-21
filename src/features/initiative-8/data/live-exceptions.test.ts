@@ -14,7 +14,9 @@ import {
   loadExceptionsPage,
   loadLiveExceptions,
   parseExceptionParams,
+  toExceptionRow,
 } from "@/features/initiative-8/data/live-exceptions"
+import type { ApiExceptionItem } from "@/lib/api/i8"
 
 /**
  * What this loader must not let through: `UNJUSTIFIED_ACQUISITION`.
@@ -180,7 +182,7 @@ describe("parseExceptionParams", () => {
         q: " pump ",
         type: "OVERDUE_REPAIR",
         plant: "1500",
-        status: "in_progress",
+        status: "closed",
         repair: "4500000677-20",
         page: "3",
         id: "EX-1",
@@ -190,7 +192,7 @@ describe("parseExceptionParams", () => {
         q: "pump",
         type: "OVERDUE_REPAIR",
         plant: "1500",
-        status: "IN_PROGRESS",
+        status: "CLOSED",
         repair: "4500000677-20",
       },
       page: 3,
@@ -202,12 +204,47 @@ describe("parseExceptionParams", () => {
     expect(parseExceptionParams({ status: "all" }).filters.status).toBeUndefined()
   })
 
+  it("reads a retired status in an old link as the one it became", () => {
+    expect(parseExceptionParams({ status: "in_progress" }).filters.status).toBe("OPEN")
+    expect(parseExceptionParams({ status: "RESOLVED" }).filters.status).toBe("CLOSED")
+  })
+
   it("treats a repeated or malformed value as absent", () => {
     expect(parseExceptionParams({ plant: ["1300", "1500"], page: "0", id: ["a", "b"] })).toMatchObject({
       filters: { plant: undefined },
       page: 1,
       id: undefined,
     })
+  })
+})
+
+describe("toExceptionRow: two statuses since 21-Oct-2026", () => {
+  const event = (status: string) => ({
+    id: "EXE-1",
+    kind: "STATUS" as const,
+    status,
+    actor: "priya",
+    text: "",
+    at: "2026-10-20T10:00:00",
+  })
+
+  it("reads a backend older than the change in the two statuses", () => {
+    const inProgress = toExceptionRow(
+      item({ status: "IN_PROGRESS", history: [event("IN_PROGRESS")] }) as ApiExceptionItem,
+    )
+    const resolved = toExceptionRow(
+      item({ status: "RESOLVED", history: [event("RESOLVED")] }) as ApiExceptionItem,
+    )
+
+    expect(inProgress.status).toBe("OPEN")
+    expect(inProgress.history[0].status).toBe("OPEN")
+    expect(resolved.status).toBe("CLOSED")
+    expect(resolved.history[0].status).toBe("CLOSED")
+  })
+
+  it("passes the current two through", () => {
+    expect(toExceptionRow(item({ status: "CLOSED" }) as ApiExceptionItem).status).toBe("CLOSED")
+    expect(toExceptionRow(item() as ApiExceptionItem).status).toBe("OPEN")
   })
 })
 
