@@ -739,6 +739,171 @@ export interface ApiSourceActivitySection {
   output_note: string
 }
 
+// --- Quarter management view (report version 1.2) -------------------------------------------------
+//
+// Mirrors app/schemas/i7/reports.py::QuarterManagement. Everything on the management page -- the cards, the
+// monthly activity table, the Overview's charts, the data coverage -- is read from here, so the page, the PDF
+// and the Excel export show one set of figures. Decimals arrive as strings; `null` is "not available", never 0.
+
+/** What kind of figure a number is. They are never mixed under one label. */
+export type ApiMetricKind = "EVENT" | "STATUS_AS_OF" | "MEASUREMENT" | "AGGREGATE"
+
+export interface ApiPeriodMonth {
+  /** First day of the month, ISO. */
+  month: string
+  label: string
+  state: "ended" | "in_progress" | "not_started"
+  has_consumption_data: boolean
+  usable: boolean
+}
+
+export interface ApiPeriodInfo {
+  status: "COMPLETE" | "IN_PROGRESS"
+  cutoff: string
+  months: ApiPeriodMonth[]
+  note: string
+}
+
+export interface ApiActivityRow {
+  key: string
+  label: string
+  unit: string
+  kind: ApiMetricKind
+  /** One per month of the period. `null` = not available for that month (not started, not covered, not tracked). */
+  months: (number | string | null)[]
+  quarter_total: number | string | null
+  status: ApiAvailabilityStatus
+  /** Whether the months add up to the same figure counted over the whole period in one query. */
+  reconciles: boolean | null
+  note: string | null
+}
+
+export interface ApiMonthlyActivity {
+  months: ApiPeriodMonth[]
+  rows: ApiActivityRow[]
+}
+
+export interface ApiKpiCard {
+  key: string
+  title: string
+  unit: string
+  value: ApiDecimal
+  status: ApiAvailabilityStatus
+  explanation: string
+  kind: ApiMetricKind
+  measured_on: string | null
+  period_label: string
+  denominator: number | null
+  denominator_label: string | null
+  /** `current_calculation` (worked out when the report was generated) or `snapshot` (a saved month-end). */
+  basis: string
+  unavailable_reason: string | null
+  note: string | null
+}
+
+export interface ApiStockoutPosition {
+  at_risk: number
+  evaluated: number
+  insufficient_data: number
+  as_of: string | null
+  /** Built too long before the period to speak for it: kept for the record, not shown as the period's position. */
+  stale: boolean
+  stale_note: string | null
+}
+
+export interface ApiPositionFigures {
+  population: number
+  stockout: ApiStockoutPosition
+  excess_count: number
+  excess_opportunity: ApiDecimal
+  net_rop_value_impact: ApiDecimal
+  priced_count: number
+  currency: string | null
+}
+
+export interface ApiPlantPosition {
+  /** One SAP plant code; `null` is every plant. */
+  plant: string | null
+  figures: ApiPositionFigures
+}
+
+export interface ApiStatusCount {
+  status: string
+  count: number
+  percentage: ApiDecimal
+}
+
+export interface ApiStatusDistribution {
+  kind: ApiMetricKind
+  basis: string
+  measured_on: string
+  total: number
+  rows: ApiStatusCount[]
+}
+
+export interface ApiForecastActualMonth {
+  month: string
+  forecast: ApiDecimal
+  actual: ApiDecimal
+  material_count: number
+}
+
+export interface ApiForecastActualSection {
+  status: ApiAvailabilityStatus
+  months: ApiForecastActualMonth[]
+  forecast_total: ApiDecimal
+  actual_total: ApiDecimal
+  accuracy: { observations: number; mean_absolute_error: ApiDecimal; bias_percentage: ApiDecimal } | null
+  forecast_run_id: number | null
+  note: string
+}
+
+export interface ApiAdoptionQuarter {
+  status: ApiAvailabilityStatus
+  confirmed_adoptions: number | null
+  pending_approvals: number
+  reason: string
+  /** Recommendations with a change to adopt; the four counts below add up to it. Absent on an older backend. */
+  tracked?: number | null
+  adopted?: number | null
+  partially_adopted?: number | null
+  not_adopted?: number | null
+  pending?: number | null
+}
+
+export interface ApiMonthCoverage {
+  month: string
+  label: string
+  consumption_status: ApiSourceMonthStatus
+  recommendations_generated: number
+}
+
+export interface ApiDataCoverage {
+  latest_consumption_date: string | null
+  latest_consumption_month: string | null
+  latest_stock_loaded_at: string | null
+  stockout_usage_as_of: string | null
+  months: ApiMonthCoverage[]
+  eligible_recommendations: number
+  eligible_material_plants: number
+  /** `current_calculation` or `snapshot`. */
+  basis: string
+  warnings: string[]
+}
+
+export interface ApiQuarterManagement {
+  period: ApiPeriodInfo
+  monthly_activity: ApiMonthlyActivity
+  kpis: ApiKpiCard[]
+  position: ApiPositionFigures
+  plant_positions: ApiPlantPosition[]
+  status_distribution: ApiStatusDistribution
+  forecast_actual: ApiForecastActualSection
+  adoption: ApiAdoptionQuarter
+  data_coverage: ApiDataCoverage
+  definitions: string[]
+}
+
 /** GET /v1/i7/reports/quarterly/{quarter} -- the full 14-section report body,
  * mirroring app/schemas/i7/reports.py::QuarterlyReport field-for-field. */
 export interface ApiQuarterlyReport {
@@ -760,6 +925,8 @@ export interface ApiQuarterlyReport {
   limitations: ApiLimitationsSection
   /** Report version 1.1 and later; absent on an older stored report. */
   source_activity?: ApiSourceActivitySection | null
+  /** Report version 1.2 and later; absent on an older stored report, which the page offers to regenerate. */
+  management?: ApiQuarterManagement | null
 }
 
 /** GET /v1/i7/approval-events -- the approval ledger across every
