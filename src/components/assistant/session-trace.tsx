@@ -26,7 +26,7 @@ import type {
 } from "@/lib/api/assistant"
 import { linkedReservationsHref } from "@/lib/assistant/session-reservations"
 import { summariseAnswer } from "@/lib/assistant/transcript"
-import { formatInstant, formatWindow, planStatusLabel } from "@/lib/assistant/trace-format"
+import { formatInstant, formatWindow, planStatusLabel, sessionIdentity } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -53,10 +53,12 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * cannot make reads as a clean bill of health.
  */
 export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
+  const identity = sessionIdentity(trace)
   return (
     <div className="ai-scope flex flex-col gap-5">
       <SessionReference
         sessionId={trace.sessionId}
+        request={identity.requestId ? identity : undefined}
         expiresAt={trace.expiresAt}
         expired={trace.expired}
       />
@@ -119,6 +121,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       <Linkage
         note={trace.linkageNote}
         sessionId={trace.sessionId}
+        requestId={identity.requestId}
         flow={trace.flow}
         linked={trace.linkedReservations ?? []}
       />
@@ -127,6 +130,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
 }
 
 function Header({ trace }: { trace: SessionTraceResponse }) {
+  const { requestId, lineNo } = sessionIdentity(trace)
   return (
     <div className="animate-ai-message-in relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
       <span aria-hidden className="ai-gradient absolute inset-x-0 top-0 h-1" />
@@ -151,6 +155,27 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
           }
         />
         <Field label="Plant" value={sapPlantLabel(trace.plant)} />
+        {/* A line of a multi-material request opens here on its own session
+            ID; without this it reads as a stand-alone session. */}
+        {requestId && (
+          <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
+            <dt className="text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+              Request
+            </dt>
+            <dd className="text-sm font-medium break-words">
+              <Link
+                href={`/assistant/requests/${requestId}`}
+                className="font-mono text-primary underline-offset-4 hover:underline"
+                title="Open the multi-material request this line belongs to"
+              >
+                {requestId}
+              </Link>
+              {lineNo !== null && (
+                <span className="text-muted-foreground"> · line {lineNo}</span>
+              )}
+            </dd>
+          </div>
+        )}
         {/* Who the part was for, as typed by whoever ran the assistant. Not
             shown here: who ran it. `trace.requester` is served, because the
             trace is the FR-8 evidence view and an audit record without its
@@ -352,11 +377,13 @@ function JustificationCard({
 function Linkage({
   note,
   sessionId,
+  requestId,
   flow,
   linked,
 }: {
   note: string
   sessionId: string
+  requestId: string | null
   flow: string
   linked: ApiLinkedReservation[]
 }) {
@@ -394,7 +421,15 @@ function Linkage({
       ) : (
         <p className="text-[11px] text-muted-foreground">
           The link is read from the reservation&rsquo;s item text (SGTXT) in the loaded SAP
-          extract. Until a reservation carrying this session&rsquo;s ID is loaded, this session
+          extract. Until a reservation carrying{" "}
+          {requestId ? (
+            <>
+              request <span className="font-mono">{requestId}</span> for this material
+            </>
+          ) : (
+            <>this session&rsquo;s ID</>
+          )}{" "}
+          is loaded, this session
           stands on its own: it records what the planner was told and what they decided.
         </p>
       )}

@@ -196,6 +196,19 @@ describe("sessionDocument", () => {
     expect(txt).toContain("quantity override")
   })
 
+  it("names the request for a line of a multi-material request", () => {
+    const doc = sessionDocument({ ...i13, requestId: "R5B61EQBGQ", lineNo: 2, reference: "R5B61EQBGQ/2" })
+    expect(doc.title).toBe("Assistant session R5B61EQBGQ/2")
+    const rows = fields(doc.blocks)
+    expect(rows).toMatchObject({
+      "Request line": "R5B61EQBGQ/2",
+      "Type in SAP": "R5B61EQBGQ",
+      "Session ID": "S8K2M4P6Q9",
+    })
+    expect(rows).not.toHaveProperty("Session reference")
+    expect(text(doc.blocks)).toContain("request R5B61EQBGQ for this material")
+  })
+
   it("leaves the conversation turns out", () => {
     expect(text(sessionDocument(i13).blocks)).not.toContain("Still needed?")
   })
