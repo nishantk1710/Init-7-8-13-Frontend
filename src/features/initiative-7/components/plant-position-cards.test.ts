@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 // The two position cards' states: loading, error, nothing to count, and the bars with their notes.
 //
 // Rendered to static markup with react-dom/server (this project's vitest runs without a DOM). The
@@ -102,5 +105,26 @@ describe("the bars' notes", () => {
     )
     expect(markup).toContain("average daily consumption")
     expect(markup).not.toContain("No material-plants could be judged yet.")
+  })
+})
+
+describe("the plant bar colours", () => {
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+  const src = readFileSync(join(process.cwd(), "src/features/initiative-7/components/plant-position-cards.tsx"), "utf8")
+
+  it("gives each plant its own colour, in light and in dark mode", () => {
+    const light = css.slice(0, css.indexOf(".dark {"))
+    const dark = css.slice(css.indexOf(".dark {"))
+    for (const token of ["--plant-all", "--plant-1300", "--plant-1500"]) {
+      expect(light).toContain(`${token}:`)
+      expect(dark).toContain(`${token}:`)
+      expect(src).toContain(`var(${token})`)
+    }
+  })
+
+  it("fades each bar from its colour at the top, with ids that differ between the two charts", () => {
+    expect(src).toContain("plant-bar-${metric}-${scope}")
+    expect(src).toContain("stopOpacity={0.8}")
+    expect(src).not.toMatch(/fill="#[0-9a-fA-F]{3,6}"/)
   })
 })
