@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { isNotEnabled } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
+import { departmentLabel } from "@/lib/assistant/request/record"
 import { resetRequests } from "@/lib/assistant/request/store"
 
 /** Recent multi-material requests, newest first (`GET /assistant/requests`). */
@@ -49,7 +50,7 @@ export function RequestList() {
               <tr>
                 <th className="px-3 py-2 font-medium">Reference</th>
                 <th className="px-3 py-2 font-medium">Requester</th>
-                <th className="px-3 py-2 font-medium">Plant · departments</th>
+                <th className="px-3 py-2 font-medium">Plant · department</th>
                 <th className="px-3 py-2 font-medium">Lines</th>
                 <th className="px-3 py-2 font-medium">Recorded</th>
               </tr>
@@ -65,7 +66,7 @@ export function RequestList() {
                   <td className="px-3 py-2">{r.requestedFor ?? "—"}</td>
                   <td className="px-3 py-2 text-xs">
                     <span className="font-mono font-semibold">{r.plant}</span>
-                    <span className="ml-1.5 font-mono text-muted-foreground">{r.departments.join(", ") || "—"}</span>
+                    <span className="ml-1.5 font-mono text-muted-foreground">{departmentLabel(r)}</span>
                   </td>
                   <td className="px-3 py-2">
                     <span className="flex flex-wrap gap-1">

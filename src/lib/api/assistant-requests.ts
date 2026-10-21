@@ -60,7 +60,6 @@ export type PreviewResponse = {
 export type ApiLineAnswers = {
   materialId: string
   plant: string
-  department?: string | null
   decision?: "proceed" | "not_needed" | "use_existing" | "proceed_new" | null
   quantity?: string | null
   windowStart?: string | null
@@ -76,6 +75,8 @@ export type CreateRequestBody = {
   idempotencyKey: string
   plant: string
   requestedFor?: string | null
+  /** The request's one department code (UAT, 21 Oct): recorded on every line. */
+  department: string
   origin?: "PLATFORM" | "BADI"
   lines: ApiLineAnswers[]
 }
@@ -118,6 +119,8 @@ export type ApiRequest = {
   requester: string
   origin: string
   issuedAt: string
+  /** The request's department; null only for an older request whose lines named several. */
+  department: string | null
   departments: string[]
   lines: ApiRequestLine[]
   skipped: ApiSkipped[]
@@ -131,6 +134,7 @@ export type ApiRequestSummary = {
   issuedAt: string
   lineCount: number
   skippedCount: number
+  department: string | null
   departments: string[]
 }
 

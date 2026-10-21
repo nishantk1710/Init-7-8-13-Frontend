@@ -146,7 +146,7 @@ export async function createRequest(body: CreateRequestBody): Promise<ApiRequest
       lines.push({
         ...common,
         flow: "i08",
-        department: answers.department ?? null,
+        department: body.department,
         decision,
         plannedQuantity: null,
         suggestedQuantity: null,
@@ -163,7 +163,7 @@ export async function createRequest(body: CreateRequestBody): Promise<ApiRequest
       lines.push({
         ...common,
         flow: "i13",
-        department: null,
+        department: body.department,
         decision: "not_needed",
         plannedQuantity: null,
         suggestedQuantity: null,
@@ -181,7 +181,7 @@ export async function createRequest(body: CreateRequestBody): Promise<ApiRequest
     lines.push({
       ...common,
       flow: "i13",
-      department: answers.department ?? null,
+      department: body.department,
       decision: "proceed",
       plannedQuantity: String(quantity),
       suggestedQuantity: suggested,
@@ -201,7 +201,8 @@ export async function createRequest(body: CreateRequestBody): Promise<ApiRequest
     requester: body.requestedFor ?? "demo",
     origin: body.origin ?? "PLATFORM",
     issuedAt: new Date().toISOString(),
-    departments: [...new Set(lines.map((l) => l.department).filter((d): d is string => !!d))],
+    department: body.department,
+    departments: [body.department],
     lines,
     skipped,
     replayed: false,
@@ -229,6 +230,7 @@ export async function listRequests(): Promise<ApiRequestSummary[]> {
     issuedAt: r.issuedAt,
     lineCount: r.lines.length,
     skippedCount: r.skipped.length,
+    department: r.department ?? (r.departments.length === 1 ? r.departments[0] : null),
     departments: r.departments,
   }))
 }

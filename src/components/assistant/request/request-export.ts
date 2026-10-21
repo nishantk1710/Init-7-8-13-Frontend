@@ -6,7 +6,7 @@
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
-import { isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 import {
   downloadDocument,
   exportFilename,
@@ -19,7 +19,6 @@ import {
 export const LINE_COLUMNS = [
   "Reference",
   "Material",
-  "Department",
   "Decision",
   "Window · purpose",
   "Reason given",
@@ -65,7 +64,7 @@ function lineCells(line: ApiRequestLine): ExportCell[] {
       : line.linkedReservations.map(
           (l) => `${l.reservationNumber}/${l.reservationItem} · SGTXT "${l.sgtxt}"${l.note ? ` · ${l.note}` : ""}`
         )
-  return [[line.reference], material, [line.department ?? "—"], decision, window, reason, link]
+  return [[line.reference], material, decision, window, reason, link]
 }
 
 /** Everything the summary page shows, as text. */
@@ -80,7 +79,7 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
       ["Type in SAP", request.requestId],
       ["Requested for", request.requestedFor ?? "—"],
       ["Plant", request.plant],
-      ["Departments", request.departments.length === 0 ? "No department" : request.departments.join(", ")],
+      ["Department", departmentLabel(request)],
       ["Issued", new Date(request.issuedAt).toLocaleString("en-GB")],
       ["Lines", String(request.lines.length)],
       ["To reserve", String(toReserve)],

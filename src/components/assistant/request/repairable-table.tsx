@@ -4,7 +4,7 @@ import { Fragment } from "react"
 import { Trash2 } from "lucide-react"
 
 import { RowStatus, figure } from "@/components/assistant/request/oar-table"
-import { Chip, DepartmentSelect, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
+import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import {
@@ -36,7 +36,6 @@ export function RepairableTable({
   rows,
   lineNumbers,
   showErrors,
-  departments,
   reasons,
   refusedKey,
   onChange,
@@ -45,7 +44,6 @@ export function RepairableTable({
   rows: RepairableLine[]
   lineNumbers: Map<string, number>
   showErrors: boolean
-  departments: readonly string[]
   reasons: readonly ApiReasonCategory[]
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
@@ -53,12 +51,11 @@ export function RepairableTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[1040px] text-sm">
+      <table className="w-full min-w-[920px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="w-10 px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Material</th>
-            <th className="w-32 px-3 py-2 font-medium">Department</th>
             <th className="px-3 py-2 font-medium">What already exists</th>
             <th className="w-[18rem] px-3 py-2 font-medium">Decision</th>
             <th className="w-36 px-3 py-2 font-medium">Status</th>
@@ -72,7 +69,6 @@ export function RepairableTable({
               row={row}
               lineNo={lineNumbers.get(row.key) ?? 0}
               showErrors={showErrors}
-              departments={departments}
               reasons={reasons}
               refused={row.key === refusedKey}
               onChange={onChange}
@@ -89,7 +85,6 @@ function RepairableRow({
   row,
   lineNo,
   showErrors,
-  departments,
   reasons,
   refused,
   onChange,
@@ -98,7 +93,6 @@ function RepairableRow({
   row: RepairableLine
   lineNo: number
   showErrors: boolean
-  departments: readonly string[]
   reasons: readonly ApiReasonCategory[]
   refused: boolean
   onChange: (next: RepairableLine) => void
@@ -133,15 +127,6 @@ function RepairableRow({
               </Chip>
             )}
           </div>
-        </td>
-        <td className="px-3 py-3">
-          <DepartmentSelect
-            codes={departments}
-            label={`Department for ${row.materialId}`}
-            value={row.department}
-            invalid={showErrors && issues.includes("department")}
-            onChange={(department) => onChange({ ...row, department })}
-          />
         </td>
         <td className="px-3 py-3 text-xs">
           <ExistingUnits row={row} />
@@ -199,7 +184,7 @@ function RepairableRow({
       {repairableNeedsJustification(row) && (
         <tr className="align-top">
           <td />
-          <td colSpan={6} className="px-3 pb-3">
+          <td colSpan={5} className="px-3 pb-3">
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
