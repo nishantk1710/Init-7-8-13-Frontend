@@ -111,8 +111,8 @@ export function SessionReference({
             {request ? (
               <span className="text-xs text-muted-foreground">
                 Part of a multi-material request. Type{" "}
-                <span className="font-mono font-semibold text-foreground">{sapText}</span> into the
-                reservation&rsquo;s header text in SAP; SAP copies it to every item. Session ID{" "}
+                <span className="font-mono font-semibold text-foreground">{sapText}</span>
+                {" "}into the reservation&rsquo;s header text in SAP; SAP copies it to every item. Session ID{" "}
                 <span className="font-mono">{sessionId}</span>.
               </span>
             ) : (
