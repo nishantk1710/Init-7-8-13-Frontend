@@ -59,6 +59,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       <SessionReference
         sessionId={trace.sessionId}
         request={identity.requestId ? identity : undefined}
+        issuedAt={trace.issuedAt}
         expiresAt={trace.expiresAt}
         expired={trace.expired}
       />
@@ -88,7 +89,12 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       </Section>
 
       <Section title={`Conversation (${trace.turns.length} turns)`}>
-        <Turns turns={trace.turns} />
+        <Turns
+          turns={trace.turns}
+          // A request line's closing turn names its internal session ID; the
+          // requester only ever sees and types the request ID, so show that.
+          shownAs={identity.requestId ? { sessionId: trace.sessionId, text: identity.sapText } : undefined}
+        />
       </Section>
 
       {trace.plans.length > 0 && (
@@ -210,7 +216,13 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
   )
 }
 
-function Turns({ turns }: { turns: ApiTurn[] }) {
+function Turns({
+  turns,
+  shownAs,
+}: {
+  turns: ApiTurn[]
+  shownAs?: { sessionId: string; text: string }
+}) {
   if (turns.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -232,7 +244,7 @@ function Turns({ turns }: { turns: ApiTurn[] }) {
           <div className="flex gap-2.5">
             <AiOrb size="sm" className="mt-0.5 hidden sm:inline-flex" />
             <p className="w-fit max-w-[90%] rounded-2xl rounded-tl-md border border-border bg-card px-3.5 py-2.5 text-sm whitespace-pre-line text-foreground shadow-sm">
-              {turn.question}
+              {shownAs ? turn.question.replaceAll(shownAs.sessionId, shownAs.text) : turn.question}
             </p>
           </div>
           {turn.answer === null ? (
@@ -433,7 +445,7 @@ function Linkage({
           stands on its own: it records what the planner was told and what they decided.
         </p>
       )}
-      <UatReservationTools sessionId={sessionId} />
+      <UatReservationTools sessionId={sessionId} sapText={requestId ?? undefined} />
     </div>
   )
 }
