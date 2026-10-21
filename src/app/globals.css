@@ -93,6 +93,10 @@
   --chart-3: #1baf7a;
   --chart-4: #eda100;
   --chart-5: #4a3aa7;
+  /* The plant bars of the Overview's Stockout risk and Excess inventory charts: one colour per plant. */
+  --plant-all: #5b3fc4;
+  --plant-1300: #0b8a82;
+  --plant-1500: #e0701f;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -133,6 +137,9 @@
   --chart-3: #199e70;
   --chart-4: #c98500;
   --chart-5: #9085e9;
+  --plant-all: #8f73ea;
+  --plant-1300: #1fb3a7;
+  --plant-1500: #f08a3c;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
