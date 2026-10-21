@@ -453,14 +453,25 @@ export type LiveReservationLedger = Capped<ReservationLedgerRow> & {
  * its item text (SGTXT) names. Where a reservation made through the assistant
  * appears once the extract carries it (or, in UAT, once it is simulated).
  */
+/**
+ * The backend matches the reservation number exactly, stored without SAP's
+ * leading zeros -- so "0001993230" and " 1993230 " both find 1993230.
+ */
+function reservationNumberOf(input: string | undefined): string | undefined {
+  const trimmed = input?.trim()
+  if (!trimmed) return undefined
+  return /^\d+$/.test(trimmed) ? trimmed.replace(/^0+(?=\d)/, "") : trimmed
+}
+
 export async function loadLiveReservationLedger(
-  filters: LedgerFilters & { session?: string } = {},
+  filters: LedgerFilters & { session?: string; reservation?: string } = {},
   paging?: Paging
 ): Promise<LiveReservationLedger> {
   const { items: rows, total } = await getI13ReservationLedgerList({
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     sessionId: filters.session || undefined,
+    reservationNumber: reservationNumberOf(filters.reservation),
     ...pageRequest(paging),
   })
   return {

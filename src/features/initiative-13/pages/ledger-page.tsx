@@ -101,6 +101,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         plant: searchParams.plant,
         material: searchParams.material,
         session: searchParams.session,
+        reservation: searchParams.reservation,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
     )
@@ -124,7 +125,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
           }
         />
         <ViewToggle searchParams={searchParams} active="reservations" />
-        <I13UrlFilters fields={["plant", "material"]} plants={live?.plantOptions} />
+        <I13UrlFilters fields={["plant", "material", "reservation"]} plants={live?.plantOptions} />
 
         {live === null ? (
           <LoadFailure what="reservation ledger" message={loadError} />

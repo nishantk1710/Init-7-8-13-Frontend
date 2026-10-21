@@ -1243,6 +1243,8 @@ export function getI13ReservationLedgerList(params?: {
   plant?: string
   material?: string
   sessionId?: string
+  /** Exact match on the reservation number, as the backend stores it. */
+  reservationNumber?: string
   limit?: number
   offset?: number
 }): Promise<ApiList<ReservationLedgerRow>> {
@@ -1250,6 +1252,7 @@ export function getI13ReservationLedgerList(params?: {
     plant: params?.plant,
     material: params?.material,
     session_id: params?.sessionId,
+    reservation_number: params?.reservationNumber,
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })
