@@ -17,14 +17,9 @@ const DemoSessionTrace = dynamic(() =>
   import("@/components/assistant/demo/demo-session-trace").then((m) => m.DemoSessionTrace)
 )
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ sessionId: string }>
-}): Promise<Metadata> {
-  const { sessionId } = await params
-  return { title: `Session ${sessionId} — Spares AI` }
-}
+/** No ID in the tab title: a request line's internal session ID is not
+ *  something the requester ever sees or types. */
+export const metadata: Metadata = { title: "Assistant session — Spares AI" }
 
 /**
  * One session, in full — the FR-8 demo.
