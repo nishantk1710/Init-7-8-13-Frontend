@@ -163,6 +163,17 @@ export function serviceLevelZFactor(serviceLevelTarget: number): number {
   return Math.round(inverseNormalCdf(serviceLevelTarget) * 100) / 100
 }
 
+/**
+ * Whether the material was used at all in the last 12 months — the same window as
+ * its "Annual consumption (last 12 months)" figure, and the longest the
+ * consumption chart can show. The backend sends a month with no usage as an
+ * explicit zero, so a material with old or netted-out issues arrives with 12+
+ * points that are all 0: a non-empty series, but nothing to draw.
+ */
+export function hasRecentConsumption(rec: Pick<Recommendation, "consumptionHistory">): boolean {
+  return rec.consumptionHistory.slice(-12).some((point) => point.qty > 0)
+}
+
 /** Sums consumptionHistory across recommendations, period-aligned — every
  * material in the mock dataset shares the same six period labels. */
 export function aggregateConsumption(recs: Recommendation[] = RECOMMENDATIONS): ConsumptionPoint[] {

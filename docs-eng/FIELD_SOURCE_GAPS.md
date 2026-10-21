@@ -65,7 +65,7 @@ and where its data comes from.
 |---|---|---|
 | `id` | `platform` | repair_cases:case_id |
 | `material` | `sap` | MaterialSet.Matnr — description joined from MaterialDescriptionSet.Maktx |
-| `plant` | `sap` | MaterialPlantSet.Werks — the CODE is real; the site NAME is not - see reference-data.ts |
+| `plant` | `sap` | MaterialPlantSet.Werks — code and name are both real now. Scope is `1300` Black Mountain Mining and `1500` Gamsberg; names come from `I8_PLANT_NAMES`, which derives from `app/shared/plant_scope.py` |
 | `repairPR` | `platform` | repair_cases:repair_pr |
 | `repairPO` | `platform` | repair_cases:repair_po/repair_po_item |
 | `repairStatus` | `platform` | repair_cases:stage |

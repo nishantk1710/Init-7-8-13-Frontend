@@ -1,0 +1,471 @@
+/**
+ * Initiative 13's live data layer — the server-side half of every OAR screen.
+ *
+ * This is the file Initiative 8's `data/live-*.ts` set is the model for. The
+ * pattern, and why each part of it is there:
+ *
+ *   the page (server component)   fetches once, on the server, via a loader here
+ *   the loader                    calls `lib/api/i13`, derives filter options
+ *   the table ("use client")      renders rows it is handed, and filters them
+ *
+ * Every loader **throws on failure**. The caller catches and renders that
+ * visibly, because an empty table and an unreachable backend are different
+ * statements and one must never be shown as the other. That rule is the whole
+ * reason these return data rather than a result object.
+ *
+ * ## Why filter options are derived here
+ *
+ * Because the alternative is a free-text box. The screens used to ask for a
+ * plant by typing its code into an `<Input>` and debouncing the request — which
+ * works only if you already know the codes. The rows know which plants and
+ * aging bands are actually present, so the loaders collect them and the filters
+ * become a list of what exists. Same reasoning as I8's `plantOptions` /
+ * `vendorOptions`.
+ *
+ * ## Row caps and totals
+ *
+ * These loaders ask for `ROW_CAP` rows. The I13 list routes keep bare-array
+ * bodies but now report the unpaged population in `X-Total-Count`, so a capped
+ * screen can say "the first 1,000 of 42,649" rather than "there may be more".
+ * `total` is `null` only for a route that does not send the header, and then
+ * `atLimit` is still the honest fallback. The ledger route has always defaulted
+ * `limit` to 100, which is why every loader here sends one explicitly.
+ */
+
+import {
+  getI13ActExceptionCounts,
+  getI13ActExceptionsList,
+  getI13ActUtilisationCounts,
+  getI13ActUtilisationList,
+  getI13ConsumptionPlansList,
+  getI13Grni,
+  getI13LedgerCounts,
+  getI13LedgerList,
+  getI13ReclassificationList,
+  getI13ReservationLedgerList,
+  getI13Summary,
+  getI13UsagePatterns,
+  getI13Validation,
+  getI13Zmm065Uploads,
+  type ActException,
+  type ActExceptionCounts,
+  type ConsumptionPlan,
+  type GrniEntry,
+  type I13Summary,
+  type ReclassificationCandidate,
+  type ReservationLedgerRow,
+  type UsagePattern,
+  type UtilisationLedgerEntry,
+  type ValidationResult,
+  type WatchCounts,
+  type WatchMetric,
+  type Zmm065Upload,
+} from "@/lib/api/i13"
+import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
+import { pageOffset } from "@/lib/pagination"
+
+/**
+ * How many rows one screen asks the backend for.
+ *
+ * The point past which a table stops being readable and starts being a denial
+ * of service against the browser. It matters on real data rather than in
+ * theory: the WATCH mart holds 7,184 rows against an OAR population of 44,394,
+ * and detection has raised 42,649 exceptions.
+ *
+ * 1,000 is also the ledger route's own maximum, so this is the largest single
+ * request every I13 list route will honour.
+ */
+export const ROW_CAP = 1000
+
+/**
+ * One page of a server-paged screen. A loader given this asks for exactly that
+ * page (`limit` + `offset`); without it, it asks for the first `ROW_CAP` rows,
+ * as the dashboard still does.
+ */
+export type Paging = { page: number; pageSize: number }
+
+/** `limit`/`offset` for a page, or the first `ROW_CAP` rows. */
+function pageRequest(paging: Paging | undefined, cap: number = ROW_CAP): { limit: number; offset?: number } {
+  return paging
+    ? { limit: paging.pageSize, offset: pageOffset(paging.page, paging.pageSize) }
+    : { limit: cap }
+}
+
+export type Capped<T> = {
+  rows: T[]
+  /** How many came back. */
+  count: number
+  /** The whole filtered population, from `X-Total-Count`. `null` if not sent. */
+  total: number | null
+  /**
+   * More rows exist than came back. Exact when `total` is known; otherwise the
+   * response came back exactly full, which only means "there may be more".
+   */
+  atLimit: boolean
+}
+
+function cap<T>(rows: T[], total: number | null = null): Capped<T> {
+  return {
+    rows,
+    count: rows.length,
+    total,
+    atLimit: total !== null ? total > rows.length : rows.length >= ROW_CAP,
+  }
+}
+
+/** Distinct plant codes present in the rows, sorted. */
+function plantsOf(rows: { plant: string }[]): string[] {
+  return [...new Set(rows.map((r) => r.plant).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
+  )
+}
+
+/**
+ * The newest `calculatedAt` across the WATCH rows, or null.
+ *
+ * This is how stale the screen is, and on I13 that is not a detail: nothing
+ * recomputes on its own. There is no scheduler, so every number on every OAR
+ * screen dates from the last time somebody ran detection. A dashboard that does
+ * not say when that was is inviting a reader to assume "now".
+ */
+export function newestCalculatedAt(rows: WatchMetric[]): string | null {
+  let newest: string | null = null
+  for (const row of rows) {
+    if (row.calculatedAt && (newest === null || row.calculatedAt > newest)) {
+      newest = row.calculatedAt
+    }
+  }
+  return newest
+}
+
+export type WatchFilters = {
+  plant?: string
+  material?: string
+  agingBand?: string
+  acquiredVsPlanStatus?: string
+}
+
+export type LiveWatch = Capped<WatchMetric> & {
+  plantOptions: string[]
+  agingBandOptions: string[]
+  /** Newest `calculatedAt` in the set. Null when no row carries one. */
+  calculatedAt: string | null
+}
+
+/**
+ * WATCH, adapted.
+ *
+ * Reads `/i13/act/utilisation`: every OAR material-plant's WATCH row from the
+ * backend's I13 snapshot, with the GRNI and acquired-vs-plan filters the
+ * dashboard needs. A plan captured through the assistant updates its material's
+ * row as soon as the conversation completes.
+ */
+export async function loadLiveWatch(filters: WatchFilters = {}, paging?: Paging): Promise<LiveWatch> {
+  const { items: rows, total } = await getI13ActUtilisationList({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    agingBand: filters.agingBand || undefined,
+    acquiredVsPlanStatus: filters.acquiredVsPlanStatus || undefined,
+    ...pageRequest(paging),
+  })
+  const capped = cap(rows, total)
+  return {
+    ...capped,
+    plantOptions: plantsOf(rows),
+    agingBandOptions: [...new Set(rows.map((r) => r.agingBand))].sort(),
+    calculatedAt: newestCalculatedAt(rows),
+  }
+}
+
+export type LedgerFilters = { plant?: string; material?: string }
+
+export type ProcurementLedgerFilters = LedgerFilters & {
+  procurementStatus?: string
+  utilisationStatus?: string
+  deliveryStatus?: string
+}
+
+export type LiveLedger = Capped<UtilisationLedgerEntry> & {
+  plantOptions: string[]
+  /**
+   * Lines per linkage state across every line the filters match — FRS AC-3's
+   * "reported, not inferred". From `/ledger/counts`, not from the page.
+   */
+  linkageCounts: Record<string, number>
+}
+
+/**
+ * One page of procurement lines, newest first, with the counts the header
+ * states. Every filter runs on the backend over the whole ledger.
+ */
+export async function loadLiveLedger(
+  filters: ProcurementLedgerFilters = {},
+  paging?: Paging
+): Promise<LiveLedger> {
+  const scope = {
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    procurementStatus: filters.procurementStatus || undefined,
+    utilisationStatus: filters.utilisationStatus || undefined,
+    deliveryStatus: filters.deliveryStatus || undefined,
+  }
+  const [{ items: rows, total }, counts] = await Promise.all([
+    getI13LedgerList({ ...scope, ...pageRequest(paging) }),
+    getI13LedgerCounts(scope),
+  ])
+  return { ...cap(rows, total), plantOptions: plantsOf(rows), linkageCounts: counts.byLinkageStatus }
+}
+
+export type ActExceptionFilters = {
+  plant?: string
+  material?: string
+  type?: string
+  status?: string
+}
+
+export type LiveActExceptions = Capped<ActException> & {
+  plantOptions: string[]
+  /** Exceptions that have somebody to route to. See the note below. */
+  ownedCount: number
+  sessionsByKey: Map<string, ApiSessionSummary[]>
+}
+
+/**
+ * The ACT exception queue — FR-9's, not the ephemeral one.
+ *
+ * Also joins the assistant's session log, so a row can link to the conversation
+ * that produced it. Two sources of that link:
+ *
+ *   - `exception.sessionId`, present on exceptions raised from a captured plan
+ *     or a quantity decision; and
+ *   - a `(material, plant)` lookup into the session log, for the rest.
+ *
+ * The session log is fetched **once** for the whole screen, not once per row.
+ * A per-row lookup is the shape that turned the justification log into thirty
+ * requests, and there is no reason to repeat it here.
+ *
+ * `ownedCount` is worth rendering. An exception with no owner routes to nobody
+ * and escalates to nobody, so it is inert — and until W6.4's requester was
+ * wired into detection, every `NO_PLAN` exception was in that state.
+ */
+export async function loadLiveActExceptions(
+  filters: ActExceptionFilters = {},
+  paging?: Paging
+): Promise<LiveActExceptions> {
+  const [{ items: rows, total }, sessions] = await Promise.all([
+    getI13ActExceptionsList({
+      plant: filters.plant || undefined,
+      material: filters.material || undefined,
+      type: filters.type || undefined,
+      status: filters.status || undefined,
+      ...pageRequest(paging),
+    }),
+    // Best-effort: the queue is the primary fetch, and the assistant being
+    // unreachable should not take the exception screen down over a link.
+    listSessions({ flow: "i13", limit: 200 }).catch(() => null),
+  ])
+
+  const sessionsByKey = new Map<string, ApiSessionSummary[]>()
+  for (const session of sessions?.items ?? []) {
+    const key = sessionKey(session.materialId, session.plant)
+    const existing = sessionsByKey.get(key)
+    if (existing) existing.push(session)
+    else sessionsByKey.set(key, [session])
+  }
+
+  return {
+    ...cap(rows, total),
+    plantOptions: plantsOf(rows),
+    ownedCount: rows.filter((r) => r.ownerRequesterId).length,
+    sessionsByKey,
+  }
+}
+
+/** The join key for session ↔ row. Material and plant together, never either alone. */
+export function sessionKey(material: string, plant: string): string {
+  return `${material}::${plant}`
+}
+
+export type LiveReclassification = Capped<ReclassificationCandidate> & {
+  plantOptions: string[]
+  candidateCount: number
+  /** Every OAR material-plant position assessed, candidates or not. */
+  positionCount: number | null
+}
+
+/**
+ * The reclassification candidates — the positions that meet the SOP threshold.
+ *
+ * Only the candidates are fetched as rows (a few hundred), with the size of the
+ * whole assessed population read from a one-row request's total. This screen
+ * used to request all ~44,000 assessed positions with no limit and filter them
+ * in the browser.
+ */
+export async function loadLiveReclassification(
+  filters: LedgerFilters = {},
+  options: { allPositions?: boolean } = {}
+): Promise<LiveReclassification> {
+  const scope = { plant: filters.plant || undefined, material: filters.material || undefined }
+  if (options.allPositions) {
+    // Every assessed position, unbounded -- for the dashboard, which joins the
+    // critical-impact indicator onto its non-mover rows and needs the "No"s as
+    // well as the candidates. Served from the snapshot, so this is fast.
+    const all = await getI13ReclassificationList(scope)
+    return {
+      ...cap(all.items, all.total),
+      atLimit: false,
+      plantOptions: plantsOf(all.items),
+      candidateCount: all.items.filter((r) => r.candidateFlag).length,
+      positionCount: all.items.length,
+    }
+  }
+  const [candidates, population] = await Promise.all([
+    getI13ReclassificationList({ ...scope, candidatesOnly: true, limit: ROW_CAP }),
+    getI13ReclassificationList({ ...scope, limit: 1 }),
+  ])
+  const rows = candidates.items
+  return {
+    ...cap(rows, candidates.total),
+    plantOptions: plantsOf(rows),
+    candidateCount: candidates.total ?? rows.length,
+    positionCount: population.total,
+  }
+}
+
+export type LivePlans = Capped<ConsumptionPlan> & {
+  plantOptions: string[]
+}
+
+/**
+ * Consumption plans captured through the assistant — FR-4's evidence.
+ *
+ * Every row here was stated by a person in a conversation. Generated
+ * `REFERENCE_CSV` rows, where the backend is configured to read them, are
+ * **not** in this list, by design: the backend keeps them apart, and the whole
+ * value of this screen is being able to say which is which.
+ */
+export async function loadLivePlans(filters: LedgerFilters = {}, paging?: Paging): Promise<LivePlans> {
+  const { items: rows, total } = await getI13ConsumptionPlansList({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    // The route's own maximum is 500.
+    ...pageRequest(paging, 500),
+  })
+  return { ...cap(rows, total), plantOptions: plantsOf(rows) }
+}
+
+/**
+ * WATCH totals for the dashboard — by acquired-vs-plan status and aging band,
+ * over every OAR row the filters match. The bars and tab badges read these
+ * instead of counting a page of rows.
+ */
+export function loadLiveWatchCounts(filters: WatchFilters = {}): Promise<WatchCounts> {
+  return getI13ActUtilisationCounts({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    agingBand: filters.agingBand || undefined,
+    acquiredVsPlanStatus: filters.acquiredVsPlanStatus || undefined,
+  })
+}
+
+/** The whole ACT queue by status, and how many have a requester — the dashboard's bar. */
+export function loadLiveExceptionCounts(scope: LedgerFilters = {}): Promise<ActExceptionCounts> {
+  return getI13ActExceptionCounts({
+    plant: scope.plant || undefined,
+    material: scope.material || undefined,
+  })
+}
+
+/** The KPI counts, scoped to the same plant/material as the rest of the dashboard. */
+export function loadLiveSummary(scope: { plant?: string; material?: string } = {}): Promise<I13Summary> {
+  return getI13Summary({ plant: scope.plant || undefined, material: scope.material || undefined })
+}
+
+/**
+ * FR-6 reconciliation against ZMM065; the backend reads the reports itself.
+ * `reportMonth` (`YYYY-MM`) picks one month's uploads, else each plant's latest.
+ */
+export function loadLiveValidation(reportMonth?: string): Promise<ValidationResult> {
+  return getI13Validation({ reportMonth: reportMonth || undefined })
+}
+
+/** Every ZMM065 monthly upload, newest month first. */
+export function loadLiveZmm065Uploads(): Promise<Zmm065Upload[]> {
+  return getI13Zmm065Uploads()
+}
+
+export type LiveGrni = Capped<GrniEntry> & {
+  plantOptions: string[]
+  /** Outstanding quantity summed over the rows fetched — one page when paged. */
+  outstandingQuantity: number
+}
+
+/**
+ * Goods received and not issued for 30+ days, per reservation line, oldest
+ * first — FRS FR-6, the same rule WATCH applies per material and plant.
+ */
+export async function loadLiveGrni(
+  filters: LedgerFilters & { minDays?: number } = {},
+  paging?: Paging
+): Promise<LiveGrni> {
+  const { items: rows, total } = await getI13Grni({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    minDays: filters.minDays,
+    ...pageRequest(paging),
+  })
+  return {
+    ...cap(rows, total),
+    plantOptions: plantsOf(rows),
+    outstandingQuantity: rows.reduce((sum, r) => sum + r.outstandingQuantity, 0),
+  }
+}
+
+export type LiveUsagePatterns = Capped<UsagePattern> & {
+  plantOptions: string[]
+  /** e.g. `2025-08..2026-08` — how deep the delivered movement history goes. */
+  historyMonths: string | null
+}
+
+/** Month-by-month goods issues per OAR material and plant, most issued first. */
+export async function loadLiveUsagePatterns(
+  filters: LedgerFilters & { agingBand?: string } = {},
+  paging?: Paging
+): Promise<LiveUsagePatterns> {
+  const { items: rows, total, historyMonths } = await getI13UsagePatterns({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    agingBand: filters.agingBand || undefined,
+    // The route's own maximum is 500, below ROW_CAP.
+    ...pageRequest(paging, 200),
+  })
+  return { ...cap(rows, total), plantOptions: plantsOf(rows), historyMonths }
+}
+
+export type LiveReservationLedger = Capped<ReservationLedgerRow> & {
+  plantOptions: string[]
+  /** Rows fetched whose item text names an assistant session — one page when paged. */
+  linkedCount: number
+}
+
+/**
+ * The reservation-anchored ledger: every OAR reservation item, with the session
+ * its item text (SGTXT) names. Where a reservation made through the assistant
+ * appears once the extract carries it (or, in UAT, once it is simulated).
+ */
+export async function loadLiveReservationLedger(
+  filters: LedgerFilters & { session?: string } = {},
+  paging?: Paging
+): Promise<LiveReservationLedger> {
+  const { items: rows, total } = await getI13ReservationLedgerList({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    sessionId: filters.session || undefined,
+    ...pageRequest(paging),
+  })
+  return {
+    ...cap(rows, total),
+    plantOptions: plantsOf(rows),
+    linkedCount: rows.filter((r) => r.sessionId).length,
+  }
+}

@@ -1,0 +1,116 @@
+// Display labels and tones for the backend's I13 enums, in one place.
+//
+// The dashboard used to carry its own copies of these, and they had drifted
+// from the other screens ("Aligned" here, "On plan" on WATCH; CONFIRMED amber
+// here, green on the Exceptions board). Labels only -- no value is
+// reclassified here.
+
+import type { AcquiredVsPlanStatus, ActExceptionStatus, ActExceptionType } from "@/lib/api/i13"
+
+export type Tone = "neutral" | "info" | "success" | "warning" | "danger"
+
+export const AGING_BAND_ORDER = ["FAST", "SLOW", "NON_MOVING"] as const
+
+export const AGING_BAND_LABEL: Record<string, string> = {
+  FAST: "Fast-moving",
+  SLOW: "Slow-moving",
+  NON_MOVING: "Non-moving",
+}
+
+export const AGING_BAND_TONE: Record<string, Tone> = {
+  FAST: "success",
+  SLOW: "warning",
+  NON_MOVING: "danger",
+}
+
+export const PLAN_STATUS_ORDER: AcquiredVsPlanStatus[] = [
+  "ON_PLAN",
+  "BELOW_PLAN",
+  "ABOVE_PLAN",
+  "NO_PLAN",
+]
+
+export const PLAN_STATUS_LABEL: Record<AcquiredVsPlanStatus, string> = {
+  ON_PLAN: "On plan",
+  BELOW_PLAN: "Below plan",
+  ABOVE_PLAN: "Above plan",
+  NO_PLAN: "Non-AI",
+}
+
+export const PLAN_STATUS_TONE: Record<AcquiredVsPlanStatus, Tone> = {
+  ON_PLAN: "success",
+  BELOW_PLAN: "warning",
+  ABOVE_PLAN: "danger",
+  NO_PLAN: "neutral",
+}
+
+export const EXCEPTION_STATUS_ORDER: ActExceptionStatus[] = [
+  "OPEN",
+  "AWAITING_REQUESTER",
+  "ESCALATED",
+  "CONFIRMED",
+  "RESOLVED",
+]
+
+export const EXCEPTION_STATUS_LABEL: Record<ActExceptionStatus, string> = {
+  OPEN: "Requester not identified",
+  AWAITING_REQUESTER: "Assigned to requester",
+  ESCALATED: "Escalated to HOD",
+  CONFIRMED: "Reason given",
+  RESOLVED: "Closed",
+}
+
+/** One-line explanation of each status, for tooltips. */
+export const EXCEPTION_STATUS_HINT: Record<ActExceptionStatus, string> = {
+  OPEN: "We can't tell who raised it, so nobody is assigned",
+  AWAITING_REQUESTER: "We know who raised it and are waiting for their reason",
+  ESCALATED: "No reason given in 5 days, so it goes to the HOD",
+  CONFIRMED: "The requester gave a reason",
+  RESOLVED: "Closed: the material was issued",
+}
+
+export const EXCEPTION_STATUS_TONE: Record<ActExceptionStatus, Tone> = {
+  OPEN: "neutral",
+  AWAITING_REQUESTER: "warning",
+  ESCALATED: "danger",
+  CONFIRMED: "success",
+  RESOLVED: "success",
+}
+
+export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
+  PLAN_BREACH: "Planned Overdue",
+  NO_PLAN: "Non-AI",
+  NO_PLAN_GRNI: "Non-AI + 30-day not issued",
+  QUANTITY_OVERRIDE: "Quantity Overridden",
+}
+
+/** One-line explanation of each exception type, for tooltips. */
+export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
+  PLAN_BREACH: "A plan exists but the material wasn't used within 14 days of the planned date",
+  NO_PLAN: "Reserved without using the assistant, so there is no consumption plan",
+  NO_PLAN_GRNI: "Reserved without the assistant, and received but not issued for 30+ days",
+  QUANTITY_OVERRIDE: "The requester asked for a different quantity than the assistant suggested",
+}
+
+/** `StatusBadge` has no neutral/info tone of its own. */
+export function badgeTone(tone: Tone): "default" | "success" | "warning" | "danger" {
+  return tone === "neutral" || tone === "info" ? "default" : tone
+}
+
+/**
+ * Counts per key in a fixed display order, then any key the backend sent that
+ * the order does not know, so a new enum value shows up rather than vanishing.
+ */
+export function orderedCounts<T>(
+  rows: T[],
+  keyFn: (row: T) => string,
+  order: readonly string[]
+): { key: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const key = keyFn(row)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const extra = [...counts.keys()].filter((k) => !order.includes(k))
+  return [...order, ...extra].map((key) => ({ key, count: counts.get(key) ?? 0 }))
+}

@@ -1,21 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ChevronRight } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState, type KeyboardEvent, type MouseEvent } from "react"
+import { Download, Loader2 } from "lucide-react"
 
+import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { buttonVariants } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { TablePagination } from "@/components/shared/table-pagination"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -24,214 +20,450 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { REPAIR_CHAINS, REPAIR_VENDORS } from "@/features/initiative-8/data/repair-chains"
-import type { AgingBucket, DeclarationStatus, RepairStatus } from "@/features/initiative-8/types/repair"
-import { AGING_BUCKETS, DECLARATION_STATUS_TONE, RECEIPT_STATUS_TONE } from "@/features/initiative-8/utils/status"
-import { useMaterial360 } from "@/lib/material-360-context"
-import { PLANTS } from "@/lib/shared-data/plants"
+import {
+  PendingSpinner,
+  UrlSearchInput,
+  UrlSelect,
+  useUrlFilters,
+  withSelected,
+} from "@/features/initiative-8/components/url-filters"
+import {
+  REGISTER_PATH,
+  activeRegisterFilters,
+  fetchAllRegisterLines,
+  registerHref,
+  type RegisterFacets,
+  type RegisterFilters,
+} from "@/features/initiative-8/data/live-register"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
+import {
+  REGISTER_CSV_HEADERS,
+  registerRowsToCsv,
+} from "@/features/initiative-8/utils/register-view"
+import {
+  CRITICALITY_TONE,
+  DECLARATION_STATUSES,
+  DECLARATION_STATUS_TONE,
+  EXCEPTION_SEVERITY_TONE,
+  OVERDUE_STATUSES,
+  OVERDUE_STATUS_LABEL,
+  OVERDUE_STATUS_TONE,
+  REPAIR_STATUS_TONE,
+  UNKNOWN,
+  exceptionTypeLabel,
+  overdueStatusOf,
+  vendorLabel,
+} from "@/features/initiative-8/utils/status"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
-const ALL = "all"
+export type RepairRegisterTableProps = {
+  /** One page of the register — always from the backend. There is no fixture
+   *  fallback: a failure is reported by the page, never as an empty table. */
+  chains: RepairChain[]
+  /** Matching the filters, across every page. */
+  total: number
+  /** Every line the register lists, whatever the filters. */
+  overall: number
+  page: number
+  pageSize: number
+  /** The dropdowns' choices, from the server: one page of rows would offer
+   *  only what is on it. */
+  facets: RegisterFacets
+  /** The active aging bands, from the snapshot's rules. */
+  agingBands: string[]
+  filters: RegisterFilters
+}
 
-const REPAIR_STATUSES: RepairStatus[] = [
-  "PR Raised",
-  "PO Issued",
-  "At Vendor",
-  "In Transit Return",
-  "Received",
-  "Closed",
-]
+/** The repair detail page for one register line. */
+export function repairHref(chain: Pick<RepairChain, "id">): string {
+  return `/repairable-spares/repair-register/${chain.id}`
+}
 
-const DECLARATION_STATUSES: DeclarationStatus[] = ["Required", "Pending", "Completed", "Flagged"]
+/**
+ * The register: one row per repair PO line, and the one place to work on it.
+ *
+ * Since 08-Oct-2026 it also carries what the Declaration Queue and the
+ * Justifications screen showed (who declared and when, and whether a new
+ * purchase while the repair was out has a reason), and **the whole row opens
+ * the repair** — there is no View button. The material name opens it too,
+ * rather than the Material 360 drawer: two click targets in one row that go to
+ * different places is how people land somewhere they did not mean to. Material
+ * 360 is one click away on the detail page.
+ *
+ * Columns run from what a repair is doing now, through its declaration and
+ * justification, to the reference columns (criticality, stock, SAP documents)
+ * people read least.
+ *
+ * One server page at a time: the filters live in the URL, and the server
+ * searches, filters, counts and pages (see `loadRegisterPage`). Back from a
+ * repair's detail page returns to the same page and filters.
+ */
+export function RepairRegisterTable({
+  chains,
+  total,
+  overall,
+  page,
+  pageSize,
+  facets,
+  agingBands,
+  filters,
+}: RepairRegisterTableProps) {
+  const router = useRouter()
+  const { push, isPending } = useUrlFilters(REGISTER_PATH)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
-export function RepairRegisterTable() {
-  const { openMaterial360 } = useMaterial360()
-  const [plant, setPlant] = useState<string>(ALL)
-  const [vendor, setVendor] = useState<string>(ALL)
-  const [repairStatus, setRepairStatus] = useState<RepairStatus | typeof ALL>(ALL)
-  const [declarationStatus, setDeclarationStatus] = useState<DeclarationStatus | typeof ALL>(ALL)
-  const [aging, setAging] = useState<AgingBucket | typeof ALL>(ALL)
+  /**
+   * Every line the filters match, not the page on screen -- and nothing the
+   * filters exclude. The file is the view it came from.
+   */
+  async function exportExcel() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const all = await fetchAllRegisterLines(filters)
+      const built = await downloadExcel(
+        "i08-repair-register.xlsx",
+        REGISTER_CSV_HEADERS,
+        registerRowsToCsv(all)
+      )
+      if (!built) setExportError("The Excel file could not be built.")
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExporting(false)
+    }
+  }
 
-  const filtered = useMemo(() => {
-    return REPAIR_CHAINS.filter((c) => {
-      if (plant !== ALL && c.plant.plantId !== plant) return false
-      if (vendor !== ALL && c.vendor !== vendor) return false
-      if (repairStatus !== ALL && c.repairStatus !== repairStatus) return false
-      if (declarationStatus !== ALL && c.declarationStatus !== declarationStatus) return false
-      if (aging !== ALL && c.agingBucket !== aging) return false
-      return true
-    })
-  }, [plant, vendor, repairStatus, declarationStatus, aging])
+  /** A dropdown's choices, plus the one in the URL if the server no longer
+   *  lists it -- so a link to it still shows what it is filtering by. */
+  function choices(options: { value: string; label: string }[], selected?: string) {
+    const labels = new Map(options.map((o) => [o.value, o.label]))
+    return withSelected(
+      options.map((o) => o.value),
+      selected
+    ).map((value) => ({ value, label: labels.get(value) ?? value }))
+  }
+
+  /**
+   * A click anywhere on the row opens the repair.
+   *
+   * Clicks on the material link are left to the link, which already handles
+   * them -- including ctrl/cmd-click and middle-click into a new tab, which a
+   * row handler alone would lose. A click that ends a text selection is not a
+   * request to navigate.
+   */
+  function openFromRow(event: MouseEvent<HTMLTableRowElement>, href: string) {
+    // Only the primary and middle buttons; a right-click opens the menu.
+    if (event.button !== 0 && event.button !== 1) return
+    if ((event.target as HTMLElement).closest("a")) return
+    if (window.getSelection()?.toString()) return
+    if (event.metaKey || event.ctrlKey || event.button === 1) {
+      window.open(href, "_blank", "noopener")
+      return
+    }
+    router.push(href)
+  }
+
+  function openFromKeyboard(event: KeyboardEvent<HTMLTableRowElement>, href: string) {
+    if (event.target !== event.currentTarget || event.key !== "Enter") return
+    event.preventDefault()
+    router.push(href)
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <FilterBar>
-        <Select value={plant} onValueChange={(v) => setPlant(v ?? ALL)}>
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Plant">
-              {(value: string) =>
-                value === ALL ? "All plants" : PLANTS.find((p) => p.plantId === value)?.name ?? value
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All plants</SelectItem>
-            {PLANTS.map((p) => (
-              <SelectItem key={p.plantId} value={p.plantId}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-2">
+        <FilterBar className="flex-1">
+          {/* The browser's own find sees one page; this looks through every
+              line -- material, repair line, PO and PR. */}
+          <UrlSearchInput
+            value={filters.q ?? ""}
+            onCommit={(value) => push({ q: value })}
+            placeholder="Search material, repair line, PO, PR…"
+            ariaLabel="Search the repair register"
+            className="sm:w-64"
+          />
+          <UrlSelect
+            value={filters.plant ?? ""}
+            onChange={(value) => push({ plant: value })}
+            allLabel="All plants"
+            options={choices(
+              facets.plants.map((p) => ({ value: p.plantId, label: p.name })),
+              filters.plant
+            )}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.vendor ?? ""}
+            onChange={(value) => push({ vendor: value })}
+            allLabel="All vendors"
+            options={choices(facets.vendors, filters.vendor)}
+            className="sm:w-52"
+          />
+          <UrlSelect
+            value={filters.repairStatus ?? ""}
+            onChange={(value) => push({ repairStatus: value })}
+            allLabel="All repair statuses"
+            options={choices(
+              facets.repairStatuses.map((s) => ({ value: s, label: s })),
+              filters.repairStatus
+            )}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.overdue ?? ""}
+            onChange={(value) => push({ overdue: value })}
+            allLabel="Any due-date status"
+            options={OVERDUE_STATUSES.map((s) => ({ value: s, label: OVERDUE_STATUS_LABEL[s] }))}
+            className="sm:w-44"
+          />
+          {/* The criticality column sits at the far end now, but FR-10 asks for
+              the register to be filterable by criticality, so the filter stays. */}
+          <UrlSelect
+            value={filters.criticality ?? ""}
+            onChange={(value) => push({ criticality: value })}
+            allLabel="All criticalities"
+            options={choices(facets.criticalities, filters.criticality)}
+            className="sm:w-44"
+          />
+          <UrlSelect
+            value={filters.declarationStatus ?? ""}
+            onChange={(value) => push({ declarationStatus: value })}
+            allLabel="All declaration statuses"
+            options={DECLARATION_STATUSES.map((s) => ({ value: s, label: s }))}
+            className="sm:w-48"
+          />
+          <UrlSelect
+            value={filters.aging ?? ""}
+            onChange={(value) => push({ aging: value })}
+            allLabel="All aging"
+            options={choices(
+              agingBands.map((b) => ({ value: b, label: `${b} days` })),
+              filters.aging
+            )}
+            className="sm:w-40"
+          />
+          {/* FR-8's findings, as a way into the register rather than out of it:
+              "show me the lines something was raised against". */}
+          <UrlSelect
+            value={filters.exceptions ? "1" : ""}
+            onChange={(value) => push({ exceptions: value || undefined })}
+            allLabel="Any exceptions"
+            options={[{ value: "1", label: "With exceptions only" }]}
+            className="sm:w-48"
+          />
+          <ClearFiltersButton
+            activeCount={activeRegisterFilters(filters)}
+            onClear={() =>
+              push({
+                q: undefined,
+                plant: undefined,
+                vendor: undefined,
+                repairStatus: undefined,
+                overdue: undefined,
+                criticality: undefined,
+                declarationStatus: undefined,
+                aging: undefined,
+                exceptions: undefined,
+              })
+            }
+          />
 
-        <Select value={vendor} onValueChange={(v) => setVendor(v ?? ALL)}>
-          <SelectTrigger className="h-9 w-full sm:w-52">
-            <SelectValue placeholder="Vendor">
-              {(value: string) => (value === ALL ? "All vendors" : value)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All vendors</SelectItem>
-            {REPAIR_VENDORS.map((v) => (
-              <SelectItem key={v} value={v}>
-                {v}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            {exportError && (
+              <span role="alert" className="text-[11px] text-destructive">
+                Export failed: {exportError}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {formatCount(total)} of {formatCount(overall)} lines
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void exportExcel()}
+              disabled={exporting || total === 0}
+            >
+              {exporting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+              Export Excel
+            </Button>
+          </div>
+        </FilterBar>
+        <PendingSpinner pending={isPending} />
+      </div>
 
-        <Select
-          value={repairStatus}
-          onValueChange={(v) => setRepairStatus(v as RepairStatus | typeof ALL)}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="Repair status">
-              {(value: string) => (value === ALL ? "All repair statuses" : value)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All repair statuses</SelectItem>
-            {REPAIR_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={declarationStatus}
-          onValueChange={(v) => setDeclarationStatus(v as DeclarationStatus | typeof ALL)}
-        >
-          <SelectTrigger className="h-9 w-full sm:w-48">
-            <SelectValue placeholder="Declaration status">
-              {(value: string) => (value === ALL ? "All declaration statuses" : value)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All declaration statuses</SelectItem>
-            {DECLARATION_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={aging} onValueChange={(v) => setAging(v as AgingBucket | typeof ALL)}>
-          <SelectTrigger className="h-9 w-full sm:w-40">
-            <SelectValue placeholder="Aging">
-              {(value: string) => (value === ALL ? "All aging" : `${value} days`)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All aging</SelectItem>
-            {AGING_BUCKETS.map((b) => (
-              <SelectItem key={b} value={b}>
-                {b} days
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterBar>
-
-      {filtered.length === 0 ? (
+      {total === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           No repair chains match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Plant</TableHead>
-                <TableHead className="text-right">SOH</TableHead>
-                <TableHead className="text-right">ROP</TableHead>
-                <TableHead>Repair PR</TableHead>
-                <TableHead>Repair PO</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead className="text-right">Qty Under Repair</TableHead>
+                <TableHead>Repair Status</TableHead>
                 <TableHead>Expected Return</TableHead>
+                <TableHead>Due Date Status</TableHead>
                 <TableHead className="text-right">Days Open</TableHead>
-                <TableHead>Receipt Status</TableHead>
                 <TableHead>Declaration Status</TableHead>
-                <TableHead />
+                <TableHead>Exceptions</TableHead>
+                <TableHead>Criticality</TableHead>
+                <TableHead>Repair PR</TableHead>
+                <TableHead>Repair PO</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <MaterialIdentity material={c.material} onOpen={openMaterial360} />
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground">
-                    {c.material.description}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
-                  <TableCell className="text-right text-foreground">{c.stockOnHand}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{c.reorderPoint}</TableCell>
-                  <TableCell>
-                    <SAPDocumentChip doc={c.repairPR} />
-                  </TableCell>
-                  <TableCell>
-                    {c.repairPO ? (
-                      <SAPDocumentChip doc={c.repairPO} />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Not yet raised</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-muted-foreground">
-                    {c.vendor}
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.expectedReturn}</TableCell>
-                  <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
-                  <TableCell>
-                    <StatusBadge tone={RECEIPT_STATUS_TONE[c.receiptStatus]}>
-                      {c.receiptStatus}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
-                      {c.declarationStatus}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/repairable-spares/repair-register/${c.id}`}
-                      className={buttonVariants({ variant: "ghost", size: "xs" })}
-                    >
-                      View
-                      <ChevronRight className="size-3.5" />
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {chains.map((c) => {
+                const href = repairHref(c)
+                const overdue = overdueStatusOf(c)
+                return (
+                  <TableRow
+                    key={c.id}
+                    tabIndex={0}
+                    aria-label={`Open repair ${c.id}`}
+                    onClick={(event) => openFromRow(event, href)}
+                    onAuxClick={(event) => openFromRow(event, href)}
+                    onKeyDown={(event) => openFromKeyboard(event, href)}
+                    className="cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <TableCell>
+                      {/* A real link, so ctrl-click, middle-click and "copy
+                          link" all work; the row forwards its clicks here. */}
+                      <Link href={href} className="block hover:underline" tabIndex={-1}>
+                        <MaterialIdentity material={c.material} />
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                      {c.material.description}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
+                    <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                      {vendorLabel(c)}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
+                    {/* PO Issued or At Vendor: every line is open in SAP. A
+                        blocked, deleted or "Delivery completed" line is not
+                        served at all, so there is nothing to flag here. */}
+                    <TableCell>
+                      <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
+                        {c.repairStatus}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {c.expectedReturn ?? UNKNOWN}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={OVERDUE_STATUS_TONE[overdue]}>
+                        {OVERDUE_STATUS_LABEL[overdue]}
+                      </StatusBadge>
+                    </TableCell>
+                    {/* Plain number, no verdict. Days open runs from the PO
+                        line date to the reference date: the line is open in
+                        SAP until it is marked delivery completed, and then it
+                        leaves the register. No Turnaround column since
+                        19-Oct-2026 -- it was dispatch to goods receipt, and
+                        goods receipts are not read. */}
+                    <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
+                    {/* Who declared and when, under the status -- what the
+                        Declaration Queue showed in two columns of its own. The
+                        condition, the next action and the form are on the
+                        detail page. */}
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
+                          {c.declarationStatus}
+                        </StatusBadge>
+                        {c.declaredBy && (
+                          <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                            {c.declaredBy}
+                            {c.declaredAt && ` · ${c.declaredAt}`}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    {/* What the FR-8 checks found against this line, served
+                        with it. A line they were not computed for -- a backend
+                        older than that -- reads "not checked" rather than
+                        showing a clean dash it has not earned. */}
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      {c.exceptions === undefined ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="The checks were not read for this line, so its findings are unknown."
+                        >
+                          Not checked
+                        </span>
+                      ) : c.exceptions.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
+                      ) : (
+                        <Link
+                          href={`/repairable-spares/exceptions?repair=${encodeURIComponent(c.id)}`}
+                          className="flex flex-wrap items-center gap-1"
+                          title={`Open Repair Exceptions filtered to ${c.id}`}
+                        >
+                          {c.exceptions.map((exception) => (
+                            <StatusBadge
+                              key={exception.id}
+                              tone={EXCEPTION_SEVERITY_TONE[exception.severity] ?? "default"}
+                            >
+                              {exceptionTypeLabel(exception.type)}
+                            </StatusBadge>
+                          ))}
+                        </Link>
+                      )}
+                    </TableCell>
+                    {/* Unrated is "not recorded", never NORMAL -- a dash, with
+                        the reason on hover. */}
+                    <TableCell>
+                      {c.criticality ? (
+                        <StatusBadge tone={CRITICALITY_TONE[c.criticality] ?? "default"}>
+                          {c.criticality}
+                        </StatusBadge>
+                      ) : (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="No criticality rating is recorded for this material in ZMM065"
+                        >
+                          {UNKNOWN}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <SAPDocumentChip doc={c.repairPR} />
+                    </TableCell>
+                    <TableCell>
+                      {c.repairPO ? (
+                        <SAPDocumentChip doc={c.repairPO} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not yet raised</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={chains.length}
+        noun="repair lines"
+        hrefFor={(p) => registerHref(filters, p)}
+      />
     </div>
   )
 }

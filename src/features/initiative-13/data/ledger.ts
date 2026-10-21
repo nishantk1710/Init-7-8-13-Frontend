@@ -15,9 +15,6 @@ import { getUserById } from "@/lib/shared-data/users"
 import { getPlantById } from "@/lib/shared-data/plants"
 import type { OARPersonRef, UtilizationLedgerLine } from "@/features/initiative-13/types/oar"
 import { materialRef, unitPriceFor } from "@/features/initiative-13/data/materials"
-import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
-import generatedLedger from "@/features/initiative-13/data/generated/ledger.json"
-
 function person(userId: string): OARPersonRef {
   const user = getUserById(userId)
   if (!user) throw new Error(`Unknown shared user id: ${userId}`)
@@ -110,7 +107,7 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     unitPrice: unitPriceFor("500-22140"),
     requester: RIAAN,
     department: "Conveyance",
-    plant: plant("PLANT-SKZ"),
+    plant: plant("PLANT-BMM"),
     purpose: "Idler bearing replacement — CV-14 stacker conveyor",
     jobWorkOrder: "WO-87790",
     equipment: "CV-14 stacker conveyor",
@@ -155,13 +152,13 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     stage: "PO Raised",
     agingDays: 0,
     exception: "None",
-    allocationMethod: "Shared / FIFO Mock Allocation",
+    allocationMethod: "Shared / FIFO Allocation",
     consolidatedGroupId: "CG-PR-71300",
     documentChain: [
       { id: "c1", stage: "Requested", doc: { type: "RR", documentNumber: "RR-100301" }, timestamp: "12 Aug 2026", description: "Request raised in chat session SPR-2798" },
       { id: "c2", stage: "Reserved", doc: { type: "RESERVATION", documentNumber: "RES-500201" }, timestamp: "12 Aug 2026", description: "Reservation created against Mill 2 cost center" },
       { id: "c3", stage: "PR Raised", doc: { type: "PR", documentNumber: "PR-71300" }, timestamp: "14 Aug 2026", description: "Consolidated with 2 other reservations into one requisition — not a 1:1 SAP link" },
-      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO mock allocation)" },
+      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO allocation)" },
     ],
   },
   {
@@ -186,13 +183,13 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     stage: "PO Raised",
     agingDays: 0,
     exception: "None",
-    allocationMethod: "Shared / FIFO Mock Allocation",
+    allocationMethod: "Shared / FIFO Allocation",
     consolidatedGroupId: "CG-PR-71300",
     documentChain: [
       { id: "c1", stage: "Requested", doc: { type: "RR", documentNumber: "RR-100308" }, timestamp: "13 Aug 2026", description: "Request raised in chat session SPR-2801" },
       { id: "c2", stage: "Reserved", doc: { type: "RESERVATION", documentNumber: "RES-500202" }, timestamp: "13 Aug 2026", description: "Reservation created against Mill 2 shutdown project" },
       { id: "c3", stage: "PR Raised", doc: { type: "PR", documentNumber: "PR-71300" }, timestamp: "14 Aug 2026", description: "Consolidated with 2 other reservations into one requisition — not a 1:1 SAP link" },
-      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO mock allocation)" },
+      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO allocation)" },
     ],
   },
   {
@@ -216,14 +213,14 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     stage: "Goods Receipt",
     agingDays: 0,
     exception: "None",
-    allocationMethod: "Shared / FIFO Mock Allocation",
+    allocationMethod: "Shared / FIFO Allocation",
     consolidatedGroupId: "CG-PR-71300",
     documentChain: [
       { id: "c1", stage: "Requested", doc: { type: "RR", documentNumber: "RR-100312" }, timestamp: "13 Aug 2026", description: "Request raised in chat session SPR-2805" },
       { id: "c2", stage: "Reserved", doc: { type: "RESERVATION", documentNumber: "RES-500203" }, timestamp: "13 Aug 2026", description: "Reservation created against Engineering spares pool" },
       { id: "c3", stage: "PR Raised", doc: { type: "PR", documentNumber: "PR-71300" }, timestamp: "14 Aug 2026", description: "Consolidated with 2 other reservations into one requisition — not a 1:1 SAP link" },
-      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO mock allocation)" },
-      { id: "c5", stage: "Goods Receipt", doc: { type: "GR", documentNumber: "GR-330288" }, timestamp: "30 Aug 2026", description: "1 EA allocated to this reservation from the consolidated receipt (FIFO mock allocation)" },
+      { id: "c4", stage: "PO Raised", doc: { type: "PO", documentNumber: "PO-91400" }, timestamp: "16 Aug 2026", description: "Consolidated PO placed with Timken — quantity split across reservations on receipt (FIFO allocation)" },
+      { id: "c5", stage: "Goods Receipt", doc: { type: "GR", documentNumber: "GR-330288" }, timestamp: "30 Aug 2026", description: "1 EA allocated to this reservation from the consolidated receipt (FIFO allocation)" },
     ],
   },
 
@@ -300,7 +297,7 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     unitPrice: unitPriceFor("500-55210"),
     requester: AMANDA,
     department: "Conveyance",
-    plant: plant("PLANT-SKZ"),
+    plant: plant("PLANT-GBG"),
     purpose: "Standby motor for conveyor drive replacement",
     jobWorkOrder: "WO-88540",
     equipment: "CV-06 overland conveyor drive",
@@ -363,7 +360,7 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
     unitPrice: unitPriceFor("OAR-77002"),
     requester: AMANDA,
     department: "Engineering",
-    plant: plant("PLANT-SKZ"),
+    plant: plant("PLANT-BMM"),
     purpose: "Standby flexible coupling for conveyor gearbox rebuild",
     jobWorkOrder: "WO-88602",
     equipment: "CV-09 gearbox",
@@ -383,10 +380,7 @@ const SCENARIO_LEDGER_LINES: UtilizationLedgerLine[] = [
   },
 ]
 
-/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const LEDGER_LINES: UtilizationLedgerLine[] = USING_GENERATED_DATA
-  ? (generatedLedger as unknown as UtilizationLedgerLine[])
-  : SCENARIO_LEDGER_LINES
+export const LEDGER_LINES: UtilizationLedgerLine[] = SCENARIO_LEDGER_LINES
 
 export function getLedgerLineById(id: string): UtilizationLedgerLine | undefined {
   return LEDGER_LINES.find((line) => line.id === id)

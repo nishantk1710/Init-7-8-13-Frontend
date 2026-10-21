@@ -19,13 +19,21 @@ function quickActionsFor(materialId: string, route: ReturnType<typeof classifyMa
   switch (route.initiative) {
     case "initiative-13":
       return [
-        { label: "View Utilisation Ledger", href: "/oar-utilization/ledger" },
-        { label: "View Released OAR", href: "/oar-utilization/redeployment" },
+        { label: "View Utilization Ledger", href: "/oar-utilization/ledger" },
+        // WATCH, narrowed to this material (FR-6). This replaced a link to the
+        // Redeployment screen, which is out of scope (FRS §3.2, D10).
+        {
+          label: "View WATCH Metrics",
+          href: `/oar-utilization/watch?material=${encodeURIComponent(materialId)}`,
+        },
       ]
     case "initiative-8":
       return [
         { label: "View Repair Register", href: signalHref ?? "/repairable-spares/repair-register" },
-        { label: "Start Condition Declaration", href: "/repairable-spares/declarations" },
+        // The declaration form is on the repair detail page (the Declaration
+        // Queue was folded into the register, 08-Oct-2026), which is where the
+        // signal already points; the register when there is no signal.
+        { label: "Start Condition Declaration", href: signalHref ?? "/repairable-spares/repair-register" },
       ]
     case "initiative-7":
       return [

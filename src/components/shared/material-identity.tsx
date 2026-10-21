@@ -15,16 +15,19 @@ export function MaterialIdentity({
   onOpen?: (materialId: string) => void
   className?: string
 }) {
-  const content = (
-    <>
-      <span className="block truncate font-medium text-foreground">
-        {material.description}
-      </span>
+const content = (
+  <>
+    <span className="block truncate font-medium text-foreground">
+      {material.description}
+    </span>
+    {material.materialCode !== material.description && (
       <span className="block truncate text-[11px] text-muted-foreground">
         {material.materialCode}
       </span>
-    </>
-  )
+    )}
+  </>
+)
+
 
   if (onOpen) {
     return (

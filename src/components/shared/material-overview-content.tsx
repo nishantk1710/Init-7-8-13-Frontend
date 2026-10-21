@@ -8,7 +8,6 @@ import { getInitiative13Material360Signal } from "@/features/initiative-13/selec
 import { isOARMaterial } from "@/features/initiative-13/selectors/oar-lookup"
 import type { Material360Signal, InitiativeHealth } from "@/lib/domain/contracts"
 import { getMaterialById } from "@/lib/shared-data/material-catalog"
-import { CHAT_SESSIONS } from "@/lib/mock-data"
 import { cn, formatZAR } from "@/lib/utils"
 
 const STATUS_DOT: Record<InitiativeHealth | "neutral", string> = {
@@ -61,12 +60,10 @@ export function MaterialOverviewContent({ materialId }: { materialId: string }) 
   const initiative13Signal = getInitiative13Material360Signal(materialId)
   const isOAR = isOARMaterial(materialId)
 
-  const relatedSessions = CHAT_SESSIONS.filter((s) => s.materialId === materialId)
-
   if (!material) {
     return (
       <p className="text-xs text-muted-foreground">
-        No catalog record for this material — it may be module-specific mock data not in the
+        No catalog record for this material — it may be module-specific data not in the
         shared catalog.
       </p>
     )
@@ -103,19 +100,6 @@ export function MaterialOverviewContent({ materialId }: { materialId: string }) 
             <dd className="text-foreground">{material.leadTimeDays} days</dd>
           </div>
         </dl>
-        {relatedSessions.length > 0 && (
-          <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-border pt-2">
-            {relatedSessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/chat/${s.id}`}
-                className="text-[11px] text-primary hover:underline"
-              >
-                Open session #{s.id}
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
 
       {initiative7Signal && <SignalSection signal={initiative7Signal} />}

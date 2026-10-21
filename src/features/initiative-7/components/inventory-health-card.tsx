@@ -1,5 +1,5 @@
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
-import { cn } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 
@@ -30,30 +30,103 @@ function pct(part: number, whole: number): string {
   return whole === 0 ? "0.0" : ((part / whole) * 100).toFixed(1)
 }
 
-/** Stockout-risk distribution — a single segmented bar (Critical at top down
+const BAR_HEIGHT_PX = 150
+const MIN_SEGMENT_PX = 6
+/** True proportional heights (count/total * 150px) for a distribution as
+ * skewed as this data's (e.g. Low = 99.9%) round every other tier to
+ * sub-pixel, so a real, non-zero Critical/High/Medium tier renders as
+ * nothing -- indistinguishable from zero. Every tier with count > 0 gets at
+ * least MIN_SEGMENT_PX of visible height; the pixels that costs are taken
+ * from the largest segment(s), never fabricated, so the bar's total height
+ * is still exactly BAR_HEIGHT_PX and a zero-count tier still renders as
+ * zero. */
+function segmentHeightsPx(counts: { level: RiskLevel; count: number }[], total: number): Record<RiskLevel, number> {
+  const result = {} as Record<RiskLevel, number>
+  if (total <= 0) {
+    for (const { level } of counts) result[level] = 0
+    return result
+  }
+
+  const raw = counts.map(({ level, count }) => ({ level, count, px: (count / total) * BAR_HEIGHT_PX }))
+  const needsFloor = raw.filter((r) => r.count > 0 && r.px < MIN_SEGMENT_PX)
+  const deficit = needsFloor.reduce((sum, r) => sum + (MIN_SEGMENT_PX - r.px), 0)
+
+  const donors = raw.filter((r) => r.px >= MIN_SEGMENT_PX)
+  const donorTotalPx = donors.reduce((sum, r) => sum + r.px, 0)
+
+  for (const r of raw) {
+    if (r.count > 0 && r.px < MIN_SEGMENT_PX) {
+      result[r.level] = MIN_SEGMENT_PX
+    } else if (donorTotalPx > 0 && deficit > 0) {
+      // Shrink proportionally to each donor's own share of the donor pool,
+      // so the single largest segment doesn't absorb 100% of the deficit
+      // when more than one tier is large enough to lend space.
+      result[r.level] = r.px - (r.px / donorTotalPx) * deficit
+    } else {
+      result[r.level] = r.px
+    }
+  }
+  return result
+}
+
+/** Stockout-risk distribution — a single segmented bar (highest tier at top down
  * to Low) alongside a legend giving each tier's count and share of the set.
  * Clicking a tier cross-filters the rest of the dashboard by that risk level. */
 export function InventoryHealthCard({
   recommendations = RECOMMENDATIONS,
   activeRisk,
   onRiskClick,
+  riskOverride,
+  mergeCriticalIntoHigh = false,
 }: {
   recommendations?: Recommendation[]
   activeRisk?: RiskLevel | null
   onRiskClick?: (level: RiskLevel) => void
+  /** Part 36 -- portfolio-wide { level, count }[] + total, from GET
+   * /recommendations/summary's by_risk. In live mode `recommendations` is at
+   * most one fetched page, so counting risk tiers from it directly reads as
+   * a portfolio distribution when it is really one page's -- with ~2.3M
+   * accumulated rows nearly all NOT_EVALUABLE (and, before Part 36's
+   * deriveRisk fix, silently unable to reach "high"/"medium" at all), that
+   * page can read "200 Low, 0 everything else" (see
+   * use-live-recommendation-summary.ts). When provided, this replaces the
+   * locally-counted distribution entirely; the click-to-filter behaviour is
+   * unchanged either way. */
+  riskOverride?: { counts: { level: RiskLevel; count: number }[]; total: number }
+  /** Shows three tiers -- High, Medium, Low -- with Critical counted into High. The Overview
+   * uses this; the quarterly reports keep the four tiers they were generated with. */
+  mergeCriticalIntoHigh?: boolean
 }) {
-  const total = recommendations.length
-  const counts = RISK_ORDER.map((level) => ({
-    level,
-    count: recommendations.filter((r) => r.risk === level).length,
-  }))
+  const total = riskOverride?.total ?? recommendations.length
+  const tiers = mergeCriticalIntoHigh ? RISK_ORDER.filter((level) => level !== "critical") : RISK_ORDER
+  const counts = tiers.map((level) => {
+    // "high" stands for critical + high when merged.
+    const sources: RiskLevel[] = mergeCriticalIntoHigh && level === "high" ? ["critical", "high"] : [level]
+    return {
+      level,
+      count: sources.reduce(
+        (sum, source) =>
+          sum +
+          (riskOverride
+            ? riskOverride.counts.find((c) => c.level === source)?.count ?? 0
+            : recommendations.filter((r) => r.risk === source).length),
+        0,
+      ),
+    }
+  })
+  const heightsPx = segmentHeightsPx(counts, total)
 
   return (
-    <div className="flex items-center gap-4">
-      {/* One continuous column, most severe tier at the top. Segments are
-          sized by share and butt up against each other; a slight corner
-          radius on the clipping container keeps it cylindrical rather than
-          the fully-rounded capsule shape. */}
+    // Container query: below 16rem the bar sits above the legend, so a tier's name and its count
+    // both fit instead of the name being cut to "Cri..." or to nothing at all.
+    <div className="@container">
+    <div className="flex flex-col items-center gap-3 @[16rem]:flex-row @[16rem]:gap-4">
+      {/* One continuous column, most severe tier at the top. Every non-zero
+          tier gets at least MIN_SEGMENT_PX so a small-but-real tier (e.g.
+          Critical at 96 of 226,930) still shows as a visible colored band,
+          not an invisible sliver -- see segmentHeightsPx's own comment. A
+          slight corner radius on the clipping container keeps it cylindrical
+          rather than the fully-rounded capsule shape. */}
       <div className="flex h-[150px] w-8 shrink-0 flex-col overflow-hidden rounded-md bg-muted">
         {counts.map(({ level, count }) => (
           <button
@@ -68,11 +141,11 @@ export function InventoryHealthCard({
               onRiskClick && "cursor-pointer",
               activeRisk && activeRisk !== level && "opacity-30"
             )}
-            style={{ height: total ? `${(count / total) * 100}%` : 0 }}
+            style={{ height: `${heightsPx[level]}px` }}
           />
         ))}
       </div>
-      <div className="flex flex-1 flex-col gap-2">
+      <div className="flex w-full flex-1 flex-col gap-2">
         {counts.map(({ level, count }) => (
           <button
             key={level}
@@ -85,16 +158,17 @@ export function InventoryHealthCard({
               activeRisk && activeRisk !== level && "opacity-40"
             )}
           >
-            <span className={cn("flex items-center gap-2 font-medium", RISK_TEXT_CLASS[level])}>
+            <span className={cn("flex min-w-0 items-center gap-2 font-medium", RISK_TEXT_CLASS[level])}>
               <span className={cn("size-2.5 shrink-0 rounded-full", RISK_COLOR_CLASS[level])} />
-              {RISK_LABEL[level]}
+              <span className="whitespace-nowrap">{RISK_LABEL[level]}</span>
             </span>
-            <span className="tabular-nums text-muted-foreground">
-              {count} ({pct(count, total)}%)
+            <span className="shrink-0 tabular-nums text-muted-foreground">
+              {formatCount(count)} ({pct(count, total)}%)
             </span>
           </button>
         ))}
       </div>
+    </div>
     </div>
   )
 }

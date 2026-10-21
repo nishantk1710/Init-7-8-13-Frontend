@@ -1,0 +1,87 @@
+{
+  "sessionId": "S7K2M4P8Q1",
+  "step": {
+    "id": "i08_justification",
+    "kind": "form",
+    "prompt": "Understood -- the platform does not block anything. Please record why a new unit is needed despite the one already available.",
+    "choices": [],
+    "fields": [
+      {
+        "name": "reason_category",
+        "label": "Why a new unit is needed",
+        "type": "select",
+        "required": true,
+        "options": [
+          {
+            "value": "URGENT_BREAKDOWN",
+            "label": "Urgent Breakdown",
+            "description": null
+          },
+          {
+            "value": "NO_SUITABLE_REPAIRABLE",
+            "label": "No Suitable Repairable",
+            "description": null
+          },
+          {
+            "value": "OTHER",
+            "label": "Other",
+            "description": null
+          }
+        ],
+        "helpText": "Placeholder categories -- VZI's own list is not confirmed yet.",
+        "default": null
+      },
+      {
+        "name": "free_text",
+        "label": "In your own words",
+        "type": "textarea",
+        "required": true,
+        "options": [],
+        "helpText": "The part a person actually reads when this is reviewed. A category on its own records that a box was ticked, not that anybody thought about it.",
+        "default": null
+      }
+    ],
+    "facts": {
+      "flow": "i08",
+      "materialId": "8000005632",
+      "plant": "1300",
+      "description": "Pump, centrifugal",
+      "criticality": "CRITICAL",
+      "headline": "There is 1 open repair for 1 unit, the earliest due back 2026-05-31 (1 of them already past the promised date). That repair was due 61 days ago and still has not arrived, so its date is no longer a forecast -- chase it before relying on it. Buying a new one takes about 30 days.",
+      "caveats": [
+        "A repair being open means the purchase order exists, not that the unit has physically reached the vendor -- no dispatch movement is recorded against it.",
+        "1 of these repairs is already past the promised return date, so the due date is a plan rather than a commitment."
+      ],
+      "repairableUnitExists": true,
+      "sources": [
+        "ON_REPAIR_ORDER"
+      ],
+      "stockOnHand": "0",
+      "stockIsUnknown": false,
+      "openRepairLines": 1,
+      "quantityUnderRepair": "1",
+      "soonestDueDate": "2026-05-31",
+      "overdueLines": 1,
+      "repairDueDateIsReliable": false,
+      "newUnitLeadTimeDays": 30,
+      "waitingBeatsBuying": null,
+      "referenceDate": "2026-07-31",
+      "openRepairs": [
+        {
+          "purchasingDocument": "4500001234",
+          "item": "00010",
+          "quantity": "1",
+          "raisedAt": "2026-05-01",
+          "dueDate": "2026-05-31",
+          "daysOverdue": 61,
+          "vendor": "0000100234",
+          "vendorName": "Acme Rotating",
+          "status": "PO Issued",
+          "dispatched": false
+        }
+      ]
+    },
+    "footnote": null,
+    "sessionId": null
+  }
+}

@@ -1,0 +1,437 @@
+/* Print styles for the I07 Quarterly Deep-Dive Report PDF.
+ *
+ * The PDF is produced by the user's own browser (File > Print > Save as PDF,
+ * driven by window.print()). There is no headless browser on the backend:
+ * the App Service runs one gunicorn worker holding a ~1.3 GB in-memory I13
+ * snapshot, and a Chromium process alongside it would be a deployment and
+ * memory problem for a report feature. Printing in the user's browser also
+ * means the page is already authenticated -- nothing needs a service token.
+ *
+ * Two rules shape everything below:
+ *
+ * 1. ON SCREEN, THE PRINT VIEW IS INVISIBLE. It is mounted in the DOM (so
+ *    the browser has it laid out and ready at print time) but hidden with
+ *    `display: none`, not with `visibility` or an off-screen transform --
+ *    those still occupy layout and can produce stray blank pages.
+ *
+ * 2. IN PRINT, ONLY THE PRINT VIEW EXISTS. Everything else is hidden rather
+ *    than restyled: the sidebar, the page header, buttons, tabs. Hiding the
+ *    app shell is what stops navigation chrome landing in the PDF.
+ *
+ * Colors are deliberately plain ink rather than the theme's oklch tokens.
+ * A report is printed and photocopied; mid-tone text on tinted cards is the
+ * first thing to become unreadable. The screen keeps its design; the PDF is
+ * typeset for paper.
+ */
+
+/* ON SCREEN: laid out, measurable, but out of view.
+ *
+ * NOT `display: none`. Recharts sizes itself with ResponsiveContainer,
+ * which measures its parent -- and a `display: none` subtree has zero
+ * dimensions, so every chart would render at 0x0 and print blank. The
+ * print view is therefore given a real width off-screen, where the
+ * browser lays it out (and Recharts measures it) without the user ever
+ * seeing it.
+ *
+ * `position: fixed` keeps it out of the document flow so it cannot
+ * affect the page's own scroll height. */
+.print-portal {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 190mm;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+}
+
+.print-root {
+  display: block;
+  background: #fff;
+}
+
+@media print {
+  /* --- Page geometry ----------------------------------------------- */
+  @page {
+    size: A4 portrait;
+    margin: 16mm 14mm 18mm;
+  }
+
+  /* Hide the application shell. The print view is re-shown below. */
+  body > * {
+    display: none !important;
+  }
+
+  body .print-portal,
+  body .print-portal * {
+    display: revert;
+  }
+
+  /* Back into normal flow for printing -- the off-screen offsets above
+   * exist only so the charts can be measured while on screen. */
+  .print-portal {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    opacity: 1 !important;
+    z-index: auto !important;
+  }
+
+  .print-root {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  /* Let the browser print the colors we do keep (status text, table rules). */
+  .print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* --- Cover ------------------------------------------------------- */
+  .print-cover {
+    border-bottom: 2px solid #000;
+    padding-bottom: 10pt;
+    margin-bottom: 16pt;
+  }
+
+  .print-eyebrow {
+    font-size: 8.5pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #444;
+    margin: 0 0 4pt;
+  }
+
+  .print-title {
+    font-size: 20pt;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .print-quarter {
+    font-size: 13pt;
+    font-weight: 600;
+    margin: 2pt 0 10pt;
+  }
+
+  .print-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4pt 24pt;
+    margin: 0;
+  }
+
+  .print-meta dt {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #555;
+  }
+
+  .print-meta dd {
+    margin: 0 0 3pt;
+    font-size: 9.5pt;
+  }
+
+  /* --- Sections ----------------------------------------------------- */
+  .print-section {
+    /* Keep a section whole where it fits on one page; long ones (tables)
+     * still break, which `break-inside: avoid` alone would fight. */
+    break-inside: auto;
+    margin-bottom: 14pt;
+  }
+
+  .print-section-title {
+    font-size: 12pt;
+    font-weight: 700;
+    margin: 0 0 2pt;
+    padding-bottom: 3pt;
+    border-bottom: 1px solid #999;
+    /* A heading must never be the last thing on a page. */
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .print-section-number {
+    color: #666;
+  }
+
+  .print-section-subtitle {
+    font-size: 8.5pt;
+    color: #444;
+    margin: 0 0 6pt;
+    break-after: avoid;
+  }
+
+  .print-section-body {
+    break-before: avoid;
+  }
+
+  .print-subheading {
+    font-size: 10pt;
+    font-weight: 600;
+    margin: 10pt 0 4pt;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* --- Label/value rows --------------------------------------------- */
+  .print-rows {
+    display: block;
+  }
+
+  .print-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 24pt;
+  }
+
+  .print-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12pt;
+    padding: 2.5pt 0;
+    border-bottom: 1px solid #e0e0e0;
+    break-inside: avoid;
+  }
+
+  /* The label takes the slack and the value is pinned right. A dotted
+   * baseline rule fills the gap between them: with `space-between` alone a
+   * long label sits flush against its figure ("Total recommendations777"),
+   * which is how the first rendered proof actually read.
+   *
+   * The leader is a border on a spacer element rather than generated dot
+   * text -- an ::after full of dots overflows the row and pushed the labels
+   * off the page entirely on the second proof. */
+  .print-row-label {
+    color: #333;
+    flex: 0 1 auto;
+    padding-right: 6pt;
+  }
+
+  .print-row-leader {
+    flex: 1 1 auto;
+    min-width: 12pt;
+    border-bottom: 1px dotted #c8c8c8;
+    transform: translateY(-2pt);
+  }
+
+  .print-row-note {
+    color: #666;
+    font-size: 8.5pt;
+  }
+
+  .print-row-value {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    padding-left: 6pt;
+    font-weight: 600;
+  }
+
+  .print-row-muted {
+    color: #666;
+    font-size: 8.5pt;
+  }
+
+  .print-mono {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* --- Tables -------------------------------------------------------- */
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-top: 4pt;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #ccc;
+    padding: 3pt 5pt;
+    text-align: left;
+    vertical-align: top;
+    /* Long material descriptions must wrap, not push the table off the
+     * page -- a clipped column is the failure this guards against. */
+    word-break: break-word;
+  }
+
+  .print-table th {
+    background: #f0f0f0;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Repeat the header on every page a long table spans, so page 4 of a
+   * table is still readable on its own. */
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-table tbody tr {
+    break-inside: avoid;
+  }
+
+  .print-table tbody tr:nth-child(even) {
+    background: #fafafa;
+  }
+
+  /* --- Prose --------------------------------------------------------- */
+  .print-list {
+    margin: 4pt 0 0;
+    padding-left: 14pt;
+  }
+
+  .print-list li {
+    margin-bottom: 3pt;
+    break-inside: avoid;
+  }
+
+  .print-empty,
+  .print-disclosure {
+    font-size: 8.5pt;
+    color: #444;
+    margin: 4pt 0;
+  }
+
+  /* A disclosure is a claim about what the data is NOT -- it must stay
+   * attached to the table it qualifies. */
+  .print-disclosure {
+    border-left: 2pt solid #999;
+    padding-left: 6pt;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* --- Charts -------------------------------------------------------- */
+  /*
+   * The charts are the SAME Recharts components the page renders, not
+   * re-drawn for print. They emit inline SVG, so they stay vector in the
+   * PDF: sharp at any zoom, and real text rather than a rasterised
+   * screenshot.
+   *
+   * Recharts sizes itself from its parent, which is why the print view is
+   * laid out off-screen rather than `display: none` (see the top of this
+   * file) -- a zero-size parent prints a blank chart.
+   */
+  .print-chart {
+    /* A chart split across a page break is unreadable, and half a donut
+     * reads as a rendering fault rather than a page boundary. */
+    break-inside: avoid;
+    margin-bottom: 12pt;
+  }
+
+  .print-chart-caption {
+    font-size: 8.5pt;
+    color: #444;
+    margin: 0 0 4pt;
+    break-after: avoid;
+  }
+
+  /* Recharts draws its own fills from CSS custom properties. Those resolve
+   * fine, but the surrounding card chrome (borders, tinted backgrounds,
+   * hover affordances) is screen furniture -- flatten it so only the chart
+   * itself prints. */
+  .print-chart .rounded-xl,
+  .print-chart .rounded-lg,
+  .print-chart .border {
+    border: none !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  /* Tooltips are pointer-only and must never appear in a printed page. */
+  .print-chart .recharts-tooltip-wrapper {
+    display: none !important;
+  }
+
+  /* Chart legends are Tailwind flex rows (`flex items-center gap-2`), and
+   * Tailwind's utilities are not in scope for this stylesheet -- without
+   * these the label and its figure print flush against each other
+   * ("Critical0 (0.0%)", "Approved15"), exactly as the first chart proof
+   * rendered. Restore the row and put real space between the two. */
+  .print-chart .flex {
+    display: flex;
+  }
+
+  .print-chart .flex-col {
+    flex-direction: column;
+  }
+
+  .print-chart .items-center {
+    align-items: center;
+  }
+
+  .print-chart .justify-between {
+    justify-content: space-between;
+  }
+
+  .print-chart .gap-2,
+  .print-chart .gap-3,
+  .print-chart .gap-4 {
+    gap: 6pt;
+  }
+
+  /* The legend's value sits in its own span straight after the label; give
+   * it unambiguous separation rather than relying on a utility class. */
+  .print-chart .shrink-0.tabular-nums,
+  .print-chart .tabular-nums {
+    padding-left: 5pt;
+    white-space: nowrap;
+  }
+
+  /* Keep the colored legend dots -- they are the only thing tying a legend
+   * row to its slice, unlike the status dots elsewhere which are noise. */
+  .print-chart .recharts-wrapper + * .rounded-full,
+  .print-chart .size-2\.5 {
+    display: inline-block !important;
+  }
+
+  .print-chart .recharts-surface {
+    overflow: visible;
+  }
+
+  .print-footer-note {
+    margin-top: 16pt;
+    padding-top: 6pt;
+    border-top: 1px solid #999;
+    font-size: 8pt;
+    color: #444;
+    break-inside: avoid;
+  }
+
+  /* AvailabilityValue stacks a status label over a hint ("Not configured"
+   * / "Policy not yet set") with flex-col. Tailwind's utilities are not in
+   * scope for the print sheet, so without this the two run together as
+   * "Not configuredPolicy not yet set" -- which is how the third rendered
+   * proof read. Restore the stack and dim the hint. */
+  .print-row-value .inline-flex.flex-col,
+  .print-root .inline-flex.flex-col {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.25;
+  }
+
+  .print-root .text-\[11px\] {
+    font-size: 7.5pt;
+    font-weight: 400;
+    color: #666;
+  }
+
+  /* The status dot is a colored pill on screen; on paper it is noise. */
+  .print-root .rounded-full {
+    display: none;
+  }
+}

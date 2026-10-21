@@ -1,130 +1,144 @@
-# Initiative 8 — Refurbishable Spares Tracking
+# Initiative 8 — Repairable Spares
 
-High-fidelity UI mockup for repair-chain visibility and duplicate-procurement
-guarding on repairable spares. Deterministic mock data only — nothing in this
-module makes a real SAP call; anywhere a SAP write would occur in production,
-the UI says so explicitly ("Simulated", "Awaiting SAP update", "Not yet
-raised").
+The live UI for Initiative 08, *Refurbishable Spares Tracking Automation in
+SAP*, scored against **FRS v1.2 (21-Sep-2026)**. Every screen in this module
+reads the Python backend (`/api/i8/*`, plus `/api/justifications`) with no
+fixture fallback. A failed request is shown as a failure, never as an empty
+result. Nothing here writes to SAP. The one write is the condition
+attestation, which goes to a table the platform owns.
 
-## Ownership
+## Pages
 
-Everything under `src/features/initiative-8/**` and the thin route wrappers
-under `src/app/refurbishable-spares/**` belongs to this module. **No other
-initiative may edit or import from files inside this folder** beyond the two
-sanctioned read paths below. This module, in turn, has **zero sanctioned
-imports from `@/features/initiative-7/**` or `@/features/initiative-13/**`.**
+Routes live in `src/app/(live)/repairable-spares/**`. Each route wrapper
+imports and renders a page from `pages/`, except Repair Declarations, Repair
+Exceptions and Justifications, whose route files are the pages.
 
-## Pages (routes)
+| Route | Page | FRS | Reads |
+|---|---|---|---|
+| `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-10 | register, universe, declaration and exception meta (`data/live-overview.ts`) |
+| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, one page at a time, and `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
+| `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4, FR-7 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); the attestation form (`components/declare-condition-button.tsx`, `GET`/`POST /api/i8/attestations`) |
+| `/repairable-spares/declarations` | route file itself | FR-4 | `GET /api/i8/declarations`, one page at a time, and the log from `GET /api/i8/attestations` (`data/live-declarations.ts`) |
+| `/repairable-spares/exceptions` | route file itself | FR-8, FR-9, FR-11 | `GET /api/i8/exceptions`, one page at a time, and `GET /api/i8/exceptions/{id}` for a linked item (`data/live-exceptions.ts`) |
+| `/repairable-spares/coding-candidates` | `pages/coding-candidates-page.tsx` | FR-2 | `GET /api/i8/coding-candidates` (`data/live-coding-candidates.ts`) |
+| `/repairable-spares/justifications` | route file itself | FR-7 | `GET /api/justifications?kind=NEW_ACQUISITION`, one page at a time (`data/live-justifications.ts`) |
 
-| Route | Export | File |
-|---|---|---|
-| `/refurbishable-spares` | `RefurbishableSparesOverviewPage` | `pages/overview-page.tsx` |
-| `/refurbishable-spares/repair-register` | `RepairRegisterPage` | `pages/repair-register-page.tsx` |
-| `/refurbishable-spares/repair-register/[id]` | `RepairDetailPage({ repairId })` | `pages/repair-detail-page.tsx` |
-| `/refurbishable-spares/duplicate-guard` | `DuplicateGuardPage` | `pages/duplicate-guard-page.tsx` |
-| `/refurbishable-spares/declarations` | `DeclarationQueuePage` | `pages/declarations-page.tsx` |
+The navigation for these lives in `manifest.ts`.
 
-Route wrapper files in `src/app/refurbishable-spares/**` just import and
-render these — Next 16 `params` are awaited per `AGENTS.md`.
+### Paging
 
-## Business entities / types (`types/repair.ts`)
+The long lists draw 25 rows a page (`DEFAULT_PAGE_SIZE`, with
+`components/shared/table-pagination.tsx`). Until 18-Oct-2026 the register and
+the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
 
-- `RepairStatus` — `PR Raised → PO Issued → At Vendor → In Transit Return → Received → Closed`
-- `ReceiptStatus` — `Not Yet Shipped | Awaiting Receipt | Partially Received | Received`
-- `DeclarationStatus` — `Required | Pending | Completed | Flagged` (mandatory workflow,
-  **kept separate from** the advisory Duplicate Guard check — never merged)
-- `DeclarationCondition` — `Repairable | Beyond Economical Repair | Scrap`
-- `DeclarationSource` — `Manual | MRP-generated`
-- `RepairChain` — one repairable material's active/recently-closed repair chain
-  (stock position, repair PR/PO, vendor, aging, cost/lead-time comparison)
-- `DeclarationItem` — one row in the Declaration Queue, optionally
-  cross-referencing a `RepairChain` via `relatedRepairId`
+- **Paged on the server:** the Repair Register, Repair Declarations, Repair
+  Exceptions and Justifications. The filters and the page live in the URL
+  (`?q=`, `?plant=`, `?page=` and so on), and the backend searches, filters,
+  counts and pages. The dropdown values come back as `facets`, because one
+  page of rows cannot supply them. The controls are in
+  `components/url-filters.tsx`. Export fetches every match in batches of 500.
+- **The register serves open lines only.** Since 19-Oct-2026 a repair line is
+  open while SAP has it open: not "Delivery completed" (EKPO.ELIKZ), deleted
+  or blocked. Goods receipts are not read. The backend leaves the rest out and
+  counts them in `meta` (`excludedDeliveryCompletedLines`,
+  `excludedBlockedLines`, `excludedDeletedLines`), which the caption names.
+  Each line arrives with its exceptions, so the screen does not load the whole
+  exception queue to fill one column.
+- **Not paged:** the Overview, whose charts describe every line
+  (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
+  fills in verdicts while you watch); the declaration log (six rows); and the
+  repair detail page, which has no table.
 
-## Mock datasets (`data/`)
+### The register is where a repair line is worked
 
-- `repair-chains.ts` — `REPAIR_CHAINS` (8 rows), `getRepairChainById`,
-  `getRepairChainByMaterialId`, `REPAIR_VENDORS`
-- `declarations.ts` — `DECLARATIONS` (6 rows), `getDeclarationById`
+Since 08-Oct-2026 (`docs/Initiative_08_Register_Consolidation_08Oct.md` in
+the workspace):
 
-Seed scenarios:
-- **Scenario C** — `RC-8001` / material `800-14201` (Gearbox Bearing Housing
-  Assy): low SOH (1) vs ROP (4), open repair PO, 2 units at the vendor,
-  return due soon. Default selection on the Duplicate Guard page.
-- **Scenario D** — `D-90112` (PR-90112, material `800-18830`): MRP-generated,
-  Declaration Status `Pending`, linked to `RC-8006`.
-- **Initiative 7 integration** — `RC-8002` / material `500-14892` (real
-  shared-catalog "Seal Assy, Mech Type XR-200"): active repair, 2 units under
-  repair. See Integration Contracts below.
-- Remaining rows (`RC-8003`..`RC-8008`, `D-90045`, `D-90078`, `D-90031`,
-  `D-90099`, `D-90205`) spread across all 3 plants, 5 vendors, every repair
-  status, every declaration status, and both aging extremes (including one
-  overdue chain, `RC-8006`, and one flagged duplicate, `RC-8008`/`D-90099`).
+- **Clicking a row opens the repair.** There is no View button. The material
+  name opens the repair too, not the Material 360 drawer; Material 360 is on
+  the detail page.
+- **Columns run from what a repair is doing to reference data.** Criticality,
+  SOH, ROP, Repair PR and Repair PO are last. The CSV follows the same order.
+- **The queues are screens of their own again.** The Declaration and
+  Exception queues were folded into the register on 08-Oct-2026 and came back
+  on 12-Oct, after the FRS audit. The register tells you the state of one
+  line, but FR-4, FR-8, FR-9 and FR-11 ask what is outstanding across all of
+  them (see `manifest.ts`). Each register line still shows its declaration
+  status and its findings, and links to both queues.
+- **Justifications on the line, and on their own screen.** Each line shows
+  its justification (Recorded, Missing, Not asked, or a dash), with the full
+  reason on the detail page. The Justifications screen keeps the whole log,
+  because most reasons belong to no repair line: FR-5 asks for one when a unit
+  is on the shelf, or removed and not yet sent for repair.
 
-## Components (`components/`)
+### What is deliberately not here
 
-Charts (Recharts, house style — `var(--border)` / `var(--muted-foreground)` /
-`var(--chart-N)` CSS vars, no hardcoded hex): `repair-status-chart.tsx`,
-`repairs-by-vendor-chart.tsx`, `repair-aging-chart.tsx`,
-`repairable-stock-by-plant-chart.tsx`.
+These were removed in the 07-Oct-2026 discard review
+(`docs/Initiative_08_Discard_Review_07Oct.md` in the workspace) because the
+FRS does not require them:
 
-Page bodies: `repair-register-table.tsx` (filterable table, click-through to
-Material 360 and to the detail page), `duplicate-guard-flow.tsx` (the
-simulated "New Procurement Attempt" flow), `declaration-queue-table.tsx`
-(table + "Declare condition" dialog, local state only).
+- **No Duplicate Guard page.** FR-6 is a rule the Spares Assistant runs at
+  reservation time (FR-5b). There, the answer comes with a session id and a
+  justification prompt. A standalone lookup gave the same answer with
+  neither. The backend rule (`repairable_unit.assess`) and its endpoint
+  remain.
+- **No declaration `source` (Manual / MRP-generated).** It is not in FR-4,
+  and SAP cannot answer it.
+- **No `Pending` declaration status.** The FRS has no approval step: an
+  attestation is recorded or it is not.
+- **No `In Transit Return` repair status.** It is not an FRS stage, and
+  nothing in the data can show it.
+- **No receipt-status column, new-unit cost or free-text notes.**
 
-## Public exports read by the rest of the app
+Removed on 19-Oct-2026, when the register moved to SAP's "Delivery completed"
+flag (`I08_Delivery_Completed_Plan.md` in the workspace):
 
-- `manifest.ts` → `initiative8Manifest` (sidebar nav + AI Assistant suggested
-  questions — fixed at scaffold time, hrefs unchanged)
-- `selectors/summary.ts` → `getInitiative8Summary(): InitiativeSummary`
-- `selectors/material-360-adapter.ts` → `getInitiative8Material360Signal(materialId): Material360Signal | null`
-- `selectors/global-actions.ts` → `getInitiative8GlobalActions(): GlobalAction[]`
-- `selectors/audit-events.ts` → `getInitiative8AuditEvents(): AuditEvent[]`
+- **No closed lines, no goods receipts.** Every line is open in SAP, so there
+  is no partial-receipt mark, no "Blocked in SAP" badge and no "open repairs
+  only" filter on the Exceptions screen.
+- **No vendor turnaround.** The Register's Turnaround column, the detail
+  page's Turnaround figure and the Overview's Vendor turnaround card are gone.
+  The figure was dispatch to goods receipt over closed repairs, and stores
+  post most 541s on the day of the receipt, so it measured posting practice.
 
-All four selectors are pure functions over the mock data in `data/` — no
-side effects, safe to call from server components.
+## Types and helpers
 
-## Shared dependencies used
+- `types/repair.ts` holds the domain types. `RepairStatus` is
+  `PR Raised | PO Issued | At Vendor | Received | Closed`. Live lines are
+  `PO Issued` or `At Vendor` only; `Received` and `Closed` stay for the
+  scenario fixtures. `PR Raised` is not emitted today but stays, because FRS
+  acceptance criterion 3 counts open repair PR lines. `DeclarationStatus` is
+  `Required | Completed | Flagged`; `Flagged` means the attestation did *not*
+  find the part repairable and it went for repair anyway.
+- `utils/status.ts` holds the tone maps, the status orders, and the overdue
+  and lead-time helpers.
+- `utils/register-view.ts` holds the register's CSV export. The CSV is built
+  from every line the filters match, not from the page on screen.
+- `utils/attestation.ts` holds the attestation form's rules (conditions,
+  recommendation mapping, quantity parsing).
+- `lib/api/i8.ts` (outside this folder) is the typed client and wire
+  shapes.
 
-- Contracts: `@/lib/domain/contracts` (`MaterialReference`, `PlantReference`,
-  `SAPDocumentReference`, `GlobalAction`, `AuditEvent`, `InitiativeSummary`,
-  `Material360Signal`)
-- Master data: `@/lib/shared-data/plants` (`PLANTS`), `@/lib/shared-data/material-catalog`
-  (`REFERENCE_MATERIAL_IDS` for `500-14892`'s real description/manufacturer)
-- Shared UI: `PageHeader`, `KPIStatCard`, `ChartCard`, `FilterBar`,
-  `StatusBadge`, `Timeline`, `SAPDocumentChip`, `MaterialIdentity`,
-  `AlertBanner`, `EmptyState` (all `@/components/shared/*`); `Table*`,
-  `Select*`, `Button`/`buttonVariants`, `Dialog*` (`@/components/ui/*`)
-- `useMaterial360()` from `@/lib/material-360-context` to open the global
-  Material 360 drawer from `MaterialIdentity`
-- `formatZAR`, `cn` from `@/lib/utils`; `toast` from `sonner`
+## What still reads fixtures
 
-`src/features/initiative-8/utils/status.ts` holds this module's own
-status→tone maps and aging-bucket logic (`AGING_BUCKETS`,
-`agingBucketForDays`) — local, not shared with other initiatives.
+`data/repair-chains.ts` (RC-80xx) and `data/declarations.ts` (D-90xxx) are
+hand-written scenario rows. None of the screens above read them. They feed
+the four **synchronous** cross-initiative selectors:
 
-## Integration contracts
+| Selector | Read by |
+|---|---|
+| `selectors/live.ts` | Home's initiative card, Action Center, Approvals and the Audit Trail, composed by `lib/aggregation.ts`. Reads the backend only (snapshot, declarations, register, attestations); throws on failure so the aggregation can show one failed card. |
+| `selectors/material-360-adapter.ts` | Material 360 drawer, `lib/material-router.ts`, Initiative 7's `repair-context-signal.tsx` (material `500-14892` via `RC-8002`) |
 
-- Initiative 7's recommendation-detail page for material `500-14892` calls
-  `getInitiative8Material360Signal("500-14892")` directly and expects a
-  non-null signal. It resolves via `RC-8002` in `data/repair-chains.ts`
-  ("At Vendor", 2 units under repair, `status: "neutral"`, repair PO
-  `PO-81002`).
-- This module has **no sanctioned imports** from `@/features/initiative-7/**`
-  or `@/features/initiative-13/**` — integration only flows the other way
-  (they may read this module's selectors; this module reads nothing of
-  theirs).
-- `500-14892` is the one repairable material here that's a real
-  `@/lib/shared-data/material-catalog` entry. Every other repairable
-  material uses synthetic `800-xxxxx` codes that intentionally don't exist
-  in the shared catalog — the global Material 360 drawer's "no catalog
-  record" fallback is expected and correct for those.
+`lib/material-router.ts` and `lib/material-name-lookup.ts` also read
+`data/repair-chains.ts` directly.
 
-## Files other initiatives must not modify
+Retiring these is a cross-initiative change. Initiative 7's recommendation
+page reads `RC-8002`, and the selectors are synchronous while an API call is
+not. It waits on agreement with the Initiative 7 owner (discard review
+§2.8). Until then, keep the selector signatures stable.
 
-This entire folder (`src/features/initiative-8/**`) and its route wrappers
-(`src/app/refurbishable-spares/**`) are owned exclusively by Initiative 8.
-Initiative 7 and Initiative 13 must not edit, move, or rename anything here
-— the only sanctioned cross-module
-touchpoints are the four selector functions and the manifest listed above,
-called by fixed import path, never by reaching into this folder's internals.
+## Tests
+
+`npm test` runs the adapter and helper tests: `data/*.test.ts`,
+`utils/status.test.ts` and `utils/attestation.test.ts`.

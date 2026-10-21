@@ -19,6 +19,13 @@ export interface ScopeCondition {
   value?: string
   values?: string[]
   unknownValues?: string[]
+  /** Business-confirmed exception, OAR-specific: when true, a genuinely
+   * absent field (undefined/null on the row) evaluates to true instead of
+   * "unknown". Off by default — most conditions should still treat "we
+   * cannot determine this" as cannot-determine, per this module's own
+   * three-valued design; this exists because the OAR rule specifically was
+   * confirmed the other way (see scope/config.ts's oar scope). */
+  blankMeansInScope?: boolean
 }
 
 export interface ScopeAnd {

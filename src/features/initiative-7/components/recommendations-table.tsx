@@ -45,7 +45,8 @@ const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "war
   Implemented: "success",
 }
 
-const RISK_LEVELS: RiskLevel[] = ["low", "medium", "high", "critical"]
+// Critical is counted into High on the live pages, so there is no separate Critical to pick.
+const RISK_LEVELS: RiskLevel[] = ["low", "medium", "high"]
 
 function ParamPair({ current, recommended }: { current: number; recommended: number }) {
   const changed = current !== recommended

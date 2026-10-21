@@ -81,23 +81,6 @@ export interface EscalationTimelineEvent {
   tone?: "default" | "success" | "warning" | "danger"
 }
 
-export interface RedeploymentMatch {
-  plant: PlantReference
-  qtyAvailable: number
-  lastMovementDate: string
-  condition: string
-}
-
-export interface RedeploymentCandidate {
-  id: string
-  material: MaterialReference
-  requestingPlant: PlantReference
-  qtyNeeded: number
-  requestedFor: string
-  sourceLedgerLineId?: string
-  matches: RedeploymentMatch[]
-}
-
 export interface ReclassificationCandidate {
   id: string
   material: MaterialReference

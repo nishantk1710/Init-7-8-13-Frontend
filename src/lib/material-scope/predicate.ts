@@ -10,8 +10,12 @@ type Trilean = true | false | "unknown"
 
 function evaluateCondition(condition: ScopeCondition, row: FieldRow): Trilean {
   const value = row[condition.field]
-  // Absent and null both mean "SAP told us nothing here" — never false.
-  if (value === undefined || value === null) return "unknown"
+  // Absent and null both mean "SAP told us nothing here" — never false,
+  // except where a condition has explicitly opted into treating that as
+  // in-scope (see ScopeCondition.blankMeansInScope's docstring).
+  if (value === undefined || value === null) {
+    return condition.blankMeansInScope ? true : "unknown"
+  }
   const raw = String(value)
   if (condition.unknownValues?.includes(raw)) return "unknown"
 

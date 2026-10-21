@@ -16,9 +16,6 @@ import {
   type RecommendationFactor,
 } from "@/features/initiative-7/types/inventory"
 import type { RiskLevel } from "@/components/shared/risk-badge"
-import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
-import generatedRecommendations from "@/features/initiative-7/data/generated/recommendations.json"
-
 function materialRef(materialId: string): MaterialReference {
   const mat = getMaterialById(materialId)
   if (!mat) throw new Error(`Initiative 7: unknown material ${materialId}`)
@@ -196,7 +193,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1003",
     material: materialRef("500-15134"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-GBG",
     circuit: "Milling",
     criticality: "High",
     demandPattern: "Lumpy",
@@ -431,7 +428,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1007",
     material: materialRef("500-40011"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-BMM",
     circuit: "Milling",
     criticality: "Critical",
     demandPattern: "Lumpy",
@@ -547,7 +544,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   {
     id: "REC-1009",
     material: materialRef("500-31048"),
-    plantId: "PLANT-SKZ",
+    plantId: "PLANT-GBG",
     circuit: "Filtration",
     criticality: "Medium",
     demandPattern: "Intermittent",
@@ -673,10 +670,7 @@ const SCENARIO_RECOMMENDATIONS: Recommendation[] = [
   },
 ]
 
-/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const RECOMMENDATIONS: Recommendation[] = USING_GENERATED_DATA
-  ? (generatedRecommendations as unknown as Recommendation[])
-  : SCENARIO_RECOMMENDATIONS
+export const RECOMMENDATIONS: Recommendation[] = SCENARIO_RECOMMENDATIONS
 
 export function getRecommendationById(id: string): Recommendation | undefined {
   return RECOMMENDATIONS.find((r) => r.id === id)

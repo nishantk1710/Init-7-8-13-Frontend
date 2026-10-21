@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "./assistant-theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -53,6 +54,13 @@
 }
 
 :root {
+  /* Native controls -- the <select> popup, scrollbars, date pickers -- are
+     painted by the browser, not by these tokens, and default to light. The
+     assistant's reason dropdown inherited the page's light text colour and
+     then drew it on the browser's white popup: unreadable until hover, when
+     the browser forced its own highlight colours. Declaring the scheme is
+     what tells the browser which way round the page actually is. */
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -92,6 +100,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -138,5 +147,29 @@
   }
   html {
     @apply font-sans;
+  }
+  /*
+   * Every native <select>, so this stops coming back.
+   *
+   * The popup a <select> opens is painted by the browser, not by the markup
+   * inside it, and Chromium takes its background from the SELECT's computed
+   * background-color. A select with a transparent or translucent background
+   * therefore gets the browser's white popup canvas, while its options go on
+   * inheriting the page's near-white foreground. White on white: the choices
+   * are there, selectable, and unreadable until one is hovered.
+   *
+   * `color-scheme: dark` above is necessary and is NOT sufficient -- it does
+   * not cover a select with no opaque background of its own. The assistant's
+   * reason dropdown was fixed that way once and regressed, which is why the
+   * rule lives here now rather than on one call site: a new native select
+   * inherits the fix instead of rediscovering the bug.
+   *
+   * The popover tokens are deliberate -- the popup IS a floating surface, and
+   * these are what dialog and dropdown-menu already use. They flip with the
+   * theme, so light mode keeps the dark-on-white it always had.
+   */
+  select option,
+  select optgroup {
+    @apply bg-popover text-popover-foreground;
   }
 }

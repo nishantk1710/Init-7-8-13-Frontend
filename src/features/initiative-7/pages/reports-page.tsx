@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header"
-import { QuarterlyReportsDemoWorkspace } from "@/features/initiative-7/components/quarterly-reports-workspace"
+import { QuarterlyReportsWorkspace } from "@/features/initiative-7/components/quarterly-reports-workspace"
 
 export function InventoryReportsPage() {
   return (
@@ -7,9 +7,9 @@ export function InventoryReportsPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Quarterly Reports"
-          description="The I07 Quarterly Deep-Dive Report — scope, forecasting, stock parameters, recommendations and approval status for one quarter"
+          description="The I07 Quarterly Deep-Dive Report — scope, forecasting, stock parameters, OAR, recommendations and approval status for one quarter"
         />
-        <QuarterlyReportsDemoWorkspace />
+        <QuarterlyReportsWorkspace />
       </div>
     </div>
   )

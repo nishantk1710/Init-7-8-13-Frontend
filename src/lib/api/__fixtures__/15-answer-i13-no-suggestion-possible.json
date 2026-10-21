@@ -1,0 +1,13 @@
+{
+  "sessionId": "SQ4X9B2T7M",
+  "step": {
+    "id": "i13_done",
+    "kind": "terminal",
+    "prompt": "Plan recorded. No quantity suggestion is offered for this part -- No quantity is suggested: 1000000123 has 1 recorded consumption in the last 12 months, below the minimum of 3 this platform will average over. A rate built from that little history would look authoritative and not be.\n\nYour session reference is SQ4X9B2T7M. Type it into the reservation in SAP so this advice can be linked to what you actually reserve.",
+    "choices": [],
+    "fields": [],
+    "facts": null,
+    "footnote": null,
+    "sessionId": "SQ4X9B2T7M"
+  }
+}

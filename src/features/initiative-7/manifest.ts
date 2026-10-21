@@ -24,13 +24,18 @@ export const initiative7Manifest: InitiativeManifest = {
       },
       {
         label: "Adoption Tracking",
-        icon: "check-circle",
-        href: "/inventory-planning/adoption-tracking",
+        icon: "clipboard-check",
+        href: "/inventory-planning/adoption",
       },
       {
         label: "Quarterly Reports",
         icon: "file-text",
         href: "/inventory-planning/reports",
+      },
+      {
+        label: "Criticality Reports",
+        icon: "upload",
+        href: "/inventory-planning/criticality-reports",
       },
     ],
   },

@@ -10,6 +10,46 @@ export function formatZAR(amount: number): string {
   return `R ${Math.round(amount).toLocaleString("en-US")}`
 }
 
+/**
+ * Formats an amount in the currency the data states -- SAP's MBEW WAERS, as
+ * the I07 API passes it through.
+ *
+ * - `undefined`: the record carries no currency field at all (the hand-written
+ *   scenario fixtures, which are ZAR by construction) -> the house "R 38,500".
+ * - `"ZAR"`: the same "R 38,500".
+ * - any other ISO code: that currency's own symbol, e.g. "NA$38,500", "$38,500".
+ * - `null`: the API said SAP supplied no currency -> the number with no symbol,
+ *   rather than a symbol that may be wrong.
+ */
+export function formatMoney(amount: number, currency?: string | null): string {
+  if (currency === undefined || currency?.toUpperCase() === "ZAR") return formatZAR(amount)
+  if (currency === null) return Math.round(amount).toLocaleString("en-US")
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount))
+  } catch {
+    // Not a code Intl knows: show it as SAP wrote it.
+    return `${currency} ${Math.round(amount).toLocaleString("en-US")}`
+  }
+}
+
+/** The prefix a compact figure ("R 1.05M") uses for `currency`; see formatMoney. */
+export function currencyPrefix(currency?: string | null): string {
+  if (currency === undefined || currency?.toUpperCase() === "ZAR") return "R "
+  if (currency === null) return ""
+  return `${currency.toUpperCase()} `
+}
+
+/** The one currency every item states, `undefined` if none do, `null` if they differ. */
+export function commonCurrency(currencies: (string | null | undefined)[]): string | null | undefined {
+  const stated = new Set(currencies.filter((c): c is string => typeof c === "string"))
+  if (stated.size === 0) return currencies.some((c) => c === null) ? null : undefined
+  return stated.size === 1 ? [...stated][0] : null
+}
+
 const MONTHS = [
   "Jan",
   "Feb",
@@ -28,6 +68,16 @@ const MONTHS = [
 /** Formats a Date as "14 Mar 2026". */
 export function formatDateDMY(date: Date): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
+}
+
+/** Formats an ISO calendar date ("2026-05-31") as "31 May 2026". Read as the calendar date it is,
+ * not as a moment, so no time zone can move it to the day before. An unreadable value comes back as
+ * it was given. */
+export function formatIsoDateDMY(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!match) return iso
+  const month = MONTHS[Number(match[2]) - 1]
+  return month ? `${Number(match[3])} ${month} ${match[1]}` : iso
 }
 
 /** Formats a Date as "10:23 AM". */
@@ -69,27 +119,5 @@ export function formatZARBillions(amount: number): string {
   return `R ${(amount / 1_000_000_000).toFixed(2)}B`
 }
 
-function toCsvField(value: string | number): string {
-  const str = String(value)
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
-}
-
-/** Builds a CSV from headers + rows and triggers a browser download. */
-export function downloadCsv(
-  filename: string,
-  headers: string[],
-  rows: (string | number)[][]
-) {
-  const csv = [headers, ...rows]
-    .map((row) => row.map(toCsvField).join(","))
-    .join("\r\n")
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
+/** Exports are Excel workbooks; see export-excel.ts. */
+export { downloadExcel } from "./export-excel"

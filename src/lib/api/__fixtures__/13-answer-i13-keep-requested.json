@@ -1,0 +1,82 @@
+{
+  "sessionId": "SQ4X9B2T7M",
+  "step": {
+    "id": "i13_quantity_justification",
+    "kind": "form",
+    "prompt": "Please record why 5 is needed rather than 1.",
+    "choices": [],
+    "fields": [
+      {
+        "name": "reason_category",
+        "label": "Why the larger quantity",
+        "type": "select",
+        "required": true,
+        "options": [
+          {
+            "value": "URGENT_BREAKDOWN",
+            "label": "Urgent Breakdown",
+            "description": null
+          },
+          {
+            "value": "NO_SUITABLE_REPAIRABLE",
+            "label": "No Suitable Repairable",
+            "description": null
+          },
+          {
+            "value": "OTHER",
+            "label": "Other",
+            "description": null
+          }
+        ],
+        "helpText": "Placeholder categories -- VZI's own list is not confirmed yet.",
+        "default": null
+      },
+      {
+        "name": "free_text",
+        "label": "In your own words",
+        "type": "textarea",
+        "required": true,
+        "options": [],
+        "helpText": "The part a person actually reads when this is reviewed. A category on its own records that a box was ticked, not that anybody thought about it.",
+        "default": null
+      }
+    ],
+    "facts": {
+      "flow": "i13",
+      "material": "1000000123",
+      "plant": "1300",
+      "requestedQuantity": "5",
+      "headline": "You have 11 at plant 1300, about 11 months of cover. This part has not moved in 443 days (slow). Other plants hold 2 at 1500.",
+      "caveats": [
+        "Stock at other plants is shown for information. The platform does not create transfers or reservations anywhere, and does not write to SAP at all.",
+        "Stock received 58 days ago for this part has still not been issued, which is already an open exception."
+      ],
+      "stockOnHand": "11",
+      "openPoQuantity": "0",
+      "averageMonthlyConsumption": "1",
+      "monthsOfCover": "11",
+      "monthsOfCoverReason": null,
+      "projectedMonthsOfCover": null,
+      "daysSinceLastMovement": 443,
+      "daysSinceLastIssue": 443,
+      "lastMovementDate": "2025-05-14",
+      "consumptionCount12m": 12,
+      "consumedQty12m": "12",
+      "agingBand": "SLOW",
+      "inventoryTurns": null,
+      "grNotIssuedFlag": true,
+      "grNotIssuedDaysSinceGr": 58,
+      "acquiredVsPlanStatus": "NO_PLAN",
+      "materialScope": "OAR",
+      "crossPlantStock": [
+        {
+          "plant": "1500",
+          "stockOnHand": "2"
+        }
+      ],
+      "referenceDate": "2026-07-31"
+    },
+    "footnote": null,
+    "sessionId": null
+  }
+}

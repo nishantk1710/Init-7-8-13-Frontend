@@ -1,13 +1,17 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { USING_GENERATED_DATA } from "@/lib/dataset-mode"
-import generatedRepairChains from "@/features/initiative-8/data/generated/repair-chains.json"
 
 // Deterministic mock data — no live SAP connection. "Today" for aging/days-
 // remaining math throughout this module is anchored at 3 Sep 2026.
 //
+// Initiative 8's own backed screens no longer read any of this: the register,
+// repair detail, declaration queue and coding-candidate screens all read the
+// backend. What keeps these rows alive is the four SYNCHRONOUS cross-initiative
+// selectors beside them (summary, global actions, audit events, the Material
+// 360 adapter), which app-wide shared code and Initiative 7 read directly.
+// Retiring them is a cross-initiative change, agreed with Initiative 7 first.
+//
 // RC-8001 is Scenario C from the master spec: low SOH, an open repair PO,
-// 2 units at the vendor, expected return soon — the default material on the
-// Duplicate Guard page.
+// 2 units at the vendor, expected return soon.
 //
 // RC-8002 is the mandatory Initiative 7 integration entry for the real
 // shared-catalog material 500-14892 ("Seal Assy, Mech Type XR-200",
@@ -29,7 +33,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81001" },
     vendor: "Weir Minerals Service Center",
     repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
     declarationStatus: "Completed",
     daysOpen: 37,
     agingBucket: "31-45",
@@ -38,10 +41,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     sentToVendorAt: "5 Aug 2026",
     expectedReturn: "10 Sep 2026",
     daysRemainingInRepair: 7,
-    newUnitCost: 185000,
     repairCost: 68000,
     newUnitLeadTimeDays: 45,
-    notes: "Below reorder point — repair return is the fastest path to cover.",
   },
   {
     id: "RC-8002",
@@ -58,7 +59,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81002" },
     vendor: "SEW-Eurodrive Repair Center",
     repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
     declarationStatus: "Completed",
     daysOpen: 18,
     agingBucket: "16-30",
@@ -67,10 +67,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     sentToVendorAt: "20 Aug 2026",
     expectedReturn: "15 Sep 2026",
     daysRemainingInRepair: 12,
-    newUnitCost: 48200,
     repairCost: 19500,
     newUnitLeadTimeDays: 12,
-    notes: "Warman 8/6 AH slurry pump seal — milling circuit.",
   },
   {
     id: "RC-8003",
@@ -87,15 +85,13 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81003" },
     vendor: "Metso Outotec Workshop",
     repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
-    declarationStatus: "Pending",
+    declarationStatus: "Required",
     daysOpen: 5,
     agingBucket: "0-15",
     raisedAt: "29 Aug 2026",
     poIssuedAt: "30 Aug 2026",
     expectedReturn: "20 Sep 2026",
     daysRemainingInRepair: 17,
-    newUnitCost: 96000,
     repairCost: 41000,
     newUnitLeadTimeDays: 30,
   },
@@ -106,7 +102,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
       materialCode: "800-31090",
       description: "Hydraulic Cylinder Assy — Stacker Reclaimer",
     },
-    plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
+    plant: { plantId: "PLANT-GBG", name: "Gamsberg" },
     stockOnHand: 5,
     reorderPoint: 2,
     qtyUnderRepair: 0,
@@ -114,7 +110,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81004" },
     vendor: "Voith Industrial Rebuild",
     repairStatus: "Closed",
-    receiptStatus: "Received",
     declarationStatus: "Completed",
     daysOpen: 54,
     agingBucket: "46-60",
@@ -124,10 +119,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     expectedReturn: "22 Aug 2026",
     daysRemainingInRepair: -12,
     receivedAt: "25 Aug 2026",
-    newUnitCost: 142000,
     repairCost: 52000,
     newUnitLeadTimeDays: 38,
-    notes: "Repair complete — unit receipted back into stores.",
   },
   {
     id: "RC-8005",
@@ -143,17 +136,14 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPR: { type: "PR", documentNumber: "PR-81005" },
     vendor: "Weir Minerals Service Center",
     repairStatus: "PR Raised",
-    receiptStatus: "Not Yet Shipped",
     declarationStatus: "Required",
     daysOpen: 3,
     agingBucket: "0-15",
     raisedAt: "31 Aug 2026",
     expectedReturn: "28 Sep 2026",
     daysRemainingInRepair: 25,
-    newUnitCost: 214000,
     repairCost: 79000,
     newUnitLeadTimeDays: 60,
-    notes: "Stockout — PR raised, PO not yet cut. Declaration required before release.",
   },
   {
     id: "RC-8006",
@@ -170,8 +160,7 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81006" },
     vendor: "Bosch Rexroth Service Hub",
     repairStatus: "At Vendor",
-    receiptStatus: "Awaiting Receipt",
-    declarationStatus: "Pending",
+    declarationStatus: "Required",
     daysOpen: 58,
     agingBucket: "46-60",
     raisedAt: "7 Jul 2026",
@@ -179,10 +168,8 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     sentToVendorAt: "12 Jul 2026",
     expectedReturn: "20 Aug 2026",
     daysRemainingInRepair: -14,
-    newUnitCost: 118000,
     repairCost: 46500,
     newUnitLeadTimeDays: 33,
-    notes: "Overdue — expected return date has passed, vendor follow-up needed.",
   },
   {
     id: "RC-8007",
@@ -191,15 +178,14 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
       materialCode: "800-27340",
       description: "Vibrating Screen Motor — Screening Plant",
     },
-    plant: { plantId: "PLANT-SKZ", name: "Skorpion Zinc" },
+    plant: { plantId: "PLANT-BMM", name: "Black Mountain Mining" },
     stockOnHand: 2,
     reorderPoint: 2,
     qtyUnderRepair: 2,
     repairPR: { type: "PR", documentNumber: "PR-81007" },
     repairPO: { type: "PO", documentNumber: "PO-81007" },
     vendor: "Metso Outotec Workshop",
-    repairStatus: "In Transit Return",
-    receiptStatus: "Partially Received",
+    repairStatus: "At Vendor",
     declarationStatus: "Required",
     daysOpen: 40,
     agingBucket: "31-45",
@@ -208,7 +194,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     sentToVendorAt: "29 Jul 2026",
     expectedReturn: "5 Sep 2026",
     daysRemainingInRepair: 2,
-    newUnitCost: 76000,
     repairCost: 29500,
     newUnitLeadTimeDays: 21,
   },
@@ -227,7 +212,6 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     repairPO: { type: "PO", documentNumber: "PO-81008" },
     vendor: "SEW-Eurodrive Repair Center",
     repairStatus: "PO Issued",
-    receiptStatus: "Not Yet Shipped",
     declarationStatus: "Flagged",
     daysOpen: 12,
     agingBucket: "0-15",
@@ -235,24 +219,13 @@ const SCENARIO_REPAIR_CHAINS: RepairChain[] = [
     poIssuedAt: "24 Aug 2026",
     expectedReturn: "25 Sep 2026",
     daysRemainingInRepair: 22,
-    newUnitCost: 61500,
     repairCost: 24000,
     newUnitLeadTimeDays: 20,
-    notes: "Flagged — a new-unit PR was raised against this material while its repair PO was already open.",
   },
 ]
 
-/** Frozen artefact: built by the removed `npm run dataset:build`. See lib/dataset-mode. */
-export const REPAIR_CHAINS: RepairChain[] = USING_GENERATED_DATA
-  ? (generatedRepairChains as unknown as RepairChain[])
-  : SCENARIO_REPAIR_CHAINS
-
-export function getRepairChainById(id: string): RepairChain | undefined {
-  return REPAIR_CHAINS.find((rc) => rc.id === id)
-}
+export const REPAIR_CHAINS: RepairChain[] = SCENARIO_REPAIR_CHAINS
 
 export function getRepairChainByMaterialId(materialId: string): RepairChain | undefined {
   return REPAIR_CHAINS.find((rc) => rc.material.materialId === materialId)
 }
-
-export const REPAIR_VENDORS = Array.from(new Set(REPAIR_CHAINS.map((rc) => rc.vendor))).sort()
