@@ -17,7 +17,7 @@ import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
@@ -237,7 +237,7 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
       span={12}
     >
       {view === "skeleton" ? (
-        <Skeleton className="h-48 w-full" />
+        <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
       ) : view === "rows" && data ? (
         <div className="flex flex-col gap-3">
           <div className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>

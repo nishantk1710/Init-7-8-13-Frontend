@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import { getPlantById } from "@/lib/shared-data/plants"
 import { formatMoney } from "@/lib/utils"
 import { DecisionActions, DecisionHistory } from "@/features/initiative-7/components/decision-panel"
@@ -166,11 +166,7 @@ function LiveRecommendationDetailPage({ recommendationId, decide }: { recommenda
   if (loading) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-96 w-full" />
-        </div>
+        <PageLoader label="Loading the recommendation" className="h-[420px] w-full" />
       </div>
     )
   }
