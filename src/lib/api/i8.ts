@@ -230,8 +230,9 @@ export type ApiRepairJustification = {
 
 /**
  * The register's counts. Every line counted is open in SAP; the `excluded*`
- * figures say how many repair lines SAP has deleted, closed or blocked, each
- * counted under the first of the three that applies.
+ * figures say how many repair lines SAP has deleted, closed or blocked, or
+ * holds on a request for quotation, each counted under the first of the four
+ * that applies.
  */
 export type ApiRegisterMeta = {
   totalLines: number
@@ -259,6 +260,10 @@ export type ApiRegisterMeta = {
   excludedDeliveryCompletedLines?: number
   /** Repair lines blocked in SAP (EKPO.LOEKZ = 'S'). */
   excludedBlockedLines?: number
+  /** Item-category-3 lines on a request for quotation (EKKO.BSART = 'AN'),
+   *  which orders nothing. Left out since 21-Oct-2026; optional until every
+   *  backend in use serves it. */
+  excludedRfqLines?: number
 }
 
 /**

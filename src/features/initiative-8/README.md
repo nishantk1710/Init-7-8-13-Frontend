@@ -42,6 +42,9 @@ the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
   or blocked. Goods receipts are not read. The backend leaves the rest out and
   counts them in `meta` (`excludedDeliveryCompletedLines`,
   `excludedBlockedLines`, `excludedDeletedLines`), which the caption names.
+  Since 21-Oct-2026 lines on a request for quotation (EKKO.BSART `AN`) are left
+  out too, as `excludedRfqLines`: an RFQ orders nothing, and SAP never closes
+  one, so it used to sit in the register as open with a quantity of 0.
   Each line arrives with its exceptions, so the screen does not load the whole
   exception queue to fill one column.
 - **Not paged:** the Overview, whose charts describe every line
