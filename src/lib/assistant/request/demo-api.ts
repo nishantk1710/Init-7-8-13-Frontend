@@ -20,6 +20,7 @@ import type {
 } from "@/lib/api/assistant-requests"
 import { mintDemoSessionId } from "@/lib/assistant/demo/ids"
 import {
+  DEMO_DEPARTMENT_NAMES,
   DEMO_DEPARTMENTS,
   DEMO_PLANTS,
   findDemoMaterial,
@@ -202,6 +203,8 @@ export async function createRequest(body: CreateRequestBody): Promise<ApiRequest
     origin: body.origin ?? "PLATFORM",
     issuedAt: new Date().toISOString(),
     department: body.department,
+    departmentName: DEMO_DEPARTMENT_NAMES[body.department] ?? null,
+    departmentNote: body.departmentNote?.trim() || null,
     departments: [body.department],
     lines,
     skipped,
@@ -231,6 +234,7 @@ export async function listRequests(): Promise<ApiRequestSummary[]> {
     lineCount: r.lines.length,
     skippedCount: r.skipped.length,
     department: r.department ?? (r.departments.length === 1 ? r.departments[0] : null),
+    departmentName: r.departmentName ?? null,
     departments: r.departments,
   }))
 }
@@ -256,7 +260,7 @@ export async function requestDepartments(plant: string): Promise<{ items: ApiDep
       if (seen.has(code)) continue
       seen.add(code)
       const holding = plants.filter((d) => (DEMO_DEPARTMENTS[d] ?? []).includes(code))
-      items.push({ code, plants: holding, primary: holding.includes(plant) })
+      items.push({ code, name: DEMO_DEPARTMENT_NAMES[code] ?? null, plants: holding, primary: holding.includes(plant) })
     }
   }
   return { items, loaded: true }

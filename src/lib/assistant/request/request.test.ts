@@ -18,7 +18,10 @@ import {
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
 import { requestReferencesIn, resolveLink } from "@/lib/assistant/request/link"
+import { matchesDepartment } from "@/components/assistant/department-picker"
 import {
+  departmentLabel,
+  departmentText,
   departmentsOf,
   isDeclined,
   lineReference,
@@ -290,6 +293,33 @@ describe("a recorded request", () => {
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)
     expect(departmentsOf(sampleRequest())).toEqual(["10100", "10300"])
+  })
+})
+
+describe("department names", () => {
+  it("shows the code with its name, or the code alone when the list has none", () => {
+    expect(departmentText("10100", "FINANCE-COMMERCIAL DEPARTMENT")).toBe("10100 · FINANCE-COMMERCIAL DEPARTMENT")
+    expect(departmentText("10107", null)).toBe("10107")
+    expect(departmentText("10107")).toBe("10107")
+  })
+
+  it("labels a request by its one department, named", () => {
+    expect(
+      departmentLabel({ department: "10100", departmentName: "FINANCE-COMMERCIAL DEPARTMENT", departments: ["10100"] })
+    ).toBe("10100 · FINANCE-COMMERCIAL DEPARTMENT")
+    // Before 21 Oct a request's lines could name several: codes only.
+    expect(departmentLabel({ department: null, departments: ["10100", "10300"] })).toBe("10100, 10300")
+    expect(departmentLabel({ department: null, departments: [] })).toBe("—")
+  })
+
+  it("finds a department by the start of its code or anywhere in its name", () => {
+    const finance = { code: "10100", name: "FINANCE-COMMERCIAL DEPARTMENT", plants: ["1300"], primary: true }
+    const unnamed = { code: "10107", name: null, plants: ["1300"], primary: true }
+    expect(matchesDepartment(finance, "101")).toBe(true)
+    expect(matchesDepartment(finance, "commercial")).toBe(true)
+    expect(matchesDepartment(finance, "100")).toBe(false)
+    expect(matchesDepartment(unnamed, "1010")).toBe(true)
+    expect(matchesDepartment(unnamed, "finance")).toBe(false)
   })
 })
 

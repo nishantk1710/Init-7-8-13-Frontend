@@ -80,6 +80,7 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
       ["Requested for", request.requestedFor ?? "—"],
       ["Plant", request.plant],
       ["Department", departmentLabel(request)],
+      ["Department note", request.departmentNote ?? "—"],
       ["Issued", new Date(request.issuedAt).toLocaleString("en-GB")],
       ["Lines", String(request.lines.length)],
       ["To reserve", String(toReserve)],

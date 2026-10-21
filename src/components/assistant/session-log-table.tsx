@@ -30,6 +30,7 @@ import {
 } from "@/lib/assistant/session-reservations"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { departmentText } from "@/lib/assistant/request/record"
 
 /**
  * The session log.
@@ -82,6 +83,8 @@ export function SessionLogTable({
           sapPlantLabel(session.plant),
           session.requestedFor,
           session.department,
+          session.departmentName,
+          session.departmentNote,
           ...reservationSearchTerms(session),
         ]
           .filter(Boolean)
@@ -119,6 +122,7 @@ export function SessionLogTable({
         "Plant",
         "Requester",
         "Department",
+        "Department note",
         "Opened from",
         "Turns",
         "AI session status",
@@ -136,7 +140,8 @@ export function SessionLogTable({
         // Blank rather than a placeholder: an exported cell is read without the
         // column's caveats beside it.
         session.requestedFor ?? "",
-        session.department ?? "",
+        session.department ? departmentText(session.department, session.departmentName) : "",
+        session.departmentNote ?? "",
         session.origin,
         session.turns,
         session.outcome,
@@ -307,7 +312,10 @@ export function SessionLogTable({
                       !session.department && "text-muted-foreground"
                     )}
                   >
-                    {session.department ?? "not stated"}
+                    {session.department ? departmentText(session.department, session.departmentName) : "not stated"}
+                    {session.departmentNote && (
+                      <span className="block text-[11px] text-muted-foreground">{session.departmentNote}</span>
+                    )}
                     {/* Typed before the department became a code (15 Oct 2026). */}
                     {session.department && !/^\d{5}$/.test(session.department) && (
                       <span className="ml-1 text-[10px] text-muted-foreground">legacy</span>

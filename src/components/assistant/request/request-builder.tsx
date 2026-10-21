@@ -6,10 +6,10 @@ import { ArrowRight, Boxes, CircleSlash, Copy, Loader2, Plus, Search, Sparkles, 
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
+import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
-import { Chip, DemoBanner, DepartmentSelect, SELECT_CLASS } from "@/components/assistant/request/request-parts"
-import { useDepartments } from "@/components/assistant/request/use-requests"
+import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
@@ -19,6 +19,7 @@ import {
   isNotEnabled,
   previewRequest,
   refusedDetail,
+  requestDepartments,
   searchRequestMaterials,
   type ApiReasonCategory,
 } from "@/lib/api/assistant-requests"
@@ -87,6 +88,8 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
     plant: entry?.plant ?? null,
     code: entry?.department ?? "",
   })
+  /** Free text beside the code (UAT, 21 Oct): optional, never checked. */
+  const [departmentNote, setDepartmentNote] = useState("")
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -109,7 +112,6 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
   /** Fixed by the first material added; null while the request is empty. */
   const requestPlant = rows.length > 0 ? rows[0].plant : null
   const plantName = PLANTS.find((p) => p.sapPlantCode === requestPlant)?.name ?? null
-  const departments = useDepartments(requestPlant)
   const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
@@ -226,6 +228,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
         plant: requestPlant ?? "",
         requestedFor: requester.trim() || null,
         department,
+        departmentNote: departmentNote.trim() || null,
         origin: fromSap ? "BADI" : "PLATFORM",
         lines: submitted.map(answersOf),
       })
@@ -294,10 +297,12 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
               Department
             </label>
             {requestPlant ? (
-              <DepartmentSelect
+              // Keyed by plant: a new plant starts the search afresh.
+              <DepartmentPicker
+                key={requestPlant}
                 id="req-department"
-                codes={departments.own}
-                label="Department for this request"
+                plant={requestPlant}
+                load={loadDepartments}
                 value={department}
                 invalid={showErrors && !fromSap && !department}
                 onChange={(code) => setPicked({ plant: requestPlant, code })}
@@ -308,6 +313,18 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
               </div>
             )}
           </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="req-department-note" className="text-sm font-medium text-foreground">
+            Department note <span className="font-normal text-muted-foreground">(optional)</span>
+          </label>
+          <Input
+            id="req-department-note"
+            value={departmentNote}
+            onChange={(e) => setDepartmentNote(e.target.value)}
+            placeholder="anything else about the department, e.g. section or crew"
+            maxLength={DEPARTMENT_NOTE_MAX}
+          />
         </div>
         <p className="text-[11px] text-muted-foreground">
           One request is for one plant and one department. The first material you add sets the plant; the department
@@ -496,6 +513,14 @@ function LabelledInput({
       <Input id={id} value={value} aria-invalid={invalid} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </div>
   )
+}
+
+/** The backend's limit on the department note. */
+const DEPARTMENT_NOTE_MAX = 200
+
+/** The picker's list, through the demo-aware request API. Module-level so it is stable. */
+function loadDepartments(plant: string) {
+  return requestDepartments(plant)
 }
 
 // --- adding materials -----------------------------------------------------------

@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react"
 
-import type { ApiDepartment } from "@/lib/api/assistant"
 import {
   getRequest,
   listRequests,
-  requestDepartments,
   type ApiRequest,
   type ApiRequestSummary,
 } from "@/lib/api/assistant-requests"
@@ -45,29 +43,4 @@ export function useRequest(requestId: string) {
 
 export function useRequestList() {
   return useLoaded<ApiRequestSummary[]>(() => listRequests(), "list")
-}
-
-/** One plant's department codes: `own` for a line's select, `all` for the searchable picker. */
-export function useDepartments(plant: string | null): { all: ApiDepartment[]; own: string[]; loaded: boolean } {
-  const [state, setState] = useState<{ plant: string | null; all: ApiDepartment[]; loaded: boolean }>({
-    plant: null,
-    all: [],
-    loaded: false,
-  })
-  useEffect(() => {
-    if (!plant) return
-    let cancelled = false
-    requestDepartments(plant)
-      .then((r) => !cancelled && setState({ plant, all: r.items, loaded: r.loaded }))
-      .catch(() => !cancelled && setState({ plant, all: [], loaded: false }))
-    return () => {
-      cancelled = true
-    }
-  }, [plant])
-  const current = state.plant === plant ? state : { all: [], loaded: false }
-  return {
-    all: current.all,
-    own: current.all.filter((d) => d.primary).map((d) => d.code),
-    loaded: current.loaded,
-  }
 }

@@ -77,6 +77,8 @@ export type CreateRequestBody = {
   requestedFor?: string | null
   /** The request's one department code (UAT, 21 Oct): recorded on every line. */
   department: string
+  /** Optional free text beside the department code (≤200); never checked. */
+  departmentNote?: string | null
   origin?: "PLATFORM" | "BADI"
   lines: ApiLineAnswers[]
 }
@@ -99,6 +101,8 @@ export type ApiRequestLine = {
   materialDescription: string | null
   plant: string
   department: string | null
+  departmentName?: string | null
+  departmentNote?: string | null
   decision: string | null
   plannedQuantity: string | null
   suggestedQuantity: string | null
@@ -121,6 +125,10 @@ export type ApiRequest = {
   issuedAt: string
   /** The request's department; null only for an older request whose lines named several. */
   department: string | null
+  /** `department`'s name from the department list. Absent on an older backend. */
+  departmentName?: string | null
+  /** Free text typed beside the department, if any. */
+  departmentNote?: string | null
   departments: string[]
   lines: ApiRequestLine[]
   skipped: ApiSkipped[]
@@ -135,6 +143,7 @@ export type ApiRequestSummary = {
   lineCount: number
   skippedCount: number
   department: string | null
+  departmentName?: string | null
   departments: string[]
 }
 
