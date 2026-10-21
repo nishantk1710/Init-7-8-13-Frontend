@@ -24,7 +24,7 @@ export function RequestList() {
       <DemoBanner />
       <div className="flex flex-wrap gap-2">
         <Link href="/assistant/requests/new" className={buttonVariants({ size: "sm" })}>
-          <Plus /> New multi-material request
+          <Plus /> New request
         </Link>
         {ASSISTANT_DEMO && requests && requests.length > 0 && (
           <Button type="button" variant="ghost" size="sm" onClick={resetRequests}>

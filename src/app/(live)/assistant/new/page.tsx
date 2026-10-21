@@ -1,9 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { buttonVariants } from "@/components/ui/button"
+import { entryFromParams, requestHref } from "@/lib/assistant/request/entry"
+import { SINGLE_AS_REQUEST } from "@/lib/assistant/request/flag"
 
 export const metadata: Metadata = {
   title: "Reservation assistant — Spares AI",
@@ -48,6 +51,13 @@ export const metadata: Metadata = {
  *
  * The page works today without the BAdI. That is what makes the assistant
  * demonstrable independently of the SAP transport.
+ *
+ * ## One flow for one material or many (UAT, 21 Oct)
+ *
+ * With requests on (`SINGLE_AS_REQUEST`), this page forwards the same
+ * parameters to the request screen, which starts a request with the material
+ * as line 1. The contract above does not change, so SAP needs no transport.
+ * `NEXT_PUBLIC_ASSISTANT_CHAT=true` brings the conversation below back.
  */
 export default async function NewAssistantSessionPage({
   searchParams,
@@ -55,6 +65,9 @@ export default async function NewAssistantSessionPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
+
+  const entry = entryFromParams(params)
+  if (SINGLE_AS_REQUEST && entry) redirect(requestHref(entry))
 
   const materialId = single(params.material)
   const plant = single(params.plant)

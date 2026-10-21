@@ -86,7 +86,7 @@ export function Sidebar() {
           // Offered only with NEXT_PUBLIC_ASSISTANT_REQUESTS (or the demo) --
           // see lib/assistant/request/flag.ts.
           ...(ASSISTANT_REQUESTS
-            ? [{ label: "Multi-material request", icon: ListChecks, href: "/assistant/requests" }]
+            ? [{ label: "Requests", icon: ListChecks, href: "/assistant/requests" }]
             : []),
         ].map((item) => {
           const isActive = pathname === item.href

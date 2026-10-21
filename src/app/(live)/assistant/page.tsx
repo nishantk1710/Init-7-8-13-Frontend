@@ -4,7 +4,8 @@ import { ArrowRight, Boxes, ListChecks, ShieldCheck, Sparkles, Wrench } from "lu
 
 import { AiEyebrow, AiIconBadge, AiOrb } from "@/components/assistant/ai-visuals"
 import { AssistantOpener } from "@/components/assistant/assistant-opener"
-import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
+import { entryFromParams, requestHref } from "@/lib/assistant/request/entry"
+import { ASSISTANT_REQUESTS, SINGLE_AS_REQUEST } from "@/lib/assistant/request/flag"
 
 export const metadata: Metadata = {
   title: "Reservation assistant — Spares AI",
@@ -48,9 +49,31 @@ export default async function AssistantPage({
           </div>
         </header>
 
-        <AssistantOpener defaultMaterial={material} defaultPlant={plant} />
+        {SINGLE_AS_REQUEST ? (
+          // One flow for one material or many (UAT, 21 Oct): every reservation
+          // starts as a request, carrying a ?material=&plant= link through.
+          <Link
+            href={requestHref(entryFromParams(params))}
+            className="group ai-glass ai-glow flex items-center gap-4 rounded-2xl p-5 transition-colors hover:bg-muted/40"
+          >
+            <ListChecks className="size-5 text-ai-2" aria-hidden />
+            <span className="flex flex-1 flex-col gap-0.5">
+              <span className="font-medium text-foreground">Start a request</span>
+              <span className="text-sm text-muted-foreground">
+                One material or several, OAR and repairable together. Each is checked as you add it, and you get one
+                reference to type into the SAP reservation.
+              </span>
+            </span>
+            <ArrowRight
+              className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </Link>
+        ) : (
+          <AssistantOpener defaultMaterial={material} defaultPlant={plant} />
+        )}
 
-        {ASSISTANT_REQUESTS && (
+        {ASSISTANT_REQUESTS && !SINGLE_AS_REQUEST && (
           <Link
             href="/assistant/requests/new"
             className="group flex items-center gap-3 rounded-2xl border border-dashed border-ai-2/30 px-5 py-3 text-sm transition-colors hover:border-ai-2/60 hover:bg-muted/40"

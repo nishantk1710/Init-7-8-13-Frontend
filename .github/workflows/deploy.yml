@@ -85,6 +85,9 @@ jobs:
           # variable ASSISTANT_REQUESTS=true -- switch it on together with the
           # backend's ASSISTANT_REQUESTS_ENABLED.
           NEXT_PUBLIC_ASSISTANT_REQUESTS: ${{ vars.ASSISTANT_REQUESTS || 'false' }}
+          # With requests on, a single material is a request too; repo variable
+          # ASSISTANT_CHAT=true brings the step-by-step chat back instead.
+          NEXT_PUBLIC_ASSISTANT_CHAT: ${{ vars.ASSISTANT_CHAT || 'false' }}
           # How long a GET may take before the page gives up, in ms
           # (src/lib/api/client.ts). Repository variable API_GET_TIMEOUT_MS
           # overrides the 60 s default; App Service cuts requests at 230 s.

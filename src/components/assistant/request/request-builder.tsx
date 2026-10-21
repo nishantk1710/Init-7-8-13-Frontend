@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/assistant-requests"
 import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { REQUEST_CATALOGUE } from "@/lib/assistant/request/catalogue"
+import type { RequestEntry } from "@/lib/assistant/request/entry"
 import {
   DEFAULT_MAX_LINES,
   EMPTY_JUSTIFICATION,
@@ -70,12 +71,22 @@ function newDraftKey(): string {
  * One request is for one plant and one department (UAT, 21 Oct): the first
  * material added fixes the plant, and the requester picks the department once,
  * from that plant's codes, for every material on the request.
+ *
+ * One material is a request too (UAT, 21 Oct): `entry` -- from the landing
+ * page or the SAP BAdI link -- starts the request with that material as line 1,
+ * the requester and department pre-filled from the link. A request opened from
+ * SAP (`origin` BADI) may have neither, as the backend allows: the pop-up
+ * cannot always supply them.
  */
-export function RequestBuilder() {
+export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }) {
   const router = useRouter()
-  const [requester, setRequester] = useState("")
+  const fromSap = entry?.origin === "BADI"
+  const [requester, setRequester] = useState(entry?.requestedFor ?? "")
   /** Picked for one plant; a different plant (or an emptied request) clears it. */
-  const [picked, setPicked] = useState<{ plant: string | null; code: string }>({ plant: null, code: "" })
+  const [picked, setPicked] = useState<{ plant: string | null; code: string }>({
+    plant: entry?.plant ?? null,
+    code: entry?.department ?? "",
+  })
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -102,7 +113,7 @@ export function RequestBuilder() {
   const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
-  const headerReady = requester.trim().length > 0 && department.length > 0
+  const headerReady = fromSap || (requester.trim().length > 0 && department.length > 0)
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
 
@@ -150,6 +161,15 @@ export function RequestBuilder() {
       })
     }
   }
+
+  /** The link's material is line 1. Once: a ref survives Strict Mode's re-run. */
+  const started = useRef(false)
+  useEffect(() => {
+    if (!entry || started.current) return
+    started.current = true
+    void add({ materialId: entry.materialId, plant: entry.plant, description: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's link
+  }, [])
 
   function update(next: DraftLine) {
     if (next.key === refusedKey) setRefusedKey(null)
@@ -204,8 +224,9 @@ export function RequestBuilder() {
       const request = await createRequest({
         idempotencyKey: draftKey.current,
         plant: requestPlant ?? "",
-        requestedFor: requester.trim(),
+        requestedFor: requester.trim() || null,
         department,
+        origin: fromSap ? "BADI" : "PLATFORM",
         lines: submitted.map(answersOf),
       })
       router.push(`/assistant/requests/${request.requestId}`)
@@ -250,7 +271,7 @@ export function RequestBuilder() {
             value={requester}
             onChange={setRequester}
             placeholder="who the parts are for"
-            invalid={showErrors && !requester.trim()}
+            invalid={showErrors && !fromSap && !requester.trim()}
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Plant</span>
@@ -278,7 +299,7 @@ export function RequestBuilder() {
                 codes={departments.own}
                 label="Department for this request"
                 value={department}
-                invalid={showErrors && !department}
+                invalid={showErrors && !fromSap && !department}
                 onChange={(code) => setPicked({ plant: requestPlant, code })}
               />
             ) : (
@@ -291,6 +312,7 @@ export function RequestBuilder() {
         <p className="text-[11px] text-muted-foreground">
           One request is for one plant and one department. The first material you add sets the plant; the department
           you pick applies to every material on the request.
+          {fromSap && " Opened from SAP: the requester and department are optional."}
         </p>
       </section>
 
@@ -418,7 +440,7 @@ export function RequestBuilder() {
 export function NotEnabledNotice() {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm">
-      <span className="font-medium text-foreground">Multi-material requests are not switched on yet.</span>
+      <span className="font-medium text-foreground">Requests are not switched on yet.</span>
       <span className="text-muted-foreground">
         The backend answers these routes only when ASSISTANT_REQUESTS_ENABLED is set. Until then, check one material at
         a time from the assistant.
