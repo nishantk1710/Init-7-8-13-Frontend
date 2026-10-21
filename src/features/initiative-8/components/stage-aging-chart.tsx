@@ -174,6 +174,10 @@ export function StageAgingChart({
             stroke="var(--card)"
             strokeWidth={2}
             radius={i === bands.length - 1 ? [4, 4, 0, 0] : undefined}
+            // Drawn complete at once, like the other overview charts. The
+            // PDF copy is printed a couple of frames after it mounts, and an
+            // animating bar would be printed part-grown.
+            isAnimationActive={false}
           />
         ))}
       </BarChart>

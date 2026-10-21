@@ -70,20 +70,20 @@ export async function RefurbishableSparesOverviewPage() {
 
   const { register, universe, declarations } = live
 
+  // No source named here either -- see `registerDescription`. The page knows
+  // when the figures are measured as of; it has no way to know which SAP load
+  // produced them, and said "the July extract" for weeks after that stopped
+  // being true.
+  const description =
+    `${DESCRIPTION} As at ${register.referenceDate}.` +
+    (register.sourceLoadedAt
+      ? ` SAP data loaded ${formatApiDateTime(register.sourceLoadedAt)}.`
+      : "")
+
   return (
-    <Shell
-      description={
-        // No source named here either -- see `registerDescription`. The page
-        // knows when the figures are measured as of; it has no way to know
-        // which SAP load produced them, and said "the July extract" for weeks
-        // after that stopped being true.
-        `${DESCRIPTION} As at ${register.referenceDate}.` +
-        (register.sourceLoadedAt
-          ? ` SAP data loaded ${formatApiDateTime(register.sourceLoadedAt)}.`
-          : "")
-      }
-    >
+    <Shell description={description}>
       <OverviewDashboard
+        description={description}
         chains={register.chains}
         agingBands={register.agingBands}
         universe={universe}

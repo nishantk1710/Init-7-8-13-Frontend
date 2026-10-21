@@ -6,7 +6,7 @@ import {
   NO_OVERVIEW_FILTERS,
   filterOverview,
   openLinesByVendor,
-  overviewSummaryRows,
+  overviewPdfTitle,
   repairStatusBuckets,
   stockByPlant,
   summariseOverview,
@@ -197,29 +197,13 @@ describe("filterOverview", () => {
   })
 })
 
-describe("overviewSummaryRows", () => {
-  it("names the slice the figures came from, and the one that never narrows", () => {
-    const metrics = summariseOverview({ chains: [chain()], universe: [universeRow()] })
-    const rows = overviewSummaryRows(
-      metrics,
-      { plant: "Gamsberg", vendor: "All vendors", criticality: "All criticalities" },
-      { referenceDate: "2026-10-12", pendingDeclarations: 5155 },
-    )
-    const byLabel = new Map(rows.map((r) => [String(r[0]), r[1]]))
-    expect(byLabel.get("Plant filter")).toBe("Gamsberg")
-    expect(byLabel.get("Vendor filter (repair lines only)")).toBe("All vendors")
-    expect(byLabel.get("Pending declarations (whole register, unfiltered)")).toBe(5155)
+describe("overviewPdfTitle", () => {
+  it("dates the file by the day its figures are as at", () => {
+    expect(overviewPdfTitle("2026-10-21")).toBe("i08-overview-2026-10-21")
   })
 
-  it("exports a figure the backend could not give as words, never as a number", () => {
-    const metrics = summariseOverview({ chains: [], universe: [] })
-    const rows = overviewSummaryRows(
-      metrics,
-      { plant: "All plants", vendor: "All vendors", criticality: "All criticalities" },
-      { referenceDate: "2026-10-12" },
-    )
-    const byLabel = new Map(rows.map((r) => [String(r[0]), r[1]]))
-    expect(byLabel.get("Pending declarations (whole register, unfiltered)")).toBe("not available")
+  it("still names the file when the register sent no reference date", () => {
+    expect(overviewPdfTitle("")).toBe("i08-overview")
   })
 })
 

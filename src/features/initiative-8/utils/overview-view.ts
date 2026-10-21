@@ -9,12 +9,12 @@ import {
 } from "@/features/initiative-8/utils/status"
 
 /**
- * The overview dashboard's filtering and export, as plain functions.
+ * The overview dashboard's filtering and counting, as plain functions.
  *
  * Pulled out of the component for the same reason `register-view.ts` was: the
- * rules are testable without React, and the exported CSV is built from exactly
- * the slice the tiles and charts were drawn from, so the file and the screen
- * can never disagree about which rows a filter matched.
+ * rules are testable without React, and the PDF is drawn from exactly the
+ * slice the tiles and charts on screen were drawn from, so the file and the
+ * screen can never disagree about which rows a filter matched.
  *
  * ## Why every figure is computed from rows
  *
@@ -249,7 +249,7 @@ export type OverviewMetrics = {
   stock: StockByPlant
 }
 
-/** Every figure the tiles and the CSV need, from one pass over the slice. */
+/** Every figure the tiles and charts need, from one pass over the slice. */
 export function summariseOverview(slice: OverviewSlice): OverviewMetrics {
   const open = slice.chains.filter(isOpenRepair)
   return {
@@ -269,44 +269,14 @@ export function summariseOverview(slice: OverviewSlice): OverviewMetrics {
   }
 }
 
-export const OVERVIEW_SUMMARY_HEADERS = ["Metric", "Value"]
-
 /**
- * The figures on the page as a two-column CSV, with the filters that produced
- * them on top: a summary pasted into a report has to say which slice it is.
+ * The name the PDF is saved under.
  *
- * The figures the backend only reports over the whole dataset are labelled as
- * such rather than quietly exported as though they were filtered.
+ * The browser's "Save as PDF" offers the page's `document.title` as the file
+ * name, so the dashboard sets this as the title while the print dialog is
+ * open. Dated by the figures' as-at day, which is what tells two saved copies
+ * apart.
  */
-export function overviewSummaryRows(
-  metrics: OverviewMetrics,
-  filterLabels: { plant: string; vendor: string; criticality: string },
-  wholeDataset: {
-    referenceDate: string
-    pendingDeclarations?: number
-  },
-): (string | number)[][] {
-  const unfiltered = (value: number | undefined) => (value === undefined ? "not available" : value)
-  return [
-    ["As at", wholeDataset.referenceDate],
-    ["Plant filter", filterLabels.plant],
-    ["Vendor filter (repair lines only)", filterLabels.vendor],
-    ["Criticality filter", filterLabels.criticality],
-    ["Repairable materials monitored", metrics.universeMaterials],
-    ["Material-plant rows in the universe", metrics.universeRows],
-    ["Plants in the universe", metrics.universePlants],
-    ["Qty currently under repair", metrics.qtyUnderRepair],
-    ["Open repair lines", metrics.openLines],
-    ["Repair lines in the register", metrics.totalLines],
-    ["Repairs overdue", metrics.overdueLines],
-    ["Open repairs with no due date", metrics.noDueDateLines],
-    ...metrics.stock.plants.map(
-      (p): (string | number)[] => [`Stock on hand — ${p.plant}`, p.stock],
-    ),
-    ["Universe rows with no stock record", metrics.stock.unknownRows],
-    // Named as a whole-dataset figure: it comes from a `meta` the backend
-    // computes over everything, so a filtered export must not imply it
-    // narrowed with the rest.
-    ["Pending declarations (whole register, unfiltered)", unfiltered(wholeDataset.pendingDeclarations)],
-  ]
+export function overviewPdfTitle(referenceDate: string): string {
+  return referenceDate ? `i08-overview-${referenceDate}` : "i08-overview"
 }

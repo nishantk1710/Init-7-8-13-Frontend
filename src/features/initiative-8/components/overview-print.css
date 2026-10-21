@@ -1,0 +1,69 @@
+/* Print styles for the I08 overview PDF (overview-print.tsx).
+ *
+ * The copy exists only while the print dialog is open. Until the dialog
+ * snapshots it, it is laid out but out of view -- NOT `display: none`. The
+ * charts size themselves by measuring their container, and a `display: none`
+ * container measures 0x0, so they would print blank. It is given the printed
+ * page's width instead, so the charts measure for paper and not for the window.
+ *
+ * In print it is the only thing on the page. Scoped with :has(), as the I13
+ * stylesheet is: CSS a route imports stays loaded after client-side
+ * navigation, and an unscoped `body > * { display: none }` would blank the PDF
+ * of every other screen printed later in the same session. The I07 stylesheet
+ * has exactly that unscoped rule; `body > .i08-overview-print` below is more
+ * specific, so this copy still shows if that stylesheet is loaded too.
+ *
+ * The page is a NAMED page for the same reason: `@page` cannot be scoped, and
+ * the I07 and I13 stylesheets each set A4 portrait. The name alone is not
+ * enough in Chrome, though. Checked on 21-Oct-2026 by printing with I07's rules
+ * loaded after these: its unnamed `@page { size: A4 portrait }` still won, and
+ * this 277mm-wide copy came out clipped on a portrait page. `!important` is
+ * what keeps the page landscape whichever stylesheet loaded last.
+ */
+
+@page i08-overview {
+  size: A4 landscape !important;
+  margin: 10mm !important;
+}
+
+/* ON SCREEN: measurable, but out of view. 277mm is A4 landscape's 297mm less
+ * the two 10mm margins -- the width the page's content box has in print. */
+.i08-overview-print {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 277mm;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+}
+
+@media print {
+  body:has(> .i08-overview-print) > *:not(.i08-overview-print) {
+    display: none !important;
+  }
+
+  /* The copy wears the light theme (`.light-scope`); a dark page colour must
+   * not print around it either. */
+  html:has(> body > .i08-overview-print),
+  body:has(> .i08-overview-print) {
+    background: #fff !important;
+  }
+
+  body > .i08-overview-print {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    opacity: 1 !important;
+    z-index: auto !important;
+    page: i08-overview;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A tile or chart is never split across two pages: a row that does not fit
+   * moves to the next page whole. */
+  .i08-overview-print .grid > * {
+    break-inside: avoid;
+  }
+}
