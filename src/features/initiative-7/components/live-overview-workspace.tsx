@@ -18,7 +18,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react"
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import {
   ALL_FILTER,
   DashboardFilters,
@@ -96,6 +96,9 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // filter that says otherwise. Without it the KPIs and charts count the rows fetched above.
   const criticalityCannotNarrow = Boolean(criticalityLevel && !criticalityTier)
   const summary = criticalityCannotNarrow ? null : scopedSummary
+  // New figures are on their way (first load, or a filter just changed): the cards and charts that read them show a
+  // loader meanwhile. Not when the summary cannot be narrowed to the filter at all -- that is a reason, not a wait.
+  const summaryRefreshing = summaryLoading && !criticalityCannotNarrow
   // High Stockout Risk is a portfolio figure; counting the fetched rows in its place would pass a
   // page of 200 off as the portfolio, so without a summary the card says why it has no number.
   const stockoutUnavailable = summary
@@ -105,7 +108,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       : summaryError
         ? "could not be loaded from the backend"
         : summaryLoading
-          ? "loading…"
+          ? undefined // being fetched: the cards and the chart show a loader, not a reason
           : "not available from the backend"
   // Stockout and excess by plant follow the rail too: with a plant chosen only that plant's bar is
   // drawn, and the other three filters narrow every bar.
@@ -176,10 +179,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // screen, and the previous rows stay until the new ones arrive.
   if (loading && !data) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <PageLoader label="Loading the Inventory Planning overview" className="h-[480px] w-full" />
     )
   }
 
@@ -212,7 +212,12 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
         adoptedOverride={
           adoptionSummary ? { count: adoptionSummary.adoptedCount, total: adoptionSummary.totalEvaluated } : null
         }
-        adoptedUnavailable={adoptionLoading ? "loading…" : undefined}
+        loading={{
+          stockout: summaryRefreshing,
+          excess: summaryRefreshing,
+          workingCapital: summaryRefreshing,
+          adopted: adoptionLoading,
+        }}
         stockoutRiskOverride={
           summary
             ? {
@@ -269,7 +274,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             >
               <StockoutRiskDistribution
                 figures={
-                  summary && !summaryLoading
+                  summary && !summaryRefreshing
                     ? {
                         atRisk: summary.criticalStockoutRiskCount,
                         evaluated: summary.stockoutRiskEvaluatedCount,
@@ -279,6 +284,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                     : null
                 }
                 unavailable={stockoutUnavailable}
+                loading={summaryRefreshing}
               />
             </ChartCard>
             <ChartCard

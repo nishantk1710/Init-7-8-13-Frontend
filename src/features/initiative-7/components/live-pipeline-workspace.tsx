@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import {
   Table,
   TableBody,
@@ -218,10 +218,7 @@ export function LivePipelineWorkspace() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <PageLoader label="Loading the pipeline" className="h-72 w-full" />
     )
   }
 

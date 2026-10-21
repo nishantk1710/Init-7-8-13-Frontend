@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { AlertTriangle, CheckCircle2, Layers, Wallet } from "lucide-react"
 
+import { ChartLoader } from "@/components/shared/chart-loader"
 import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -61,6 +62,7 @@ function PortfolioKpiCard({
   caption,
   captionMuted,
   note,
+  loading = false,
 }: {
   title: string
   icon: ReactNode
@@ -71,9 +73,15 @@ function PortfolioKpiCard({
   captionMuted?: boolean
   /** A second, always-muted line under the caption -- e.g. the date a figure is as of. */
   note?: string
+  /** The figure is being fetched: a spinning circle stands where the value and its lines will be, so a card is never
+   * "Not available" (or showing the previous filter's number) for the moments a new figure takes to arrive. */
+  loading?: boolean
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
+    <div
+      className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4"
+      aria-busy={loading || undefined}
+    >
       <div className="flex items-start justify-between gap-2">
         <span className="truncate text-sm font-medium text-foreground">{title}</span>
         <span
@@ -85,6 +93,11 @@ function PortfolioKpiCard({
           {icon}
         </span>
       </div>
+      {loading ? (
+        // As tall as a card's value and its two lines, so the card does not change size when the figure arrives.
+        <ChartLoader label={`Loading ${title}`} className="h-[76px]" />
+      ) : (
+        <>
       <div className="flex min-w-0 items-baseline gap-1.5">
         <span className={cn("truncate text-2xl font-bold tabular-nums", VALUE_TONE[tone])}>
           {value}
@@ -102,6 +115,8 @@ function PortfolioKpiCard({
         </span>
       )}
       {note && <span className="truncate text-[11px] text-muted-foreground">{note}</span>}
+        </>
+      )}
     </div>
   )
 }
@@ -123,6 +138,7 @@ export function InventoryPortfolioKpis({
   stockoutRiskUnavailable,
   excessInventoryOverride,
   workingCapitalOverride,
+  loading,
 }: {
   recommendations?: Recommendation[]
   /** Portfolio-wide { count, total } for "Adopted recommendation", from GET
@@ -168,6 +184,8 @@ export function InventoryPortfolioKpis({
    * "Not available". Without this, the KPI sums only the rows that happen to be on
    * the fetched page, which is a handful of the newest rows and not the portfolio. */
   workingCapitalOverride?: { amount: number | null; currency: string | null; estimated?: boolean }
+  /** Which cards are waiting for their figure. A card that is loading shows a loader, whatever else it was given. */
+  loading?: Partial<Record<"stockout" | "excess" | "workingCapital" | "adopted", boolean>>
 }) {
   const total = recommendations.length
   const stockoutRisk = stockoutRiskOverride?.count ?? countAtStockoutRisk(recommendations)
@@ -205,6 +223,7 @@ export function InventoryPortfolioKpis({
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
       <PortfolioKpiCard
         title="High Stockout Risk"
+        loading={loading?.stockout}
         icon={<AlertTriangle className="size-3.5" />}
         tone="danger"
         value={stockoutNotComputed ? "Not available" : formatCount(stockoutRisk)}
@@ -219,6 +238,7 @@ export function InventoryPortfolioKpis({
       />
       <PortfolioKpiCard
         title="Excess Inventory Candidates"
+        loading={loading?.excess}
         icon={<Layers className="size-3.5" />}
         tone="info"
         value={formatCount(excess)}
@@ -227,6 +247,7 @@ export function InventoryPortfolioKpis({
       />
       <PortfolioKpiCard
         title="Working Capital Impact"
+        loading={loading?.workingCapital}
         icon={<Wallet className="size-3.5" />}
         tone="success"
         value={netImpact === null ? "Not available" : formatCompactSigned(netImpact, impactCurrency)}
@@ -239,6 +260,7 @@ export function InventoryPortfolioKpis({
       />
       <PortfolioKpiCard
         title="Adopted recommendation"
+        loading={loading?.adopted}
         icon={<CheckCircle2 className="size-3.5" />}
         tone="warning"
         value={adoptedNotAvailable ? "Not available" : formatCount(adopted)}

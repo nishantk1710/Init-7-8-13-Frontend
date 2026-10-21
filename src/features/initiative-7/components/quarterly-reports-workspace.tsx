@@ -33,7 +33,8 @@ import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
+import { PageLoader } from "@/components/shared/page-loader"
 import {
   Table,
   TableBody,
@@ -452,9 +453,7 @@ export function QuarterlyReportsWorkspace() {
           )}
 
           {loading && !report && (
-            <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-              Loading report…
-            </div>
+            <PageLoader label="Loading the report" className="h-72 w-full" />
           )}
 
           {error && !report && (
@@ -581,7 +580,7 @@ export function QuarterlyReportsWorkspace() {
                   span={12}
                 >
                   {pagedTableView(materialsLoading, materials) === "skeleton" ? (
-                    <Skeleton className="h-48 w-full" />
+                    <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
                   ) : pagedTableView(materialsLoading, materials) === "rows" && materials ? (
                     <div className="flex flex-col gap-3">
                       <div

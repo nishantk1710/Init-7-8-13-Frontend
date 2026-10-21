@@ -4,7 +4,7 @@ import { useState } from "react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import { formatApiDateTime } from "@/lib/api/format"
@@ -81,7 +81,7 @@ export function HistoryBody({
     )
   }
   if (!uploads) {
-    return loading ? <Skeleton className="h-40 w-full" /> : null
+    return loading ? <LoadingSpinner label="Loading the upload history" size="sm" className="h-40 w-full" /> : null
   }
 
   const shown = filterUploads(uploads, plant)

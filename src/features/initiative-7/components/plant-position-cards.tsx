@@ -13,7 +13,7 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import { Skeleton } from "@/components/ui/skeleton"
+import { ChartLoader } from "@/components/shared/chart-loader"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { PlantPositionsState } from "@/features/initiative-7/hooks/use-plant-positions"
@@ -105,7 +105,7 @@ function PositionTooltip({
  * nothing to count, bars) can be rendered and tested on its own. */
 export function PlantPositionView({ state, metric }: { state: PlantPositionsState; metric: PositionMetric }) {
   const copy = METRIC_COPY[metric]
-  if (state.loading) return <Skeleton className="h-[220px] w-full" />
+  if (state.loading) return <ChartLoader label="Loading the chart" className="h-[220px] w-full" />
   if (state.error) {
     return (
       <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
