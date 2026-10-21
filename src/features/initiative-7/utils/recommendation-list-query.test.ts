@@ -87,6 +87,13 @@ describe("listParamsFromFilters", () => {
   })
 })
 
+describe("OAR list hides materials without enough consumption", () => {
+  it("asks only for OAR materials issued more than the policy threshold in 12 months", () => {
+    expect(listParamsFromFilters(filters({ type: "oar" }), 1).consumptionAboveThreshold).toBe(true)
+    expect(listParamsFromFilters(filters({ type: "stock_item" }), 1).consumptionAboveThreshold).toBeUndefined()
+  })
+})
+
 describe("listFilterKey (decides when paging goes back to page 1)", () => {
   it("changes with any filter that decides which rows exist", () => {
     const base = listFilterKey(filters())

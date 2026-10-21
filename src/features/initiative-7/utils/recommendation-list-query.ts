@@ -83,6 +83,8 @@ export function listParamsFromFilters(filters: DashboardFilterState, page: numbe
     confidence: filters.type === "oar" ? chosen(filters.confidence) : undefined,
     // Only OAR recommendations carry a Min-Max conversion decision, likewise.
     conversionEligibility: filters.type === "oar" ? chosen(filters.conversion) : undefined,
+    // OAR materials with no consumption, or too little to qualify, are not listed.
+    consumptionAboveThreshold: filters.type === "oar" ? true : undefined,
     search: search || undefined,
     criticalityLevel: chosen(filters.criticality),
     demandClass: DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern],

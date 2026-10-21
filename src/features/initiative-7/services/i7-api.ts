@@ -438,6 +438,9 @@ export interface RecommendationListParams {
   confidence?: string
   /** ELIGIBLE | NOT_ELIGIBLE -- the OAR -> Min-Max conversion decision, applied in SQL. */
   conversionEligibility?: string
+  /** Only recommendations issued more than the policy threshold in the last 12 months -- drops
+   * zero-consumption materials too. Applied in SQL. */
+  consumptionAboveThreshold?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -476,6 +479,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.type) search.set("type", params.type)
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
+  if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
