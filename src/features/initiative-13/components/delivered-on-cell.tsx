@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { TableCell } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
 import type { DeliveryStatus } from "@/features/initiative-13/utils/delivery-status"
@@ -37,8 +38,8 @@ export function DeliveredOnCell({
 }) {
   if (status.state === "NO_PO") {
     return (
-      <TableCell className="text-muted-foreground" title="No purchase order yet">
-        —
+      <TableCell>
+        <EmptyValue kind="noPoYet" />
       </TableCell>
     )
   }

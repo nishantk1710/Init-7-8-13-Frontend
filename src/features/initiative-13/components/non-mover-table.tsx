@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
   TableBody,
@@ -110,10 +111,10 @@ export function NonMoverTable({
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
                 <TableCell className="text-right text-foreground">
-                  {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : "—"}
+                  {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : <EmptyValue kind="noMovement" />}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
-                  {row.stockOnHand !== null ? formatCount(row.stockOnHand) : "—"}
+                  {row.stockOnHand !== null ? formatCount(row.stockOnHand) : <EmptyValue kind="noStockRecord" />}
                 </TableCell>
                 <TableCell className="text-right text-foreground">{formatCount(row.consumptionCount12m)}</TableCell>
                 <TableCell>
