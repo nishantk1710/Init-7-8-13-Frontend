@@ -74,6 +74,7 @@ function deliveryOf(entry: UtilisationLedgerEntry) {
     procurementStatus: entry.procurementStatus,
     firstGrDate: entry.firstGrDate,
     latestGrDate: entry.latestGrDate,
+    expectedDeliveryDate: entry.expectedDeliveryDate,
   })
 }
 

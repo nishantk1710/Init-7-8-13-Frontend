@@ -102,6 +102,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   orderedQuantity: row.orderedQuantity,
                   firstGrDate: row.firstGrDate,
                   latestGrDate: row.lastGrDate,
+                  expectedDeliveryDate: row.expectedDeliveryDate,
                 })}
                 receivedQuantity={row.receivedQuantity}
                 orderedQuantity={row.orderedQuantity}
