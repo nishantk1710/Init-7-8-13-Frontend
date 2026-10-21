@@ -140,3 +140,56 @@ describe("the KPI cards", () => {
     expect(kpiValueText(card("excess_inventory_opportunity", { value: "1500000", unit: "USD" }))).toBe("USD 1.50M")
   })
 })
+
+// --- trends -----------------------------------------------------------------------------------
+
+import type { ApiQuarterTrends, ApiTrendMonth } from "@/features/initiative-7/types/api"
+import { hasPoints, millions, monthBasisLabel, trendPoints } from "./quarterly-management"
+
+function month(overrides: Partial<ApiTrendMonth> = {}): ApiTrendMonth {
+  return {
+    month: "2026-10-01", label: "Oct 2026", state: "FINAL", measured_on: "2026-11-03", month_end_valid: true, stockout_valid: true,
+    population: 10, stockout_at_risk: 5, stockout_evaluated: 50, stockout_insufficient: 2, excess_count: 3,
+    excess_opportunity: "1000.00", net_rop_value_impact: "-500.00", net_rop_change_from_previous: null, currency: null,
+    revision: 1, calc_version: "1", note: null, ...overrides,
+  }
+}
+
+const trends = (months: ApiTrendMonth[]): ApiQuarterTrends => ({ months, quarter_end: {} as ApiQuarterTrends["quarter_end"], notes: [] })
+
+describe("trendPoints", () => {
+  it("makes one point per month, with the figures as numbers", () => {
+    expect(trendPoints(trends([month()]))).toEqual([
+      { label: "Oct 2026", state: "FINAL", stockout: 5, excessOpportunity: 1000, workingCapital: -500 },
+    ])
+  })
+
+  it("leaves a gap -- not a zero -- for a month with no snapshot or an untrusted stockout reading", () => {
+    const missing = month({ state: "MISSING", stockout_at_risk: null, excess_opportunity: null, net_rop_value_impact: null })
+    const staleStockout = month({ stockout_valid: false, stockout_at_risk: null })
+    const [a, b] = trendPoints(trends([missing, staleStockout]))
+    expect(a).toMatchObject({ stockout: null, excessOpportunity: null, workingCapital: null })
+    expect(b).toMatchObject({ stockout: null, excessOpportunity: 1000 })
+  })
+
+  it("knows whether a series has anything to draw", () => {
+    const points = trendPoints(trends([month({ stockout_at_risk: null })]))
+    expect(hasPoints(points, "stockout")).toBe(false)
+    expect(hasPoints(points, "excessOpportunity")).toBe(true)
+  })
+})
+
+describe("millions and monthBasisLabel", () => {
+  it("shows money in millions with its sign", () => {
+    expect(millions(-2_397_304_441, null)).toBe("−2,397.30M")
+    expect(millions(1_200_000, "USD", true)).toBe("+USD 1.20M")
+    expect(millions(null, null)).toBe("—")
+  })
+
+  it("says how each month was measured", () => {
+    expect(monthBasisLabel(month({ state: "MISSING" }))).toBe("No snapshot")
+    expect(monthBasisLabel(month({ state: "OPEN", month_end_valid: false }))).toBe("Rolling reading")
+    expect(monthBasisLabel(month())).toBe("Month-end snapshot")
+    expect(monthBasisLabel(month({ month_end_valid: false }))).toBe("Snapshot, not month-end")
+  })
+})

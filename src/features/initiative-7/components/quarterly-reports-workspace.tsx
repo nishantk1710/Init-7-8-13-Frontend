@@ -51,7 +51,8 @@ import { RecommendationStatusChart } from "@/features/initiative-7/components/re
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { KpiCard } from "@/features/initiative-7/components/report-kpi-card"
-import { QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
+import { dayAfter, QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
+import { ManagementPrintView } from "@/features/initiative-7/components/quarterly-management-print"
 import { StockPolicyRow } from "@/features/initiative-7/components/quarterly-stock-policy-row"
 import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quarterly-snapshot-report"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
@@ -304,7 +305,19 @@ export function QuarterlyReportsWorkspace() {
   const { data: pdfMaterials, total: pdfMaterialsTotal, loading: pdfMaterialsLoading } =
     useLiveRecommendations(
       report && printRequested
-        ? { sort: "generated_at", sortDesc: true, page: 1, pageSize: PDF_MATERIALS_SIZE }
+        ? {
+            sort: "generated_at",
+            sortDesc: true,
+            page: 1,
+            pageSize: PDF_MATERIALS_SIZE,
+            // A report with the management view prints this period's recommendations; an older one keeps the unscoped list.
+            ...(report.management
+              ? {
+                  generatedFrom: `${report.metadata.period_start}T00:00:00`,
+                  generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
+                }
+              : {}),
+          }
         : {},
     )
 
@@ -714,13 +727,22 @@ export function QuarterlyReportsWorkspace() {
         typeof document !== "undefined" &&
         createPortal(
           <div className="print-portal">
-            <ReportPrintView
-              report={report}
-              materials={pdfMaterials ?? []}
-              materialsTotal={pdfMaterialsTotal}
-              chartSampleSize={CHART_SAMPLE_SIZE}
-              chartRecommendations={chartRecommendations ?? []}
-            />
+            {report.management ? (
+              <ManagementPrintView
+                report={report}
+                management={report.management}
+                materials={pdfMaterials ?? []}
+                materialsTotal={pdfMaterialsTotal}
+              />
+            ) : (
+              <ReportPrintView
+                report={report}
+                materials={pdfMaterials ?? []}
+                materialsTotal={pdfMaterialsTotal}
+                chartSampleSize={CHART_SAMPLE_SIZE}
+                chartRecommendations={chartRecommendations ?? []}
+              />
+            )}
           </div>,
           document.body,
         )}

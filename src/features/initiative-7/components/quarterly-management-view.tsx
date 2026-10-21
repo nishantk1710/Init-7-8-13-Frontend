@@ -25,6 +25,7 @@ import { AdoptionRateCard, StockoutRiskDistribution } from "@/features/initiativ
 import { ExcessPositionCard, StockoutPositionCard } from "@/features/initiative-7/components/plant-position-cards"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { StockPolicyRow } from "@/features/initiative-7/components/quarterly-stock-policy-row"
+import { MonthlyTrends, QuarterEndCard } from "@/features/initiative-7/components/quarterly-trends-section"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { ApiKpiCard, ApiMetricKind, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
@@ -132,6 +133,9 @@ function ManagementKpiCard({ card }: { card: ApiKpiCard }) {
         {available && !ESTIMATE_KEYS.has(card.key) && <span className="shrink-0 text-xs text-muted-foreground">{card.unit}</span>}
       </div>
       <p className="text-[11px] leading-relaxed text-muted-foreground">{card.explanation}</p>
+      {card.basis === "snapshot" && (
+        <p className="text-[10px] font-medium tracking-[0.4px] text-success uppercase">Saved month-end snapshot</p>
+      )}
       <p className="text-[11px] font-medium text-foreground">
         {card.period_label}
         {card.kind === "STATUS_AS_OF" || card.kind === "MEASUREMENT" ? "" : measured}
@@ -471,6 +475,10 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
             <NotAvailableChart reason={management.adoption.reason} />
           )}
         </ChartCard>
+
+        {/* --- From the saved monthly snapshots -------------------------------------------------- */}
+        {management.trends && <MonthlyTrends trends={management.trends} />}
+        {management.trends && <QuarterEndCard trends={management.trends} />}
 
         {/* --- Stock levels: an average over the recommendations, with how many ------------------- */}
         <ChartCard
