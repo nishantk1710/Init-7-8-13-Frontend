@@ -333,6 +333,9 @@ export function buildRegisterOptions(chains: RepairChain[]): RegisterOptions {
  * 19-Oct-2026), and a total with nothing to say what SAP closed would not
  * reconcile with an EKPO row count or with SAP's own open-PO list. Each "not
  * shown" figure appears only when the backend serves it and it is not zero.
+ * Lines on a request for quotation (left out since 21-Oct-2026) are named
+ * apart from the rest: an RFQ is not in a state SAP put it in, it was never an
+ * order.
  *
  * **It does not name the source, and that is deliberate.** This line used to
  * begin "N repair lines from the July extract", in static text, while the
@@ -348,15 +351,22 @@ export function registerDescription(
   sourceLoadedAt?: string | null,
 ): string {
   let text = `${meta.openLines.toLocaleString()} open repair lines, as at ${referenceDate}.`
-  const notShown = [
+  const inSap = [
     [meta.excludedDeliveryCompletedLines, "delivery completed"],
     [meta.excludedBlockedLines, "blocked"],
     [meta.excludedDeletedLines, "deleted"],
   ]
     .filter((entry): entry is [number, string] => Boolean(entry[0]))
     .map(([count, what]) => `${count.toLocaleString()} ${what}`)
+  const notShown = inSap.length > 0 ? [`${listed(inSap)} in SAP`] : []
+  const rfq = meta.excludedRfqLines
+  if (rfq) {
+    notShown.push(
+      `${rfq.toLocaleString()} on ${rfq === 1 ? "a request" : "requests"} for quotation`,
+    )
+  }
   if (notShown.length > 0) {
-    text += ` Not shown: ${listed(notShown)} in SAP.`
+    text += ` Not shown: ${notShown.join(", and ")}.`
   }
   if (sourceLoadedAt) {
     text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`

@@ -741,6 +741,29 @@ describe("registerDescription", () => {
     expect(text).not.toContain("deleted")
   })
 
+  it("names the requests for quotation apart from what SAP closed", () => {
+    const text = registerDescription(
+      {
+        ...meta,
+        excludedDeliveryCompletedLines: 4982,
+        excludedBlockedLines: 68,
+        excludedDeletedLines: 549,
+        excludedRfqLines: 1,
+      },
+      "2026-10-21",
+    )
+    expect(text).toContain(
+      "Not shown: 4,982 delivery completed, 68 blocked and 549 deleted in SAP, " +
+        "and 1 on a request for quotation.",
+    )
+  })
+
+  it("names requests for quotation on their own when nothing else is left out", () => {
+    expect(registerDescription({ ...meta, excludedRfqLines: 2 }, "2026-10-21")).toContain(
+      "Not shown: 2 on requests for quotation.",
+    )
+  })
+
   it("says nothing about exclusions a backend does not report", () => {
     const text = registerDescription(meta, "2026-10-15")
     expect(text).not.toContain("Not shown")
