@@ -7,7 +7,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react"
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import { RecommendationReviewTable } from "@/features/initiative-7/components/recommendation-review-table"
 import {
   ALL_FILTER,
@@ -150,10 +150,7 @@ function LiveRecommendationsWorkspace({
         mergeCriticalIntoHigh
       />
       {loading ? (
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+        <PageLoader label="Loading recommendations" className="h-72 w-full" />
       ) : error ? (
         <EmptyState
           icon={<AlertTriangle className="size-4" />}

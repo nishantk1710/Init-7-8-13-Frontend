@@ -209,3 +209,122 @@
   --ring: #5aa2e0;
   --brand-link: #7cb9ee;
 }
+
+/* The petal loader (components/shared/loading-spinner.tsx): the whole ring turns in twelve steps, one petal at a time. It turns
+   against the direction the petals lighten, so the pale ones trail behind the dark one. */
+@keyframes spinner-petals-turn {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.spinner-petals {
+  transform-origin: 50% 50%;
+  animation: spinner-petals-turn 1s steps(12, end) infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, turning slowly. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner-petals {
+    animation-duration: 4s;
+  }
+}
+
+/* The page loader (components/shared/page-loader.tsx): an hourglass. The top sand empties, the bottom fills, a thin stream
+   falls between them, and the glass turns over to start again. */
+@keyframes page-loader-turn {
+  0%,
+  80% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes page-loader-top {
+  0% {
+    transform: scaleY(1);
+  }
+  80%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes page-loader-bottom {
+  0% {
+    transform: scaleY(0);
+  }
+  80%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes page-loader-stream {
+  0%,
+  8% {
+    opacity: 0;
+  }
+  12%,
+  76% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.page-loader-glass {
+  transform-origin: 50% 50%;
+  animation: page-loader-turn 3s ease-in-out infinite;
+}
+
+.page-loader-top,
+.page-loader-bottom {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.page-loader-top {
+  animation: page-loader-top 3s linear infinite;
+}
+
+.page-loader-bottom {
+  animation: page-loader-bottom 3s linear infinite;
+}
+
+.page-loader-stream {
+  animation: page-loader-stream 3s linear infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, much slower. */
+@media (prefers-reduced-motion: reduce) {
+  .page-loader-glass,
+  .page-loader-top,
+  .page-loader-bottom,
+  .page-loader-stream {
+    animation-duration: 12s;
+  }
+}
+
+/* The chart loader (components/shared/chart-loader.tsx): a ring with one arc running round it. */
+@keyframes chart-loader-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-loader-ring {
+  transform-origin: 50% 50%;
+  animation: chart-loader-turn 0.9s linear infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, turning slowly. */
+@media (prefers-reduced-motion: reduce) {
+  .chart-loader-ring {
+    animation-duration: 4s;
+  }
+}

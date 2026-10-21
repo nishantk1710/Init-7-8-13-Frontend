@@ -6,6 +6,7 @@
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis, type TooltipContentProps } from "recharts"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ChartLoader } from "@/components/shared/chart-loader"
 import { ALL_FILTER } from "@/features/initiative-7/components/dashboard-filters"
 import { InventoryHealthCard } from "@/features/initiative-7/components/inventory-health-card"
 import type { AdoptionSummaryResult } from "@/features/initiative-7/services/i7-api"
@@ -95,6 +96,17 @@ export function AdoptionRateCard({
       </Select>
     </div>
   )
+
+  // While the counts are being fetched a spinning circle stands in for the chart: neither the previous filter's bars nor a
+  // chart of zeros, either of which reads as a real answer. As tall as the chart, so the card does not change size.
+  if (loading) {
+    return (
+      <div className="flex w-full flex-col items-stretch gap-2">
+        {plantPicker}
+        <ChartLoader label="Loading SAP adoption" className="h-[290px] w-full" />
+      </div>
+    )
+  }
 
   // The chart is always drawn, with zero bars when there is nothing to count, so the
   // card keeps its shape; a line under it says why the counts are empty.
@@ -210,10 +222,16 @@ export interface StockoutFigures {
 export function StockoutRiskDistribution({
   figures,
   unavailable,
+  loading = false,
 }: {
   figures: StockoutFigures | null
   unavailable?: string
+  /** The figures are being fetched: a spinning circle, not "Not available", for the moments they take to arrive. */
+  loading?: boolean
 }) {
+  if (loading) {
+    return <ChartLoader label="Loading stockout risk distribution" className="h-[150px] w-full" />
+  }
   if (!figures || figures.asOf === null) {
     return (
       <div className="flex h-[150px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
