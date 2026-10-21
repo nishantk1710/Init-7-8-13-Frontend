@@ -487,7 +487,7 @@ export type ApiExceptionItem = {
    * serves it: a build talking to an older API gets `undefined` and renders
    * the queue without a lifecycle rather than claiming everything is OPEN.
    */
-  status?: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+  status?: "OPEN" | "CLOSED" | LegacyExceptionStatus
   /** Null or absent means unassigned, which is a real and common state. */
   owner?: string | null
   /** Whether a check still raises this. False only on an item fetched by id
@@ -495,6 +495,10 @@ export type ApiExceptionItem = {
   stillDetected?: boolean
   history?: ApiExceptionEvent[]
 }
+
+/** Retired on 21-Oct-2026 for OPEN and CLOSED. Served only by a backend older
+ *  than that; read through `toExceptionStatus`, never sent. */
+export type LegacyExceptionStatus = "IN_PROGRESS" | "RESOLVED"
 
 /** One entry in an exception's history. */
 export type ApiExceptionEvent = {
@@ -762,7 +766,7 @@ export type ExceptionQuery = {
   plant?: string
   /** One repair line, as the register keys it — `4500000677-20`. */
   repair?: string
-  /** OPEN / IN_PROGRESS / RESOLVED / CLOSED. */
+  /** OPEN / CLOSED. */
   status?: string
   /** An owner, or the literal `unassigned`. */
   owner?: string
@@ -815,12 +819,16 @@ export function getException(exceptionId: string): Promise<ApiExceptionItem> {
  *
  * `ASSIGNED` with `owner: null` is an unassignment, and gets its own entry:
  * handing something back is an action, not an absence.
+ *
+ * Closing needs `text`: the backend answers 422 without it, because a person
+ * closing an item the check may still find has to say why. Reopening does not.
  */
 export function appendExceptionEvent(
   exceptionId: string,
   body:
     | { kind: "ASSIGNED"; owner: string | null }
-    | { kind: "STATUS"; status: string; text?: string }
+    | { kind: "STATUS"; status: "CLOSED"; text: string }
+    | { kind: "STATUS"; status: "OPEN"; text?: string }
     | { kind: "COMMENT"; text: string },
 ): Promise<ApiExceptionItem> {
   return apiPost<ApiExceptionItem>(

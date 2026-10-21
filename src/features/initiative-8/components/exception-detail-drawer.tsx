@@ -19,7 +19,6 @@ import type {
 } from "@/features/initiative-8/types/repair"
 import {
   EXCEPTION_SEVERITY_TONE,
-  EXCEPTION_STATUSES,
   EXCEPTION_STATUS_LABEL,
   EXCEPTION_STATUS_TONE,
   UNKNOWN,
@@ -37,24 +36,31 @@ const KIND_VERB: Record<ExceptionEvent["kind"], string> = {
   AUTO_RESOLVED: "resolved itself",
 }
 
-const EVENT_TONE: Record<string, TimelineEvent["tone"]> = {
-  RESOLVED: "success",
-  CLOSED: "default",
-  IN_PROGRESS: "warning",
-  OPEN: "danger",
-}
-
-/** One history entry as a timeline step, coloured by the status it set. */
+/**
+ * One history entry as a timeline step. Green only when the data closed it:
+ * the check stopping is the one ending that proves the gap is gone. A person
+ * closing it is recorded plainly, because the check may still find the item.
+ */
 function historyStep(event: ExceptionEvent): TimelineEvent {
   return {
     id: event.id,
     label:
       event.kind === "AUTO_RESOLVED"
         ? "The check stopped finding it"
-        : `${event.actor} ${KIND_VERB[event.kind]}`,
+        : event.kind === "STATUS" && event.status
+          ? // "set it to Open", not "reopened it": an entry from before
+            // 21-Oct that said In progress reads as Open, and that item was
+            // never closed.
+            `${event.actor} ${event.status === "CLOSED" ? "closed it" : "set it to Open"}`
+          : `${event.actor} ${KIND_VERB[event.kind]}`,
     timestamp: event.at,
     description: event.text || undefined,
-    tone: event.status ? EVENT_TONE[event.status] ?? "default" : "default",
+    tone:
+      event.kind === "AUTO_RESOLVED"
+        ? "success"
+        : event.status === "OPEN"
+          ? "danger"
+          : "default",
   }
 }
 
@@ -87,8 +93,16 @@ export type ExceptionDetailDrawerProps = {
  * attestation table on every read — so there is nothing here to mutate
  * locally and re-render. Each action POSTs and then calls `router.refresh()`,
  * which re-runs the server fetch and brings back both the new history and
- * whatever the checks now say. That is also how an item that resolved itself
- * in the meantime shows up as resolved rather than sitting here looking open.
+ * whatever the checks now say. That is also how an item that closed itself in
+ * the meantime shows up as closed rather than sitting here looking open.
+ *
+ * ## Why only Open and Closed
+ *
+ * In progress and Resolved were retired on 21-Oct-2026. In progress said what
+ * the owner already says, and only took the item off the default Open view;
+ * Resolved behaved exactly like Closed. An item ends one of two ways -- the
+ * data is fixed and the check stops finding it, or a person closes it with a
+ * reason -- and the history tells those apart, so the status does not have to.
  */
 export function ExceptionDetailDrawer({
   exception,
@@ -217,11 +231,11 @@ export function ExceptionDetailDrawer({
               ) : (
                 "this repair line"
               )}{" "}
-              makes the check stop finding this item, and it resolves itself with
+              makes the check stop finding this item, and it closes itself with
               the declaration in its history.
             </>
           ) : (
-            "This item resolves itself when the data it was raised on changes — a goods receipt, a declaration, or a justification."
+            "This item closes itself when the data it was raised on changes — a goods receipt, a declaration, or a justification."
           )}
         </p>
 
@@ -279,21 +293,65 @@ export function ExceptionDetailDrawer({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] text-muted-foreground" htmlFor="exception-note">
-              Note — recorded with whatever you do next
-            </label>
-            <Input
-              id="exception-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Why, for whoever reads this later"
-              className="h-9"
-            />
-            <div className="flex flex-wrap gap-2">
-              {EXCEPTION_STATUSES.filter((s) => s !== item.status).map((status) => (
+          {/* Two statuses, so one move from here: close an open item, or
+              reopen a closed one. Closing needs a note -- the backend refuses
+              one without -- because a person's close is the ending the data
+              did not produce. */}
+          {item.status === "OPEN" ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] text-muted-foreground" htmlFor="exception-note">
+                Closing note — required
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="exception-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Why it is being closed, for whoever reads this later"
+                  className="h-9"
+                />
                 <Button
-                  key={status}
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !note.trim()}
+                  title={note.trim() ? undefined : "A closing note is required"}
+                  onClick={() =>
+                    run(
+                      () =>
+                        appendExceptionEvent(item.id, {
+                          kind: "STATUS",
+                          status: "CLOSED",
+                          text: note.trim(),
+                        }),
+                      `${item.id} closed`,
+                    )
+                  }
+                >
+                  {/* "item": the drawer's own dismiss button is called Close. */}
+                  Close item
+                </Button>
+              </div>
+              {item.stillDetected && (
+                <p className="text-[11px] text-muted-foreground">
+                  The check still finds this item, so closing it records that it
+                  was dealt with by hand.
+                </p>
+              )}
+            </div>
+          ) : item.stillDetected ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] text-muted-foreground" htmlFor="exception-note">
+                Note — optional
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="exception-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Why it is being reopened"
+                  className="h-9"
+                />
+                <Button
                   size="sm"
                   variant="outline"
                   disabled={busy}
@@ -302,18 +360,24 @@ export function ExceptionDetailDrawer({
                       () =>
                         appendExceptionEvent(item.id, {
                           kind: "STATUS",
-                          status,
+                          status: "OPEN",
                           text: note.trim(),
                         }),
-                      `${item.id} set to ${EXCEPTION_STATUS_LABEL[status]}`,
+                      `${item.id} reopened`,
                     )
                   }
                 >
-                  {EXCEPTION_STATUS_LABEL[status]}
+                  Reopen item
                 </Button>
-              ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            // Reopening would only be undone: the next read of the queue
+            // closes an open item the check no longer finds.
+            <p className="text-[11px] text-muted-foreground">
+              The check no longer finds this item, so there is nothing to reopen.
+            </p>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] text-muted-foreground" htmlFor="exception-comment">

@@ -292,7 +292,7 @@ export function ExceptionsTable({
           />
 
           {/* FR-11: the queue is worked, so it filters by where the work is.
-              Starts on OPEN, the first of the four real statuses; the URL
+              Starts on OPEN, the first of the two real statuses; the URL
               says `status=all` for every status, and nothing for the default. */}
           <Select
             value={filters.status ?? ALL_STATUSES}
