@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { Database, Layers, RefreshCw } from "lucide-react"
+import { usePathname } from "next/navigation"
 
 import { getHealth } from "@/lib/api/client"
+import { isPublicPath } from "@/lib/auth/mock-auth"
 import { clientDataMode, setDataMode, type DataMode } from "@/lib/data-mode"
 import { cn } from "@/lib/utils"
 
@@ -83,6 +85,7 @@ type Health = { state: "checking" } | { state: "ok" } | { state: "down"; reason:
  */
 export function DataModeBanner() {
   const mode = useDataMode()
+  const pathname = usePathname()
   const [health, setHealth] = useState<Health>({ state: "checking" })
   const [attempt, setAttempt] = useState(0)
 
@@ -102,6 +105,9 @@ export function DataModeBanner() {
       cancelled = true
     }
   }, [mode, attempt])
+
+  // Not on the sign-in pages: nothing there reads the backend.
+  if (isPublicPath(pathname)) return null
 
   if (mode === "live" && health.state === "down") {
     return (
