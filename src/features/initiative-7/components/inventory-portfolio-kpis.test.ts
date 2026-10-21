@@ -17,7 +17,7 @@ function render(workingCapitalOverride?: { amount: number | null; currency: stri
   return renderToStaticMarkup(
     createElement(InventoryPortfolioKpis, {
       recommendations: [] as Recommendation[],
-      pendingApprovalOverride: { count: 5, total: 100 },
+      adoptedOverride: { count: 5, total: 100 },
       stockoutRiskOverride: { count: 3, total: 100 },
       excessInventoryOverride: { count: 7, total: 100, opportunity: null },
       workingCapitalOverride,
@@ -65,6 +65,33 @@ describe("High Stockout Risk KPI without a backend figure", () => {
   })
 })
 
+describe("Adopted recommendation KPI", () => {
+  const renderAdopted = (adoptedOverride?: { count: number; total: number } | null) =>
+    renderToStaticMarkup(createElement(InventoryPortfolioKpis, { recommendations: [] as Recommendation[], adoptedOverride }))
+
+  it("replaces Pending Approval: x adopted of y recommendations, and the share", () => {
+    const markup = renderAdopted({ count: 12, total: 400 })
+    expect(markup).toContain("Adopted recommendation")
+    expect(markup).not.toContain("Pending Approval")
+    expect(markup).toContain(">12<")
+    expect(markup).toContain("of 400 recommendations")
+    expect(markup).toContain("3.0% adopted")
+  })
+
+  it("reads 0 of y, not Not available, when there is something to adopt and none has been", () => {
+    const markup = renderAdopted({ count: 0, total: 400 })
+    expect(markup).toContain("of 400 recommendations")
+    expect(markup).toContain("0.0% adopted")
+  })
+
+  it("says Not available, never 0, when the adoption counts could not be loaded", () => {
+    const markup = renderAdopted(null)
+    expect(markup).toContain("Adopted recommendation")
+    expect(markup).toContain("adoption counts could not be loaded")
+    expect(markup).not.toContain("% adopted")
+  })
+})
+
 describe("Working Capital Impact KPI", () => {
   it("shows the backend's portfolio net release, not a sum of the fetched rows", () => {
     const markup = render({ amount: 2_500_000, currency: "USD" })
@@ -82,7 +109,7 @@ describe("Working Capital Impact KPI", () => {
   it("says Not available, never 0, when the backend has no figure", () => {
     const markup = render({ amount: null, currency: null })
     expect(markup).toContain("Not available")
-    expect(markup).toContain("needs a unit price and a calculated safety stock")
+    expect(markup).toContain("needs a unit price and a calculated reorder point")
     expect(markup).not.toContain("Net release")
   })
 
@@ -101,7 +128,7 @@ describe("High Stockout Risk KPI", () => {
     return renderToStaticMarkup(
       createElement(InventoryPortfolioKpis, {
         recommendations: [] as Recommendation[],
-        pendingApprovalOverride: { count: 5, total: 100 },
+        adoptedOverride: { count: 5, total: 100 },
         stockoutRiskOverride,
         excessInventoryOverride: { count: 7, total: 100, opportunity: null },
         workingCapitalOverride: { amount: null, currency: null },

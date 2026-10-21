@@ -172,6 +172,8 @@ export interface ApiRecommendationSummaryStats {
   /** Currency of every money figure here, when all priced materials share one. */
   currency?: string | null
   net_safety_stock_value_impact: ApiDecimal
+  /** SUM(unit_price * (current_rop - recommended_rop)) -- the Overview's Working Capital Impact. */
+  net_rop_value_impact?: ApiDecimal
   critical_stockout_risk_count: number
   /** Fast / Slow material-plants that could be judged -- the denominator of the stockout share. */
   stockout_risk_evaluated_count?: number

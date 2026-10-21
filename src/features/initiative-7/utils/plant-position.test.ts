@@ -2,7 +2,11 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { fetchRecommendationSummary, type RecommendationSummaryStats } from "@/features/initiative-7/services/i7-api"
+import {
+  fetchAdoptionSummary,
+  fetchRecommendationSummary,
+  type RecommendationSummaryStats,
+} from "@/features/initiative-7/services/i7-api"
 import { formatShare, positionBars, stockoutAsOf, toPlantPosition, type PlantPosition } from "./plant-position"
 
 function stats(overrides: Partial<RecommendationSummaryStats> = {}): RecommendationSummaryStats {
@@ -12,6 +16,7 @@ function stats(overrides: Partial<RecommendationSummaryStats> = {}): Recommendat
     oarCount: 0, normalCount: 0, awaitingApprovalCount: 0, readyForReviewCount: 0, notEvaluableCount: 0,
     currency: null,
     netSafetyStockValueImpact: -1_317_618_228_488,
+    netRopValueImpact: -1_317_618_228_488,
     criticalStockoutRiskCount: 530,
     stockoutRiskEvaluatedCount: 800,
     stockoutRiskInsufficientDataCount: 40,
@@ -136,5 +141,46 @@ describe("the requests behind the bars", () => {
     expect(new URL(calls[0], "http://x").searchParams.get("plant")).toBeNull()
     expect(new URL(calls[1], "http://x").searchParams.get("plant")).toBe("1300")
     expect(new URL(calls[2], "http://x").searchParams.get("plant")).toBe("1500")
+  })
+})
+
+describe("the Overview's OAR / stock item filter reaches every count", () => {
+  function stubJson(body: unknown, calls: string[]) {
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+    })
+  }
+
+  it("narrows the summary behind the KPIs, the distribution and the plant bars by is_oar", async () => {
+    const calls: string[] = []
+    stubJson({ total: 0, by_status: [], by_criticality: [], by_circuit: [], by_risk: [], by_plant: [] }, calls)
+    await fetchRecommendationSummary({ plant: "1300", isOar: true })
+    await fetchRecommendationSummary({ isOar: false })
+    await fetchRecommendationSummary({})
+    expect(new URL(calls[0], "http://x").searchParams.get("is_oar")).toBe("true")
+    expect(new URL(calls[0], "http://x").searchParams.get("plant")).toBe("1300")
+    expect(new URL(calls[1], "http://x").searchParams.get("is_oar")).toBe("false")
+    expect(new URL(calls[2], "http://x").searchParams.get("is_oar")).toBeNull()
+  })
+
+  it("narrows the SAP adoption summary by plant, type, demand class and criticality level", async () => {
+    const calls: string[] = []
+    stubJson(
+      {
+        total_evaluated: 10, adopted_count: 1, partially_adopted_count: 0, not_adopted_count: 0, unknown_count: 9,
+        adoption_rate_percentage: null, by_status: [],
+      },
+      calls,
+    )
+    const result = await fetchAdoptionSummary({ plant: "1500", type: "stock_item", demandClass: "LUMPY", criticalityLevel: "High" })
+    await fetchAdoptionSummary()
+    const query = new URL(calls[0], "http://x").searchParams
+    expect(query.get("plant")).toBe("1500")
+    expect(query.get("type")).toBe("stock_item")
+    expect(query.get("demand_class")).toBe("LUMPY")
+    expect(query.get("criticality_level")).toBe("High")
+    expect(new URL(calls[1], "http://x").search).toBe("")
+    expect(result).toMatchObject({ totalEvaluated: 10, adoptedCount: 1 })
   })
 })

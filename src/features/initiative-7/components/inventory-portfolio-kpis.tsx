@@ -1,12 +1,11 @@
 import type { ReactNode } from "react"
-import { AlertTriangle, Clock, Layers, Wallet } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Layers, Wallet } from "lucide-react"
 
 import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import {
   countAtStockoutRisk,
-  countAwaitingApproval,
   countExcessCandidates,
   netWorkingCapitalImpact,
 } from "@/features/initiative-7/utils/inventory-calc"
@@ -112,28 +111,32 @@ function PortfolioKpiCard({
  * that matter for a planner scanning the page: where disruption is likely
  * (stockout risk), where capital is trapped unnecessarily (excess inventory),
  * the financial consequence of the open recommendations (working-capital
- * impact), and how many still need a decision (pending approval). Every
+ * impact), and how many of the recommendations were adopted in SAP. Every
  * figure derives from whichever recommendation set is passed in — the full
  * catalog by default, or the dashboard's current filter selection.
  */
 export function InventoryPortfolioKpis({
   recommendations = RECOMMENDATIONS,
-  pendingApprovalOverride,
+  adoptedOverride,
+  adoptedUnavailable,
   stockoutRiskOverride,
   stockoutRiskUnavailable,
   excessInventoryOverride,
   workingCapitalOverride,
 }: {
   recommendations?: Recommendation[]
-  /** Part 35 -- portfolio-wide { count, total } for "Pending Approval",
-   * from GET /recommendations/summary. In live mode, `recommendations` is at
-   * most one fetched page, so counting/percenting from it directly would
-   * read "100% of recommendations" from a page that happens to be mostly
-   * blocked materials, not a real portfolio share (see
-   * use-live-recommendation-summary.ts). Only this one KPI has a real
-   * backend aggregate to fall back to; the other three still derive from
-   * `recommendations` as before -- unchanged, not addressed here. */
-  pendingApprovalOverride?: { count: number; total: number }
+  /** Portfolio-wide { count, total } for "Adopted recommendation", from GET
+   * /recommendations/adoption/summary: `count` are the recommendations SAP's change history shows
+   * adopted, `total` the recommendations with something to adopt (an OAR one eligible for the
+   * Min-Max conversion, or a stock item with a changed ROP / safety stock / max stock) -- the same
+   * set the Recommendations page lists. In live mode `recommendations` is at most one fetched page,
+   * so a count taken from it would not be the portfolio's. Without it (the scenario dataset) the
+   * card counts the rows it was given that are Implemented. `null` says the figure could not be
+   * had: the card reads "Not available" rather than 0. */
+  adoptedOverride?: { count: number; total: number } | null
+  /** Why the adoption figure is not there yet (still loading, ...): the card says "Not available"
+   * with this as its caption instead of counting whichever rows it was given. */
+  adoptedUnavailable?: string
   /** Portfolio-wide figures for "High Stockout Risk", from GET /recommendations/summary's
    * critical_stockout_risk_count -- the same one-fetched-page-is-not-the-portfolio problem
    * pendingApprovalOverride documents above applies here too: it is computed in SQL over every
@@ -159,9 +162,9 @@ export function InventoryPortfolioKpis({
    * on the backend. */
   excessInventoryOverride?: { count: number; total: number; opportunity: number | null }
   /** Portfolio-wide net working-capital impact, from GET /recommendations/summary's
-   * net_safety_stock_value_impact: positive releases working capital, negative ties
-   * more up. `amount` is `null` (never a fabricated 0) when no recommendation has a
-   * unit price, a current and a recommended safety stock together -- shown as
+   * net_rop_value_impact (unit price x current - recommended reorder point): positive releases
+   * working capital, negative ties more up. `amount` is `null` (never a fabricated 0) when no
+   * recommendation has a unit price, a current and a recommended reorder point together -- shown as
    * "Not available". Without this, the KPI sums only the rows that happen to be on
    * the fetched page, which is a handful of the newest rows and not the portfolio. */
   workingCapitalOverride?: { amount: number | null; currency: string | null; estimated?: boolean }
@@ -186,8 +189,9 @@ export function InventoryPortfolioKpis({
     : undefined
   const excess = excessInventoryOverride?.count ?? countExcessCandidates(recommendations)
   const excessTotal = excessInventoryOverride?.total ?? total
-  const awaiting = pendingApprovalOverride?.count ?? countAwaitingApproval(recommendations)
-  const awaitingTotal = pendingApprovalOverride?.total ?? total
+  const adoptedNotAvailable = adoptedOverride === null || adoptedUnavailable !== undefined
+  const adopted = adoptedOverride?.count ?? recommendations.filter((r) => r.status === "Implemented").length
+  const adoptedTotal = adoptedOverride?.total ?? total
   // From the backend's portfolio total when given; otherwise (the scenario
   // dataset) from the recommendations passed in.
   const netImpact = workingCapitalOverride
@@ -228,18 +232,23 @@ export function InventoryPortfolioKpis({
         value={netImpact === null ? "Not available" : formatCompactSigned(netImpact, impactCurrency)}
         caption={
           netImpact === null
-            ? "needs a unit price and a calculated safety stock"
+            ? "needs a unit price and a calculated reorder point"
             : `${netImpact >= 0 ? "Net release" : "Net additional investment"}${workingCapitalOverride?.estimated ? " · estimate" : ""}`
         }
         captionMuted={netImpact === null}
       />
       <PortfolioKpiCard
-        title="Pending Approval"
-        icon={<Clock className="size-3.5" />}
+        title="Adopted recommendation"
+        icon={<CheckCircle2 className="size-3.5" />}
         tone="warning"
-        value={formatCount(awaiting)}
-        suffix="Recommendations"
-        caption={`${pct(awaiting, awaitingTotal)}% of recommendations`}
+        value={adoptedNotAvailable ? "Not available" : formatCount(adopted)}
+        suffix={adoptedNotAvailable ? undefined : `of ${formatCount(adoptedTotal)} recommendations`}
+        caption={
+          adoptedNotAvailable
+            ? (adoptedUnavailable ?? "adoption counts could not be loaded")
+            : `${pct(adopted, adoptedTotal)}% adopted`
+        }
+        captionMuted={adoptedNotAvailable}
       />
     </div>
   )

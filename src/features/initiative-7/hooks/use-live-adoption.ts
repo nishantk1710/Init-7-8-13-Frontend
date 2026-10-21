@@ -10,6 +10,7 @@ import {
   fetchAdoptionList,
   fetchAdoptionSummary,
   type AdoptionListRow,
+  type AdoptionSummaryParams,
   type AdoptionSummaryResult,
   type RecommendationListParams,
 } from "@/features/initiative-7/services/i7-api"
@@ -85,11 +86,11 @@ export interface LiveAdoptionSummaryState {
 }
 
 /** GET /recommendations/adoption/summary -- the persisted ledger's
- * portfolio-wide counts (or, with `plant`, one plant's counts), refetched
- * whenever `plant` changes. Powers the Inventory Planning overview's
+ * portfolio-wide counts (or, with `params`, a narrowed set), refetched
+ * whenever `params` change. Powers the Inventory Planning overview's
  * adoption-rate card ("always-on dashboard") and the quarterly report's SAP
  * Adoption section, both reading the same summary. */
-export function useLiveAdoptionSummary(plant?: string): LiveAdoptionSummaryState {
+export function useLiveAdoptionSummary(params: AdoptionSummaryParams = {}): LiveAdoptionSummaryState {
   const [summary, setSummary] = useState<AdoptionSummaryResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ApiError | Error | null>(null)
@@ -100,7 +101,8 @@ export function useLiveAdoptionSummary(plant?: string): LiveAdoptionSummaryState
   // state from a changed key without the "setState synchronously in an
   // effect" cascading-render smell (see use-live-recommendations.ts's
   // identical pattern).
-  const requestKeyValue = `${plant ?? ""}:${tick}`
+  const paramsKey = JSON.stringify(params)
+  const requestKeyValue = `${paramsKey}:${tick}`
   const [requestKey, setRequestKey] = useState(requestKeyValue)
   if (requestKey !== requestKeyValue) {
     setRequestKey(requestKeyValue)
@@ -111,7 +113,7 @@ export function useLiveAdoptionSummary(plant?: string): LiveAdoptionSummaryState
   useEffect(() => {
     let cancelled = false
 
-    fetchAdoptionSummary(plant)
+    fetchAdoptionSummary(JSON.parse(paramsKey) as AdoptionSummaryParams)
       .then((result) => {
         if (cancelled) return
         setSummary(result)
@@ -127,7 +129,7 @@ export function useLiveAdoptionSummary(plant?: string): LiveAdoptionSummaryState
     return () => {
       cancelled = true
     }
-  }, [plant, tick])
+  }, [paramsKey, tick])
 
   const refetch = useCallback(() => setTick((t) => t + 1), [])
 
