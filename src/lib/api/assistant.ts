@@ -303,6 +303,12 @@ export type SessionTraceResponse = {
   /** MAKT / ZMM065 name, where the backend has one. */
   materialDescription?: string | null
   sessionId: string
+  /** The multi-material request this session is a line of, if any. */
+  requestId?: string | null
+  lineNo?: number | null
+  /** `<request>/<n>` for a request line, the session ID otherwise. Absent on a
+   *  backend older than the field. */
+  reference?: string
   flow: string
   outcome: ApiSessionOutcome
   materialId: string
