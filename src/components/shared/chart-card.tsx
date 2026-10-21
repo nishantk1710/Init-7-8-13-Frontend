@@ -19,6 +19,7 @@ const SPAN_CLASSES = {
 export function ChartCard({
   title,
   subtitle,
+  titleAction,
   hint,
   footnote,
   span = 12,
@@ -27,6 +28,8 @@ export function ChartCard({
 }: {
   title: string
   subtitle?: string
+  /** Sits beside the title, e.g. an information button. */
+  titleAction?: ReactNode
   hint?: string
   footnote?: ReactNode
   span?: keyof typeof SPAN_CLASSES
@@ -35,6 +38,7 @@ export function ChartCard({
 }) {
   return (
     <div
+      data-slot="chart-card"
       className={cn(
         "flex flex-col rounded-xl border border-border bg-card p-4",
         SPAN_CLASSES[span],
@@ -42,7 +46,14 @@ export function ChartCard({
       )}
     >
       <div className="mb-2.5">
-        <div className="text-sm font-medium text-foreground">{title}</div>
+        {titleAction ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-medium text-foreground">{title}</div>
+            {titleAction}
+          </div>
+        ) : (
+          <div className="text-sm font-medium text-foreground">{title}</div>
+        )}
         {subtitle && (
           <div className="mt-0.5 text-xs text-muted-foreground">{subtitle}</div>
         )}

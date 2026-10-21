@@ -64,6 +64,20 @@ export function positionBars(positions: PlantPosition[], metric: PositionMetric)
   })
 }
 
+/** The All-plants numerator and denominator a card's bar is drawn from -- what its information
+ * popover quotes. `undefined` while loading, `null` when there is nothing to quote (a load error, or
+ * a stockout usage that has not been built, whose counts are "not computed" and not 0). */
+export function allPlantsFigures(
+  state: { positions: PlantPosition[]; loading: boolean; error: Error | null },
+  metric: PositionMetric,
+): { count: number; total: number } | null | undefined {
+  if (state.loading) return undefined
+  if (state.error) return null
+  if (metric === "stockoutRisk" && stockoutAsOf(state.positions) === null) return null
+  const bar = positionBars(state.positions, metric).find((candidate) => candidate.scope === "ALL")
+  return bar ? { count: bar.value, total: bar.total } : null
+}
+
 /** The date the stockout bars were read as of, or null when none of the scopes has one (the usage
  * has not been built, so every count is "not computed" and not 0). */
 export function stockoutAsOf(positions: PlantPosition[]): string | null {

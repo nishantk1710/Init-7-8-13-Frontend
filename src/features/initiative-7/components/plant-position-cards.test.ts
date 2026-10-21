@@ -65,11 +65,11 @@ describe("loading and failure are separate from empty", () => {
 })
 
 describe("the bars' notes", () => {
-  it("describes the stockout count against consumption over the lead time, and says when it is as of", () => {
+  it("describes the stockout count against the AI Suggested reorder point, as of the latest analysis", () => {
     const markup = renderToStaticMarkup(createElement(StockoutPositionCard, { state: loaded(POSITIONS) }))
-    expect(markup).toContain("below their average daily consumption times their supplier lead time, as of 31 May 2026.")
-    expect(markup).toContain("left out as insufficient data")
-    expect(markup).not.toContain("reorder point")
+    expect(markup).toContain(
+      "Material-plants whose stock on hand is below the AI Suggested reorder point, as of the latest recommendation analysis.",
+    )
     expect(markup).not.toContain("not yet confirmed by the business")
     expect(markup).not.toContain("builds up")
   })
@@ -100,7 +100,7 @@ describe("the bars' notes", () => {
         ]),
       }),
     )
-    expect(markup).toContain("average daily consumption")
+    expect(markup).toContain("AI Suggested reorder point")
     expect(markup).not.toContain("No material-plants could be judged yet.")
   })
 })

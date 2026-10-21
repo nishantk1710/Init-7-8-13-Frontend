@@ -204,7 +204,7 @@ export function InventoryPortfolioKpis({
         icon={<AlertTriangle className="size-3.5" />}
         tone="danger"
         value={stockoutNotComputed ? "Not available" : formatCount(stockoutRisk)}
-        suffix={stockoutNotComputed ? undefined : "Materials"}
+        suffix={stockoutNotComputed ? undefined : "Material-plants"}
         caption={
           stockoutNotComputed
             ? stockoutNotComputedCaption

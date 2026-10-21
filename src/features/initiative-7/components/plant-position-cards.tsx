@@ -14,7 +14,7 @@ import {
 } from "recharts"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCount, formatIsoDateDMY } from "@/lib/utils"
+import { formatCount } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { PlantPositionsState } from "@/features/initiative-7/hooks/use-plant-positions"
 import {
@@ -65,10 +65,8 @@ const METRIC_COPY: Record<
     population: "judged material-plants",
     loadError: "Could not load the stockout risk position from the backend.",
     empty: "No material-plants could be judged yet.",
-    note: (asOf) =>
-      `Fast and slow moving material-plants whose stock on hand is below their average daily consumption times their supplier lead time${
-        asOf ? `, as of ${formatIsoDateDMY(asOf)}` : ""
-      }. Material-plants with no lead time or stock figure are left out as insufficient data.`,
+    note: () =>
+      "Material-plants whose stock on hand is below the AI Suggested reorder point, as of the latest recommendation analysis.",
   },
   excess: {
     noun: "above the recommended maximum",

@@ -49,7 +49,9 @@ import {
   ExcessPositionCard,
   StockoutPositionCard,
 } from "@/features/initiative-7/components/plant-position-cards"
+import { PositionInfoButton } from "@/features/initiative-7/components/position-info-button"
 import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
+import { allPlantsFigures, stockoutAsOf } from "@/features/initiative-7/utils/plant-position"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
@@ -466,6 +468,13 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             <ChartCard
               title="Stockout risk by plant"
               subtitle="Fast and slow moving material-plants short of their lead-time need."
+              titleAction={
+                <PositionInfoButton
+                  metric="stockoutRisk"
+                  asOf={plantPositions.loading ? undefined : stockoutAsOf(plantPositions.positions)}
+                  figures={allPlantsFigures(plantPositions, "stockoutRisk")}
+                />
+              }
               span={6}
             >
               <StockoutPositionCard state={plantPositions} />
@@ -473,6 +482,9 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             <ChartCard
               title="Excess inventory by plant"
               subtitle="Material-plants above their recommended maximum stock, now."
+              titleAction={
+                <PositionInfoButton metric="excess" figures={allPlantsFigures(plantPositions, "excess")} />
+              }
               span={6}
             >
               <ExcessPositionCard state={plantPositions} />
