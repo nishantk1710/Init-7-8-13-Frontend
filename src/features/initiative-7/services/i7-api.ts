@@ -441,6 +441,10 @@ export interface RecommendationListParams {
   /** Only recommendations issued more than the policy threshold in the last 12 months -- drops
    * zero-consumption materials too. Applied in SQL. */
   consumptionAboveThreshold?: boolean
+  /** Only recommendations with something to adopt in SAP: an OAR one eligible for the Min-Max
+   * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
+   * current value. The set the SAP adoption counts cover. Applied in SQL. */
+  actionable?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -480,6 +484,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
   if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
+  if (params.actionable) search.set("actionable", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
@@ -525,6 +530,9 @@ export interface RecommendationSummaryStats {
   /** Currency of the money figures, when every priced material shares one. */
   currency: string | null
   netSafetyStockValueImpact: number | null
+  /** Net working-capital impact of the recommended reorder points (unit price x current - recommended
+   * ROP): positive releases, negative ties up. null when no row has all three; never 0. */
+  netRopValueImpact: number | null
   /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
    * consumption x lead time. */
   criticalStockoutRiskCount: number
@@ -565,6 +573,7 @@ export async function fetchRecommendationSummary(
     notEvaluableCount: response.not_evaluable_count,
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
+    netRopValueImpact: toNumber(response.net_rop_value_impact ?? null),
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
     stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,
@@ -706,6 +715,21 @@ export async function submitForApproval(id: string, actorId: string): Promise<Ap
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/submit`, {
     method: "POST",
     body: JSON.stringify({ actor_id: actorId }),
+  })
+}
+
+/** POST .../reject -- declines a recommendation that has not been sent for approval, straight from the
+ * Recommendations page. The backend only accepts it while the recommendation is READY_FOR_REVIEW, and
+ * requires a comment (the reason). Once a recommendation is in the approval chain, rejecting it is the
+ * pending approver's decision (applyApprovalAction). */
+export async function rejectRecommendation(
+  id: string,
+  actorId: string,
+  comment: string,
+): Promise<ApiWorkflowStateResponse> {
+  return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ actor_id: actorId, comment }),
   })
 }
 
@@ -993,15 +1017,35 @@ export interface AdoptionSummaryResult {
   adoptionRatePercentage: number | null
 }
 
+/** What the adoption summary can be narrowed by. All optional; none means the whole portfolio. */
+export interface AdoptionSummaryParams {
+  /** One SAP plant code. */
+  plant?: string
+  /** oar | stock_item -- the Overview's Recommendation filter. */
+  type?: "oar" | "stock_item"
+  /** The stored demand class (see DEMAND_CLASS_FOR_PATTERN). */
+  demandClass?: string
+  /** Critical | High | Medium | Low -- the level the pages show, not the raw tier. */
+  criticalityLevel?: string
+}
+
 /** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide
  * counts from the persisted ledger (i7_sap_adoption), not a live
- * re-evaluation. Feeds the Inventory Planning overview's adoption-rate card
- * and the quarterly report's SAP Adoption section. Optional `plant` narrows
- * to one SAP plant code (the backend joins to Recommendation to get one,
- * since the ledger itself carries no plant column -- see
- * app/api/i7/adoption.py::get_adoption_summary). */
-export async function fetchAdoptionSummary(plant?: string): Promise<AdoptionSummaryResult> {
-  const query = plant ? `?plant=${encodeURIComponent(plant)}` : ""
+ * re-evaluation. Feeds the Inventory Planning overview's adoption card
+ * and the quarterly report's SAP Adoption section. Counts only recommendations
+ * with something to adopt (an OAR one eligible for the Min-Max conversion, or a
+ * stock item with a changed ROP / safety stock / max stock), the same set
+ * `RecommendationListParams.actionable` lists. `plant` narrows to one SAP plant
+ * code (the backend joins to Recommendation to get one, since the ledger itself
+ * carries no plant column -- see app/api/i7/adoption.py::get_adoption_summary). */
+export async function fetchAdoptionSummary(params: AdoptionSummaryParams = {}): Promise<AdoptionSummaryResult> {
+  const search = new URLSearchParams()
+  if (params.plant) search.set("plant", params.plant)
+  if (params.type) search.set("type", params.type)
+  if (params.demandClass) search.set("demand_class", params.demandClass)
+  if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
+  const queryString = search.toString()
+  const query = queryString ? `?${queryString}` : ""
   const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary${query}`)
   return {
     totalEvaluated: response.total_evaluated,

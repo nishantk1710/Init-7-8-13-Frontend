@@ -181,7 +181,9 @@ export function DashboardFilters({
   showCircuitFilter = true,
   showTypeFilter = false,
   typeFilterLabel = "Type",
+  typeFilterAllowAll = false,
   showStatusFilter = true,
+  showRiskFilter = true,
   showConfidenceFilter = false,
   showConversionFilter = false,
   resetFilters = EMPTY_DASHBOARD_FILTERS,
@@ -212,10 +214,16 @@ export function DashboardFilters({
   showTypeFilter?: boolean
   /** The label above that dropdown. The Recommendations page calls it "Recommendation". */
   typeFilterLabel?: string
+  /** Adds an "All" option to the Type dropdown. The Recommendations page has none (a recommendation
+   * is OAR or a stock item); the Overview, which counts both, offers it. */
+  typeFilterAllowAll?: boolean
   /** False hides the Recommendation Status dropdown. The Recommendations page hides it: a
    * recommendation sent for approval is decided in the Action Center and leaves that page, so
    * there is no status left to filter by. */
   showStatusFilter?: boolean
+  /** False hides the Stockout Risk dropdown -- for a page whose risk figures are not a property of a
+   * recommendation row, so there is nothing for the dropdown to filter. */
+  showRiskFilter?: boolean
   /** Adds the OAR confidence dropdown (High / Medium / Low). Offered only where the rows
    * on view are OAR ones, since no other recommendation carries a confidence. */
   showConfidenceFilter?: boolean
@@ -276,14 +284,17 @@ export function DashboardFilters({
 
       {showTypeFilter && (
         <FilterField label={typeFilterLabel}>
-          {/* No "All": a recommendation is either OAR or a stock item. */}
+          {/* No "All" unless asked for: a recommendation is either OAR or a stock item. */}
           <Select value={value.type} onValueChange={(v) => set("type", v ?? resetFilters.type)}>
             <SelectTrigger className="h-8 w-full">
-              <SelectValue placeholder="OAR">
-                {(v: string) => RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v}
+              <SelectValue placeholder={typeFilterAllowAll ? "All" : "OAR"}>
+                {(v: string) =>
+                  v === ALL_FILTER ? "All" : (RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v)
+                }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              {typeFilterAllowAll && <SelectItem value={ALL_FILTER}>All</SelectItem>}
               {RECOMMENDATION_TYPE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -422,23 +433,25 @@ export function DashboardFilters({
         </FilterField>
       )}
 
-      <FilterField label="Stockout Risk">
-        <Select value={value.risk} onValueChange={(v) => set("risk", v ?? ALL_FILTER)}>
-          <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">
-              {(v: string) => (v === ALL_FILTER ? "All" : v.charAt(0).toUpperCase() + v.slice(1))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All</SelectItem>
-            {(mergeCriticalIntoHigh ? RISK_LEVELS.filter((r) => r !== "critical") : RISK_LEVELS).map((r) => (
-              <SelectItem key={r} value={r}>
-                {r.charAt(0).toUpperCase() + r.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterField>
+      {showRiskFilter && (
+        <FilterField label="Stockout Risk">
+          <Select value={value.risk} onValueChange={(v) => set("risk", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">
+                {(v: string) => (v === ALL_FILTER ? "All" : v.charAt(0).toUpperCase() + v.slice(1))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {(mergeCriticalIntoHigh ? RISK_LEVELS.filter((r) => r !== "critical") : RISK_LEVELS).map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
 
       {showSapAdoptionFilter && (
         <FilterField label="SAP Adoption">

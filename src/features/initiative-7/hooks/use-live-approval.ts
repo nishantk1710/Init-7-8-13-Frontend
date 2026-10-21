@@ -24,6 +24,7 @@ import { ApiError } from "@/lib/api/client"
 import {
   applyApprovalAction,
   fetchApprovalHistory,
+  rejectRecommendation,
   submitForApproval,
 } from "@/features/initiative-7/services/i7-api"
 import type {
@@ -42,6 +43,8 @@ export interface LiveApprovalState {
 export interface UseLiveApproval extends LiveApprovalState {
   /** Resolves true when the backend accepted it, false when it failed (the error is on `error`). */
   submit: (actorId: string) => Promise<boolean>
+  /** Declines a recommendation that has not been sent for approval. `comment` is the reason. */
+  reject: (actorId: string, comment: string) => Promise<boolean>
   act: (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<boolean>
 }
 
@@ -80,13 +83,18 @@ export function useLiveApproval(recommendationId: string, onChanged?: () => void
     [recommendationId, run],
   )
 
+  const reject = useCallback(
+    (actorId: string, comment: string) => run(() => rejectRecommendation(recommendationId, actorId, comment)),
+    [recommendationId, run],
+  )
+
   const act = useCallback(
     (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) =>
       run(() => applyApprovalAction(recommendationId, actorId, actorRole, action, comment)),
     [recommendationId, run],
   )
 
-  return { ...state, submit, act }
+  return { ...state, submit, reject, act }
 }
 
 export interface LiveApprovalHistoryState {
