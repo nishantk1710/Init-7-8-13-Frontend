@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils"
 export function SessionReference({
   sessionId,
   request,
+  issuedAt,
   expiresAt,
   expired = false,
   className,
@@ -54,6 +55,10 @@ export function SessionReference({
    * `R…`, so that is what is copied. Left out, the session ID is both.
    */
   request?: { label: string; sapText: string }
+  /** When the session was minted. The trace passes it; the live chat does not
+   *  need it, because there the session was minted moments ago. */
+  issuedAt?: string | null
+  /** End of the reference's validity window -- not when it was recorded. */
   expiresAt?: string | null
   expired?: boolean
   className?: string
@@ -116,9 +121,11 @@ export function SessionReference({
                 what you actually reserve.
               </span>
             )}
-            {expiresAt && !expired && (
+            {(issuedAt || (expiresAt && !expired)) && (
               <span className="text-[11px] text-muted-foreground">
-                Recorded {formatExpiry(expiresAt)}
+                {issuedAt && <>Recorded {formatExpiry(issuedAt)}</>}
+                {issuedAt && expiresAt && !expired && " · "}
+                {expiresAt && !expired && <>Valid until {formatExpiry(expiresAt)}</>}
               </span>
             )}
             {expired && (
