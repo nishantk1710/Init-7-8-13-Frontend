@@ -59,6 +59,7 @@ export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
       <SessionReference
         sessionId={trace.sessionId}
         request={identity.requestId ? identity : undefined}
+        issuedAt={trace.issuedAt}
         expiresAt={trace.expiresAt}
         expired={trace.expired}
       />
