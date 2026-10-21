@@ -1,12 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Download } from "lucide-react"
 
-import { ChartCard } from "@/components/shared/chart-card"
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -15,28 +13,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RepairAgingChart } from "@/features/initiative-8/components/repair-aging-chart"
-import { RepairableStockByPlantChart } from "@/features/initiative-8/components/repairable-stock-by-plant-chart"
-import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs-by-vendor-chart"
-import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
-import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
+import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
+import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   ALL,
   NO_OVERVIEW_FILTERS,
-  OVERVIEW_SUMMARY_HEADERS,
   filterOverview,
   openLinesByVendor,
-  overviewSummaryRows,
+  overviewPdfTitle,
   summariseOverview,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
+import { NO_CRITICALITY } from "@/features/initiative-8/utils/status"
+import { formatApiDateTime } from "@/lib/api/format"
 import type { ApiUniverseMeta } from "@/lib/api/i8"
-import { cn, downloadExcel, formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
+
+/** What each filter narrows. Under the filters on screen, and in the PDF's header. */
+const FILTER_NOTE =
+  "Plant and criticality narrow every figure. Vendor narrows the repair-line figures only — " +
+  "the repairable universe has no vendor. Pending declarations are counted over the whole " +
+  "register and never narrow."
 
 export type OverviewDashboardProps = {
+  /** The page header's description, repeated at the top of the PDF. */
+  description: string
   chains: RepairChain[]
   agingBands: string[]
   /** Null when the universe fetch failed: its tiles show a dash, its chart says so. */
@@ -64,15 +67,22 @@ export type OverviewDashboardProps = {
  * would answer a question the data cannot answer. The strip under the filters
  * says so on screen rather than leaving someone to infer it.
  *
- * Two tiles cannot be filtered at all: pending declarations and unjustified
- * new purchases come from a `meta` the backend computes over everything. The
- * strip under the filters and the export say so rather than silently narrowing.
+ * One tile cannot be filtered at all: pending declarations come from a `meta`
+ * the backend computes over everything. The strip under the filters says so,
+ * and the PDF repeats the strip, rather than either silently narrowing.
+ *
+ * ## Download PDF
+ *
+ * The PDF is this page as filtered, printed by the browser: the same
+ * `OverviewFigures` the screen draws, under a header naming the filters. See
+ * `overview-print.tsx` for why it is a copy and not the page itself.
  *
  * Every line is open in SAP: since 19-Oct-2026 the register serves no line SAP
  * has marked "Delivery completed", so there is no vendor turnaround here either
  * -- it was dispatch to goods receipt over closed repairs.
  */
 export function OverviewDashboard({
+  description,
   chains,
   agingBands,
   universe,
@@ -83,6 +93,11 @@ export function OverviewDashboard({
   referenceDate,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
+  // When Download PDF was clicked, for the PDF's header. Set from the click
+  // until the print dialog closes, and the PDF copy is mounted only for that
+  // long.
+  const [printedAt, setPrintedAt] = useState<string | null>(null)
+  const printing = printedAt !== null
 
   const slice = useMemo(
     () => filterOverview(chains, universe?.rows ?? [], filters),
@@ -103,23 +118,48 @@ export function OverviewDashboard({
     return (value: string) => setFilters((current) => ({ ...current, [key]: value }))
   }
 
-  function exportSummary() {
-    downloadExcel(
-      "i08-overview-summary.xlsx",
-      OVERVIEW_SUMMARY_HEADERS,
-      overviewSummaryRows(
-        metrics,
-        {
-          plant: labelOf(filters.plant, plantChoices, "All plants"),
-          vendor: labelOf(filters.vendor, vendorChoices, "All vendors"),
-          criticality: labelOf(filters.criticality, criticalityChoices, "All criticalities"),
-        },
-        {
-          referenceDate,
-          pendingDeclarations,
-        },
-      ),
-    )
+  // Open the print dialog once the PDF copy is on the page. Waits for webfonts
+  // (printing mid-swap reflows the text) and then two frames, so the copy has
+  // been committed and laid out and its charts have measured themselves --
+  // the same wait as the I07 report's Download PDF.
+  //
+  // The copy comes down on `afterprint`, which fires when the dialog closes,
+  // saved or cancelled. While the dialog is open, the page's title is the
+  // PDF's name: "Save as PDF" offers the title as the file name.
+  useEffect(() => {
+    if (!printing) return
+    let cancelled = false
+    const pageTitle = document.title
+    const finish = () => setPrintedAt(null)
+    window.addEventListener("afterprint", finish)
+
+    document.fonts.ready
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          }),
+      )
+      .then(() => {
+        if (cancelled) return
+        document.title = overviewPdfTitle(referenceDate)
+        window.print()
+      })
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("afterprint", finish)
+      document.title = pageTitle
+    }
+  }, [printing, referenceDate])
+
+  const figures = {
+    chains: slice.chains,
+    agingBands,
+    metrics,
+    vendors,
+    universeLoaded: universe !== null,
+    pendingDeclarations,
   }
 
   return (
@@ -156,9 +196,14 @@ export function OverviewDashboard({
             <span className="text-xs text-muted-foreground">
               {formatCount(metrics.totalLines)} of {formatCount(chains.length)} lines
             </span>
-            <Button size="sm" variant="outline" onClick={exportSummary}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPrintedAt(formatApiDateTime(new Date().toISOString()))}
+              disabled={printing}
+            >
               <Download className="size-3.5" />
-              Export summary
+              Download PDF
             </Button>
           </div>
         </FilterBar>
@@ -168,89 +213,34 @@ export function OverviewDashboard({
             filters.vendor === ALL ? "text-muted-foreground" : "font-medium text-warning",
           )}
         >
-          Plant and criticality narrow every figure. Vendor narrows the repair-line figures
-          only — the repairable universe has no vendor. Pending declarations are counted over
-          the whole register and never narrow.
+          {FILTER_NOTE}
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <KPIStatCard
-          label="Repairable materials monitored"
-          value={universe ? formatCount(metrics.universeMaterials) : UNKNOWN}
-        />
-        <KPIStatCard
-          label="Qty currently under repair"
-          value={formatCount(metrics.qtyUnderRepair)}
-        />
-        <KPIStatCard label="Open repair lines" value={formatCount(metrics.openLines)} />
-        {/* No "Unjustified new purchases" tile since 14-Oct-2026. The reason
-            for a new purchase is asked for at the reservation (FR-5b), and
-            the count of purchases that carry one is reported on the
-            Justifications screen, next to the reasons themselves. */}
-        <KPIStatCard
-          label="Pending declarations"
-          value={pendingDeclarations === undefined ? UNKNOWN : formatCount(pendingDeclarations)}
-        />
-        <KPIStatCard label="Repairs overdue" value={formatCount(metrics.overdueLines)} />
-      </div>
+      <OverviewFigures {...figures} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <ChartCard
-          title="Repair status distribution"
-          subtitle={`The ${formatCount(metrics.totalLines)} open repair lines, by current lifecycle stage`}
-          span={6}
+      {/* Only ever set by a click, so this never renders on the server. */}
+      {printedAt !== null && (
+        <OverviewPrint
+          title="Repairable Spares — Overview"
+          caption={description}
+          filters={{
+            plant: labelOf(filters.plant, plantChoices, "All plants"),
+            vendor: labelOf(filters.vendor, vendorChoices, "All vendors"),
+            criticality: labelOf(filters.criticality, criticalityChoices, "All criticalities"),
+          }}
+          lines={`${formatCount(metrics.totalLines)} of ${formatCount(chains.length)} repair lines`}
+          note={FILTER_NOTE}
+          printedAt={printedAt}
         >
-          <RepairStatusChart chains={slice.chains} />
-        </ChartCard>
-        <ChartCard
-          title="Repairs by vendor"
-          subtitle={
-            vendors.vendorCount > vendors.top.length
-              ? `Open repair lines — top ${vendors.top.length} of ${vendors.vendorCount} vendors`
-              : "Open repair lines per vendor"
-          }
-          span={6}
-        >
-          <RepairsByVendorChart data={vendors.top} />
-        </ChartCard>
-        {/* FR-9's "aging bands per lifecycle stage". Next to Repair aging,
-            which buckets the whole-repair clock: the two look like the same
-            question and are not, so they are shown together rather than one
-            standing in for the other. */}
-        <ChartCard
-          title="Aging by stage"
-          subtitle="Open repair lines, by days in their CURRENT stage"
-          span={6}
-        >
-          <StageAgingChart chains={slice.chains} bands={agingBands} />
-        </ChartCard>
-        <ChartCard
-          title="Repair aging"
-          subtitle={`Days open for the ${formatCount(metrics.openLines)} open repair lines`}
-          span={6}
-        >
-          <RepairAgingChart chains={slice.chains} bands={agingBands} />
-        </ChartCard>
-        <ChartCard
-          title="Repairable stock by plant"
-          subtitle="Stock on hand across the repairable universe (every 80-series material and plant)"
-          span={12}
-        >
-          {universe ? (
-            <RepairableStockByPlantChart data={metrics.stock.plants} />
-          ) : (
-            <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-              The repairable universe could not be loaded, so stock is not shown.
-            </div>
-          )}
-        </ChartCard>
-      </div>
+          <OverviewFigures {...figures} print />
+        </OverviewPrint>
+      )}
     </>
   )
 }
 
-/** The label a filter value reads as, for the CSV's header rows. */
+/** The label a filter value reads as, for the PDF's header. */
 function labelOf(
   value: string,
   options: { value: string; label: string }[],

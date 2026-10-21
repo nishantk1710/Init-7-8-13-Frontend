@@ -53,7 +53,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* `.light-scope` puts the light theme back on one subtree of a dark page: the
+   tokens are declared again on that element, so everything under it inherits
+   these values instead of `.dark`'s. The I08 overview's PDF copy wears it --
+   it is printed on paper, whichever theme the person printing it was using. */
+:root,
+.light-scope {
   /* Native controls -- the <select> popup, scrollbars, date pickers -- are
      painted by the browser, not by these tokens, and default to light. The
      assistant's reason dropdown inherited the page's light text colour and
