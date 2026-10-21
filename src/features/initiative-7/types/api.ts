@@ -891,6 +891,63 @@ export interface ApiDataCoverage {
   warnings: string[]
 }
 
+/** One month of the trend, from its saved snapshot. `null` is "not measured", never 0. */
+export interface ApiTrendMonth {
+  month: string
+  label: string
+  /** `MISSING` (no snapshot was captured), `OPEN` (a rolling reading of a month still running) or `FINAL`. */
+  state: "MISSING" | "OPEN" | "FINAL"
+  measured_on: string | null
+  month_end_valid: boolean
+  /** The stockout reading is current enough for this month; when false the stockout fields are null. */
+  stockout_valid: boolean
+  population: number | null
+  stockout_at_risk: number | null
+  stockout_evaluated: number | null
+  stockout_insufficient: number | null
+  excess_count: number | null
+  excess_opportunity: ApiDecimal
+  /** The estimated working-capital impact on the measurement date -- an estimate, not a realised saving. */
+  net_rop_value_impact: ApiDecimal
+  /** How that estimate moved since the previous month; null unless both months have one, made the same way. */
+  net_rop_change_from_previous: ApiDecimal
+  currency: string | null
+  revision: number | null
+  calc_version: string | null
+  note: string | null
+}
+
+export interface ApiStockLevelMean {
+  key: string
+  label: string
+  /** How the figure is aggregated: `mean` over the records that have both values. */
+  aggregation: string
+  records: number
+  current: ApiDecimal
+  recommended: ApiDecimal
+}
+
+/** The quarter-end position: the last month's snapshot, only when valid -- never an earlier month relabelled. */
+export interface ApiQuarterEnd {
+  status: ApiAvailabilityStatus
+  month: string
+  label: string
+  snapshot_state: string
+  measured_on: string | null
+  reason: string | null
+  population: number | null
+  stock_levels: ApiStockLevelMean[]
+  latest_available_month: string | null
+  latest_available_label: string | null
+  latest_available_measured_on: string | null
+}
+
+export interface ApiQuarterTrends {
+  months: ApiTrendMonth[]
+  quarter_end: ApiQuarterEnd
+  notes: string[]
+}
+
 export interface ApiQuarterManagement {
   period: ApiPeriodInfo
   monthly_activity: ApiMonthlyActivity
@@ -901,6 +958,10 @@ export interface ApiQuarterManagement {
   forecast_actual: ApiForecastActualSection
   adoption: ApiAdoptionQuarter
   data_coverage: ApiDataCoverage
+  /** Monthly figures from saved snapshots and the quarter-end position. Absent on a report made before snapshots. */
+  trends?: ApiQuarterTrends | null
+  /** `snapshot` when `position` / `plant_positions` are the valid quarter-end snapshot's, else `current_calculation`. */
+  position_basis?: string
   definitions: string[]
 }
 

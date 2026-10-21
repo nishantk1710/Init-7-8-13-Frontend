@@ -104,3 +104,47 @@ export function kpiValueText(card: ApiKpiCard): string {
   const prefix = card.unit.startsWith("amount") ? "" : `${card.unit} `
   return `${sign}${prefix}${millions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
 }
+
+// --- Monthly trends and the quarter-end position ------------------------------------------------------
+
+import type { ApiQuarterTrends, ApiTrendMonth } from "@/features/initiative-7/types/api"
+
+/** One point per month for the trend charts. A month with no snapshot, or whose figure was not trusted, is a gap
+ * (`null`) -- never 0 -- so the line breaks there instead of drawing a value that was never measured. */
+export interface TrendPoint {
+  label: string
+  state: ApiTrendMonth["state"]
+  stockout: number | null
+  excessOpportunity: number | null
+  workingCapital: number | null
+}
+
+export function trendPoints(trends: ApiQuarterTrends): TrendPoint[] {
+  return trends.months.map((month) => ({
+    label: month.label,
+    state: month.state,
+    stockout: month.stockout_at_risk,
+    excessOpportunity: num(month.excess_opportunity),
+    workingCapital: num(month.net_rop_value_impact),
+  }))
+}
+
+/** Whether a series has anything to draw at all (at least one month with a value). */
+export function hasPoints(points: TrendPoint[], key: "stockout" | "excessOpportunity" | "workingCapital"): boolean {
+  return points.some((point) => point[key] !== null)
+}
+
+/** "−2,397.30M", "+1.20M": money in millions with its sign, as the Overview's card shows it. */
+export function millions(value: number | null, currency: string | null, signed = false): string {
+  if (value === null) return "—"
+  const sign = value < 0 ? "−" : signed && value > 0 ? "+" : ""
+  const prefix = currency ? `${currency} ` : ""
+  return `${sign}${prefix}${(Math.abs(value) / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
+}
+
+/** What a month's row says about how it was measured, in a few words. */
+export function monthBasisLabel(month: ApiTrendMonth): string {
+  if (month.state === "MISSING") return "No snapshot"
+  if (month.state === "OPEN") return "Rolling reading"
+  return month.month_end_valid ? "Month-end snapshot" : "Snapshot, not month-end"
+}

@@ -190,3 +190,35 @@ describe("an old saved report", () => {
     expect(workspace).toContain('useQuarterlyReport(tab === "report" && !isSnapshot ?')
   })
 })
+
+describe("trends and the quarter-end position in the page", () => {
+  const trends = {
+    months: [{ month: "2026-10-01", label: "Oct 2026", state: "FINAL" as const, measured_on: "2026-11-03", month_end_valid: true, stockout_valid: true,
+      population: 1, stockout_at_risk: 5, stockout_evaluated: 50, stockout_insufficient: 0, excess_count: 1, excess_opportunity: "100.00",
+      net_rop_value_impact: "-50.00", net_rop_change_from_previous: null, currency: null, revision: 1, calc_version: "1", note: null }],
+    quarter_end: { status: "NOT_AVAILABLE" as const, month: "2026-12-01", label: "Dec 2026", snapshot_state: "MISSING", measured_on: null,
+      reason: "No snapshot was captured for Dec 2026.", population: null, stock_levels: [], latest_available_month: null,
+      latest_available_label: null, latest_available_measured_on: null },
+    notes: [],
+  }
+
+  it("draws the monthly trends and the quarter-end card when the report has them", () => {
+    const html = render(management({ trends }))
+    expect(html).toContain("Monthly trends")
+    expect(html).toContain("Quarter-end position")
+    expect(html).toContain("No snapshot was captured for Dec 2026.")
+  })
+
+  it("leaves them out for a report made before snapshots, rather than showing empty cards", () => {
+    const html = render(management())
+    expect(html).not.toContain("Monthly trends")
+    expect(html).not.toContain("Quarter-end position")
+  })
+
+  it("says on a card when its figure is a saved month-end snapshot", () => {
+    const html = render(management({ kpis: [card("excess_inventory_opportunity", { basis: "snapshot", period_label: "Dec 2026 month-end" })] }))
+    expect(html).toContain("Saved month-end snapshot")
+    expect(html).toContain("Dec 2026 month-end")
+    expect(render(management({ kpis: [card("excess_inventory_opportunity")] }))).not.toContain("Saved month-end snapshot")
+  })
+})
