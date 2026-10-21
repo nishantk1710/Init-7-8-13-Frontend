@@ -1,216 +1,183 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  ADOPTION_ZERO,
-  displayStatusCounts,
-  EMPTY_FILTER,
-  filterMaterials,
+  adoptionOf,
+  findScope,
   HIDDEN_QUARTERS,
   landingQuarters,
-  formatPercent,
-  formatZar,
   loadQuarterlySnapshot,
-  materialsCsv,
-  meanParams,
   pageCount,
   pageOf,
-  riskDistribution,
+  plantPositions,
   SNAPSHOT_QUARTER,
-  toggled,
-  type SnapshotMaterial,
+  SNAPSHOT_TYPES,
+  stockLevelRows,
+  type QuarterlySnapshot,
+  type SnapshotFigures,
+  type SnapshotScope,
+  type SnapshotType,
 } from "./quarterly-snapshot"
 
-function material(overrides: Partial<SnapshotMaterial> = {}): SnapshotMaterial {
+function figures(overrides: Partial<SnapshotFigures> = {}): SnapshotFigures {
   return {
-    matnr: "5000078071",
-    desc: "SAG MILL LINER",
-    plant: "Gamsberg",
-    circuit: "Other / plant-wide",
-    crit: "CRITICAL",
-    pattern: "Lumpy",
-    risk: "Critical",
-    stock: 5,
-    uom: "EA",
-    lt: 60,
-    ss_cur: 0,
-    ss_rec: 10,
-    rop_cur: 2,
-    rop_rec: 12,
-    max_cur: 4,
-    max_rec: 20,
-    price: 100,
-    wc: 1000,
-    status: "Pending Review",
+    total: 1000,
+    stockout_at_risk: 90,
+    stockout_evaluated: 800,
+    stockout_insufficient_data: 40,
+    stockout_as_of: "2026-05-31",
+    excess_count: 70,
+    excess_opportunity: 5_000_000,
+    net_rop_value_impact: -2_000_000,
+    adoption_total: 500,
+    adopted: 10,
+    partially_adopted: 5,
+    not_adopted: 5,
+    pending: 480,
     ...overrides,
   }
 }
 
-describe("displayStatusCounts", () => {
-  it("keeps Pending Review as counted and shows every other status at 0", () => {
-    const counts = displayStatusCounts({
-      "Pending Review": 858,
-      Approved: 245,
-      Implemented: 215,
-      Returned: 138,
-      Rejected: 77,
-    })
-    expect(counts).toEqual([
-      { status: "Pending Review", count: 858 },
-      { status: "Approved", count: 0 },
-      { status: "Implemented", count: 0 },
-      { status: "Returned", count: 0 },
-      { status: "Rejected", count: 0 },
+function scope(plant: string | null, type: SnapshotType, overrides: Partial<SnapshotFigures> = {}): SnapshotScope {
+  return { plant, type, figures: figures(overrides), stock_levels: null, stock_levels_count: null, materials: null, materials_total: null }
+}
+
+function snapshot(scopes: SnapshotScope[]): QuarterlySnapshot {
+  return { quarter: "Q2 2026", period: "Apr – Jun 2026", source: "October 2026 run", captured_at: "2026-10-21", currency: null, scopes }
+}
+
+describe("findScope", () => {
+  const s = snapshot([scope(null, "all"), scope("1300", "all"), scope("1300", "oar")])
+
+  it("finds a plant and a type, null being every plant", () => {
+    expect(findScope(s, null, "all")?.plant).toBeNull()
+    expect(findScope(s, "1300", "oar")?.type).toBe("oar")
+  })
+
+  it("is undefined for a scope that was not captured, never a stand-in", () => {
+    expect(findScope(s, "1500", "all")).toBeUndefined()
+  })
+})
+
+describe("plantPositions", () => {
+  const s = snapshot([
+    scope(null, "all", { total: 1000, stockout_at_risk: 90, excess_count: 70 }),
+    scope("1300", "all", { total: 600, stockout_at_risk: 50, excess_count: 40 }),
+    scope("1500", "all", { total: 400, stockout_at_risk: 40, excess_count: 30 }),
+    scope(null, "oar", { total: 100, stockout_at_risk: 5, excess_count: 0 }),
+  ])
+
+  it("gives All plants, 1300 and 1500 in the Overview's order, as the plant cards take them", () => {
+    expect(plantPositions(s, "all", null).map((p) => [p.scope, p.stockoutRisk, p.excess, p.total])).toEqual([
+      ["ALL", 90, 70, 1000],
+      ["1300", 50, 40, 600],
+      ["1500", 40, 30, 400],
     ])
   })
 
-  it("lists all five statuses even when Pending Review is missing", () => {
-    expect(displayStatusCounts({})).toHaveLength(5)
-    expect(displayStatusCounts({})[0]).toEqual({ status: "Pending Review", count: 0 })
+  it("draws only the plant that was picked", () => {
+    expect(plantPositions(s, "all", "1500").map((p) => p.scope)).toEqual(["1500"])
+  })
+
+  it("follows the Recommendation choice, and leaves out a scope that was not captured", () => {
+    expect(plantPositions(s, "oar", null).map((p) => [p.scope, p.stockoutRisk])).toEqual([["ALL", 5]])
+  })
+
+  it("carries what the stockout bars are out of and as of", () => {
+    const [all] = plantPositions(s, "all", null)
+    expect(all.stockoutEvaluated).toBe(800)
+    expect(all.stockoutAsOf).toBe("2026-05-31")
   })
 })
 
-describe("SAP adoption", () => {
-  it("is 0 across the board", () => {
-    expect(ADOPTION_ZERO.map((a) => a.count)).toEqual([0, 0, 0])
-    expect(ADOPTION_ZERO.map((a) => a.label)).toEqual(["Adopted", "Partial", "Not adopted"])
+describe("adoptionOf", () => {
+  it("is what the Overview's adoption card takes, with the rate over those with SAP evidence", () => {
+    expect(adoptionOf(figures())).toEqual({
+      totalEvaluated: 500,
+      adoptedCount: 10,
+      partiallyAdoptedCount: 5,
+      notAdoptedCount: 5,
+      unknownCount: 480,
+      adoptionRatePercentage: 75,
+    })
+  })
+
+  it("has no rate while nothing has SAP evidence -- never a 0%", () => {
+    expect(adoptionOf(figures({ adopted: 0, partially_adopted: 0, not_adopted: 0, pending: 500 }))?.adoptionRatePercentage).toBeNull()
+  })
+
+  it("is null when adoption was not captured, so the card says so instead of showing 0", () => {
+    expect(adoptionOf(figures({ adoption_total: null, adopted: null, partially_adopted: null, not_adopted: null, pending: null }))).toBeNull()
   })
 })
 
-describe("riskDistribution", () => {
-  it("returns the four levels in order with their share of the total", () => {
-    const dist = riskDistribution({ Critical: 1, High: 1, Medium: 1, Low: 1 })
-    expect(dist.map((d) => d.level)).toEqual(["Critical", "High", "Medium", "Low"])
-    expect(dist.every((d) => d.share === 25)).toBe(true)
+describe("stockLevelRows", () => {
+  it("lists safety stock, reorder point and maximum stock with each change", () => {
+    const rows = stockLevelRows([
+      { key: "rop", current: 10, recommended: 25 },
+      { key: "ss", current: 4, recommended: 3 },
+      { key: "max", current: 20, recommended: 20 },
+    ])
+    expect(rows.map((r) => [r.key, r.delta])).toEqual([
+      ["ss", -1],
+      ["rop", 15],
+      ["max", 0],
+    ])
   })
 
-  it("does not divide by zero", () => {
-    expect(riskDistribution({}).every((d) => d.share === 0)).toBe(true)
-  })
-})
-
-describe("filterMaterials", () => {
-  const rows = [
-    material({ matnr: "5000078071", desc: "SAG MILL LINER", plant: "Gamsberg" }),
-    material({ matnr: "8000005643", desc: "TRANSMISSION TRACTION", plant: "Black Mountain" }),
-  ]
-
-  it("matches the description, case-insensitively", () => {
-    expect(filterMaterials(rows, { ...EMPTY_FILTER, query: "sag mill" }).map((r) => r.matnr)).toEqual(["5000078071"])
-  })
-
-  it("matches the material number", () => {
-    expect(filterMaterials(rows, { ...EMPTY_FILTER, query: "8000005643" })).toHaveLength(1)
-  })
-
-  it("filters by plant", () => {
-    expect(filterMaterials(rows, { ...EMPTY_FILTER, plant: "Black Mountain" })).toHaveLength(1)
-  })
-
-  it("filters by the risk level a chart segment was clicked on", () => {
-    const mixed = [material({ risk: "Critical" }), material({ risk: "High" }), material({ risk: "High" })]
-    expect(filterMaterials(mixed, { ...EMPTY_FILTER, risk: "High" })).toHaveLength(2)
-  })
-
-  it("filters by the status a chart slice was clicked on", () => {
-    const mixed = [material({ status: "Pending Review" }), material({ status: "Approved" })]
-    expect(filterMaterials(mixed, { ...EMPTY_FILTER, status: "Pending Review" })).toHaveLength(1)
-  })
-
-  it("combines chart, plant and text filters", () => {
-    const mixed = [
-      material({ risk: "High", plant: "Gamsberg", desc: "PUMP" }),
-      material({ risk: "High", plant: "Black Mountain", desc: "PUMP" }),
-      material({ risk: "Low", plant: "Gamsberg", desc: "PUMP" }),
-    ]
-    expect(filterMaterials(mixed, { query: "pump", plant: "Gamsberg", risk: "High", status: "" })).toHaveLength(1)
-  })
-
-  it("returns everything with no filter", () => {
-    expect(filterMaterials(rows, { ...EMPTY_FILTER, query: "  " })).toHaveLength(2)
-  })
-})
-
-describe("toggled", () => {
-  it("selects, switches and clears", () => {
-    expect(toggled("", "High")).toBe("High")
-    expect(toggled("High", "Low")).toBe("Low")
-    expect(toggled("High", "High")).toBe("")
+  it("has no change for a level without both values, and shows all three when none was captured", () => {
+    expect(stockLevelRows([{ key: "ss", current: null, recommended: 3 }])[0].delta).toBeNull()
+    const none = stockLevelRows(null)
+    expect(none).toHaveLength(3)
+    expect(none.every((r) => r.current === null && r.recommended === null && r.delta === null)).toBe(true)
   })
 })
 
 describe("paging", () => {
   it("slices a page and counts pages, never fewer than one", () => {
-    const rows = Array.from({ length: 12 }, (_, i) => i)
-    expect(pageOf(rows, 1, 5)).toEqual([0, 1, 2, 3, 4])
-    expect(pageOf(rows, 3, 5)).toEqual([10, 11])
-    expect(pageCount(12, 5)).toBe(3)
-    expect(pageCount(0, 5)).toBe(1)
-  })
-})
-
-describe("meanParams", () => {
-  it("averages current and recommended and reports the change", () => {
-    const [ss, rop, max] = meanParams([
-      material({ ss_cur: 0, ss_rec: 10, rop_cur: 10, rop_rec: 20, max_cur: 0, max_rec: 30 }),
-      material({ ss_cur: 0, ss_rec: 20, rop_cur: 20, rop_rec: 20, max_cur: 10, max_rec: 30 }),
-    ])
-    expect(ss).toMatchObject({ label: "Safety stock", current: 0, recommended: 15, delta: 15 })
-    expect(rop).toMatchObject({ label: "Reorder point", current: 15, recommended: 20, delta: 5 })
-    expect(max).toMatchObject({ label: "Maximum stock", current: 5, recommended: 30, delta: 25 })
-  })
-
-  it("gives zeros, not NaN, for no rows", () => {
-    for (const row of meanParams([])) expect(row.recommended).toBe(0)
-  })
-})
-
-describe("formatting", () => {
-  it("formats rand amounts", () => {
-    expect(formatZar(32586320.34)).toBe("R 32.59M")
-    expect(formatZar(-1316009)).toBe("–R 1.32M")
-    // Thousands are grouped with a locale space, which differs by platform: match any whitespace.
-    expect(formatZar(-316009)).toMatch(/^–R 316\s009$/)
-    expect(formatZar(250)).toBe("R 250")
-  })
-
-  it("formats a share", () => {
-    expect(formatPercent(858, 1533)).toBe("56.0%")
-    expect(formatPercent(1, 0)).toBe("0.0%")
-  })
-})
-
-describe("materialsCsv", () => {
-  it("writes a header and one quoted row per material, doubling embedded quotes", () => {
-    const csv = materialsCsv([material({ desc: 'PIPE 6" (150MM)' })])
-    const [head, row] = csv.split("\n")
-    expect(head.startsWith('"Material","Description"')).toBe(true)
-    expect(row).toContain('"PIPE 6"" (150MM)"')
+    expect(pageOf([1, 2, 3, 4, 5, 6, 7], 2, 3)).toEqual([4, 5, 6])
+    expect(pageCount(7, 3)).toBe(3)
+    expect(pageCount(0, 3)).toBe(1)
   })
 })
 
 describe("the Q2 snapshot data", () => {
   it("loads, and is the quarter it says it is", async () => {
-    const snapshot = await loadQuarterlySnapshot()
-    expect(snapshot.quarter).toBe(SNAPSHOT_QUARTER)
-    expect(snapshot.materials).toHaveLength(snapshot.recs)
+    const data = await loadQuarterlySnapshot()
+    expect(data.quarter).toBe(SNAPSHOT_QUARTER)
+    expect(data.source).toBeTruthy()
+    expect(data.captured_at).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
-  it("carries a status count that adds up to the recommendations", async () => {
-    const snapshot = await loadQuarterlySnapshot()
-    const total = Object.values(snapshot.status).reduce((a, b) => a + b, 0)
-    expect(total).toBe(snapshot.recs)
+  it("has a scope for every plant and every type the Overview offers", async () => {
+    const data = await loadQuarterlySnapshot()
+    for (const plant of [null, "1300", "1500"]) {
+      for (const type of SNAPSHOT_TYPES) {
+        expect(findScope(data, plant, type.value), `${plant ?? "ALL"} / ${type.value}`).toBeDefined()
+      }
+    }
   })
 
-  it("has every recommendation Pending Review, in the table rows and in the count", async () => {
-    const snapshot = await loadQuarterlySnapshot()
-    expect(snapshot.materials.every((row) => row.status === "Pending Review")).toBe(true)
-    expect(snapshot.status).toEqual({ "Pending Review": snapshot.recs })
+  it("splits the recommendations: OAR plus stock items is every recommendation, and the plants add up", async () => {
+    const data = await loadQuarterlySnapshot()
+    const total = (plant: string | null, type: SnapshotType) => findScope(data, plant, type)!.figures.total
+    expect(total(null, "oar") + total(null, "stock_item")).toBe(total(null, "all"))
+    expect(total("1300", "all") + total("1500", "all")).toBe(total(null, "all"))
   })
 
-  it("so clicking Pending Review in the status chart finds every row", async () => {
-    const snapshot = await loadQuarterlySnapshot()
-    expect(filterMaterials(snapshot.materials, { ...EMPTY_FILTER, status: "Pending Review" })).toHaveLength(snapshot.recs)
-    expect(filterMaterials(snapshot.materials, { ...EMPTY_FILTER, status: "Approved" })).toHaveLength(0)
+  it("never has more at stockout risk than were evaluated, or more evaluated than the recommendations allow", async () => {
+    const data = await loadQuarterlySnapshot()
+    for (const s of data.scopes) {
+      expect(s.figures.stockout_at_risk).toBeLessThanOrEqual(s.figures.stockout_evaluated)
+    }
+  })
+
+  it("keeps the adoption counts adding up to the total it was out of, wherever it was captured", async () => {
+    const data = await loadQuarterlySnapshot()
+    for (const s of data.scopes) {
+      const f = s.figures
+      if (f.adoption_total === null) continue
+      expect((f.adopted ?? 0) + (f.partially_adopted ?? 0) + (f.not_adopted ?? 0) + (f.pending ?? 0)).toBe(f.adoption_total)
+    }
   })
 })
 
