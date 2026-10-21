@@ -66,10 +66,18 @@ export function outcomeSentence(line: ApiRequestLine): string {
     : `Procure ${quantity} -- above the suggested ${plain(line.suggestedQuantity)}, justified.`
 }
 
-/** The request's department as shown: the one department, or -- for a request
- * from before 21 Oct whose lines named several -- all of them. */
-export function departmentLabel(request: Pick<ApiRequest, "department" | "departments">): string {
-  if (request.department) return request.department
+/** A department as shown: `10100 · FINANCE-COMMERCIAL DEPARTMENT`, or the code
+ * alone when VZI's list gives it no name. */
+export function departmentText(code: string, name?: string | null): string {
+  return name ? `${code} · ${name}` : code
+}
+
+/** The request's department as shown: the one department with its name, or --
+ * for a request from before 21 Oct whose lines named several -- all the codes. */
+export function departmentLabel(
+  request: Pick<ApiRequest, "department" | "departments"> & { departmentName?: string | null }
+): string {
+  if (request.department) return departmentText(request.department, request.departmentName)
   return request.departments.length > 0 ? request.departments.join(", ") : "—"
 }
 

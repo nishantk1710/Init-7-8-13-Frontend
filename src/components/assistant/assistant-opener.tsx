@@ -164,9 +164,8 @@ export function AssistantOpener({
         </Labelled>
 
         <Labelled id="department" label="Department">
-          {/* A code from the list, never free text: the 5-digit department
-              codes VZI keys into a purchase requisition's Requisitioner
-              (EBAN.AFNAM). Keyed by plant so a plant change starts it afresh. */}
+          {/* A code from VZI's department list, searched by code or name,
+              never free text. Keyed by plant so a plant change starts it afresh. */}
           <DepartmentPicker
             key={plantCode}
             id="department"

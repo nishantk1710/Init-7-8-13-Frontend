@@ -279,10 +279,9 @@ export const DEMO_PLANTS = [
 /**
  * Department codes per plant, for the demo's Department picker. **Mock data.**
  *
- * Real-looking: a sample of the 5-digit codes VZI keys into a requisition's
- * Requisitioner (`EBAN.AFNAM`) -- live has ~76 at 1300 and ~42 at 1500 -- and,
- * as live, a few appear at both plants (`10100`, the `107xx` group). Codes
- * only: no extract names them.
+ * Real-looking: a sample of VZI's department list (`Plant Dept Codes`; live
+ * has ~63 codes at 1300 and ~43 at 1500), with a few offered at both plants
+ * (`10100`, `10709`) as departments order at either site. Names below.
  */
 export const DEMO_DEPARTMENTS: Readonly<Record<string, readonly string[]>> = {
   "1300": [
@@ -293,6 +292,38 @@ export const DEMO_DEPARTMENTS: Readonly<Record<string, readonly string[]>> = {
     "10100", "10709", "40100", "40101", "40103", "40105", "40200", "40301", "40400",
     "40501", "40600", "40800",
   ],
+}
+
+/** The demo codes' names, as VZI's department list gives them. **Mock data.** */
+export const DEMO_DEPARTMENT_NAMES: Readonly<Record<string, string>> = {
+  "10100": "FINANCE-COMMERCIAL DEPARTMENT",
+  "10101": "FINANCE DEPARTMENT",
+  "10104": "FINANCE-IT DEPARTMENT",
+  "10300": "ENGG-TOWNSHIP ENGINEERING DEPARTMENT",
+  "10303": "ENGG-PLANT MAINT. CLERK / FOREMAN FITTER",
+  "10306": "ENGG-PLANT ADMIN CLERK",
+  "10311": "ENGG-DEEPS SURFACE CLERK / FOREMAN",
+  "10316": "ENGG-TMM/UG MECHANICAL CLERK / FOREMAN",
+  "10323": "ENGG-SWARTBERG SURFACE CLERK / FOREMAN",
+  "10401": "BMM HUMAN RESOURCE TRAINING DEPARTMENT",
+  "10500": "PLANT PRODUCTION - ADMIN",
+  "10501": "PLANT METS DEPARTMENT",
+  "10502": "PLANT LABORATORUIM DEPARTMENT",
+  "10600": "DEEPS MINING DEPARTMENT",
+  "10604": "MINING-VENTILATION DEPARTMENT",
+  "10701": "GAMSBERG PROJECT:INFRASTRUCTURE DEPARTMENT",
+  "10709": "GAMSBERG PROJECT:HR DEPARTMENT",
+  "50106": "JHB FINANCE DEPARTMENT",
+  "40100": "GAMSBERG OPS - COMMERCIAL DEPARTMENT",
+  "40101": "GAMSBERG OPS - FINANCE DEPARTMENT",
+  "40103": "GAMSBERG OPS - IT DEPARTMENT",
+  "40105": "GAMSBERG OPS - MARKETING",
+  "40200": "GAMSBERG OPS - SAFETY DEPARTMENT",
+  "40301": "GAMSBERG OPS - PLANT ENGINEERING DEPARTMENT",
+  "40400": "GAMSBERG OPS - HR DEPARTMENT",
+  "40501": "GAMSBERG OPS - PLANT OPERATIONS DEPARTMENT",
+  "40600": "GAMSBERG OPS - MINING OPERATIONS DEPARTMENT",
+  "40800": "GAMSBERG OPS - SECURITY DEPARTMENT",
 }
 
 function bareNumber(materialId: string): string {
