@@ -191,6 +191,11 @@ describe("landingQuarters", () => {
     expect(landingQuarters(["Q3 2026"])).toEqual(["Q2 2026"])
   })
 
+  it("leaves Q4 2026 off the grid", () => {
+    expect(HIDDEN_QUARTERS).toContain("Q4 2026")
+    expect(landingQuarters(["Q4 2026", "Q1 2026"])).toEqual(["Q2 2026", "Q1 2026"])
+  })
+
   it("lists the other generated quarters newest first, with Q2 in its place and no duplicate", () => {
     expect(landingQuarters(["Q1 2026", "Q2 2026", "Q3 2026", "Q4 2025"])).toEqual(["Q2 2026", "Q1 2026", "Q4 2025"])
   })
