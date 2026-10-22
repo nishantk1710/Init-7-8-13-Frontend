@@ -9,9 +9,21 @@ import { cn } from "@/lib/utils"
  * rest scroll sideways (StickyScrollTable); the I08 look paints it the card's
  * colour so nothing shows through it.
  */
-export function I08Head({ children, right, frozen }: { children?: ReactNode; right?: boolean; frozen?: boolean }) {
+export function I08Head({
+  children,
+  right,
+  frozen,
+  sort,
+}: {
+  children?: ReactNode
+  right?: boolean
+  frozen?: boolean
+  /** For a sortable column: its order, as `aria-sort` on the header cell. */
+  sort?: "ascending" | "descending" | "none"
+}) {
   return (
     <TableHead
+      aria-sort={sort}
       data-frozen-column={frozen || undefined}
       className={cn(
         "h-[42px] bg-(--i08-head) px-3 text-[13px] font-medium text-muted-foreground",

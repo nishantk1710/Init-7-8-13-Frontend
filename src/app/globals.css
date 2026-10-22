@@ -446,6 +446,7 @@ tr[data-state="selected"] > [data-frozen-column] {
   --i08-good: #5c9e1f;
   --i08-good-ink: #3f6b12;
   --i08-good-tint: #eef6e4;
+  --i08-good-border: #cfe5b4;
   --i08-neutral: #98a2b3;
   --i08-bar: #2a78d6;
   /* The lifecycle stages in order, light to dark: one hue, validated. */
@@ -473,6 +474,7 @@ tr[data-state="selected"] > [data-frozen-column] {
   --i08-good: #8cc657;
   --i08-good-ink: #b2dc8a;
   --i08-good-tint: rgb(140 198 87 / 0.12);
+  --i08-good-border: rgb(140 198 87 / 0.35);
   --i08-neutral: #6b7685;
   --i08-bar: #3987e5;
   --i08-ord-1: #184f95;
@@ -495,6 +497,7 @@ tr[data-state="selected"] > [data-frozen-column] {
   --color-i08-good: var(--i08-good);
   --color-i08-good-ink: var(--i08-good-ink);
   --color-i08-good-tint: var(--i08-good-tint);
+  --color-i08-good-border: var(--i08-good-border);
   --color-i08-neutral: var(--i08-neutral);
   --color-i08-bar: var(--i08-bar);
   --color-i08-ord-1: var(--i08-ord-1);
