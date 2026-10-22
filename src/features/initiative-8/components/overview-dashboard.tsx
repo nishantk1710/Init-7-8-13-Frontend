@@ -105,8 +105,10 @@ export function OverviewDashboard({
     label: c === NO_CRITICALITY ? "Not rated" : c.charAt(0) + c.slice(1).toLowerCase(),
   }))
 
-  // The register's filters for the same slice, so every link opens what the
-  // figure counted. The register filters a vendor by code, the Overview by name.
+  // The register's filters for the same slice, so a link into the register
+  // opens what the figure counted. The register filters a vendor by code, the
+  // Overview by name. The declaration and exception queues cannot narrow by all
+  // of it: their cards say so (`queueNote`).
   const linkFilters: RegisterFilters = {
     plant: filters.plant === ALL ? undefined : filters.plant,
     vendor:

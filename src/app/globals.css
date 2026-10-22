@@ -455,7 +455,12 @@ tr[data-state="selected"] > [data-frozen-column] {
   --i08-ord-3: #184f95;
 }
 
-.dark .i08-scope {
+/* Not inside `.light-scope`. The Overview's PDF copy (overview-print.tsx) carries
+ * both classes so that a dark page still prints in the light I08 palette. Without
+ * the :not(), this block -- two classes specific, against `.light-scope`'s one --
+ * won, and the PDF came out with pale status text and a reversed heat ramp on
+ * white paper. */
+.dark .i08-scope:not(.light-scope) {
   --primary: #1f74c0;
   --ring: #5aa2e0;
   --accent: rgb(31 116 192 / 0.2);
@@ -545,13 +550,14 @@ tr[data-state="selected"] > [data-frozen-column] {
 .i08-seq-5 { background-color: #256abf; color: #ffffff; }
 .i08-seq-6 { background-color: #184f95; color: #ffffff; }
 .i08-seq-7 { background-color: #0d366b; color: #ffffff; }
-.dark .i08-seq-1 { background-color: #12345c; color: #e8f1fc; }
-.dark .i08-seq-2 { background-color: #184f95; color: #e8f1fc; }
-.dark .i08-seq-3 { background-color: #1c5cab; color: #ffffff; }
-.dark .i08-seq-4 { background-color: #2a78d6; color: #ffffff; }
-.dark .i08-seq-5 { background-color: #5598e7; color: #0b1f38; }
-.dark .i08-seq-6 { background-color: #86b6ef; color: #0b1f38; }
-.dark .i08-seq-7 { background-color: #b7d3f6; color: #0b1f38; }
+/* The PDF copy keeps the light ramp, as above. */
+.dark .i08-seq-1:not(.light-scope *) { background-color: #12345c; color: #e8f1fc; }
+.dark .i08-seq-2:not(.light-scope *) { background-color: #184f95; color: #e8f1fc; }
+.dark .i08-seq-3:not(.light-scope *) { background-color: #1c5cab; color: #ffffff; }
+.dark .i08-seq-4:not(.light-scope *) { background-color: #2a78d6; color: #ffffff; }
+.dark .i08-seq-5:not(.light-scope *) { background-color: #5598e7; color: #0b1f38; }
+.dark .i08-seq-6:not(.light-scope *) { background-color: #86b6ef; color: #0b1f38; }
+.dark .i08-seq-7:not(.light-scope *) { background-color: #b7d3f6; color: #0b1f38; }
 
 /* Motion (plan, section 3.7): short, purposeful, and off for anyone who asked
    for less. A bar grows from its baseline; a cell or a timeline step settles in. */

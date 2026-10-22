@@ -378,3 +378,28 @@ export function openExceptionCounts(
     overdue: mine.filter((item) => item.type === "OVERDUE_REPAIR").length,
   }
 }
+
+/** The queues an Overview card can open. The register is not one: it narrows by
+ *  everything the Overview does, so its links need no note. */
+export type QueueDestination = "declarations" | "exceptions"
+
+/**
+ * What a card says when the queue it opens cannot narrow the way the Overview
+ * did, or undefined when it can -- so the card never quietly opens a longer
+ * list than its own count.
+ *
+ * The declaration queue narrows by plant and by a vendor code. It has no
+ * criticality, and no "lines with no vendor" (`none`, which the register
+ * understands and the queue would match as a vendor code and list nothing).
+ * The exception queue narrows by plant alone.
+ */
+export function queueNote(
+  filters: { vendor?: string; criticality?: string },
+  destination: QueueDestination,
+): string | undefined {
+  const lost: string[] = []
+  const vendorLost = destination === "exceptions" ? Boolean(filters.vendor) : filters.vendor === "none"
+  if (vendorLost) lost.push("vendor")
+  if (filters.criticality) lost.push("criticality")
+  return lost.length ? `The queue does not narrow by ${lost.join(" or ")}, so it opens wider than this count.` : undefined
+}

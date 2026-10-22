@@ -13,6 +13,7 @@ import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/re
 import { plural, stageLabel } from "@/features/initiative-8/utils/format"
 import {
   STAGE_ORDER,
+  queueNote,
   stageAging,
   vendorRows,
   type OverviewMetrics,
@@ -74,7 +75,12 @@ export function OverviewFigures({
   const materials = new Set(open.map((c) => c.material.materialId)).size
   const vendors = new Set(open.map((c) => c.vendor ?? "none")).size
   const stock = metrics.stock.plants.map((p) => `${p.plant} ${formatCount(p.stock)}`).join(" · ")
-  const declarationLink = declarationsHref({ plant: linkFilters.plant, vendor: linkFilters.vendor })
+  // `none` is the register's word for a line with no vendor; the queue would
+  // read it as a vendor code and list nothing (see `queueNote`).
+  const declarationLink = declarationsHref({
+    plant: linkFilters.plant,
+    vendor: linkFilters.vendor === "none" ? undefined : linkFilters.vendor,
+  })
   const exceptionLink = exceptionsHref({ status: DEFAULT_EXCEPTION_STATUS, plant: linkFilters.plant })
 
   return (
@@ -111,6 +117,7 @@ export function OverviewFigures({
           }
           href={declarationLink}
           cta="Declare"
+          note={queueNote(linkFilters, "declarations")}
           print={print}
         />
         <ActionCard
@@ -127,6 +134,7 @@ export function OverviewFigures({
           }
           href={exceptionLink}
           cta="Open the queue"
+          note={queueNote(linkFilters, "exceptions")}
           print={print}
         />
       </div>
@@ -191,6 +199,7 @@ function ActionCard({
   text,
   href,
   cta,
+  note,
   print,
 }: {
   tone: "crit" | "warn"
@@ -201,6 +210,9 @@ function ActionCard({
   text: string
   href: string
   cta: string
+  /** Where the link opens something wider than the count. Not printed: the
+   *  PDF has no links, and its header already names the filters. */
+  note?: string
   print: boolean
 }) {
   const shown = value === null ? "neutral" : value === 0 ? "good" : tone
@@ -216,6 +228,7 @@ function ActionCard({
         {value === null ? "—" : formatCount(value)}
       </span>
       <span className="text-[13.5px] text-muted-foreground">{text}</span>
+      {!print && note && <span className="mt-1 text-[12.5px] text-i08-warn-ink">{note}</span>}
       {!print && (
         <span className="mt-auto flex items-center gap-1 pt-2.5 text-[13.5px] font-medium text-i08-link">
           {cta}
