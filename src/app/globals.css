@@ -460,6 +460,9 @@ tr[data-state="selected"] > [data-frozen-column] {
   --ring: #5aa2e0;
   --accent: rgb(31 116 192 / 0.2);
   --accent-foreground: #a9d0f5;
+  /* Without this the light value (#525866) carried into dark mode: dark grey
+     on near-black, about 2.5:1. This is about 7:1 on the cards. */
+  --muted-foreground: #a3abb8;
   --i08-canvas: var(--background);
   --i08-link: #7cb9ee;
   --i08-row-hover: rgb(255 255 255 / 0.04);

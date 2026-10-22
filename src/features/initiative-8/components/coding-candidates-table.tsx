@@ -494,7 +494,7 @@ export function CodingCandidatesTable({
           <>
             <StickyScrollTable tableClassName="table-fixed min-w-[1000px]">
               <colgroup>
-                {[4, 21, 15, 5, 28, 9, 8, 10].map((width, index) => (
+                {[4, 20, 15, 5, 26, 9, 8, 13].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>

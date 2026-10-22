@@ -462,7 +462,7 @@ export function RepairRegisterTable({
                           }
                         />
                       </Cell>
-                      <Cell>
+                      <Cell wrap>
                         <span title={c.plant.name}>{plantShort(c.plant.name)}</span>
                       </Cell>
                       <Cell>
