@@ -7,10 +7,10 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -284,74 +284,72 @@ export function DeclarationsTable({
           No declarations match these filters.
         </div>
       ) : (
-        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead>Repair Status</TableHead>
-                <TableHead>Raised</TableHead>
-                <TableHead className="text-right">
-                  <span className="sr-only">Action</span>
-                </TableHead>
+        <StickyScrollTable className={cn(isPending && "opacity-60")}>
+          <TableHeader>
+            <TableRow>
+              <TableHead data-frozen-column>Material</TableHead>
+              <TableHead>Plant</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead>Repair Status</TableHead>
+              <TableHead>Raised</TableHead>
+              <TableHead className="text-right">
+                <span className="sr-only">Action</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell data-frozen-column>
+                  <MaterialIdentity
+                    material={row.material}
+                    onOpen={openMaterial360}
+                  />
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {row.plant?.name ?? row.plant?.plantId ?? "—"}
+                </TableCell>
+                {/* Name when LFA1 gave one, else the code, else neither.
+                    455 repair lines carry no PO header, so "not known from
+                    this data" is a real answer and gets said. */}
+                <TableCell className="max-w-[180px] truncate text-muted-foreground">
+                  {row.vendor ?? "—"}
+                </TableCell>
+                {/* The REPAIR's status, not the declaration's. Whether the
+                    part is still out changes how urgent an undeclared line
+                    is, and every row here is undeclared by definition. */}
+                <TableCell>
+                  {row.repairStatus ? (
+                    <StatusBadge tone={REPAIR_STATUS_TONE[row.repairStatus]}>
+                      {row.repairStatus}
+                    </StatusBadge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {row.createdAt ?? "—"}
+                </TableCell>
+                {/* Declare it from here. The form used to live only on the
+                    repair detail page, which meant working this queue was a
+                    round trip per row: open the repair, declare, come back,
+                    find your place again. */}
+                <TableCell className="text-right">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => {
+                      setFormKey((k) => k + 1)
+                      setDeclaring(row)
+                    }}
+                  >
+                    Declare condition
+                  </Button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <MaterialIdentity
-                      material={row.material}
-                      onOpen={openMaterial360}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.plant?.name ?? row.plant?.plantId ?? "—"}
-                  </TableCell>
-                  {/* Name when LFA1 gave one, else the code, else neither.
-                      455 repair lines carry no PO header, so "not known from
-                      this data" is a real answer and gets said. */}
-                  <TableCell className="max-w-[180px] truncate text-muted-foreground">
-                    {row.vendor ?? "—"}
-                  </TableCell>
-                  {/* The REPAIR's status, not the declaration's. Whether the
-                      part is still out changes how urgent an undeclared line
-                      is, and every row here is undeclared by definition. */}
-                  <TableCell>
-                    {row.repairStatus ? (
-                      <StatusBadge tone={REPAIR_STATUS_TONE[row.repairStatus]}>
-                        {row.repairStatus}
-                      </StatusBadge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.createdAt ?? "—"}
-                  </TableCell>
-                  {/* Declare it from here. The form used to live only on the
-                      repair detail page, which meant working this queue was a
-                      round trip per row: open the repair, declare, come back,
-                      find your place again. */}
-                  <TableCell className="text-right">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        setFormKey((k) => k + 1)
-                        setDeclaring(row)
-                      }}
-                    >
-                      Declare condition
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </StickyScrollTable>
       )}
 
       <TablePagination

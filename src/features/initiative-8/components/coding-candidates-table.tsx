@@ -7,6 +7,7 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -468,164 +468,162 @@ export function CodingCandidatesTable({
           No coding candidates match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[48px] text-right">#</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Verdict</TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Flags</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Plants</TableHead>
-                <TableHead>Evidence From</TableHead>
-                <TableHead className="text-right">Lines</TableHead>
-                <TableHead
-                  className="text-right"
-                  aria-sort={
-                    priceSort === "desc" ? "descending" : priceSort === "asc" ? "ascending" : "none"
+        <StickyScrollTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[48px] text-right">#</TableHead>
+              <TableHead data-frozen-column>Material</TableHead>
+              <TableHead>Verdict</TableHead>
+              <TableHead>Confidence</TableHead>
+              <TableHead>Flags</TableHead>
+              <TableHead>Reason</TableHead>
+              <TableHead>Plants</TableHead>
+              <TableHead>Evidence From</TableHead>
+              <TableHead className="text-right">Lines</TableHead>
+              <TableHead
+                className="text-right"
+                aria-sort={
+                  priceSort === "desc" ? "descending" : priceSort === "asc" ? "ascending" : "none"
+                }
+              >
+                {/* The one sortable column. A click goes highest first,
+                    lowest first, then back to the ranking. */}
+                <button
+                  type="button"
+                  onClick={() => setPriceSort(nextPriceSort)}
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  title={
+                    priceSort === "none"
+                      ? "Sort by new item price, highest first"
+                      : priceSort === "desc"
+                        ? "Sort by new item price, lowest first"
+                        : "Back to the ranking"
                   }
                 >
-                  {/* The one sortable column. A click goes highest first,
-                      lowest first, then back to the ranking. */}
-                  <button
-                    type="button"
-                    onClick={() => setPriceSort(nextPriceSort)}
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                    title={
-                      priceSort === "none"
-                        ? "Sort by new item price, highest first"
-                        : priceSort === "desc"
-                          ? "Sort by new item price, lowest first"
-                          : "Back to the ranking"
-                    }
-                  >
-                    New Item Price
-                    {priceSort === "desc" ? (
-                      <ArrowDown className="size-3.5" aria-hidden="true" />
-                    ) : priceSort === "asc" ? (
-                      <ArrowUp className="size-3.5" aria-hidden="true" />
-                    ) : (
-                      <ArrowUpDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead>Screened At</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paged.map((c) => (
-                <Fragment key={c.material.materialId}>
-                {/* The whole row opens the evidence, so the row is the control
-                    and carries the aria state. The chevron column that used to
-                    end each row is gone: once the row took the click it was
-                    only a marker, and the other I08 tables open on a row click
-                    without one. The open row's tint, and the evidence under it,
-                    show which row is open. The material cell used to open the
-                    Material 360 drawer instead, which on a coding
-                    candidate has nothing to show: these materials are raised
-                    from PO, PR and movement text, not from the shared
-                    catalogue, so the drawer opened on "no catalog record". */}
-                <TableRow
-                  tabIndex={0}
-                  aria-expanded={expanded.has(c.material.materialId)}
-                  aria-label={`${expanded.has(c.material.materialId) ? "Hide" : "Show"} the text behind ${c.material.materialCode}`}
-                  onClick={() => toggleExpanded(c.material.materialId)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return
-                    // Space scrolls the page otherwise, and here it opens a row.
-                    event.preventDefault()
-                    toggleExpanded(c.material.materialId)
-                  }}
-                  className="cursor-pointer aria-expanded:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-                >
-                  <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
-                    {rankOf.get(c.material.materialId)}
-                  </TableCell>
-                  <TableCell>
-                    <MaterialIdentity material={c.material} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
-                      {c.verdict}
+                  New Item Price
+                  {priceSort === "desc" ? (
+                    <ArrowDown className="size-3.5" aria-hidden="true" />
+                  ) : priceSort === "asc" ? (
+                    <ArrowUp className="size-3.5" aria-hidden="true" />
+                  ) : (
+                    <ArrowUpDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>Screened At</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paged.map((c) => (
+              <Fragment key={c.material.materialId}>
+              {/* The whole row opens the evidence, so the row is the control
+                  and carries the aria state. The chevron column that used to
+                  end each row is gone: once the row took the click it was
+                  only a marker, and the other I08 tables open on a row click
+                  without one. The open row's tint, and the evidence under it,
+                  show which row is open. The material cell used to open the
+                  Material 360 drawer instead, which on a coding
+                  candidate has nothing to show: these materials are raised
+                  from PO, PR and movement text, not from the shared
+                  catalogue, so the drawer opened on "no catalog record". */}
+              <TableRow
+                tabIndex={0}
+                aria-expanded={expanded.has(c.material.materialId)}
+                aria-label={`${expanded.has(c.material.materialId) ? "Hide" : "Show"} the text behind ${c.material.materialCode}`}
+                onClick={() => toggleExpanded(c.material.materialId)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  // Space scrolls the page otherwise, and here it opens a row.
+                  event.preventDefault()
+                  toggleExpanded(c.material.materialId)
+                }}
+                className="cursor-pointer aria-expanded:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+              >
+                <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
+                  {rankOf.get(c.material.materialId)}
+                </TableCell>
+                <TableCell data-frozen-column>
+                  <MaterialIdentity material={c.material} />
+                </TableCell>
+                <TableCell>
+                  <StatusBadge tone={CODING_VERDICT_TONE[c.verdict] ?? "default"}>
+                    {c.verdict}
+                  </StatusBadge>
+                </TableCell>
+                <TableCell>
+                  {c.confidence ? (
+                    <StatusBadge tone={CODING_CONFIDENCE_TONE[c.confidence] ?? "default"}>
+                      {c.confidence}
                     </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    {c.confidence ? (
-                      <StatusBadge tone={CODING_CONFIDENCE_TONE[c.confidence] ?? "default"}>
-                        {c.confidence}
-                      </StatusBadge>
-                    ) : (
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
+                    {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
+                    {!c.isCorroborated && !c.isActionable && (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {c.isCorroborated && <StatusBadge tone="success">Twin found</StatusBadge>}
-                      {c.isActionable && <StatusBadge tone="warning">Actionable</StatusBadge>}
-                      {!c.isCorroborated && !c.isActionable && (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[280px] truncate text-muted-foreground" title={c.reason}>
-                    {c.reason || "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {c.plants.length > 0 ? c.plants.join(", ") : "—"}
-                  </TableCell>
-                  {/* Which documents the words came from. A candidate seen only
-                      on a requisition is a different -- earlier -- finding from
-                      one seen on a purchase order, and the column says so
-                      rather than leaving a reader to open the row. */}
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {sourcesOf(c).map((src) => (
-                        <StatusBadge key={src} tone="default">
-                          {SOURCE_LABEL[src]}
-                        </StatusBadge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">{c.lines.length}</TableCell>
-                  {/* What the part costs new, per plant, from MBEW. Where it
-                      came from -- or why there is none -- is on hover. */}
-                  <TableCell className="text-right tabular-nums">
-                    <div className="flex flex-col items-end gap-0.5">
-                      {newItemPriceCell(c.newItemPrices).map((line, i) => (
-                        <span
-                          key={line.plant ?? i}
-                          title={line.title}
-                          className={line.label === UNKNOWN ? "text-muted-foreground" : "text-foreground"}
-                        >
-                          {line.plant && (
-                            <span className="mr-1.5 text-xs text-muted-foreground">{line.plant}</span>
-                          )}
-                          {line.label}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatScreenedAt(c.screenedAt)}
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[280px] truncate text-muted-foreground" title={c.reason}>
+                  {c.reason || "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {c.plants.length > 0 ? c.plants.join(", ") : "—"}
+                </TableCell>
+                {/* Which documents the words came from. A candidate seen only
+                    on a requisition is a different -- earlier -- finding from
+                    one seen on a purchase order, and the column says so
+                    rather than leaving a reader to open the row. */}
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {sourcesOf(c).map((src) => (
+                      <StatusBadge key={src} tone="default">
+                        {SOURCE_LABEL[src]}
+                      </StatusBadge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right text-foreground">{c.lines.length}</TableCell>
+                {/* What the part costs new, per plant, from MBEW. Where it
+                    came from -- or why there is none -- is on hover. */}
+                <TableCell className="text-right tabular-nums">
+                  <div className="flex flex-col items-end gap-0.5">
+                    {newItemPriceCell(c.newItemPrices).map((line, i) => (
+                      <span
+                        key={line.plant ?? i}
+                        title={line.title}
+                        className={line.label === UNKNOWN ? "text-muted-foreground" : "text-foreground"}
+                      >
+                        {line.plant && (
+                          <span className="mr-1.5 text-xs text-muted-foreground">{line.plant}</span>
+                        )}
+                        {line.label}
+                      </span>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatScreenedAt(c.screenedAt)}
+                </TableCell>
+              </TableRow>
+              {expanded.has(c.material.materialId) && (
+                <TableRow>
+                  {/* The evidence itself. Until now the only way to read the
+                      text a verdict was reached on was to export the CSV,
+                      which is a poor place to check a model's judgement. */}
+                  <TableCell colSpan={11} className="bg-muted/30">
+                    <CandidateEvidence candidate={c} />
                   </TableCell>
                 </TableRow>
-                {expanded.has(c.material.materialId) && (
-                  <TableRow>
-                    {/* The evidence itself. Until now the only way to read the
-                        text a verdict was reached on was to export the CSV,
-                        which is a poor place to check a model's judgement. */}
-                    <TableCell colSpan={11} className="bg-muted/30">
-                      <CandidateEvidence candidate={c} />
-                    </TableCell>
-                  </TableRow>
-                )}
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </StickyScrollTable>
       )}
       <TablePagination
         page={page}

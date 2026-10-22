@@ -8,6 +8,7 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -366,95 +366,93 @@ export function ExceptionsTable({
           No exceptions match these filters.
         </div>
       ) : (
-        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
-          <Table>
-            <TableHeader>
-              {/* Column order follows the Snapshot exception queue, so the two
-                  read the same way side by side. Live has no "New purchase"
-                  column since 18-Oct-2026: only UNJUSTIFIED_ACQUISITION fills
-                  it, and that type is dropped from this queue (see ALL_CHECKS),
-                  so it read "—" on every row. The drawer still shows the line
-                  whenever a row carries one. */}
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Exception</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Repair Line</TableHead>
-                <TableHead>Raised</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="cursor-pointer align-top"
-                  tabIndex={0}
-                  aria-label={`Open ${row.id}`}
-                  onClick={() => openItem(row)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault()
-                      openItem(row)
-                    }
-                  }}
-                >
-                  <TableCell className="text-xs font-medium whitespace-nowrap text-foreground">
-                    {labelFor(row.type)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={EXCEPTION_STATUS_TONE[row.status]}>
-                      {EXCEPTION_STATUS_LABEL[row.status]}
+        <StickyScrollTable className={cn(isPending && "opacity-60")}>
+          <TableHeader>
+            {/* Column order follows the Snapshot exception queue, so the two
+                read the same way side by side. Live has no "New purchase"
+                column since 18-Oct-2026: only UNJUSTIFIED_ACQUISITION fills
+                it, and that type is dropped from this queue (see ALL_CHECKS),
+                so it read "—" on every row. The drawer still shows the line
+                whenever a row carries one. */}
+            <TableRow>
+              <TableHead>Type</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Exception</TableHead>
+              <TableHead data-frozen-column>Material</TableHead>
+              <TableHead>Plant</TableHead>
+              <TableHead>Repair Line</TableHead>
+              <TableHead>Raised</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className="cursor-pointer align-top"
+                tabIndex={0}
+                aria-label={`Open ${row.id}`}
+                onClick={() => openItem(row)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    openItem(row)
+                  }
+                }}
+              >
+                <TableCell className="text-xs font-medium whitespace-nowrap text-foreground">
+                  {labelFor(row.type)}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge tone={EXCEPTION_STATUS_TONE[row.status]}>
+                    {EXCEPTION_STATUS_LABEL[row.status]}
+                  </StatusBadge>
+                </TableCell>
+                <TableCell className="max-w-[420px] whitespace-normal">
+                  <p className="text-xs font-medium text-foreground">{row.title}</p>
+                  {/* Says what is missing AND what was searched for -- the
+                      part that lets somebody check the finding rather than
+                      take it on trust. */}
+                  <p className="mt-0.5 text-xs text-muted-foreground">{row.detail}</p>
+                  {/* A reason, not a violation: the line predates the
+                      control, so nobody could have recorded anything. */}
+                  {row.preAutomation && (
+                    <StatusBadge className="mt-1.5">
+                      Raised before Spares Automation
                     </StatusBadge>
-                  </TableCell>
-                  <TableCell className="max-w-[420px] whitespace-normal">
-                    <p className="text-xs font-medium text-foreground">{row.title}</p>
-                    {/* Says what is missing AND what was searched for -- the
-                        part that lets somebody check the finding rather than
-                        take it on trust. */}
-                    <p className="mt-0.5 text-xs text-muted-foreground">{row.detail}</p>
-                    {/* A reason, not a violation: the line predates the
-                        control, so nobody could have recorded anything. */}
-                    {row.preAutomation && (
-                      <StatusBadge className="mt-1.5">
-                        Raised before Spares Automation
-                      </StatusBadge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <MaterialIdentity
-                      material={row.material}
-                      onOpen={openMaterial360}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {row.plant?.name ?? row.plant?.plantId ?? "—"}
-                  </TableCell>
-                  {/* No "open / received" note under the line since
-                      19-Oct-2026: every repair line an item names is open in
-                      SAP, so the note could only ever say one thing. */}
-                  <TableCell>
-                    {row.repairId ? (
-                      <Link
-                        href={`/repairable-spares/repair-register/${row.repairId}`}
-                        className="text-foreground hover:underline"
-                        title="Open this repair line in the register"
-                      >
-                        {row.repairLine}
-                      </Link>
-                    ) : (
-                      <span className="text-foreground">{row.repairLine}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">
-                    {row.raisedAt ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                  )}
+                </TableCell>
+                <TableCell data-frozen-column>
+                  <MaterialIdentity
+                    material={row.material}
+                    onOpen={openMaterial360}
+                  />
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {row.plant?.name ?? row.plant?.plantId ?? "—"}
+                </TableCell>
+                {/* No "open / received" note under the line since
+                    19-Oct-2026: every repair line an item names is open in
+                    SAP, so the note could only ever say one thing. */}
+                <TableCell>
+                  {row.repairId ? (
+                    <Link
+                      href={`/repairable-spares/repair-register/${row.repairId}`}
+                      className="text-foreground hover:underline"
+                      title="Open this repair line in the register"
+                    >
+                      {row.repairLine}
+                    </Link>
+                  ) : (
+                    <span className="text-foreground">{row.repairLine}</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap">
+                  {row.raisedAt ?? "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </StickyScrollTable>
       )}
 
       <TablePagination
