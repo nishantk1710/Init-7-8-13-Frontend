@@ -335,3 +335,82 @@
     animation-duration: 4s;
   }
 }
+
+/* Wide tables whose sideways scrollbar stays on screen
+   (components/shared/sticky-scroll-table.tsx). */
+
+/* The table's own scrollbar is hidden: the pinned bar below replaces it. The
+   box still scrolls, so Shift + wheel and trackpad swipes work as before. */
+.sticky-hscroll-viewport {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sticky-hscroll-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* The pinned bar. Thicker and darker than the browser's own on purpose: the
+   people it is for missed the thin grey default entirely. A grey lane with a
+   dark thumb, so it reads as a control even before it is hovered. */
+.sticky-hscroll-bar {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar {
+  height: 14px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-track {
+  background-color: var(--muted);
+  border-radius: 9999px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--foreground) 45%, var(--muted));
+  border: 2px solid var(--muted);
+  border-radius: 9999px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-thumb:hover,
+.sticky-hscroll-bar::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--foreground) 65%, var(--muted));
+}
+
+/* Firefox has no ::-webkit-scrollbar. Chromium ignores those rules once
+   scrollbar-color is set, so it is set only where they do not apply. */
+@supports not selector(::-webkit-scrollbar) {
+  .sticky-hscroll-bar {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 45%, var(--muted)) var(--muted);
+  }
+}
+
+/* The frozen column: stays at the left edge while the others scroll under it. */
+[data-frozen-column] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--background);
+}
+
+/* TableRow tints a hovered, focused or open row with a translucent muted,
+   which on this cell would let the scrolled cells show through. So the cell
+   paints the same colour solid: half muted over the page background. */
+tr:hover > [data-frozen-column],
+tr:focus-visible > [data-frozen-column],
+tr[aria-expanded="true"] > [data-frozen-column],
+tr:has([aria-expanded="true"]) > [data-frozen-column] {
+  background-color: color-mix(in srgb, var(--muted) 50%, var(--background));
+}
+
+tr[data-state="selected"] > [data-frozen-column] {
+  background-color: var(--muted);
+}
+
+/* An edge, once there is something scrolled under the column. */
+[data-frozen-pinned] [data-frozen-column] {
+  box-shadow:
+    inset -1px 0 0 var(--border),
+    6px 0 6px -6px rgb(0 0 0 / 0.2);
+}

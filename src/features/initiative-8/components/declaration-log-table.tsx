@@ -6,6 +6,7 @@ import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -219,88 +219,86 @@ export function DeclarationLogTable({ rows: allRows }: DeclarationLogTableProps)
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Declared</TableHead>
-              <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Qty</TableHead>
-              <TableHead>Condition</TableHead>
-              <TableHead>Fault Category</TableHead>
-              <TableHead>Condition Description</TableHead>
-              <TableHead>Serial</TableHead>
-              <TableHead>Declared By</TableHead>
-              <TableHead>Declaration</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paged.map((r) => (
-              <TableRow
-                key={r.id}
-                className={r.supersededBy ? "opacity-60" : undefined}
-              >
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {r.attestedAt ?? "—"}
-                  <div className="flex flex-wrap gap-1">
-                    {r.isAmendment && (
-                      <StatusBadge tone="default">Amendment</StatusBadge>
-                    )}
-                    {r.supersededBy && (
-                      <StatusBadge tone="warning">Superseded</StatusBadge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <MaterialIdentity
-                    material={r.material}
-                    onOpen={openMaterial360}
-                  />
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {r.plant?.name ?? r.plant?.plantId ?? "—"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-foreground">
-                  {r.quantity}
-                </TableCell>
-                <TableCell className="text-foreground">{r.condition}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {r.faultCategory}
-                </TableCell>
-                <TableCell
-                  className="max-w-[320px] truncate text-muted-foreground"
-                  title={r.conditionDescription}
-                >
-                  {r.conditionDescription}
-                </TableCell>
-                {/* Optional, and optional on purpose: I08 works at
-                    material-plant grain today and serial grain is where it is
-                    going. Capturing it when somebody knows it costs nothing
-                    now and is unrecoverable later. */}
-                <TableCell className="text-muted-foreground">
-                  {r.serialNumber ?? "—"}
-                </TableCell>
-                {/* There is no sign-in, so this is whatever the server
-                    stamped. Shown as recorded rather than prettied up: a
-                    placeholder that looks like a name is worse than one that
-                    looks like a placeholder. */}
-                <TableCell className="text-muted-foreground">
-                  {r.attestor}
-                </TableCell>
-                {/* The id, because an amendment chain is read by following
-                    one: a superseded row names what replaced it. */}
-                <TableCell className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">
-                  {r.id}
-                  {r.supersededBy && (
-                    <div className="text-[10px]">superseded by {r.supersededBy}</div>
+      <StickyScrollTable>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Declared</TableHead>
+            <TableHead data-frozen-column>Material</TableHead>
+            <TableHead>Plant</TableHead>
+            <TableHead className="text-right">Qty</TableHead>
+            <TableHead>Condition</TableHead>
+            <TableHead>Fault Category</TableHead>
+            <TableHead>Condition Description</TableHead>
+            <TableHead>Serial</TableHead>
+            <TableHead>Declared By</TableHead>
+            <TableHead>Declaration</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paged.map((r) => (
+            <TableRow
+              key={r.id}
+              className={r.supersededBy ? "opacity-60" : undefined}
+            >
+              <TableCell className="whitespace-nowrap text-muted-foreground">
+                {r.attestedAt ?? "—"}
+                <div className="flex flex-wrap gap-1">
+                  {r.isAmendment && (
+                    <StatusBadge tone="default">Amendment</StatusBadge>
                   )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                  {r.supersededBy && (
+                    <StatusBadge tone="warning">Superseded</StatusBadge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell data-frozen-column>
+                <MaterialIdentity
+                  material={r.material}
+                  onOpen={openMaterial360}
+                />
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {r.plant?.name ?? r.plant?.plantId ?? "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-foreground">
+                {r.quantity}
+              </TableCell>
+              <TableCell className="text-foreground">{r.condition}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {r.faultCategory}
+              </TableCell>
+              <TableCell
+                className="max-w-[320px] truncate text-muted-foreground"
+                title={r.conditionDescription}
+              >
+                {r.conditionDescription}
+              </TableCell>
+              {/* Optional, and optional on purpose: I08 works at
+                  material-plant grain today and serial grain is where it is
+                  going. Capturing it when somebody knows it costs nothing
+                  now and is unrecoverable later. */}
+              <TableCell className="text-muted-foreground">
+                {r.serialNumber ?? "—"}
+              </TableCell>
+              {/* There is no sign-in, so this is whatever the server
+                  stamped. Shown as recorded rather than prettied up: a
+                  placeholder that looks like a name is worse than one that
+                  looks like a placeholder. */}
+              <TableCell className="text-muted-foreground">
+                {r.attestor}
+              </TableCell>
+              {/* The id, because an amendment chain is read by following
+                  one: a superseded row names what replaced it. */}
+              <TableCell className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                {r.id}
+                {r.supersededBy && (
+                  <div className="text-[10px]">superseded by {r.supersededBy}</div>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </StickyScrollTable>
       <TablePagination
         page={page}
         pageSize={pageSize}

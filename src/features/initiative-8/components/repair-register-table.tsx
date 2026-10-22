@@ -10,10 +10,10 @@ import { FilterBar } from "@/components/shared/filter-bar"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -302,158 +302,156 @@ export function RepairRegisterTable({
           No repair chains match these filters.
         </div>
       ) : (
-        <div className={cn("overflow-x-auto", isPending && "opacity-60")}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead className="text-right">Qty Under Repair</TableHead>
-                <TableHead>Repair Status</TableHead>
-                <TableHead>Expected Return</TableHead>
-                <TableHead>Due Date Status</TableHead>
-                <TableHead className="text-right">Days Open</TableHead>
-                <TableHead>Declaration Status</TableHead>
-                <TableHead>Exceptions</TableHead>
-                <TableHead>Criticality</TableHead>
-                <TableHead>Repair PR</TableHead>
-                <TableHead>Repair PO</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {chains.map((c) => {
-                const href = repairHref(c)
-                const overdue = overdueStatusOf(c)
-                return (
-                  <TableRow
-                    key={c.id}
-                    tabIndex={0}
-                    aria-label={`Open repair ${c.id}`}
-                    onClick={(event) => openFromRow(event, href)}
-                    onAuxClick={(event) => openFromRow(event, href)}
-                    onKeyDown={(event) => openFromKeyboard(event, href)}
-                    className="cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-                  >
-                    <TableCell>
-                      {/* A real link, so ctrl-click, middle-click and "copy
-                          link" all work; the row forwards its clicks here. */}
-                      <Link href={href} className="block hover:underline" tabIndex={-1}>
-                        <MaterialIdentity material={c.material} />
+        <StickyScrollTable className={cn(isPending && "opacity-60")}>
+          <TableHeader>
+            <TableRow>
+              <TableHead data-frozen-column>Material</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Plant</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead className="text-right">Qty Under Repair</TableHead>
+              <TableHead>Repair Status</TableHead>
+              <TableHead>Expected Return</TableHead>
+              <TableHead>Due Date Status</TableHead>
+              <TableHead className="text-right">Days Open</TableHead>
+              <TableHead>Declaration Status</TableHead>
+              <TableHead>Exceptions</TableHead>
+              <TableHead>Criticality</TableHead>
+              <TableHead>Repair PR</TableHead>
+              <TableHead>Repair PO</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {chains.map((c) => {
+              const href = repairHref(c)
+              const overdue = overdueStatusOf(c)
+              return (
+                <TableRow
+                  key={c.id}
+                  tabIndex={0}
+                  aria-label={`Open repair ${c.id}`}
+                  onClick={(event) => openFromRow(event, href)}
+                  onAuxClick={(event) => openFromRow(event, href)}
+                  onKeyDown={(event) => openFromKeyboard(event, href)}
+                  className="cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                >
+                  <TableCell data-frozen-column>
+                    {/* A real link, so ctrl-click, middle-click and "copy
+                        link" all work; the row forwards its clicks here. */}
+                    <Link href={href} className="block hover:underline" tabIndex={-1}>
+                      <MaterialIdentity material={c.material} />
+                    </Link>
+                  </TableCell>
+                  <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                    {c.material.description}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
+                  <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                    {vendorLabel(c)}
+                  </TableCell>
+                  <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
+                  {/* PO Issued or At Vendor: every line is open in SAP. A
+                      blocked, deleted or "Delivery completed" line is not
+                      served at all, so there is nothing to flag here. */}
+                  <TableCell>
+                    <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
+                      {c.repairStatus}
+                    </StatusBadge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {c.expectedReturn ?? UNKNOWN}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge tone={OVERDUE_STATUS_TONE[overdue]}>
+                      {OVERDUE_STATUS_LABEL[overdue]}
+                    </StatusBadge>
+                  </TableCell>
+                  {/* Plain number, no verdict. Days open runs from the PO
+                      line date to the reference date: the line is open in
+                      SAP until it is marked delivery completed, and then it
+                      leaves the register. No Turnaround column since
+                      19-Oct-2026 -- it was dispatch to goods receipt, and
+                      goods receipts are not read. */}
+                  <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
+                  {/* Who declared and when, under the status -- what the
+                      Declaration Queue showed in two columns of its own. The
+                      condition, the next action and the form are on the
+                      detail page. */}
+                  <TableCell>
+                    <div className="flex flex-col items-start gap-0.5">
+                      <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
+                        {c.declarationStatus}
+                      </StatusBadge>
+                      {c.declaredBy && (
+                        <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                          {c.declaredBy}
+                          {c.declaredAt && ` · ${c.declaredAt}`}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  {/* What the FR-8 checks found against this line, served
+                      with it. A line they were not computed for -- a backend
+                      older than that -- reads "not checked" rather than
+                      showing a clean dash it has not earned. */}
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    {c.exceptions === undefined ? (
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title="The checks were not read for this line, so its findings are unknown."
+                      >
+                        Not checked
+                      </span>
+                    ) : c.exceptions.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
+                    ) : (
+                      <Link
+                        href={`/repairable-spares/exceptions?repair=${encodeURIComponent(c.id)}`}
+                        className="flex flex-wrap items-center gap-1"
+                        title={`Open Repair Exceptions filtered to ${c.id}`}
+                      >
+                        {c.exceptions.map((exception) => (
+                          <StatusBadge
+                            key={exception.id}
+                            tone={EXCEPTION_SEVERITY_TONE[exception.severity] ?? "default"}
+                          >
+                            {exceptionTypeLabel(exception.type)}
+                          </StatusBadge>
+                        ))}
                       </Link>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
-                      {c.material.description}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{c.plant.name}</TableCell>
-                    <TableCell className="max-w-[160px] truncate text-muted-foreground">
-                      {vendorLabel(c)}
-                    </TableCell>
-                    <TableCell className="text-right text-foreground">{c.qtyUnderRepair}</TableCell>
-                    {/* PO Issued or At Vendor: every line is open in SAP. A
-                        blocked, deleted or "Delivery completed" line is not
-                        served at all, so there is nothing to flag here. */}
-                    <TableCell>
-                      <StatusBadge tone={REPAIR_STATUS_TONE[c.repairStatus]}>
-                        {c.repairStatus}
+                    )}
+                  </TableCell>
+                  {/* Unrated is "not recorded", never NORMAL -- a dash, with
+                      the reason on hover. */}
+                  <TableCell>
+                    {c.criticality ? (
+                      <StatusBadge tone={CRITICALITY_TONE[c.criticality] ?? "default"}>
+                        {c.criticality}
                       </StatusBadge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {c.expectedReturn ?? UNKNOWN}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tone={OVERDUE_STATUS_TONE[overdue]}>
-                        {OVERDUE_STATUS_LABEL[overdue]}
-                      </StatusBadge>
-                    </TableCell>
-                    {/* Plain number, no verdict. Days open runs from the PO
-                        line date to the reference date: the line is open in
-                        SAP until it is marked delivery completed, and then it
-                        leaves the register. No Turnaround column since
-                        19-Oct-2026 -- it was dispatch to goods receipt, and
-                        goods receipts are not read. */}
-                    <TableCell className="text-right text-foreground">{c.daysOpen}</TableCell>
-                    {/* Who declared and when, under the status -- what the
-                        Declaration Queue showed in two columns of its own. The
-                        condition, the next action and the form are on the
-                        detail page. */}
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <StatusBadge tone={DECLARATION_STATUS_TONE[c.declarationStatus]}>
-                          {c.declarationStatus}
-                        </StatusBadge>
-                        {c.declaredBy && (
-                          <span className="whitespace-nowrap text-[10px] text-muted-foreground">
-                            {c.declaredBy}
-                            {c.declaredAt && ` · ${c.declaredAt}`}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    {/* What the FR-8 checks found against this line, served
-                        with it. A line they were not computed for -- a backend
-                        older than that -- reads "not checked" rather than
-                        showing a clean dash it has not earned. */}
-                    <TableCell onClick={(event) => event.stopPropagation()}>
-                      {c.exceptions === undefined ? (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title="The checks were not read for this line, so its findings are unknown."
-                        >
-                          Not checked
-                        </span>
-                      ) : c.exceptions.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">{UNKNOWN}</span>
-                      ) : (
-                        <Link
-                          href={`/repairable-spares/exceptions?repair=${encodeURIComponent(c.id)}`}
-                          className="flex flex-wrap items-center gap-1"
-                          title={`Open Repair Exceptions filtered to ${c.id}`}
-                        >
-                          {c.exceptions.map((exception) => (
-                            <StatusBadge
-                              key={exception.id}
-                              tone={EXCEPTION_SEVERITY_TONE[exception.severity] ?? "default"}
-                            >
-                              {exceptionTypeLabel(exception.type)}
-                            </StatusBadge>
-                          ))}
-                        </Link>
-                      )}
-                    </TableCell>
-                    {/* Unrated is "not recorded", never NORMAL -- a dash, with
-                        the reason on hover. */}
-                    <TableCell>
-                      {c.criticality ? (
-                        <StatusBadge tone={CRITICALITY_TONE[c.criticality] ?? "default"}>
-                          {c.criticality}
-                        </StatusBadge>
-                      ) : (
-                        <span
-                          className="text-xs text-muted-foreground"
-                          title="No criticality rating is recorded for this material in ZMM065"
-                        >
-                          {UNKNOWN}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <SAPDocumentChip doc={c.repairPR} />
-                    </TableCell>
-                    <TableCell>
-                      {c.repairPO ? (
-                        <SAPDocumentChip doc={c.repairPO} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Not yet raised</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                    ) : (
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title="No criticality rating is recorded for this material in ZMM065"
+                      >
+                        {UNKNOWN}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <SAPDocumentChip doc={c.repairPR} />
+                  </TableCell>
+                  <TableCell>
+                    {c.repairPO ? (
+                      <SAPDocumentChip doc={c.repairPO} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Not yet raised</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </StickyScrollTable>
       )}
 
       <TablePagination
