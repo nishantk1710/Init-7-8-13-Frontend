@@ -280,3 +280,101 @@ export function summariseOverview(slice: OverviewSlice): OverviewMetrics {
 export function overviewPdfTitle(referenceDate: string): string {
   return referenceDate ? `i08-overview-${referenceDate}` : "i08-overview"
 }
+
+
+// --- The redesigned Overview (I08_Live_UI_Redesign_Plan.md, L1) -------------
+
+/**
+ * Which configured aging band a number of days falls in: "0-15", "60+".
+ *
+ * The same rule as the backend's `aging_bucket` -- a negative count is day
+ * zero, "60+" starts at 61 -- so a cell's count and the register lines its
+ * link opens are the same lines.
+ */
+export function bandOf(days: number | null | undefined, bands: string[]): string | undefined {
+  if (days === null || days === undefined || bands.length === 0) return undefined
+  const value = Math.max(days, 0)
+  for (const band of bands) {
+    if (band.endsWith("+")) {
+      if (value > Number(band.slice(0, -1))) return band
+      continue
+    }
+    const [low, high] = band.split("-").map(Number)
+    if (value >= low && value <= high) return band
+  }
+  return bands[bands.length - 1]
+}
+
+/** The lifecycle stages a repair line can be in, in order. */
+export const STAGE_ORDER: RepairStatus[] = ["PR Raised", "PO Issued", "At Vendor"]
+
+export type StageAging = {
+  /** One row per stage that holds a line: how many lines sit in each band of
+   *  days in that stage. A stage with no lines has no row -- an empty row
+   *  would claim the stage is tracked and nothing reached it. */
+  rows: { stage: RepairStatus; cells: number[] }[]
+  /** Every open line, by days open (the whole repair). */
+  total: number[]
+  /** The largest cell, for shading. */
+  max: number
+}
+
+/**
+ * FR-9's aging per stage, as a table of counts rather than a bar chart: a
+ * chart with one bar said less than the number, and on today's data every
+ * line sits in one cell.
+ */
+export function stageAging(chains: RepairChain[], bands: string[]): StageAging {
+  const open = chains.filter(isOpenRepair)
+  const rows = STAGE_ORDER.filter((stage) => open.some((c) => c.repairStatus === stage)).map(
+    (stage) => ({
+      stage,
+      cells: bands.map(
+        (band) =>
+          open.filter((c) => c.repairStatus === stage && bandOf(c.daysInCurrentStage, bands) === band)
+            .length,
+      ),
+    }),
+  )
+  // The days-open band is the backend's own, so the total row and the
+  // register's "days open" filter count the same lines.
+  const total = bands.map((band) => open.filter((c) => c.agingBucket === band).length)
+  const max = Math.max(1, ...rows.flatMap((row) => row.cells), ...total)
+  return { rows, total, max }
+}
+
+export type VendorRow = {
+  /** What the register's vendor filter takes: the code, or `none`. */
+  code: string
+  name: string
+  open: number
+  late: number
+}
+
+/** Open repair lines per vendor, most first, with how many are late. */
+export function vendorRows(chains: RepairChain[]): VendorRow[] {
+  const byVendor = new Map<string, VendorRow>()
+  for (const chain of chains) {
+    if (!isOpenRepair(chain)) continue
+    const code = chain.vendor ?? "none"
+    const row = byVendor.get(code) ?? { code, name: vendorLabel(chain), open: 0, late: 0 }
+    row.open += 1
+    if (isRepairOverdue(chain)) row.late += 1
+    byVendor.set(code, row)
+  }
+  return [...byVendor.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name))
+}
+
+/** The open exception items raised against these lines, by type. */
+export function openExceptionCounts(
+  chains: RepairChain[],
+  items: { repairId?: string; type: string }[],
+): { total: number; missing: number; overdue: number } {
+  const ids = new Set(chains.map((c) => c.id))
+  const mine = items.filter((item) => item.repairId && ids.has(item.repairId))
+  return {
+    total: mine.length,
+    missing: mine.filter((item) => item.type === "MISSING_ATTESTATION").length,
+    overdue: mine.filter((item) => item.type === "OVERDUE_REPAIR").length,
+  }
+}

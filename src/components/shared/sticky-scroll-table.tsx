@@ -31,9 +31,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 export function StickyScrollTable({
   children,
   className,
+  tableClassName,
 }: {
   children: ReactNode
   className?: string
+  /** Extra classes for the `<table>` itself, e.g. a fixed layout with a
+   *  minimum width that only overflows once more columns are switched on. */
+  tableClassName?: string
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -117,7 +121,11 @@ export function StickyScrollTable({
   return (
     <div ref={wrapperRef} className={className}>
       <div ref={viewportRef} onScroll={onViewportScroll} className="sticky-hscroll-viewport">
-        <table ref={tableRef} data-slot="table" className="w-full caption-bottom text-sm">
+        <table
+          ref={tableRef}
+          data-slot="table"
+          className={tableClassName ? `w-full caption-bottom text-sm ${tableClassName}` : "w-full caption-bottom text-sm"}
+        >
           {children}
         </table>
       </div>

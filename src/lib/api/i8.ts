@@ -284,6 +284,17 @@ export type ApiRegisterFacets = {
 export type ApiRegisterPage = ApiPage<ApiRepairChain, ApiRegisterMeta> & {
   /** Absent from a backend older than server paging. */
   facets?: ApiRegisterFacets
+  /** How many of the filtered lines each quick view holds, counted before the
+   *  view applies. Absent from a backend older than the quick views. */
+  viewCounts?: ApiRegisterViewCounts
+}
+
+export type ApiRegisterViewCounts = {
+  all: number
+  overdue: number
+  undeclared: number
+  atVendor: number
+  withExceptions: number
 }
 
 export type ApiUniverseItem = {
@@ -679,11 +690,17 @@ export type RegisterQuery = {
   /** Required, Completed or Flagged. */
   declarationStatus?: string
   agingBucket?: string
+  /** The aging band of the days in the line's CURRENT stage (agingBucket bands
+   *  the days it has been open). What the Overview's stage-by-age cells open. */
+  stageAgingBucket?: string
   /** Only lines a check has raised something against. */
   withExceptions?: boolean
   /** Comma-separated exception types left out of each line's `exceptions`
    *  and of `withExceptions`. */
   excludeExceptionType?: string
+  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`
+   *  or `withExceptions`. `viewCounts` counts each before it applies. */
+  view?: string
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
   page?: number

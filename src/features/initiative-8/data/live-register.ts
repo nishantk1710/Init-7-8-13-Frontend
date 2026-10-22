@@ -70,6 +70,7 @@ import {
 } from "@/features/initiative-8/utils/status"
 import type {
   ApiRegisterPage,
+  ApiRegisterViewCounts,
   ApiRepairChain,
   ApiRegisterMeta,
   ApiRepairJustification,
@@ -485,9 +486,23 @@ export type RegisterFilters = {
   criticality?: string
   declarationStatus?: string
   aging?: string
+  /** The aging band of the days in the current stage: what one cell of the
+   *  Overview's stage-by-age table opens. */
+  stageAging?: string
   /** `?exceptions=1`: only lines a check has raised something against. */
   exceptions?: boolean
+  /** A quick view: `overdue`, `undeclared`, `atVendor` or `withExceptions`. */
+  view?: string
 }
+
+/** The register's quick views, in the order the screen shows them. */
+export const REGISTER_VIEWS = [
+  { value: "", label: "All" },
+  { value: "overdue", label: "Overdue" },
+  { value: "undeclared", label: "Not declared" },
+  { value: "atVendor", label: "At vendor" },
+  { value: "withExceptions", label: "With exceptions" },
+] as const
 
 /** The dropdowns' choices: the server's, over the whole listed register. */
 export type RegisterFacets = {
@@ -510,6 +525,9 @@ export type RegisterPage = {
   referenceDate: string
   agingBands: string[]
   sourceLoadedAt: string | null
+  /** Each quick view's count over the filtered lines; null from a backend
+   *  older than the quick views, when the buttons show no numbers. */
+  viewCounts: ApiRegisterViewCounts | null
 }
 
 type FetchRegister = typeof getRegister
@@ -523,6 +541,8 @@ const TEXT_FILTERS = [
   "criticality",
   "declarationStatus",
   "aging",
+  "stageAging",
+  "view",
 ] as const
 
 export function parseRegisterParams(raw: RawSearchParams): {
@@ -574,7 +594,9 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     criticality: filters.criticality,
     declarationStatus: filters.declarationStatus,
     agingBucket: filters.aging,
+    stageAgingBucket: filters.stageAging,
     withExceptions: filters.exceptions || undefined,
+    view: filters.view,
     excludeExceptionType: [...DROPPED_TYPES].join(","),
   }
 }
@@ -650,6 +672,7 @@ export async function loadRegisterPage(
     facets: facetsOf(body, chains),
     referenceDate: body.referenceDate,
     ...settings,
+    viewCounts: body.viewCounts ?? null,
   }
 }
 

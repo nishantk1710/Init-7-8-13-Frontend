@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
-import { PageHeader } from "@/components/shared/page-header"
+import { I08Page } from "@/features/initiative-8/components/kit/page"
 import { RepairRegisterTable } from "@/features/initiative-8/components/repair-register-table"
 import {
   loadRegisterPage,
   parseRegisterParams,
-  registerDescription,
   registerHref,
   type RegisterPage,
 } from "@/features/initiative-8/data/live-register"
@@ -65,45 +64,40 @@ export async function RepairRegisterPage({
     if (page > lastPage) redirect(registerHref(filters, lastPage))
   }
 
+  if (data === null) {
+    // Shown as a failure, never as an empty table. "No repairs" and "cannot
+    // reach the server" are different statements and must not look alike.
+    return (
+      <I08Page
+        crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Register" }]}
+        title="Repair Register"
+      >
+        <div
+          role="alert"
+          className="mt-6 rounded-xl border border-i08-crit-border bg-i08-crit-tint p-8 text-center text-sm"
+        >
+          <p className="font-medium text-foreground">The repair register could not be loaded.</p>
+          <p className="mt-1 text-muted-foreground">{loadError}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            This is not an empty register, it is a failed request. Try again in a minute.
+          </p>
+        </div>
+      </I08Page>
+    )
+  }
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
-        <PageHeader
-          title="Repair Register"
-          description={
-            data
-              ? registerDescription(data.meta, data.referenceDate, data.sourceLoadedAt)
-              : "The repair lines SAP still has open."
-          }
-        />
-        {data === null ? (
-          // Shown as a failure, never as an empty table. "No repairs" and
-          // "cannot reach the server" are different statements and must not
-          // look alike.
-          <div
-            role="alert"
-            className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center text-sm"
-          >
-            <p className="font-medium text-foreground">The repair register could not be loaded.</p>
-            <p className="mt-1 text-muted-foreground">{loadError}</p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              This is not an empty register — it is a failed request. Check that the
-              backend is running and that NEXT_PUBLIC_API_BASE_URL points at it.
-            </p>
-          </div>
-        ) : (
-          <RepairRegisterTable
-            chains={data.chains}
-            total={data.total}
-            overall={data.meta.totalLines}
-            page={page}
-            pageSize={DEFAULT_PAGE_SIZE}
-            facets={data.facets}
-            agingBands={data.agingBands}
-            filters={filters}
-          />
-        )}
-      </div>
-    </div>
+    <RepairRegisterTable
+      chains={data.chains}
+      total={data.total}
+      meta={data.meta}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
+      facets={data.facets}
+      agingBands={data.agingBands}
+      filters={filters}
+      viewCounts={data.viewCounts}
+      sourceLoadedAt={data.sourceLoadedAt}
+    />
   )
 }
