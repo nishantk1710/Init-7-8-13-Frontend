@@ -68,8 +68,14 @@ export function RequestSummary({ requestId }: { requestId: string }) {
         </div>
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Department</dt>
-          <dd className="font-mono">{departmentLabel(request)}</dd>
+          <dd>{departmentLabel(request)}</dd>
         </div>
+        {request.departmentNote && (
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Department note</dt>
+            <dd>{request.departmentNote}</dd>
+          </div>
+        )}
       </dl>
 
       <section className="flex flex-col gap-3">

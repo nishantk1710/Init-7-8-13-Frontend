@@ -30,6 +30,7 @@ import { formatInstant, formatWindow, planStatusLabel, sessionIdentity } from "@
 import { cn } from "@/lib/utils"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { departmentText } from "@/lib/assistant/request/record"
 
 /**
  * One session and everything it produced — the FR-8 demo surface, for both
@@ -197,9 +198,10 @@ function Header({ trace }: { trace: SessionTraceResponse }) {
         />
         <Field
           label="Department"
-          value={trace.department}
+          value={trace.department ? departmentText(trace.department, trace.departmentName) : null}
           nullNote="not stated"
         />
+        {trace.departmentNote && <Field label="Department note" value={trace.departmentNote} />}
         {/* Only where there is one. Every session minted since the entry point
             stopped asking has none, and an empty row on all of them would
             invite somebody to go looking for the missing number. Older

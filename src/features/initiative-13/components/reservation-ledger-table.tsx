@@ -5,6 +5,7 @@ import { MessagesSquare } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { deliveryStatus } from "@/features/initiative-13/utils/delivery-status"
 import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
@@ -22,8 +23,8 @@ import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
 
-function qty(value: number | null): string {
-  return value === null ? "—" : formatCount(value)
+function qty(value: number | null) {
+  return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
 }
 
 /**
@@ -91,7 +92,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   {row.poNumber && (
                     <SAPDocumentChip doc={{ type: "PO", documentNumber: row.poNumber, line: row.poItem ?? undefined }} />
                   )}
-                  {!row.prNumber && !row.poNumber && <span className="text-muted-foreground">—</span>}
+                  {!row.prNumber && !row.poNumber && <EmptyValue kind="noPrOrPo" />}
                 </div>
               </TableCell>
               <TableCell className="text-right text-foreground">{qty(row.receivedQuantity)}</TableCell>
@@ -136,13 +137,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   )
 }
 
-/** Issued, or "—" when it cannot be known (the reservation predates the movement history). */
+/** Issued, or "Before history" when it cannot be known (the reservation predates the movement history). */
 function IssuedCell({ row }: { row: ReservationLedgerRow }) {
   const unknown = issuedUnknownReason(row)
   if (unknown) {
     return (
-      <TableCell className="text-right text-muted-foreground" title={unknown}>
-        —
+      <TableCell className="text-right">
+        <EmptyValue kind="beforeHistory" title={unknown} />
       </TableCell>
     )
   }

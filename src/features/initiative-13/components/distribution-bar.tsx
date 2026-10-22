@@ -70,7 +70,7 @@ export function DistributionBar({
                 {formatCount(s.count)}
               </span>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {total === 0 ? "—" : `${formatShare(share(s.count))}%`}
+                {total === 0 ? "0%" : `${formatShare(share(s.count))}%`}
               </span>
             </span>
           </li>

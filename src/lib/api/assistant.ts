@@ -136,6 +136,8 @@ export type StartSessionRequest = {
    * legitimately has none. Omit rather than sending an empty string.
    */
   department?: string
+  /** Optional free text typed beside the department code (≤200); never checked. */
+  departmentNote?: string
   /**
    * Who the part is for, as typed by whoever is operating the assistant.
    *
@@ -314,6 +316,10 @@ export type SessionTraceResponse = {
   materialId: string
   plant: string
   department: string | null
+  /** The code's name from VZI's department list. Absent on an older backend. */
+  departmentName?: string | null
+  /** Free text typed beside the department, if any. */
+  departmentNote?: string | null
   /** Who the part was for. Null when nobody was named — a session opened from
    *  SAP cannot carry one. Show "not stated", never a blank. */
   requestedFor: string | null
@@ -363,6 +369,8 @@ export type ApiSessionSummary = {
   materialId: string
   plant: string
   department: string | null
+  departmentName?: string | null
+  departmentNote?: string | null
   requestedFor: string | null
   /** The operator. Served, never drawn — see `SessionTraceResponse`. */
   requester: string
@@ -435,12 +443,14 @@ export type MaterialSearchResponse = {
 }
 
 /**
- * One department code: the 5-digit value VZI keys into a purchase
- * requisition's Requisitioner (`EBAN.AFNAM`). Codes only — no extract names them.
+ * One department: its 5-digit code and name, from VZI's department list
+ * (`Plant Dept Codes`, loaded as `raw_dept_codes`).
  */
 export type ApiDepartment = {
   code: string
-  /** Every in-scope plant with a requisition from this department. */
+  /** Null for a code the list does not name; absent on an older backend. */
+  name?: string | null
+  /** The plants the list gives this code. */
   plants: string[]
   /** Show before anything is typed. False: the other plant's, offered on search. */
   primary: boolean

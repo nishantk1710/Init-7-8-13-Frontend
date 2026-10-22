@@ -137,69 +137,6 @@ export function JustificationFields({
   )
 }
 
-/**
- * The request's department: a code from the plant's list
- * (`GET /assistant/departments?plant=`, the plant's own codes), picked once in
- * the request header for every line.
- *
- * A native select: short list, and it behaves the same everywhere.
- *
- * While the backend's list has not loaded, a 5-digit code can be typed
- * instead -- the backend then accepts any code of that shape, as the opener does.
- */
-export function DepartmentSelect({
-  codes,
-  value,
-  onChange,
-  label,
-  invalid,
-  disabled,
-  id,
-}: {
-  id?: string
-  codes: readonly string[]
-  value: string
-  onChange: (code: string) => void
-  label: string
-  invalid: boolean
-  disabled?: boolean
-}) {
-  if (codes.length === 0) {
-    return (
-      <input
-        id={id}
-        aria-label={label}
-        inputMode="numeric"
-        maxLength={5}
-        placeholder="5 digits"
-        className={cn(SELECT_CLASS, "w-full font-mono")}
-        value={value}
-        disabled={disabled}
-        aria-invalid={invalid}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
-      />
-    )
-  }
-  return (
-    <select
-      id={id}
-      aria-label={label}
-      className={cn(SELECT_CLASS, "w-full font-mono")}
-      value={value}
-      disabled={disabled}
-      aria-invalid={invalid}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">Choose…</option>
-      {codes.map((code) => (
-        <option key={code} value={code}>
-          {code}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 /** A category as the conversation labels it: URGENT_BREAKDOWN -> Urgent Breakdown. */
 export function reasonLabel(value: string): string {
   return value
