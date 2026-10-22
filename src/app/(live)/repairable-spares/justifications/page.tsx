@@ -3,23 +3,19 @@ import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { I08JustificationLog } from "@/features/initiative-8/components/justification-log"
+import { I08Page } from "@/features/initiative-8/components/kit/page"
 import {
   justificationsHref,
   loadJustificationsPage,
+  loadMaterialDescriptions,
   parseJustificationParams,
   type JustificationsPage,
   type RawSearchParams,
 } from "@/features/initiative-8/data/live-justifications"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
-import { PageHeader } from "@/components/shared/page-header"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
-import { formatCount } from "@/lib/utils"
-
-/** Shown on a tile whose source could not be read -- never a 0. */
-const NOT_LOADED = "Could not be loaded"
 
 export const metadata: Metadata = {
-  title: "New-acquisition justifications — Spares AI",
+  title: "Justifications — Repairable Spares — Spares AI",
 }
 
 /**
@@ -51,6 +47,19 @@ export const metadata: Metadata = {
  * `?q=`, `?plant=`, `?reason=` and `?page=` are read here and the backend
  * pages, counts and searches -- see `live-justifications.ts` for why it stopped
  * fetching the newest 200 and filtering them in the browser.
+ *
+ * ## A table, with descriptions
+ *
+ * Laid out as a table since the redesign (I08_Live_UI_Redesign_Plan.md, L7).
+ * A justification stores only the material number, so the descriptions for
+ * the page on screen are looked up here, best-effort, before it renders.
+ *
+ * No tiles. "Purchases avoided" is absent on purpose: FR-7 attributes benefit
+ * only where the requester chose repair after the assistant's advice, and
+ * nothing computes that yet. "Purchases still unjustified" and "Justification
+ * compliance" came off on 18-Oct-2026: the check behind them dates a purchase
+ * by EKPO.ERDAT, which live EKPO does not carry, so their 0 meant "not
+ * checked". The count of records is in the summary line.
  */
 export default async function I08JustificationsPage({
   searchParams,
@@ -79,60 +88,36 @@ export default async function I08JustificationsPage({
     if (page > lastPage) redirect(justificationsHref(filters, lastPage))
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
-        <PageHeader
-          title="New-acquisition justifications"
-          description="Why a new unit was bought while a repairable one already existed — captured at the moment of the reservation."
-        />
-
-        {/* One tile. "Purchases avoided" is deliberately absent: FR-7 wants
-            benefit attributed only where the requester chose repair after the
-            assistant's advice, and nothing computes that yet. A tile with an
-            invented number would be worse than no tile.
-
-            Three more tiles came off on 18-Oct-2026, with the explanatory box
-            that sat under them:
-              - "Purchases still unjustified" and "Justification compliance"
-                were read from the backend's UNJUSTIFIED_ACQUISITION check. It
-                dates a new purchase by EKPO.ERDAT, which the live EKPO extract
-                does not carry, so its 0 (and so the 100%) meant "not checked",
-                not "none found".
-              - "Linked to a session" always equalled the count: the assistant
-                writes every justification inside a session.
-            The grid keeps four columns so the one tile stays the width tiles
-            are on every other screen, rather than stretching across.
-
-            The count is every justification on record, whatever the filters
-            below are set to -- the line above the list says how many match. */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KPIStatCard
-            label="Justifications recorded"
-            value={data === null ? NOT_LOADED : formatCount(data.overall)}
-            hint="new-acquisition reasons on record"
-          />
+  if (data === null) {
+    return (
+      <I08Page
+        crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Justifications" }]}
+        title="Justifications"
+      >
+        <div role="alert" className="mt-6 rounded-xl border border-i08-crit-border bg-i08-crit-tint p-5">
+          <p className="text-sm text-foreground">The justification log could not be loaded.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">{loadError}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            This is not &ldquo;nothing recorded&rdquo;: it is a failed request. Try again in a minute.
+          </p>
         </div>
+      </I08Page>
+    )
+  }
 
-        {data === null ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-            <p className="text-sm text-foreground">
-              The justification log could not be loaded.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-          </div>
-        ) : (
-          <I08JustificationLog
-            items={data.items}
-            total={data.total}
-            overall={data.overall}
-            page={page}
-            pageSize={DEFAULT_PAGE_SIZE}
-            filters={filters}
-            facets={data.facets}
-          />
-        )}
-      </div>
-    </div>
+  // Best-effort: a description that does not arrive leaves its number alone.
+  const descriptions = await loadMaterialDescriptions(data.items.map((entry) => entry.materialId))
+
+  return (
+    <I08JustificationLog
+      items={data.items}
+      total={data.total}
+      overall={data.overall}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
+      filters={filters}
+      facets={data.facets}
+      descriptions={descriptions}
+    />
   )
 }

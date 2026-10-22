@@ -22,3 +22,9 @@ export function sapPlantLabel(code: string): string {
   const name = SAP_PLANT_NAMES[code]
   return name ? `${name} (${code})` : code
 }
+
+/** "1500" -> "Gamsberg"; an unnamed code -> "3000". For a table column, where
+ *  the code would repeat on every row. */
+export function sapPlantName(code: string): string {
+  return SAP_PLANT_NAMES[code] ?? code
+}

@@ -6,6 +6,7 @@ import {
   fetchAllJustifications,
   justificationsHref,
   loadJustificationsPage,
+  loadMaterialDescriptions,
   parseJustificationParams,
 } from "@/features/initiative-8/data/live-justifications"
 
@@ -154,5 +155,43 @@ describe("fetchAllJustifications", () => {
 
     expect(await fetchAllJustifications({}, fetchPage)).toHaveLength(3)
     expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("loadMaterialDescriptions", () => {
+  const universe = (...materials: [string, string | null][]) => ({
+    items: materials.map(([materialId, description]) => ({ material: { materialId, description } })),
+  })
+
+  it("looks each distinct material up once and keeps the descriptions found", async () => {
+    const lookup = vi.fn(async (id: string) =>
+      id === "8000000007" ? universe(["8000000007", "BEARING ASSEMBLY"]) : universe([id, null]),
+    )
+
+    const found = await loadMaterialDescriptions(["8000000007", "8000000007", "8000004596"], lookup)
+
+    expect(lookup).toHaveBeenCalledTimes(2)
+    expect(found).toEqual({ "8000000007": "BEARING ASSEMBLY" })
+  })
+
+  it("matches a padded number to the plain one, and never another material", async () => {
+    // A search for 8000000007 also finds 80000000071: only the exact one counts.
+    const lookup = vi.fn(async () =>
+      universe(["000000008000000071", "NOT THIS ONE"], ["000000008000000007", "BEARING ASSEMBLY"]),
+    )
+
+    expect(await loadMaterialDescriptions(["8000000007"], lookup)).toEqual({ "8000000007": "BEARING ASSEMBLY" })
+  })
+
+  it("leaves a material whose lookup fails or hangs without a description, and the rest unharmed", async () => {
+    const lookup = vi.fn(async (id: string) => {
+      if (id === "8000000010") throw new Error("503")
+      if (id === "8000000003") return new Promise<never>(() => {})
+      return universe([id, "VALVE"])
+    })
+
+    expect(await loadMaterialDescriptions(["8000000010", "8000000003", "8000004596"], lookup, 50)).toEqual({
+      "8000004596": "VALVE",
+    })
   })
 })
