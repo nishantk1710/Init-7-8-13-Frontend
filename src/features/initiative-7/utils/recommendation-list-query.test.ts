@@ -87,27 +87,27 @@ describe("listParamsFromFilters", () => {
   })
 })
 
-describe("OAR list hides materials without enough consumption", () => {
-  it("asks only for OAR materials issued more than the policy threshold in 12 months", () => {
-    expect(listParamsFromFilters(filters({ type: "oar" }), 1).consumptionAboveThreshold).toBe(true)
+describe("the OAR list is not narrowed by consumption", () => {
+  it("never asks the backend to drop OAR materials for low consumption", () => {
+    expect(listParamsFromFilters(filters({ type: "oar" }), 1).consumptionAboveThreshold).toBeUndefined()
     expect(listParamsFromFilters(filters({ type: "stock_item" }), 1).consumptionAboveThreshold).toBeUndefined()
   })
 })
 
 describe("the list shows only what the SAP adoption counts cover", () => {
-  it("asks for actionable recommendations whenever a group is chosen", () => {
-    expect(listParamsFromFilters(filters({ type: "oar" }), 1).actionable).toBe(true)
+  it("asks for actionable recommendations for the non-OAR groups", () => {
     expect(listParamsFromFilters(filters({ type: "stock_item" }), 1).actionable).toBe(true)
-    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1).actionable).toBe(true)
+    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1).actionable).toBeUndefined()
   })
 
   it("does not narrow a list with no group chosen", () => {
     expect(listParamsFromFilters(filters(), 1).actionable).toBeUndefined()
   })
 
-  it("lets the Not-eligible OAR ones still be looked at when asked for by name", () => {
+  it("lists Not-eligible OAR recommendations alongside the Eligible ones", () => {
+    expect(listParamsFromFilters(filters({ type: "oar" }), 1).actionable).toBeUndefined()
     expect(listParamsFromFilters(filters({ type: "oar", conversion: "NOT_ELIGIBLE" }), 1).actionable).toBeUndefined()
-    expect(listParamsFromFilters(filters({ type: "oar", conversion: "ELIGIBLE" }), 1).actionable).toBe(true)
+    expect(listParamsFromFilters(filters({ type: "oar", conversion: "ELIGIBLE" }), 1).actionable).toBeUndefined()
   })
 
   it("reaches the backend as actionable=true", async () => {
@@ -119,7 +119,7 @@ describe("the list shows only what the SAP adoption counts cover", () => {
         headers: { "content-type": "application/json" },
       })
     })
-    await fetchRecommendations(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1))
+    await fetchRecommendations(listParamsFromFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" }, 1))
     expect(new URL(calls[0], "http://x").searchParams.get("actionable")).toBe("true")
   })
 })
