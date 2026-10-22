@@ -83,13 +83,13 @@ export function listParamsFromFilters(filters: DashboardFilterState, page: numbe
     confidence: filters.type === "oar" ? chosen(filters.confidence) : undefined,
     // Only OAR recommendations carry a Min-Max conversion decision, likewise.
     conversionEligibility: filters.type === "oar" ? chosen(filters.conversion) : undefined,
-    // OAR materials with no consumption, or too little to qualify, are not listed.
-    consumptionAboveThreshold: filters.type === "oar" ? true : undefined,
-    // Only what has something to adopt in SAP: an OAR recommendation eligible for the Min-Max
-    // conversion, or a stock item with a changed ROP / safety stock / max stock -- the set the
-    // Overview's SAP adoption counts. Asking for the Not-eligible OAR ones by name lifts it, so
-    // they can still be looked at.
-    actionable: onlyCalculated && filters.conversion !== "NOT_ELIGIBLE" ? true : undefined,
+    // The OAR list is not narrowed by consumption or by conversion verdict: Not-eligible OAR
+    // recommendations (too little use, no qualifying criticality) still carry a similarity-based
+    // estimate and are listed beside the Eligible ones; the Min-Max conversion filter splits them.
+    //
+    // Everywhere else the list shows only what has something to adopt in SAP: a stock item with a
+    // changed ROP / safety stock / max stock -- the set the Overview's SAP adoption counts.
+    actionable: onlyCalculated && filters.type !== "oar" ? true : undefined,
     search: search || undefined,
     criticalityLevel: chosen(filters.criticality),
     demandClass: DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern],
