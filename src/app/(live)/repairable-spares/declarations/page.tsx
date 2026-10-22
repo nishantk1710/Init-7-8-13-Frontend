@@ -2,11 +2,8 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { DeclarationLogTable } from "@/features/initiative-8/components/declaration-log-table"
-import { DeclarationsTable } from "@/features/initiative-8/components/declarations-table"
-import { DeclarePartButton } from "@/features/initiative-8/components/declare-part-button"
+import { DeclarationsScreen } from "@/features/initiative-8/components/declarations-screen"
+import { I08Page } from "@/features/initiative-8/components/kit/page"
 import {
   declarationsHref,
   loadDeclarationLog,
@@ -14,13 +11,9 @@ import {
   parseDeclarationParams,
   type DeclarationsPage,
 } from "@/features/initiative-8/data/live-declarations"
-import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
+import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import { getAttestations } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
-import { formatCount } from "@/lib/utils"
-
-/** Shown on a tile whose source could not be read -- never a 0. */
-const NOT_LOADED = "Could not be loaded"
 
 export const metadata: Metadata = {
   title: "Repair Declarations — Spares AI",
@@ -66,8 +59,14 @@ export const metadata: Metadata = {
  * `?q=`, `?plant=`, `?vendor=`, `?repairStatus=` and `?page=` are read here,
  * and the backend searches, filters, counts and pages the queue. It used to
  * load all 5,153 rows and filter them in the browser: a 17 MB page that took
- * ten seconds to arrive. See `loadDeclarationsPage`. The declaration log below
- * the queue is still loaded whole -- it holds six rows.
+ * ten seconds to arrive. See `loadDeclarationsPage`. The declaration log is
+ * still loaded whole -- it holds six rows.
+ *
+ * ## Two tabs
+ *
+ * `?tab=log` shows the log; anything else, the queue. The log used to sit four
+ * screens down, under the queue and its pager (I08_Live_UI_Redesign_Plan.md,
+ * L4). Both are loaded either way: the tab strip shows both counts.
  */
 export default async function I08DeclarationsPage({
   searchParams,
@@ -78,7 +77,8 @@ export default async function I08DeclarationsPage({
   // build-time snapshot would be stale the moment it was built.
   await connection()
 
-  const { filters, page } = parseDeclarationParams(await searchParams)
+  const raw = await searchParams
+  const { filters, page } = parseDeclarationParams(raw)
 
   let data: DeclarationsPage | null = null
   let loadError: string | null = null
@@ -105,133 +105,35 @@ export default async function I08DeclarationsPage({
     if (page > lastPage) redirect(declarationsHref(filters, lastPage))
   }
 
-  // The plants a declaration can be recorded against, from the queue rather
-  // than hard-coded: the plant scope is a backend setting and a list typed
-  // here would be a second place to change it. The server's list, not the
-  // page's rows, which would offer only the plants on one page.
-  const plantOptions = data?.facets.plants ?? []
+  if (data === null) {
+    return (
+      <I08Page
+        crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Declarations" }]}
+        title="Repair Declarations"
+      >
+        <div role="alert" className="mt-6 rounded-xl border border-i08-crit-border bg-i08-crit-tint p-5">
+          <p className="text-sm text-foreground">The declaration queue could not be loaded.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">{loadError}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            This is not &ldquo;nothing outstanding&rdquo;, it is a failed request. Try again in a minute.
+          </p>
+        </div>
+      </I08Page>
+    )
+  }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
-        <PageHeader
-          title="Repair Declarations"
-          description="Every repair line, and whether the part was assessed before it was sent away. Advisory — the platform records and reports this, it cannot block a dispatch."
-          actions={
-            plantOptions.length > 0 ? (
-              <DeclarePartButton plantOptions={plantOptions} faultCategories={categories} />
-            ) : undefined
-          }
-        />
-
-        {data === null ? (
-          <div
-            role="alert"
-            className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"
-          >
-            <p className="text-sm text-foreground">
-              The declaration queue could not be loaded.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              This is not &ldquo;nothing outstanding&rdquo; — it is a failed
-              request. Check that the backend is running and that its I08 data
-              has finished building.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* The four numbers somebody asks for before reading any row.
-                "Could not be loaded" rather than a 0 where the source failed:
-                a zero here reads as "nothing outstanding", which is the
-                opposite of what a failed call means. */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KPIStatCard
-                label="Repair lines undeclared"
-                value={formatCount(data.summary.outstanding)}
-                hint={`of ${formatCount(data.summary.total)} repair lines`}
-              />
-              <KPIStatCard
-                label="Declarations recorded"
-                value={
-                  log === null
-                    ? NOT_LOADED
-                    : formatCount(log.filter((r) => !r.supersededBy).length)
-                }
-                hint={
-                  log === null
-                    ? undefined
-                    : `in force · ${formatCount(log.filter((r) => r.supersededBy).length)} amended, kept as history`
-                }
-              />
-              <KPIStatCard
-                label="Repairable"
-                value={
-                  log === null
-                    ? NOT_LOADED
-                    : formatCount(
-                        log.filter((r) => r.condition === "Repairable").length
-                      )
-                }
-                hint="judged worth repairing"
-              />
-              <KPIStatCard
-                label="Not worth repairing"
-                value={
-                  log === null
-                    ? NOT_LOADED
-                    : formatCount(
-                        log.filter(
-                          (r) =>
-                            r.condition === "Scrap" ||
-                            r.condition === "Beyond Economical Repair"
-                        ).length
-                      )
-                }
-                hint="scrap or beyond economical repair"
-              />
-            </div>
-
-            <section className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-foreground">
-                Repair lines still owed a declaration
-              </h2>
-              <DeclarationsTable
-                rows={data.rows}
-                total={data.total}
-                page={page}
-                pageSize={DEFAULT_PAGE_SIZE}
-                summary={data.summary}
-                facets={data.facets}
-                filters={filters}
-                faultCategories={categories}
-              />
-            </section>
-
-            <section className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-foreground">
-                Declaration log
-              </h2>
-              {log === null ? (
-                <div
-                  role="alert"
-                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm"
-                >
-                  <p className="text-foreground">
-                    The declaration log could not be loaded.
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    This is not &ldquo;nothing recorded&rdquo;. The queue above
-                    is unaffected.
-                  </p>
-                </div>
-              ) : (
-                <DeclarationLogTable rows={log} />
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </div>
+    <DeclarationsScreen
+      tab={single(raw.tab) === "log" ? "log" : "queue"}
+      rows={data.rows}
+      total={data.total}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
+      summary={data.summary}
+      facets={data.facets}
+      filters={filters}
+      faultCategories={categories}
+      log={log}
+    />
   )
 }

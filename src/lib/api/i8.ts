@@ -602,6 +602,10 @@ export type ApiAttestation = {
   /** Set when a later amendment replaced this one. The original is never
    *  edited or removed — this is how a reader knows it is not current. */
   supersededBy: string | null
+  /** The repair line it was declared against (EKPO.EBELN / EBELP), when it
+   *  was declared from one; null for "Declare a part". */
+  repairDocument?: string | null
+  repairItem?: string | null
 
   /**
    * Register line ids this attestation covers. **Present on POST only**, null

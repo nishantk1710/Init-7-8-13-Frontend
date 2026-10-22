@@ -8,7 +8,8 @@ import { Columns3, Download, Loader2, SlidersHorizontal } from "lucide-react"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
+import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
 import { InfoPopover, PopoverButton } from "@/features/initiative-8/components/kit/info-popover"
 import {
   FilterChips,
@@ -580,26 +581,4 @@ export function RepairRegisterTable({
 function withColumns(href: string, columns: string[]): string {
   if (columns.length === 0) return href
   return `${href}${href.includes("?") ? "&" : "?"}cols=${columns.join(",")}`
-}
-
-function Head({ children, right, frozen }: { children: React.ReactNode; right?: boolean; frozen?: boolean }) {
-  return (
-    <TableHead
-      data-frozen-column={frozen || undefined}
-      className={cn("h-[42px] bg-(--i08-head) px-3.5 text-[13px] font-medium text-muted-foreground", right && "text-right")}
-    >
-      {children}
-    </TableHead>
-  )
-}
-
-function Cell({ children, right, frozen }: { children: React.ReactNode; right?: boolean; frozen?: boolean }) {
-  return (
-    <TableCell
-      data-frozen-column={frozen || undefined}
-      className={cn("overflow-hidden px-3.5 py-2.5 text-[14px] text-ellipsis", right && "text-right tabular-nums")}
-    >
-      {children}
-    </TableCell>
-  )
 }

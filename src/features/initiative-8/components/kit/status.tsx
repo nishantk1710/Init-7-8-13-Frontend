@@ -27,6 +27,7 @@ export function StatusDot({
   tone = "neutral",
   strong = false,
   small = false,
+  wrap = false,
   className,
   children,
 }: {
@@ -34,20 +35,24 @@ export function StatusDot({
   /** Red text as well as a red dot: for "113 days late", the one number to read. */
   strong?: boolean
   small?: boolean
+  /** Wrap onto a second line in a narrow column, the dot staying by the first,
+   *  rather than be cut off mid-word. */
+  wrap?: boolean
   className?: string
   children: ReactNode
 }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap",
+        "inline-flex gap-1.5",
+        wrap ? "items-start" : "items-center whitespace-nowrap",
         small ? "text-[12.5px]" : "text-[13.5px]",
         tone === "muted" ? "text-muted-foreground" : "text-foreground",
         strong && tone === "crit" && "font-medium text-i08-crit-ink",
         className,
       )}
     >
-      <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", DOT[tone])} />
+      <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", wrap && "mt-[0.42em]", DOT[tone])} />
       {children}
     </span>
   )
