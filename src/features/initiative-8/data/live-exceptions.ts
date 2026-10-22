@@ -57,7 +57,7 @@ import type {
   ApiExceptionPage,
   ExceptionQuery,
 } from "@/lib/api/i8"
-import { formatApiDateTime } from "@/lib/api/format"
+import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import { formatApiDate, getExceptions } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
@@ -101,7 +101,7 @@ export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
       : undefined,
     title: row.title,
     detail: row.detail,
-    raisedAt: row.raisedAt ? formatApiDate(row.raisedAt) : undefined,
+    raisedAt: row.raisedAt ? i08Date(row.raisedAt) : undefined,
     preAutomation: row.preAutomation,
     // Defaults for a backend that does not serve the lifecycle yet. OPEN and
     // unassigned is what an untouched item genuinely is, so an older API and
@@ -123,7 +123,7 @@ function toEvent(event: ApiExceptionEvent): ExceptionEvent {
     owner: event.owner ?? undefined,
     actor: event.actor,
     text: event.text,
-    at: formatApiDateTime(event.at),
+    at: i08DateTime(event.at),
   }
 }
 
@@ -328,6 +328,10 @@ export type ExceptionsPage = {
   /** The whole queue's counts, whatever the filters. */
   summary: ExceptionQueueSummary
   facets: ExceptionFacets
+  /** Items per type under every filter but the type: the type tabs' counts.
+   *  Undefined from a backend that does not send them; the tabs then show
+   *  no numbers rather than the whole check's, which ignore the status. */
+  typeCounts?: Record<string, number>
 }
 
 type FetchExceptions = typeof getExceptions
@@ -458,7 +462,10 @@ export async function loadExceptionsPage(
   // The backend has taken the dropped types off the counts already. This
   // takes them out of `typesRaised` and `byType` for one that has not.
   const summary = withoutDroppedTypes(toSummary(body.meta), [])
-  return { rows, total: body.total, summary, facets: facetsOf(body, rows, summary.typesRaised) }
+  const typeCounts = body.typeCounts
+    ? Object.fromEntries(Object.entries(body.typeCounts).filter(([type]) => !DROPPED_TYPES.has(type)))
+    : undefined
+  return { rows, total: body.total, summary, facets: facetsOf(body, rows, summary.typesRaised), typeCounts }
 }
 
 /**

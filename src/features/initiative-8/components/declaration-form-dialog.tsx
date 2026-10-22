@@ -78,6 +78,9 @@ export type DeclarationTarget = {
 export type DeclarationFormDialogProps = {
   open: boolean
   onClose: () => void
+  /** After the declaration is recorded, before the dialog closes: the
+   *  exception panel re-reads its item, which the declaration may clear. */
+  onSaved?: () => void
   target: DeclarationTarget
   /**
    * The configured fault-category list, served by the API. Never hard-coded:
@@ -98,6 +101,7 @@ export type DeclarationFormDialogProps = {
 export function DeclarationFormDialog({
   open,
   onClose,
+  onSaved,
   target,
   faultCategories,
 }: DeclarationFormDialogProps) {
@@ -170,6 +174,7 @@ export function DeclarationFormDialog({
           : `Attestation ${created.id} recorded`,
         { description: created.coverageNote ?? undefined, duration: 12000 },
       )
+      onSaved?.()
       onClose()
       // Re-read from the server so the page shows the truth rather than a
       // guess. The status is the backend's to compute, not ours to assume.

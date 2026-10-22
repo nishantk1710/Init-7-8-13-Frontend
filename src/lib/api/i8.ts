@@ -578,6 +578,10 @@ export type ApiExceptionFacets = {
 export type ApiExceptionPage = ApiPage<ApiExceptionItem, ApiExceptionMeta> & {
   /** Absent from a backend older than server paging. */
   facets?: ApiExceptionFacets
+  /** Items per type after every filter but `type`: what each type tab holds.
+   *  Unlike `meta.byType`, these follow the filters, status above all.
+   *  Absent from a backend older than the redesign. */
+  typeCounts?: Record<string, number> | null
 }
 
 /** One recorded attestation. */
