@@ -103,6 +103,14 @@ describe("the history", () => {
     expect(said).toContain("Showing 4 uploads")
   })
 
+  it("shows the chart ring, not a blank, while the history loads", () => {
+    const html = renderToStaticMarkup(
+      createElement(HistoryBody, { uploads: null, plant: null, loading: true, error: null })
+    )
+    expect(html).toContain("chart-loader-ring")
+    expect(html).toContain('aria-label="Loading the upload history"')
+  })
+
   it("shows the July delivery as such, with nobody as its uploader", () => {
     const html = renderToStaticMarkup(
       createElement(HistoryBody, { uploads: [uploads[3]], plant: null, loading: false, error: null })
