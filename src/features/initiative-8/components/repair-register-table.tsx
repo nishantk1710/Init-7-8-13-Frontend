@@ -176,6 +176,12 @@ export function RepairRegisterTable({
     }))
   }
 
+  // The backend sends `viewCounts` exactly when it understands `view` and
+  // `stageAgingBucket` -- they arrived together. An older one ignores both
+  // without a word, and a selected pill over an unfiltered list would be a
+  // wrong answer that looks right: so no pills then, and a chip from an
+  // Overview link says it is not applied.
+  const viewsWork = viewCounts !== null
   const plantName = (id?: string) => facets.plants.find((p) => p.plantId === id)?.name ?? id
   const vendorName = (code?: string) => facets.vendors.find((v) => v.value === code)?.label ?? code
   const chips = [
@@ -183,7 +189,11 @@ export function RepairRegisterTable({
     filters.plant && { key: "plant", label: `Plant: ${plantName(filters.plant)}` },
     filters.vendor && { key: "vendor", label: `Vendor: ${vendorName(filters.vendor)}` },
     filters.repairStatus && { key: "repairStatus", label: `Stage: ${stageLabel(filters.repairStatus)}` },
-    filters.stageAging && { key: "stageAging", label: `${filters.stageAging.replace("-", "–")} days in stage` },
+    filters.stageAging && {
+      key: "stageAging",
+      label: `${filters.stageAging.replace("-", "–")} days in stage${viewsWork ? "" : " (not applied)"}`,
+    },
+    !viewsWork && filters.view && { key: "view", label: `${filters.view} (not applied)` },
     filters.criticality && {
       key: "criticality",
       label: `Criticality: ${filters.criticality === "none" ? "Not rated" : filters.criticality}`,
@@ -303,15 +313,17 @@ export function RepairRegisterTable({
         </>
       }
     >
-      <QuickViews
-        choices={REGISTER_VIEWS.map((view) => ({
-          value: view.value,
-          label: view.label,
-          count: viewCounts ? viewCounts[view.value === "" ? "all" : view.value] : undefined,
-        }))}
-        value={filters.view ?? ""}
-        onSelect={(value) => push({ view: value || undefined })}
-      />
+      {viewsWork && (
+        <QuickViews
+          choices={REGISTER_VIEWS.map((view) => ({
+            value: view.value,
+            label: view.label,
+            count: viewCounts[view.value === "" ? "all" : view.value],
+          }))}
+          value={filters.view ?? ""}
+          onSelect={(value) => push({ view: value || undefined })}
+        />
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {/* The browser's own find sees one page; this looks through every line. */}
