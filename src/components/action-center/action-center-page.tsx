@@ -1,7 +1,6 @@
 import { connection } from "next/server"
 
 import { ActionCenterTabs } from "@/components/action-center/action-center-tabs"
-import { CappedNotice } from "@/components/shared/load-status"
 import { PageHeader } from "@/components/shared/page-header"
 import { ProfileMenu } from "@/components/shared/profile-menu"
 import { combineActions, getLiveActions, INITIATIVE_IDS } from "@/lib/aggregation"
@@ -15,7 +14,7 @@ export async function ActionCenterPage() {
   const combined = combineActions(per)
 
   // The true population per module, not the length of the capped list — and
-  // null for a module that did not answer, so its tab does not read as "0".
+  // null for a module that did not answer, so its filter does not read as "0".
   const counts = Object.fromEntries(
     INITIATIVE_IDS.map((id) => {
       const section = per[id]
@@ -34,11 +33,8 @@ export async function ActionCenterPage() {
         {/* TEMPORARY (UAT): the red "could not be loaded" banner is hidden here because
             the I07 list call times out intermittently. Restore
             <FailureNotice failures={combined.failures} /> once the I07 snapshot/index
-            fix is deployed. The tab still reads "(not loaded)" for the failed module. */}
-        {combined.capped && (
-          <CappedNotice shown={combined.actions.length} total={combined.total} noun="open items" />
-        )}
-        <ActionCenterTabs actions={combined.actions} counts={counts} />
+            fix is deployed. Selecting the failed module's filter still says it is not loaded. */}
+        <ActionCenterTabs actions={combined.actions} counts={counts} total={combined.total} />
       </div>
     </div>
   )

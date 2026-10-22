@@ -8,18 +8,11 @@ import { toast } from "sonner"
 
 import { auditHref, type AuditFilters } from "@/components/audit/audit-params"
 import { EmptyState } from "@/components/shared/empty-state"
-import { INITIATIVE_NAME } from "@/components/shared/load-status"
+import { CappedNotice, INITIATIVE_NAME } from "@/components/shared/load-status"
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { Avatar } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -29,11 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatWhen } from "@/lib/api/format"
-import type { AuditEvent, InitiativeId } from "@/lib/domain/contracts"
+import type { AuditEvent } from "@/lib/domain/contracts"
 import { cn, downloadExcel } from "@/lib/utils"
 
-const ALL_FILTER = "all"
-const INITIATIVES: InitiativeId[] = ["initiative-7", "initiative-8", "initiative-13"]
 
 interface GlobalAuditLogProps {
   /** This page of the trail, newest first. */
@@ -98,35 +89,22 @@ export function GlobalAuditLog({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-          Initiative
-          <Select
-            value={filters.initiative ?? ALL_FILTER}
-            onValueChange={(v) =>
-              go({ initiative: v === ALL_FILTER ? undefined : (v as InitiativeId) })
-            }
-          >
-            <SelectTrigger className="h-9 w-full sm:w-56">
-              <SelectValue placeholder="Initiative">
-                {(value: string) =>
-                  value === ALL_FILTER ? "All initiatives" : INITIATIVE_NAME[value as InitiativeId]
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER}>All initiatives</SelectItem>
-              {INITIATIVES.map((id) => (
-                <SelectItem key={id} value={id}>
-                  {INITIATIVE_NAME[id]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
+    <div className="flex flex-col gap-4">
+      {/* What is on screen against what exists, above the filter like the other pages. Nothing is claimed for an empty
+          page: the empty state below says why. */}
+      {events.length > 0 &&
+        (total === null ? (
+          <AlertBanner
+            tone="info"
+            title={`Showing ${events.length.toLocaleString()} events (total unavailable)`}
+          />
+        ) : (
+          <CappedNotice shown={events.length} total={total} noun="events" description={null} />
+        ))}
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+      {/* The same bold bordered, shadowed track as the other pages' filters, around the date range and Export. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border-2 border-primary/40 bg-card p-3 shadow-lg">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           From
           <Input
             key={filters.from ?? "no-from"}
@@ -138,7 +116,7 @@ export function GlobalAuditLog({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           To
           <Input
             key={filters.to ?? "no-to"}
@@ -150,19 +128,30 @@ export function GlobalAuditLog({
           />
         </label>
 
-        {filtered && (
-          <Link
-            href="/audit"
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-9")}
-          >
-            Clear filters
-          </Link>
-        )}
+        {/* Clear filters sits just before Export, together at the right. */}
+        <div className="ml-auto flex items-center gap-2">
+          {filtered && (
+            <Link
+              href="/audit"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "h-9 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary"
+              )}
+            >
+              Clear filters
+            </Link>
+          )}
 
-        <Button variant="outline" size="sm" className="ml-auto h-9" onClick={handleExport}>
-          <Download className="size-3.5" />
-          Export page to Excel
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary"
+            onClick={handleExport}
+          >
+            <Download className="size-3.5" />
+            Export page to Excel
+          </Button>
+        </div>
       </div>
 
       {truncated && (
@@ -171,6 +160,12 @@ export function GlobalAuditLog({
         </AlertBanner>
       )}
 
+      {/* Keyed on the date range so the trail fades in when it changes -- not on a page change. Dropped for reduced
+          motion. */}
+      <div
+        key={`${filters.from ?? ""}|${filters.to ?? ""}`}
+        className="animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+      >
       {events.length === 0 ? (
         <EmptyState
           title={
@@ -254,6 +249,7 @@ export function GlobalAuditLog({
           </TableBody>
         </Table>
       )}
+      </div>
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">

@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 
 import { MaterialsExplorer } from "@/components/materials/materials-explorer"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import { MATERIALS } from "@/lib/mock-data"
 
 export const metadata: Metadata = {
@@ -22,14 +22,7 @@ export default function MaterialsPage() {
             material — classification, routing and next steps.
           </p>
         </div>
-        <Suspense
-          fallback={
-            <div className="flex flex-col gap-4">
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-80 rounded-xl" />
-            </div>
-          }
-        >
+        <Suspense fallback={<PageLoader label="Loading materials" className="h-72 w-full" />}>
           <MaterialsExplorer materials={MATERIALS} />
         </Suspense>
       </div>

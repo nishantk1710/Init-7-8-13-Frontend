@@ -73,7 +73,7 @@ export function CriticalityUploadCard({
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <section className="flex flex-col gap-3 rounded-lg border-2 border-primary/40 bg-card p-4 shadow-lg">
       <div>
         <h2 className="text-sm font-medium text-foreground">Upload a report</h2>
         <p className="text-xs text-muted-foreground">The file&apos;s own plant must match the plant you pick.</p>

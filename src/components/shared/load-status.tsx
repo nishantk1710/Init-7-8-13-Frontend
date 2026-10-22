@@ -50,14 +50,17 @@ export function CappedNotice({
   shown,
   total,
   noun,
+  description = "The most recent items from each module are listed; open the module for the full set.",
 }: {
   shown: number
   total: number
   noun: string
+  /** Defaults to the wording for a list that spans every module; `null` leaves the card as the title alone. */
+  description?: string | null
 }) {
   return (
     <AlertBanner tone="info" title={`Showing ${shown.toLocaleString()} of ${total.toLocaleString()} ${noun}`}>
-      The most recent items from each module are listed; open the module for the full set.
+      {description}
     </AlertBanner>
   )
 }

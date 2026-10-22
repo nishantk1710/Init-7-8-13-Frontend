@@ -18,7 +18,7 @@
 
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 
@@ -167,7 +167,16 @@ function LiveApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
   )
 }
 
-export function LiveApprovalsWorkspace() {
+/** What the workspace is listing right now, for a page that wants to say so above it: the rows on screen, and how many
+ * recommendations sit in the selected status before the criticality filter narrows them. */
+export type ApprovalsSummary = { shown: number; total: number }
+
+export function LiveApprovalsWorkspace({
+  onSummaryChange,
+}: {
+  /** Called with the figures whenever they change, and with `null` while loading, on an error, and on unmount. */
+  onSummaryChange?: (summary: ApprovalsSummary | null) => void
+}) {
   const { openMaterial360 } = useMaterial360()
   const { recommendations, loading, error, refetch } = useLiveApprovalQueue()
   const [statusTab, setStatusTab] = useState<StatusTab>("pending")
@@ -196,6 +205,15 @@ export function LiveApprovalsWorkspace() {
   }, [recommendations, statusTab, criticality, sortBy])
 
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null
+
+  // Say what is on screen, not what the aggregate feed holds. Nothing is claimed until the queue has loaded.
+  const ready = !loading && !error
+  const shown = rows.length
+  const total = statusCounts[statusTab]
+  useEffect(() => {
+    onSummaryChange?.(ready ? { shown, total } : null)
+  }, [onSummaryChange, ready, shown, total])
+  useEffect(() => () => onSummaryChange?.(null), [onSummaryChange])
 
   if (loading) {
     return (

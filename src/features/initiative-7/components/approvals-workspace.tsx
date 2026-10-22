@@ -27,7 +27,10 @@ import { cn, formatMoney } from "@/lib/utils"
 import { APPROVAL_ROLES, approverName, type ApprovalRole } from "@/features/initiative-7/data/approval-chain"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
-import { LiveApprovalsWorkspace } from "@/features/initiative-7/components/live-approvals-workspace"
+import {
+  LiveApprovalsWorkspace,
+  type ApprovalsSummary,
+} from "@/features/initiative-7/components/live-approvals-workspace"
 import { CIRCUITS, CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
 import { approvalDueLabel, waitingDays } from "@/features/initiative-7/utils/inventory-calc"
 import { USING_LIVE_DATA } from "@/lib/dataset-mode"
@@ -158,9 +161,14 @@ function ApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
   )
 }
 
-export function ApprovalsWorkspace() {
+export function ApprovalsWorkspace({
+  onSummaryChange,
+}: {
+  /** Live data only: told what the workspace is listing, so the page can say so. */
+  onSummaryChange?: (summary: ApprovalsSummary | null) => void
+}) {
   if (USING_LIVE_DATA) {
-    return <LiveApprovalsWorkspace />
+    return <LiveApprovalsWorkspace onSummaryChange={onSummaryChange} />
   }
   return <ScenarioApprovalsWorkspace />
 }

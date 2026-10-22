@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 
 import { ALL_FILTER, MaterialSearch } from "@/components/materials/material-search"
 import { MaterialTable } from "@/components/materials/material-table"
+import { CappedNotice } from "@/components/shared/load-status"
 import type { Category, LifecycleStatus, Material } from "@/lib/types"
 
 const CATEGORY_VALUES: Category[] = [
@@ -58,6 +59,7 @@ export function MaterialsExplorer({ materials }: { materials: Material[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <CappedNotice shown={filtered.length} total={materials.length} noun="materials" description={null} />
       <MaterialSearch
         query={query}
         onQueryChange={setQuery}
@@ -69,10 +71,14 @@ export function MaterialsExplorer({ materials }: { materials: Material[] }) {
         lifecycle={lifecycle}
         onLifecycleChange={setLifecycle}
       />
-      <p className="text-xs text-muted-foreground">
-        {filtered.length} of {materials.length} materials
-      </p>
-      <MaterialTable materials={filtered} />
+      {/* Keyed on the dropdown filters, so the results fade in when one changes -- not on every keystroke in the search.
+          Dropped for reduced motion. */}
+      <div
+        key={`${category}|${manufacturer}|${lifecycle}`}
+        className="animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+      >
+        <MaterialTable materials={filtered} />
+      </div>
     </div>
   )
 }

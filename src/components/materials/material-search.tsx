@@ -37,7 +37,8 @@ export function MaterialSearch({
   onLifecycleChange: (value: LifecycleStatus | typeof ALL_FILTER) => void
 }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+    // The same bold bordered, shadowed track as the Action Center and Approvals filters, around the controls.
+    <div className="flex flex-col gap-2 rounded-lg border-2 border-primary/40 bg-card p-2 shadow-lg sm:flex-row sm:items-center">
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
