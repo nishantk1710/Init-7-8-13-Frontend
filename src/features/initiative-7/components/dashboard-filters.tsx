@@ -157,7 +157,10 @@ function FilterField({
 }) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+      <span
+        data-slot="filter-label"
+        className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
+      >
         {label}
       </span>
       {children}
@@ -258,7 +261,8 @@ export function DashboardFilters({
         "rounded-xl border border-border bg-card p-4",
         isBar
           ? "flex flex-wrap items-end gap-3 [&>div]:min-w-[132px] [&>div]:flex-1"
-          : "flex flex-col gap-4"
+          : // The Overview's rail: field names (Recommendation, Plant, ...) a little bolder than the bar's.
+            "flex flex-col gap-4 [&_[data-slot=filter-label]]:font-semibold"
       )}
     >
       {!isBar && <div className="text-sm font-medium text-foreground">Filters</div>}

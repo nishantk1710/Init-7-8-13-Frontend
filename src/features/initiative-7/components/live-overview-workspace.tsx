@@ -25,6 +25,7 @@ import {
   EMPTY_DASHBOARD_FILTERS,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
+import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import {
   ADOPTION_PLANTS,
@@ -208,6 +209,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   return (
     <div className="flex flex-col gap-4">
       <InventoryPortfolioKpis
+        showInfo
         recommendations={filtered}
         adoptedOverride={
           adoptionSummary ? { count: adoptionSummary.adoptedCount, total: adoptionSummary.totalEvaluated } : null
@@ -269,6 +271,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <ChartCard
               title="Stockout Risk Distribution"
+              info={<OverviewInfo id="stockoutDistribution" />}
               subtitle={`Fast and slow moving material-plants, by stock on hand against lead-time need.${typeNote}`}
               span={6}
             >
@@ -289,6 +292,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             </ChartCard>
             <ChartCard
               title="Stockout risk by plant"
+              info={<OverviewInfo id="stockoutByPlant" />}
               subtitle={`Fast and slow moving material-plants short of their lead-time need.${typeNote}`}
               span={6}
             >
@@ -296,6 +300,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
             </ChartCard>
             <ChartCard
               title="Excess inventory by plant"
+              info={<OverviewInfo id="excessByPlant" />}
               subtitle={`Material-plants above their recommended maximum stock, now.${typeNote}`}
               span={6}
             >
@@ -304,6 +309,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
 
             <ChartCard
               title="SAP adoption"
+              info={<OverviewInfo id="sapAdoption" />}
               subtitle="Recommendations with a change to adopt, checked against SAP change history."
               span={6}
             >

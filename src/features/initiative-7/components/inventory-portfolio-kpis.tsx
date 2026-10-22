@@ -4,6 +4,8 @@ import { AlertTriangle, CheckCircle2, Layers, Wallet } from "lucide-react"
 import { ChartLoader } from "@/components/shared/chart-loader"
 import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
+import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
+import type { OverviewInfoId } from "@/features/initiative-7/data/overview-info"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import {
   countAtStockoutRisk,
@@ -25,6 +27,16 @@ const ICON_TONE: Record<Tone, string> = {
   success: "bg-success/15 text-success",
   warning: "bg-warning/15 text-warning",
   danger: "bg-destructive/10 text-destructive",
+}
+
+// The Overview's cards are always drawn highlighted: a border and a faint wash in their own tone, with
+// a soft shadow. The pointer only lifts them a little further, and a press dips them back down. Written
+// out in full so Tailwind can see every class.
+const CARD_TONE: Record<Tone, string> = {
+  info: "border-primary/60 bg-primary/5 active:border-primary active:bg-primary/10",
+  success: "border-success/60 bg-success/5 active:border-success active:bg-success/10",
+  warning: "border-warning/60 bg-warning/5 active:border-warning active:bg-warning/10",
+  danger: "border-destructive/60 bg-destructive/5 active:border-destructive active:bg-destructive/10",
 }
 
 function pct(part: number, whole: number): string {
@@ -63,6 +75,7 @@ function PortfolioKpiCard({
   captionMuted,
   note,
   loading = false,
+  infoId,
 }: {
   title: string
   icon: ReactNode
@@ -76,17 +89,33 @@ function PortfolioKpiCard({
   /** The figure is being fetched: a spinning circle stands where the value and its lines will be, so a card is never
    * "Not available" (or showing the previous filter's number) for the moments a new figure takes to arrive. */
   loading?: boolean
+  /** Puts the (i) icon beside the title, explaining how the figure is calculated. */
+  infoId?: OverviewInfoId
 }) {
   return (
     <div
-      className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4"
+      className={cn(
+        "group/card flex min-w-0 flex-col gap-1.5 rounded-xl border p-4",
+        // Only where the card explains itself (the Overview): the quarterly reports reuse these cards
+        // and keep the plain card.
+        infoId
+          ? cn(
+              "shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.99] active:shadow-sm motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
+              CARD_TONE[tone]
+            )
+          : "border-border bg-card"
+      )}
       aria-busy={loading || undefined}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="truncate text-sm font-medium text-foreground">{title}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-foreground">{title}</span>
+          {infoId && <OverviewInfo id={infoId} />}
+        </span>
         <span
           className={cn(
             "flex size-6 shrink-0 items-center justify-center rounded-full",
+            infoId && "transition-transform duration-200 group-hover/card:scale-110 motion-reduce:transition-none",
             ICON_TONE[tone]
           )}
         >
@@ -139,7 +168,10 @@ export function InventoryPortfolioKpis({
   excessInventoryOverride,
   workingCapitalOverride,
   loading,
+  showInfo = false,
 }: {
+  /** Adds the (i) icon to each card. Off by default: the quarterly reports reuse these cards. */
+  showInfo?: boolean
   recommendations?: Recommendation[]
   /** Portfolio-wide { count, total } for "Adopted recommendation", from GET
    * /recommendations/adoption/summary: `count` are the recommendations SAP's change history shows
@@ -224,6 +256,7 @@ export function InventoryPortfolioKpis({
       <PortfolioKpiCard
         title="High Stockout Risk"
         loading={loading?.stockout}
+        infoId={showInfo ? "stockoutRisk" : undefined}
         icon={<AlertTriangle className="size-3.5" />}
         tone="danger"
         value={stockoutNotComputed ? "Not available" : formatCount(stockoutRisk)}
@@ -239,6 +272,7 @@ export function InventoryPortfolioKpis({
       <PortfolioKpiCard
         title="Excess Inventory Candidates"
         loading={loading?.excess}
+        infoId={showInfo ? "excessInventory" : undefined}
         icon={<Layers className="size-3.5" />}
         tone="info"
         value={formatCount(excess)}
@@ -248,6 +282,7 @@ export function InventoryPortfolioKpis({
       <PortfolioKpiCard
         title="Working Capital Impact"
         loading={loading?.workingCapital}
+        infoId={showInfo ? "workingCapital" : undefined}
         icon={<Wallet className="size-3.5" />}
         tone="success"
         value={netImpact === null ? "Not available" : formatCompactSigned(netImpact, impactCurrency)}
@@ -261,6 +296,7 @@ export function InventoryPortfolioKpis({
       <PortfolioKpiCard
         title="Adopted recommendation"
         loading={loading?.adopted}
+        infoId={showInfo ? "adoptedRecommendation" : undefined}
         icon={<CheckCircle2 className="size-3.5" />}
         tone="warning"
         value={adoptedNotAvailable ? "Not available" : formatCount(adopted)}

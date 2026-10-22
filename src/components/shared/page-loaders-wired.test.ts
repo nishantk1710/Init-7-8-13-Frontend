@@ -27,8 +27,14 @@ describe("every Inventory Planning page opens with the hourglass", () => {
     expect(src).toContain("<PageLoader")
   })
 
+  it("the Criticality Reports upload history uses the chart ring, like the charts", () => {
+    const src = read(`${F}/components/criticality-history-card.tsx`)
+    expect(src).toContain('from "@/components/shared/chart-loader"')
+    expect(src).toContain("<ChartLoader")
+    expect(src).not.toContain("<LoadingSpinner")
+  })
+
   it.each([
-    [`${F}/components/criticality-history-card.tsx`],
     [`${F}/components/quarterly-management-view.tsx`],
     [`${F}/components/quarterly-reports-workspace.tsx`],
   ])("%s keeps the petal spinner for a small area", (rel) => {
