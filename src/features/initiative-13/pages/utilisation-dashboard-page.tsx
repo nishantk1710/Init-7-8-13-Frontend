@@ -4,12 +4,14 @@ import { connection } from "next/server"
 import type { ReactNode } from "react"
 import { ArrowRight, Clock3, FileText } from "lucide-react"
 
-import { ChartCard } from "@/components/shared/chart-card"
-import { PageHeader } from "@/components/shared/page-header"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
+import { ExceptionPipeline } from "@/features/initiative-13/components/exception-pipeline"
+import { AttentionBanner, type AttentionItem } from "@/features/initiative-13/components/ui/attention-banner"
+import { Card, CardHeading } from "@/features/initiative-13/components/ui/kpi-card"
+import { InfoChip, OarPageHeader, OarScope } from "@/features/initiative-13/components/ui/oar-scope"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import {
@@ -24,6 +26,7 @@ import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
 import { attachCriticalImpactIndicator } from "@/features/initiative-13/utils/dashboard-transforms"
 import { resolveDetailTab, type DetailTabId } from "@/features/initiative-13/utils/detail-tabs"
+import { displayTone } from "@/features/initiative-13/utils/oar-display"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   EXCEPTION_STATUS_LABEL,
@@ -145,7 +148,7 @@ export async function UtilisationDashboardPage({
           key,
           count,
           label: EXCEPTION_STATUS_LABEL[key as ActExceptionStatus] ?? key,
-          tone: EXCEPTION_STATUS_TONE[key as ActExceptionStatus] ?? "neutral",
+          tone: displayTone(EXCEPTION_STATUS_TONE[key as ActExceptionStatus] ?? "neutral"),
         }))
       : []
 
@@ -159,127 +162,148 @@ export async function UtilisationDashboardPage({
       ? dashboard.exceptionCounts.data.total - dashboard.exceptionCounts.data.withRequester
       : 0
 
+  const attentionItems: AttentionItem[] = []
+  if (dashboard.exceptionCounts.status === "ready" && unroutedExceptions > 0) {
+    attentionItems.push({ key: "unrouted", count: unroutedExceptions, label: "follow-ups with no identified requester" })
+  }
+  if (dashboard.summary.status === "ready") {
+    const { grNotIssued30DayCount, planBreachCount } = dashboard.summary.data
+    if (grNotIssued30DayCount > 0) {
+      attentionItems.push({ key: "grni", count: grNotIssued30DayCount, label: "received, not issued (30d)" })
+    }
+    if (planBreachCount > 0) {
+      attentionItems.push({ key: "overdue", count: planBreachCount, label: "planned consumption overdue" })
+    }
+  }
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <PageHeader
-          title="OAR Utilization"
-          description="How OAR spares move from reservation to issue — what is idle, what is off plan, and what needs a follow-up."
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 text-xs text-muted-foreground">
-                <Clock3 className="size-3.5" />
-                {watch?.calculatedAt
-                  ? `Data as of ${formatApiDateTime(watch.calculatedAt)}`
-                  : "Computation time not recorded"}
-              </span>
-              {watchCounts && <NonMoverExport filters={filters} />}
-              {dashboard.reportEnabled && (
-                <Link
-                  href="/oar-utilization/report"
-                  className={buttonVariants({ size: "sm", variant: "outline" })}
-                >
-                  <FileText className="size-3.5" />
-                  Summary report
-                </Link>
-              )}
-            </div>
+    <OarScope>
+      <OarPageHeader
+        title="OAR Utilization"
+        subtitle="How OAR spares move from reservation to issue — what is idle, what is off plan, and what needs a follow-up."
+        actions={
+          <>
+            <InfoChip icon={<Clock3 aria-hidden className="size-4" />}>
+              {watch?.calculatedAt
+                ? `Data as of ${formatApiDateTime(watch.calculatedAt)}`
+                : "Computation time not recorded"}
+            </InfoChip>
+            {watchCounts && <NonMoverExport filters={filters} />}
+            {dashboard.reportEnabled && (
+              <Link
+                href="/oar-utilization/report"
+                className={cn(buttonVariants({ size: "lg" }), "min-h-11 px-4 font-semibold hover:bg-primary-strong-hover")}
+              >
+                <FileText aria-hidden className="size-4" />
+                Summary report
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      <I13UrlFilters
+        fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
+        plants={watch?.plantOptions}
+        agingBands={watch?.agingBandOptions}
+      />
+
+      {attentionItems.length > 0 && (
+        <AttentionBanner
+          title="Needs your attention"
+          items={attentionItems}
+          action={
+            <Link
+              href="/oar-utilization/aging-exceptions"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 gap-1.5 border-attention-line px-4 font-semibold text-attention-ink")}
+            >
+              Open procurement exceptions
+              <ArrowRight aria-hidden className="size-4" />
+            </Link>
           }
         />
+      )}
 
-        <I13UrlFilters
-          fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
-          plants={watch?.plantOptions}
-          agingBands={watch?.agingBandOptions}
+      {dashboard.summary.status === "ready" ? (
+        <KpiSummary
+          summary={dashboard.summary.data}
+          plant={searchParams.plant}
+          material={searchParams.material}
         />
+      ) : (
+        <SectionFallback section={dashboard.summary} what="utilization summary" />
+      )}
 
-        {dashboard.summary.status === "ready" ? (
-          <KpiSummary
-            summary={dashboard.summary.data}
-            plant={searchParams.plant}
-            material={searchParams.material}
+      {SHOW_PLAN_COVERAGE && (
+        <Card>
+          <CardHeading
+            title="Consumption Plan Coverage"
+            subtitle="Received quantity against the consumption plan, per material"
           />
-        ) : (
-          <SectionFallback section={dashboard.summary} what="utilization summary" />
-        )}
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          {SHOW_PLAN_COVERAGE && (
-            <ChartCard
-              title="Consumption Plan Coverage"
-              subtitle="Received quantity against the consumption plan, per material"
-              span={6}
-            >
-              {watchCounts ? (
-                <div className="flex h-full flex-col gap-4">
-                  <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
-                  <PlanProvenanceNote
-                    capturedCount={capturedPlanCount}
-                    referenceCount={referencePlanCount}
-                    className="mt-auto"
-                  />
-                </div>
-              ) : (
-                <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
-              )}
-            </ChartCard>
-          )}
-
-          <ChartCard
-            title="Exception status"
-            subtitle="Where each follow-up sits in the confirmation workflow"
-            span={SHOW_PLAN_COVERAGE ? 6 : 12}
-          >
-            {dashboard.exceptionCounts.status === "ready" ? (
-              dashboard.exceptionCounts.data.total === 0 ? (
-                <QuietState
-                  title="No exceptions in the queue"
-                  description="Nothing is waiting on a requester or escalated."
+          <div className="mt-4">
+            {watchCounts ? (
+              <div className="flex h-full flex-col gap-4">
+                <DistributionBar segments={planSegments} label="Materials by acquired-vs-plan status" />
+                <PlanProvenanceNote
+                  capturedCount={capturedPlanCount}
+                  referenceCount={referencePlanCount}
+                  className="mt-auto"
                 />
-              ) : (
-                <div className="flex h-full flex-col gap-4">
-                  <DistributionBar segments={exceptionSegments} label="Exceptions by status" />
-                  {unroutedExceptions > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatCount(unroutedExceptions)} have no identified requester, so
-                      nobody has been asked for a reason yet.
-                    </p>
-                  )}
-                </div>
-              )
+              </div>
             ) : (
-              <SectionFallback section={dashboard.exceptionCounts} what="exceptions" />
+              <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
             )}
-            <div className="mt-4 flex justify-end">
-              <Link
-                href="/oar-utilization/aging-exceptions"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
-              >
-                Open procurement exceptions
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </div>
-          </ChartCard>
-        </div>
+          </div>
+        </Card>
+      )}
 
-        <section className="rounded-xl border border-border bg-card">
-          <Tabs defaultValue={initialTab} className="gap-0">
-            <div className="flex flex-col gap-3 border-b border-border px-4 pt-4 sm:px-5">
-              <div>
-                <h2 className="text-sm font-medium text-foreground">Details</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Position-level drilldowns for the current filters
-                </p>
-              </div>
-              <div className="-mx-1 overflow-x-auto px-1 pb-2">
-                <TabsList variant="line" className="h-9">
-                  <DetailTab value="non-movers" label="Non-movers" count={nonMovers?.total ?? null} />
-                  <DetailTab value="plan" label="Acquired vs plan" count={watchCounts?.total ?? null} />
-                  <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
-                  <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
-                </TabsList>
-              </div>
+      <Card>
+        <CardHeading
+          title="Exception follow-up pipeline"
+          subtitle="Where each follow-up sits in the confirmation workflow"
+          actions={
+            <Link
+              href="/oar-utilization/aging-exceptions"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 gap-1.5 px-4 font-semibold")}
+            >
+              Open procurement exceptions
+              <ArrowRight aria-hidden className="size-4" />
+            </Link>
+          }
+        />
+        <div className="mt-5">
+          {dashboard.exceptionCounts.status === "ready" ? (
+            dashboard.exceptionCounts.data.total === 0 ? (
+              <QuietState
+                title="No exceptions in the queue"
+                description="Nothing is waiting on a requester or escalated."
+              />
+            ) : (
+              <ExceptionPipeline steps={exceptionSegments} unrouted={unroutedExceptions} />
+            )
+          ) : (
+            <SectionFallback section={dashboard.exceptionCounts} what="exceptions" />
+          )}
+        </div>
+      </Card>
+
+      <section aria-labelledby="oar-details-heading" className="rounded-card border border-line bg-card">
+        <Tabs defaultValue={initialTab} className="gap-0">
+          <div className="flex flex-col gap-3 border-b border-line px-4 pt-5 sm:px-5">
+            <CardHeading
+              id="oar-details-heading"
+              title="Details"
+              subtitle="Position-level drilldowns for the current filters"
+            />
+            <div className="-mx-1 overflow-x-auto px-1 pb-2">
+              <TabsList variant="line" className="h-11">
+                <DetailTab value="non-movers" label="Non-movers" count={nonMovers?.total ?? null} />
+                <DetailTab value="plan" label="Acquired vs plan" count={watchCounts?.total ?? null} />
+                <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
+                <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
+              </TabsList>
             </div>
+          </div>
 
             <div className="p-4 sm:p-5">
               <TabsContent value="non-movers">
@@ -378,9 +402,7 @@ export async function UtilisationDashboardPage({
             </div>
           </Tabs>
         </section>
-
-      </div>
-    </div>
+    </OarScope>
   )
 }
 
@@ -394,10 +416,10 @@ function DetailTab({
   count: number | null
 }) {
   return (
-    <TabsTrigger value={value} className="flex-none px-2.5">
+    <TabsTrigger value={value} className="h-11 flex-none px-3 font-semibold after:bg-primary-strong data-active:text-primary-ink">
       {label}
       {count !== null && (
-        <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+        <span className="rounded-full bg-primary-tint px-2 py-0.5 text-xs font-bold tabular-nums text-primary-ink">
           {formatCount(count)}
         </span>
       )}
@@ -412,9 +434,9 @@ function sectionCount<T>(section: Section<T>, count: (data: T) => number): numbe
 /** A calm "nothing to do" — smaller than `EmptyState`, which is sized for a page. */
 function QuietState({ title, description }: { title: string; description?: ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg bg-muted/40 px-4 py-8 text-center">
-      <div className="text-sm font-medium text-foreground">{title}</div>
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-healthy-tint px-4 py-8 text-center text-healthy-ink">
+      <div className="text-sm font-bold">{title}</div>
+      {description && <p className="text-sm">{description}</p>}
     </div>
   )
 }

@@ -2,15 +2,14 @@
 
 import { Fragment, useState, useTransition } from "react"
 import Link from "next/link"
-import { ChevronRight, MessagesSquare } from "lucide-react"
+import { CircleHelp, MessagesSquare } from "lucide-react"
 import { toast } from "sonner"
 
-import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
-import { RiskBadge } from "@/components/shared/risk-badge"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable, RowToggle } from "@/features/initiative-13/components/ui/data-table"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
+import { relativeDue, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import { EMPTY_LABEL } from "@/features/initiative-13/utils/empty-labels"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,22 +36,52 @@ import { cn } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
-const TYPE_RISK: Record<ActExceptionType, "low" | "medium" | "high"> = {
-  PLAN_BREACH: "high",
-  NO_PLAN: "medium",
-  NO_PLAN_GRNI: "high",
-  QUANTITY_OVERRIDE: "medium",
+/** High-risk types red, medium amber -- the same split the risk badge used. */
+const TYPE_TONE: Record<ActExceptionType, DisplayTone> = {
+  PLAN_BREACH: "urgent",
+  NO_PLAN: "caution",
+  NO_PLAN_GRNI: "urgent",
+  QUANTITY_OVERRIDE: "caution",
 }
 
-const STATUS_TONE: Record<
-  ActExceptionStatus,
-  "default" | "warning" | "success" | "danger"
-> = {
-  OPEN: "default",
-  AWAITING_REQUESTER: "warning",
-  CONFIRMED: "success",
-  ESCALATED: "danger",
-  RESOLVED: "success",
+const STATUS_TONE: Record<ActExceptionStatus, DisplayTone> = {
+  OPEN: "neutral",
+  AWAITING_REQUESTER: "caution",
+  CONFIRMED: "healthy",
+  ESCALATED: "urgent",
+  RESOLVED: "healthy",
+}
+
+/** `evidence.no_plan_reason`, the backend's NoPlanReason, in words. */
+const NO_PLAN_REASON_LABEL: Record<string, string> = {
+  MISSING_SESSION: "No assistant session",
+  INVALID_SESSION: "Session not valid",
+  SESSION_WITHOUT_PLAN: "Session without a plan",
+}
+
+/** A reservation number as a monospace chip: the form a storeman types into SAP. */
+function ReservationChip({ number, item }: { number: string; item: string | null }) {
+  return (
+    <code className="inline-flex items-center rounded-md border border-line bg-page px-2 py-1 font-mono text-xs font-semibold whitespace-nowrap text-ink">
+      {number}
+      {item && <span className="text-ink-muted">/{item}</span>}
+    </code>
+  )
+}
+
+function DueCell({ dueAt }: { dueAt: string | null }) {
+  if (!dueAt) return <EmptyValue kind="noDueDate" />
+  const hint = relativeDue(dueAt)
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-foreground">{formatApiDateTime(dueAt)}</span>
+      {hint && (
+        <span className={cn("text-xs font-bold", hint.overdue ? "text-urgent-ink" : "text-caution-ink")}>
+          {hint.label}
+        </span>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -115,11 +144,13 @@ export function ActExceptionsBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <DataTable>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8" />
+              <TableHead className="w-12">
+                <span className="sr-only">Details</span>
+              </TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
@@ -147,20 +178,21 @@ export function ActExceptionsBoard({
                     onClick={() =>
                       setExpandedId(isExpanded ? null : exception.exceptionId)
                     }
-                    aria-expanded={isExpanded}
                   >
-                    <TableCell>
-                      <ChevronRight
-                        className={cn(
-                          "size-4 text-muted-foreground transition-transform duration-300 ease-out",
-                          isExpanded && "rotate-90"
-                        )}
+                    <TableCell className="px-1">
+                      <RowToggle
+                        expanded={isExpanded}
+                        onToggle={() => setExpandedId(isExpanded ? null : exception.exceptionId)}
+                        label={`${EXCEPTION_TYPE_LABEL[exception.exceptionType]} exception on material ${exception.material}`}
                       />
                     </TableCell>
-                    <TableCell title={EXCEPTION_TYPE_HINT[exception.exceptionType]}>
-                      <RiskBadge level={TYPE_RISK[exception.exceptionType]}>
+                    <TableCell>
+                      <StatusPill
+                        tone={TYPE_TONE[exception.exceptionType]}
+                        title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
+                      >
                         {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
-                      </RiskBadge>
+                      </StatusPill>
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       <div className="flex flex-col gap-0.5">
@@ -176,7 +208,7 @@ export function ActExceptionsBoard({
                           {exception.sessionId ? (
                             <Link
                               href={`/assistant/sessions/${encodeURIComponent(exception.sessionId)}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs font-medium text-primary-ink transition-colors hover:bg-primary-tint"
                             >
                               <MessagesSquare className="size-3" aria-hidden />
                               Session
@@ -196,49 +228,40 @@ export function ActExceptionsBoard({
                     </TableCell>
                     <TableCell>
                       {exception.reservationNumber ? (
-                        <SAPDocumentChip
-                          doc={{
-                            type: "RESERVATION",
-                            documentNumber: exception.reservationNumber,
-                            line: exception.reservationItem ?? undefined,
-                          }}
-                        />
+                        <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
                       ) : (
                         <EmptyValue kind="noReservationLinked" />
                       )}
                     </TableCell>
-                    <TableCell className="text-foreground">
+                    <TableCell className="font-semibold text-foreground">
                       {exception.ownerRequesterId ?? (
                         <span
-                          className="text-muted-foreground"
+                          className="font-semibold text-urgent-ink"
                           title="No requester could be resolved, so this exception has never been routed and cannot escalate."
                         >
                           Unresolved
                         </span>
                       )}
                     </TableCell>
-                    <TableCell title={EXCEPTION_STATUS_HINT[exception.status]}>
-                      <StatusBadge tone={STATUS_TONE[exception.status]}>
+                    <TableCell>
+                      <StatusPill tone={STATUS_TONE[exception.status]} title={EXCEPTION_STATUS_HINT[exception.status]}>
                         {EXCEPTION_STATUS_LABEL[exception.status]}
-                      </StatusBadge>
+                      </StatusPill>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatApiDateTime(exception.detectedAt)}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {exception.requesterDueAt ? (
-                        formatApiDateTime(exception.requesterDueAt)
-                      ) : (
-                        <EmptyValue kind="noDueDate" />
-                      )}
+                    <TableCell>
+                      <DueCell dueAt={exception.requesterDueAt} />
                     </TableCell>
                     <TableCell
                       className="text-right"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Button
-                        size="sm"
+                        size="lg"
                         variant="outline"
+                        className="px-4 font-semibold"
                         disabled={!canConfirm || isPending}
                         onClick={() => setConfirming(exception)}
                         title={
@@ -261,7 +284,7 @@ export function ActExceptionsBoard({
                         )}
                       >
                         <div className="min-h-0 overflow-hidden">
-                          <div className="bg-muted/30 px-4 py-3">
+                          <div className="bg-page px-4 py-5">
                             {isExpanded && <ExceptionDetail exception={exception} />}
                           </div>
                         </div>
@@ -273,7 +296,7 @@ export function ActExceptionsBoard({
             })}
           </TableBody>
         </Table>
-      </div>
+      </DataTable>
 
       {confirming && (
         <ConfirmExceptionDialog
@@ -290,66 +313,110 @@ export function ActExceptionsBoard({
 
 /** The evidence the backend recorded, and the routing state, in full. */
 function ExceptionDetail({ exception }: { exception: ActException }) {
+  const noPlanReason = exception.evidence.no_plan_reason
+  const otherEvidence = Object.entries(exception.evidence).filter(([key]) => key !== "no_plan_reason")
+  const whyNot = whyCannotClear(exception)
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-foreground">{exception.reason}</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill tone={TYPE_TONE[exception.exceptionType]}>
+            {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
+          </StatusPill>
+          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted">
+            {exception.exceptionType}
+          </code>
+        </div>
+        <h3 className="text-base font-bold whitespace-normal text-ink">{exception.reason}</h3>
+      </div>
 
-      {Object.keys(exception.evidence).length > 0 && (
-        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
-          {Object.entries(exception.evidence).map(([key, value]) => (
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Tile label="Reservation">
+          {exception.reservationNumber ? (
+            <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
+          ) : (
+            <EmptyValue kind="noReservationLinked" />
+          )}
+        </Tile>
+        <Tile label="No-plan reason">
+          {noPlanReason ? (
+            <span title={noPlanReason}>{NO_PLAN_REASON_LABEL[noPlanReason] ?? noPlanReason.replaceAll("_", " ").toLowerCase()}</span>
+          ) : (
+            <span className="text-ink-muted">Not applicable</span>
+          )}
+        </Tile>
+        <Tile label="Routing">{exception.routingStatus ?? EMPTY_LABEL.notRouted.label}</Tile>
+        <Tile label="Assignee">
+          {exception.currentAssigneeId
+            ? exception.currentAssigneeType
+              ? `${exception.currentAssigneeId} (${exception.currentAssigneeType})`
+              : exception.currentAssigneeId
+            : EMPTY_LABEL.unassigned.label}
+          {exception.escalatedAt && (
+            <span className="mt-0.5 block text-xs font-medium text-urgent-ink">
+              Escalated {formatApiDateTime(exception.escalatedAt)}
+            </span>
+          )}
+        </Tile>
+      </dl>
+
+      {otherEvidence.length > 0 && (
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          {otherEvidence.map(([key, value]) => (
             <div key={key} className="flex gap-1.5">
-              <dt className="text-muted-foreground">{key.replaceAll("_", " ")}</dt>
-              <dd className="text-foreground">{value}</dd>
+              <dt className="text-ink-muted">{key.replaceAll("_", " ")}</dt>
+              <dd className="font-semibold text-ink">{value}</dd>
             </div>
           ))}
         </dl>
       )}
 
-      <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
-        <span className="text-muted-foreground">
-          Routing: <span className="text-foreground">{exception.routingStatus ?? EMPTY_LABEL.notRouted.label}</span>
-        </span>
-        <span className="text-muted-foreground">
-          Assignee:{" "}
-          <span className="text-foreground">
-            {exception.currentAssigneeId
-              ? exception.currentAssigneeType
-                ? `${exception.currentAssigneeId} (${exception.currentAssigneeType})`
-                : exception.currentAssigneeId
-              : EMPTY_LABEL.unassigned.label}
-          </span>
-        </span>
-        {exception.escalatedAt && (
-          <span className="text-muted-foreground">
-            Escalated:{" "}
-            <span className="text-foreground">
-              {formatApiDateTime(exception.escalatedAt)}
-            </span>
-          </span>
-        )}
-      </div>
-
-      {exception.status === "OPEN" && (
-        <AlertBanner tone="warning" title="Requester not identified">
-          No requester could be resolved for it, so nobody has been asked to
-          confirm and the escalation clock has not started. Detection resolves an
-          owner from the consumption plan first and from the reservation&rsquo;s
-          goods recipient second — where neither is available, or where the two
-          disagree, the exception is deliberately left unowned rather than
-          assigned to a guess.
-        </AlertBanner>
-      )}
-
-      {exception.exceptionType === "NO_PLAN" && (
-        <p className="text-[11px] text-muted-foreground">
-          A consumption plan captured through the assistant cannot clear this
-          exception yet: the reservation field carrying the session identifier
-          (<code className="font-mono">RESB.BEDNR</code>) is not exposed on the
-          SAP entity set, so a captured plan has no reservation to attach to. The
-          backend has a test asserting this, which will fail the day the field
-          lands — that is the signal to finish the link.
-        </p>
+      {whyNot.length > 0 && (
+        <section className="rounded-xl border border-attention-line bg-attention p-4 text-attention-ink">
+          <h4 className="flex items-center gap-2 text-sm font-bold">
+            <CircleHelp aria-hidden className="size-4 shrink-0" />
+            Why this cannot clear yet
+          </h4>
+          <div className="mt-2 flex flex-col gap-2 text-sm leading-relaxed whitespace-normal">{whyNot}</div>
+        </section>
       )}
     </div>
   )
+}
+
+function Tile({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border border-line bg-card p-3">
+      <dt className="text-xs font-bold tracking-wide text-ink-muted uppercase">{label}</dt>
+      <dd className="text-sm font-semibold whitespace-normal text-ink">{children}</dd>
+    </div>
+  )
+}
+
+/** What is holding the exception open, from the text the board already carried. */
+function whyCannotClear(exception: ActException): React.ReactNode[] {
+  const reasons: React.ReactNode[] = []
+  if (exception.status === "OPEN") {
+    reasons.push(
+      <p key="open">
+        <strong>Requester not identified.</strong> No requester could be resolved for it, so nobody has been asked to
+        confirm and the escalation clock has not started. Detection resolves an owner from the consumption plan first
+        and from the reservation&rsquo;s goods recipient second — where neither is available, or where the two
+        disagree, the exception is deliberately left unowned rather than assigned to a guess.
+      </p>
+    )
+  } else if (exception.status !== "RESOLVED") {
+    reasons.push(<p key="status">{EXCEPTION_STATUS_HINT[exception.status]}.</p>)
+  }
+  if (exception.exceptionType === "NO_PLAN") {
+    reasons.push(
+      <p key="no-plan">
+        A consumption plan captured through the assistant cannot clear this exception yet: the reservation field
+        carrying the session identifier (<code className="font-mono">RESB.BEDNR</code>) is not exposed on the SAP
+        entity set, so a captured plan has no reservation to attach to. The backend has a test asserting this, which
+        will fail the day the field lands — that is the signal to finish the link.
+      </p>
+    )
+  }
+  return reasons
 }

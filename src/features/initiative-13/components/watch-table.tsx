@@ -2,8 +2,17 @@
 
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable } from "@/features/initiative-13/components/ui/data-table"
+import { ProgressBar } from "@/features/initiative-13/components/ui/progress-bar"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
+import { TONE_INK } from "@/features/initiative-13/components/ui/tones"
+import { EMPTY_LABEL } from "@/features/initiative-13/utils/empty-labels"
+import {
+  COVER_BAR_MAX_MONTHS,
+  coverTone,
+  isLongIdle,
+} from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
   TableBody,
@@ -15,7 +24,7 @@ import {
 import { SessionChips } from "@/features/initiative-13/components/session-chips"
 import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
 import type { ApiSessionSummary } from "@/lib/api/assistant"
-import { formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -25,10 +34,30 @@ const AGING_LABEL: Record<AgingBand, string> = {
   NON_MOVING: "Non-moving",
 }
 
-const AGING_TONE: Record<AgingBand, "success" | "warning" | "danger"> = {
-  FAST: "success",
-  SLOW: "warning",
-  NON_MOVING: "danger",
+const AGING_TONE: Record<AgingBand, "healthy" | "caution" | "urgent"> = {
+  FAST: "healthy",
+  SLOW: "caution",
+  NON_MOVING: "urgent",
+}
+
+/** Months of cover as a bar in its band's colour, and the number in words beside it. */
+function CoverCell({ months }: { months: number | null }) {
+  if (months === null) {
+    return (
+      <span className="text-sm text-ink-muted" title={EMPTY_LABEL.noConsumptionHistory.title}>
+        Insufficient consumption history
+      </span>
+    )
+  }
+  const tone = coverTone(months)
+  return (
+    <div className="ml-auto flex w-36 items-center gap-2">
+      <ProgressBar value={months} max={COVER_BAR_MAX_MONTHS} tone={tone} />
+      <span className={cn("w-12 shrink-0 text-right font-bold tabular-nums", TONE_INK[tone])}>
+        {months.toFixed(1)}
+      </span>
+    </div>
+  )
 }
 
 const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
@@ -38,11 +67,11 @@ const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
   ABOVE_PLAN: "Above plan",
 }
 
-const PLAN_TONE: Record<AcquiredVsPlanStatus, "default" | "success" | "warning" | "danger"> = {
-  NO_PLAN: "default",
-  BELOW_PLAN: "warning",
-  ON_PLAN: "success",
-  ABOVE_PLAN: "danger",
+const PLAN_TONE: Record<AcquiredVsPlanStatus, "neutral" | "healthy" | "caution" | "urgent"> = {
+  NO_PLAN: "neutral",
+  BELOW_PLAN: "caution",
+  ON_PLAN: "healthy",
+  ABOVE_PLAN: "urgent",
 }
 
 /**
@@ -72,7 +101,7 @@ export function WatchTable({
           description="Try clearing the plant/material/aging-band filters."
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <DataTable>
           <Table>
             <TableHeader>
               <TableRow>
@@ -100,41 +129,50 @@ export function WatchTable({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(m.plant)}</TableCell>
                   <TableCell>
-                    <StatusBadge tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusBadge>
+                    <StatusPill tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusPill>
                   </TableCell>
                   <TableCell className="text-right text-foreground">
-                    {m.monthsOfCover !== null ? (
-                      m.monthsOfCover.toFixed(1)
+                    <CoverCell months={m.monthsOfCover} />
+                  </TableCell>
+                  <TableCell className="text-right text-foreground">
+                    {m.daysSinceLastMovement !== null ? (
+                      <span
+                        className={cn(
+                          "tabular-nums",
+                          isLongIdle(m.daysSinceLastMovement) ? "font-extrabold text-urgent-ink" : "font-semibold"
+                        )}
+                      >
+                        {m.daysSinceLastMovement}d
+                        {isLongIdle(m.daysSinceLastMovement) && <span className="sr-only"> (idle 150 days or more)</span>}
+                      </span>
                     ) : (
-                      <EmptyValue kind="noConsumptionHistory" />
+                      <EmptyValue kind="noMovement" />
                     )}
                   </TableCell>
                   <TableCell className="text-right text-foreground">
-                    {m.daysSinceLastMovement !== null ? `${m.daysSinceLastMovement}d` : <EmptyValue kind="noMovement" />}
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">
-                    {formatCount(m.consumptionCount12m)} ({formatCount(m.consumedQty12m ?? 0)} qty)
+                    <span className="font-semibold tabular-nums">{formatCount(m.consumptionCount12m)}</span>{" "}
+                    <span className="text-ink-muted">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     {m.inventoryTurns !== null ? (
-                      m.inventoryTurns.toFixed(2)
+                      <span className="font-semibold tabular-nums">{m.inventoryTurns.toFixed(2)}</span>
                     ) : (
                       <EmptyValue kind="noConsumptionHistory" />
                     )}
                   </TableCell>
                   <TableCell>
                     {m.grNotIssuedFlag ? (
-                      <StatusBadge tone="danger">
+                      <StatusPill tone="urgent">
                         {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
-                      </StatusBadge>
+                      </StatusPill>
                     ) : (
                       <EmptyValue kind="noGrNotIssued" />
                     )}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge tone={PLAN_TONE[m.acquiredVsPlanStatus]}>
+                    <StatusPill tone={PLAN_TONE[m.acquiredVsPlanStatus]}>
                       {PLAN_LABEL[m.acquiredVsPlanStatus]}
-                    </StatusBadge>
+                    </StatusPill>
                     {m.acquiredVsPlanStatus !== "NO_PLAN" && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
                         planned {formatCount(m.plannedQuantity ?? 0)} · received{" "}
@@ -147,7 +185,7 @@ export function WatchTable({
               ))}
             </TableBody>
           </Table>
-        </div>
+        </DataTable>
       )}
     </div>
   )

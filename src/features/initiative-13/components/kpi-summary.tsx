@@ -1,22 +1,21 @@
-import {
-  Activity,
-  Boxes,
-  Clock,
-  ListChecks,
-  PackageX,
-  TrendingUp,
-  TriangleAlert,
-} from "lucide-react"
+import { Activity, ListChecks, TriangleAlert } from "lucide-react"
 
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
+import { Card, KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
+import { SegmentedBar } from "@/features/initiative-13/components/ui/progress-bar"
+import { TONE_INK, TONE_TINT } from "@/features/initiative-13/components/ui/tones"
 import type { I13Summary } from "@/lib/api/i13"
-import { formatCount } from "@/lib/utils"
+import { percentLabel, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
+import { EXCEPTION_TYPE_HINT } from "@/features/initiative-13/utils/status-labels"
+import { cn, formatCount } from "@/lib/utils"
 
 /**
  * Renders exactly the fields `I13SummaryResponse` returns (§6 of the W6.7
  * task: the FRS requires "utilisation KPIs" without locking the exact
  * card set) — no invented KPI is added here. The reclassification count is
  * deliberately not shown: reclassification is out of the dashboard's scope.
+ *
+ * Laid out as one movement card (the total, split fast / slow / non-moving)
+ * beside the three counts that each ask for a follow-up.
  */
 export function KpiSummary({
   summary,
@@ -33,21 +32,67 @@ export function KpiSummary({
     .join(", ")
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[11px] text-muted-foreground">Counts for: {scope}</p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KPIStatCard label="Total OAR materials" value={formatCount(summary.totalOarPositions)} icon={<Boxes className="size-3.5" />} />
-        <KPIStatCard label="Fast-moving" value={formatCount(summary.fastMovingCount)} icon={<TrendingUp className="size-3.5" />} />
-        <KPIStatCard label="Slow-moving" value={formatCount(summary.slowMovingCount)} icon={<Clock className="size-3.5" />} />
-        <KPIStatCard label="Non-moving" value={formatCount(summary.nonMovingCount)} icon={<PackageX className="size-3.5" />} />
-        <KPIStatCard label="GR not issued (30d)" value={formatCount(summary.grNotIssued30DayCount)} icon={<TriangleAlert className="size-3.5" />} />
-        <KPIStatCard label="Planned Consumption Overdue" value={formatCount(summary.planBreachCount)} icon={<Activity className="size-3.5" />} />
-        <KPIStatCard label="Non-AI Reservations" value={formatCount(summary.noPlanCount)} icon={<ListChecks className="size-3.5" />} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <MovementCard summary={summary} scope={scope} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1">
+          <KpiCard
+            accent="urgent"
+            icon={<TriangleAlert aria-hidden className="size-4 text-urgent-ink" />}
+            label="GR not issued (30d)"
+            value={formatCount(summary.grNotIssued30DayCount)}
+            hint="Received into stock 30+ days ago and not yet issued."
+          />
+          <KpiCard
+            accent="caution"
+            icon={<Activity aria-hidden className="size-4 text-caution-ink" />}
+            label="Planned consumption overdue"
+            value={formatCount(summary.planBreachCount)}
+            hint={`${EXCEPTION_TYPE_HINT.PLAN_BREACH}.`}
+          />
+          <KpiCard
+            accent="primary"
+            icon={<ListChecks aria-hidden className="size-4 text-primary-ink" />}
+            label="Non-AI reservations"
+            value={formatCount(summary.noPlanCount)}
+            hint={`${EXCEPTION_TYPE_HINT.NO_PLAN}.`}
+          />
+        </div>
       </div>
       {summary.valuationIsMocked && (
-        <p className="text-[11px] text-muted-foreground">
-          Valuation figures are indicative and not yet sourced from SAP.
-        </p>
+        <p className="text-xs text-ink-muted">Valuation figures are indicative and not yet sourced from SAP.</p>
       )}
     </div>
+  )
+}
+
+function MovementCard({ summary, scope }: { summary: I13Summary; scope: string }) {
+  const total = summary.totalOarPositions
+  const bands: { key: string; label: string; count: number; tone: DisplayTone }[] = [
+    { key: "FAST", label: "Fast-moving", count: summary.fastMovingCount, tone: "healthy" },
+    { key: "SLOW", label: "Slow-moving", count: summary.slowMovingCount, tone: "caution" },
+    { key: "NON_MOVING", label: "Non-moving", count: summary.nonMovingCount, tone: "urgent" },
+  ]
+  return (
+    <Card className="flex flex-col gap-5 lg:col-span-8">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-sm font-semibold text-ink-muted">Total OAR materials</h2>
+        <p className="text-[44px] leading-none font-extrabold tracking-tight text-ink tabular-nums sm:text-[52px]">
+          {formatCount(total)}
+        </p>
+        <p className="text-xs text-ink-muted">Counts for: {scope}</p>
+      </div>
+      <SegmentedBar segments={bands} label="OAR materials by movement" />
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {bands.map((band) => (
+          <li key={band.key} className={cn("flex flex-col gap-1 rounded-xl p-4", TONE_TINT[band.tone])}>
+            <span className="text-sm font-semibold">{band.label}</span>
+            <span className="text-3xl font-extrabold tabular-nums text-ink">{formatCount(band.count)}</span>
+            <span className={cn("text-sm font-semibold tabular-nums", TONE_INK[band.tone])}>
+              {percentLabel(band.count, total)} of total
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   )
 }

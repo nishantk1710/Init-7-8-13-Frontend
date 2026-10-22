@@ -16,6 +16,9 @@ import {
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { cn } from "@/lib/utils"
 
+/** The page you are on: a solid indigo pill with white text, in every section. */
+const ACTIVE_ITEM = "bg-primary-strong font-semibold text-white hover:bg-primary-strong-hover"
+
 function NavSection({
   title,
   children,
@@ -98,9 +101,10 @@ export function Sidebar() {
               className={cn(
                 "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
                 isActive
-                  ? "bg-accent text-accent-foreground"
+                  ? ACTIVE_ITEM
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
+              aria-current={isActive ? "page" : undefined}
             >
               <Icon className="size-4 shrink-0" />
               <span className="font-medium">{item.label}</span>
@@ -118,10 +122,11 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
                   isActive
-                    ? "bg-accent text-accent-foreground"
+                    ? ACTIVE_ITEM
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
@@ -144,7 +149,7 @@ export function Sidebar() {
               className={cn(
                 "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
                 isActive
-                  ? "bg-accent text-accent-foreground"
+                  ? ACTIVE_ITEM
                   : "text-muted-foreground hover:bg-muted"
               )}
             >

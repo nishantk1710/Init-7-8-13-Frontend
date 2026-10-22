@@ -1,18 +1,22 @@
-import Link from "next/link"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
-import { PageHeader } from "@/components/shared/page-header"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
+import { Card, KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
+import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
+import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
+import { StepperDots } from "@/features/initiative-13/components/ui/stepper-dots"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ReservationLedgerTable } from "@/features/initiative-13/components/reservation-ledger-table"
 import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative-13/data/live-loaders"
+import { percentLabel } from "@/features/initiative-13/utils/oar-display"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
-import { cn, formatCount } from "@/lib/utils"
+import { formatCount } from "@/lib/utils"
 
 const PATH = "/oar-utilization/ledger"
 
@@ -67,23 +71,42 @@ function ViewToggle({ searchParams, active }: { searchParams: I13SearchParams; a
   const lines = base.toString()
   const reservations = new URLSearchParams(base)
   reservations.set("view", "reservations")
-  const tab = (href: string, label: string, on: boolean) => (
-    <Link
-      href={href}
-      className={cn(
-        "rounded-md px-3 py-1.5 text-xs font-medium",
-        on ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-      )}
-      aria-current={on ? "page" : undefined}
-    >
-      {label}
-    </Link>
-  )
   return (
-    <div className="inline-flex w-fit gap-1 rounded-lg border border-border p-1">
-      {tab(`/oar-utilization/ledger${lines ? `?${lines}` : ""}`, "Procurement lines", active === "lines")}
-      {tab(`/oar-utilization/ledger?${reservations.toString()}`, "Reservations", active === "reservations")}
-    </div>
+    <SegmentedTabs
+      label="Ledger view"
+      tabs={[
+        { href: `/oar-utilization/ledger${lines ? `?${lines}` : ""}`, label: "Procurement lines", active: active === "lines" },
+        { href: `/oar-utilization/ledger?${reservations.toString()}`, label: "Reservations", active: active === "reservations" },
+      ]}
+    />
+  )
+}
+
+/** The legend card: what the Journey dots and the two status pills mean. */
+function HowToRead() {
+  const sample = [
+    { key: "reservation", label: "Reservation", reached: true },
+    { key: "pr", label: "PR", reached: true },
+    { key: "po", label: "PO", reached: true },
+    { key: "gr", label: "Goods receipt", reached: false },
+    { key: "gi", label: "Goods issue", reached: false },
+  ]
+  return (
+    <Card className="flex flex-col gap-3">
+      <h2 className="text-sm font-semibold text-ink-muted">How to read a row</h2>
+      <div className="flex flex-col gap-1">
+        <StepperDots steps={sample} />
+        <p className="text-sm text-ink-muted">
+          <span className="font-semibold text-ink">Journey:</span> Reservation → PR → PO → Goods receipt → Goods
+          issue. Green = reached, grey ring = not yet.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+        <StatusPill tone="primary">Procurement</StatusPill>
+        <StatusPill tone="caution">Utilization</StatusPill>
+        <span>status of the line</span>
+      </div>
+    </Card>
   )
 }
 
@@ -114,18 +137,19 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        <PageHeader
+    <OarScope>
+        <OarPageHeader
           title="Utilization Ledger"
-          description={
+          subtitle={
             searchParams.session
               ? `Reservations whose item text carries session ${searchParams.session}.`
               : "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
           }
         />
-        <ViewToggle searchParams={searchParams} active="reservations" />
-        <I13UrlFilters fields={["plant", "material", "reservation"]} plants={live?.plantOptions} />
+        <ToolbarRow>
+          <ViewToggle searchParams={searchParams} active="reservations" />
+          <I13UrlFilters className="flex-1" fields={["plant", "material", "reservation"]} plants={live?.plantOptions} />
+        </ToolbarRow>
 
         {live === null ? (
           <LoadFailure what="reservation ledger" message={loadError} />
@@ -140,13 +164,13 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
               noun="reservations"
               hrefFor={(p) => pageHref(PATH, searchParams, p)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {formatCount(live.linkedCount)} of the rows on this page carry an assistant session ID in their item text.
+            <p className="text-sm text-ink-muted">
+              <span className="font-bold text-ink">{formatCount(live.linkedCount)}</span> of the rows on this page carry
+              an assistant session ID in their item text.
             </p>
           </>
         )}
-      </div>
-    </div>
+    </OarScope>
   )
 }
 
@@ -184,25 +208,45 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
   }
 
   const unmatched = live?.linkageCounts.UNMATCHED ?? 0
+  const totalLines = live ? (live.total ?? live.count) : 0
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        <PageHeader
+    <OarScope>
+        <OarPageHeader
           title="Utilization Ledger"
-          description={
-            live
-              ? `${formatCount(live.total ?? live.count)} OAR procurement lines, newest first, each anchored from purchase requisition through goods issue. ` +
-                `${formatCount(unmatched)} could not be stitched and are shown as unmatched rather than inferred.`
-              : "Every OAR purchase-requisition item, anchored end-to-end from reservation through goods issue."
-          }
+          subtitle="Every OAR procurement line, newest first, followed from reservation through goods issue."
         />
-        <ViewToggle searchParams={searchParams} active="lines" />
 
-        <I13UrlFilters
-          fields={["plant", "material", "procurementStatus", "utilisationStatus", "deliveryStatus"]}
-          plants={live?.plantOptions}
-        />
+        {live && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <KpiCard
+              label="Total procurement lines"
+              value={formatCount(totalLines)}
+              hint="Each anchored from purchase requisition through goods issue."
+            />
+            <KpiCard
+              accent="caution"
+              label="Unmatched lines"
+              value={formatCount(unmatched)}
+              hint={
+                <>
+                  <span className="font-bold text-caution-ink">{percentLabel(unmatched, totalLines)} of total</span> —
+                  could not be stitched, so shown as unmatched rather than inferred.
+                </>
+              }
+            />
+            <HowToRead />
+          </div>
+        )}
+
+        <ToolbarRow>
+          <ViewToggle searchParams={searchParams} active="lines" />
+          <I13UrlFilters
+            className="flex-1"
+            fields={["plant", "material", "procurementStatus", "utilisationStatus", "deliveryStatus"]}
+            plants={live?.plantOptions}
+          />
+        </ToolbarRow>
 
         {live === null ? (
           // Shown as a failure, never as an empty table. "No reservations" and
@@ -223,7 +267,6 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
         )}
 
         <DataSourcePanel />
-      </div>
-    </div>
+    </OarScope>
   )
 }
