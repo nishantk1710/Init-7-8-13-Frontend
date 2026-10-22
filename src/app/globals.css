@@ -414,3 +414,193 @@ tr[data-state="selected"] > [data-frozen-column] {
     inset -1px 0 0 var(--border),
     6px 0 6px -6px rgb(0 0 0 / 0.2);
 }
+
+/* ---------------------------------------------------------------------------
+   Initiative 8 (Repairable Spares), Live: the redesign's look.
+
+   I08_Live_UI_Redesign_Plan.md, V1. Scoped, not global: the I08 layout puts
+   `i08-scope` on its pages, and the dialogs, drawers and popups they open carry
+   it too, so the rest of the app keeps its own look until this one has been
+   seen. Vedanta blue for actions and links, a light grey page under white
+   cards, and status colours whose text clears 4.5:1 on its own tint -- every
+   pair below was measured.
+   --------------------------------------------------------------------------- */
+.i08-scope {
+  --primary: #005da4;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --accent: #e6f0f9;
+  --accent-foreground: #004b87;
+  --muted-foreground: #525866;
+  --i08-canvas: #f4f6f8;
+  --i08-link: #005da4;
+  --i08-row-hover: #f2f6fb;
+  --i08-crit: #d03b3b;
+  --i08-crit-ink: #b42318;
+  --i08-crit-tint: #fef3f2;
+  --i08-crit-border: #fecdca;
+  --i08-warn: #f0a20b;
+  --i08-warn-ink: #93370d;
+  --i08-warn-tint: #fffaeb;
+  --i08-warn-border: #fedf89;
+  --i08-good: #5c9e1f;
+  --i08-good-ink: #3f6b12;
+  --i08-good-tint: #eef6e4;
+  --i08-good-border: #cfe5b4;
+  --i08-neutral: #98a2b3;
+  --i08-bar: #2a78d6;
+  /* The lifecycle stages in order, light to dark: one hue, validated. */
+  --i08-ord-1: #86b6ef;
+  --i08-ord-2: #3987e5;
+  --i08-ord-3: #184f95;
+}
+
+/* Not inside `.light-scope`. The Overview's PDF copy (overview-print.tsx) carries
+ * both classes so that a dark page still prints in the light I08 palette. Without
+ * the :not(), this block -- two classes specific, against `.light-scope`'s one --
+ * won, and the PDF came out with pale status text and a reversed heat ramp on
+ * white paper. */
+.dark .i08-scope:not(.light-scope) {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --accent: rgb(31 116 192 / 0.2);
+  --accent-foreground: #a9d0f5;
+  /* Without this the light value (#525866) carried into dark mode: dark grey
+     on near-black, about 2.5:1. This is about 7:1 on the cards. */
+  --muted-foreground: #a3abb8;
+  --i08-canvas: var(--background);
+  --i08-link: #7cb9ee;
+  --i08-row-hover: rgb(255 255 255 / 0.04);
+  --i08-crit: #e66767;
+  --i08-crit-ink: #ffa39e;
+  --i08-crit-tint: rgb(230 103 103 / 0.12);
+  --i08-crit-border: rgb(230 103 103 / 0.35);
+  --i08-warn: #f5b941;
+  --i08-warn-ink: #f9cf7a;
+  --i08-warn-tint: rgb(245 185 65 / 0.12);
+  --i08-warn-border: rgb(245 185 65 / 0.35);
+  --i08-good: #8cc657;
+  --i08-good-ink: #b2dc8a;
+  --i08-good-tint: rgb(140 198 87 / 0.12);
+  --i08-good-border: rgb(140 198 87 / 0.35);
+  --i08-neutral: #6b7685;
+  --i08-bar: #3987e5;
+  --i08-ord-1: #184f95;
+  --i08-ord-2: #3987e5;
+  --i08-ord-3: #b7d3f6;
+}
+
+@theme inline {
+  --color-i08-canvas: var(--i08-canvas);
+  --color-i08-link: var(--i08-link);
+  --color-i08-row-hover: var(--i08-row-hover);
+  --color-i08-crit: var(--i08-crit);
+  --color-i08-crit-ink: var(--i08-crit-ink);
+  --color-i08-crit-tint: var(--i08-crit-tint);
+  --color-i08-crit-border: var(--i08-crit-border);
+  --color-i08-warn: var(--i08-warn);
+  --color-i08-warn-ink: var(--i08-warn-ink);
+  --color-i08-warn-tint: var(--i08-warn-tint);
+  --color-i08-warn-border: var(--i08-warn-border);
+  --color-i08-good: var(--i08-good);
+  --color-i08-good-ink: var(--i08-good-ink);
+  --color-i08-good-tint: var(--i08-good-tint);
+  --color-i08-good-border: var(--i08-good-border);
+  --color-i08-neutral: var(--i08-neutral);
+  --color-i08-bar: var(--i08-bar);
+  --color-i08-ord-1: var(--i08-ord-1);
+  --color-i08-ord-2: var(--i08-ord-2);
+  --color-i08-ord-3: var(--i08-ord-3);
+}
+
+/* Rows that open something: a clearer hover than the shared table's. */
+.i08-scope tr[data-i08-row]:hover,
+.i08-scope tr[data-i08-row]:focus-visible {
+  background-color: var(--i08-row-hover);
+}
+
+/* The frozen Material column (StickyScrollTable) sits in a white card here,
+   not on the page, so it paints the card's colour -- and the header's and the
+   hover's, solid, so scrolled cells never show through it. */
+.i08-scope {
+  --i08-head: color-mix(in srgb, var(--muted) 55%, var(--card));
+  --i08-row-hover-solid: #f2f6fb;
+}
+.dark .i08-scope {
+  --i08-row-hover-solid: color-mix(in srgb, #ffffff 4%, var(--card));
+}
+.i08-scope [data-frozen-column] {
+  background-color: var(--card);
+}
+.i08-scope thead [data-frozen-column] {
+  background-color: var(--i08-head);
+}
+.i08-scope tr[data-i08-row]:hover > [data-frozen-column],
+.i08-scope tr[data-i08-row]:focus-visible > [data-frozen-column],
+.i08-scope tr[aria-expanded="true"] > [data-frozen-column] {
+  background-color: var(--i08-row-hover-solid);
+}
+
+/* The Overview's stage-by-age table: one blue, light (few lines) to dark (many).
+   Sequential, so the light end may recede; every cell also prints its number. */
+.i08-seq-1 { background-color: #cde2fb; color: #0d2847; }
+.i08-seq-2 { background-color: #9ec5f4; color: #0d2847; }
+.i08-seq-3 { background-color: #6da7ec; color: #0d2847; }
+.i08-seq-4 { background-color: #3987e5; color: #ffffff; }
+.i08-seq-5 { background-color: #256abf; color: #ffffff; }
+.i08-seq-6 { background-color: #184f95; color: #ffffff; }
+.i08-seq-7 { background-color: #0d366b; color: #ffffff; }
+/* The PDF copy keeps the light ramp, as above. */
+.dark .i08-seq-1:not(.light-scope *) { background-color: #12345c; color: #e8f1fc; }
+.dark .i08-seq-2:not(.light-scope *) { background-color: #184f95; color: #e8f1fc; }
+.dark .i08-seq-3:not(.light-scope *) { background-color: #1c5cab; color: #ffffff; }
+.dark .i08-seq-4:not(.light-scope *) { background-color: #2a78d6; color: #ffffff; }
+.dark .i08-seq-5:not(.light-scope *) { background-color: #5598e7; color: #0b1f38; }
+.dark .i08-seq-6:not(.light-scope *) { background-color: #86b6ef; color: #0b1f38; }
+.dark .i08-seq-7:not(.light-scope *) { background-color: #b7d3f6; color: #0b1f38; }
+
+/* Motion (plan, section 3.7): short, purposeful, and off for anyone who asked
+   for less. A bar grows from its baseline; a cell or a timeline step settles in. */
+@keyframes i08-grow {
+  from { transform: scaleX(0); }
+}
+@keyframes i08-settle {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes i08-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(380%); }
+}
+.i08-grow {
+  transform-origin: left center;
+  animation: i08-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.i08-settle {
+  animation: i08-settle 0.35s ease-out both;
+}
+/* The thin bar across the top of a list while its next page loads. */
+.i08-progress {
+  overflow: hidden;
+  pointer-events: none;
+}
+.i08-progress::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 30%;
+  background-color: var(--primary);
+  opacity: 0;
+}
+.i08-progress[data-on]::before {
+  opacity: 1;
+  animation: i08-slide 0.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .i08-grow,
+  .i08-settle {
+    animation: none;
+  }
+  .i08-progress[data-on]::before {
+    animation-duration: 3s;
+  }
+}

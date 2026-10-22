@@ -1,20 +1,19 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { Download, Loader2 } from "lucide-react"
 
-import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
-import { EmptyState } from "@/components/shared/empty-state"
-import { FilterBar } from "@/components/shared/filter-bar"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
-import {
-  PendingSpinner,
-  UrlSearchInput,
-  UrlSelect,
-  useUrlFilters,
-  withSelected,
-} from "@/features/initiative-8/components/url-filters"
+import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
+import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
+import { FilterChips, MaterialCell, ResultsCard } from "@/features/initiative-8/components/kit/list"
+import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
+import { Actor } from "@/features/initiative-8/components/kit/status"
+import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
+import { UrlSearchInput, UrlSelect, useUrlFilters, withSelected } from "@/features/initiative-8/components/url-filters"
 import {
   fetchAllJustifications,
   JUSTIFICATIONS_PATH,
@@ -22,30 +21,30 @@ import {
   type JustificationFacets,
   type JustificationFilters,
 } from "@/features/initiative-8/data/live-justifications"
-import { isPlaceholderActor } from "@/lib/api/actor"
+import { actorLabel, i08DateTime, plural, reasonLabel } from "@/features/initiative-8/utils/format"
 import type { ApiJustification } from "@/lib/api/assistant"
-import { formatApiDateTime } from "@/lib/api/format"
-import { kindLabel } from "@/lib/assistant/justifications"
-import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, downloadExcel, formatCount } from "@/lib/utils"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
+import { downloadExcel, formatCount } from "@/lib/utils"
 
 const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
 
 /**
- * I08's justification log -- one server page at a time.
+ * Justifications (FR-7) -- I08_Live_UI_Redesign_Plan.md, L7, Q3 and Q12.
  *
- * Its own component rather than the shared one I13 renders. I13's log merges
- * two sources in the browser (the assistant's table and ACT confirmations),
- * so it cannot page on the server; this one reads one table and does. The
- * card is the same, without the "captured" tag: every entry here comes from
- * the assistant at the reservation, so the tag said the same thing on every
- * card.
+ * A table, like every other I08 screen: when, the material with its
+ * description, plant, the reason in words, the note, who recorded it, and the
+ * session as a link to its trace. It was a stack of cards showing the bare
+ * material number, "@ plant", upper-case reasons, a placeholder author spelled
+ * out on every card and a session id that went nowhere -- under one lone tile
+ * whose count now sits in the summary line.
  *
- * The filters write the URL and the server re-renders with the page for it --
- * the I13 OAR screens' pattern (`url-filters.tsx`). A filtered log is a link
- * somebody can send, and back and forward work.
+ * One server page at a time: the filters write the URL and the server renders
+ * the page for it (`url-filters.tsx`). The descriptions are looked up for the
+ * page on screen by the route, best-effort -- see `loadMaterialDescriptions`.
  *
- * An audit view only: nothing is changed from here.
+ * Its own component rather than the shared one I13 renders: I13's log merges
+ * two sources in the browser, so it cannot page on the server. An audit view
+ * only: nothing is changed from here.
  */
 export function I08JustificationLog({
   items,
@@ -55,6 +54,7 @@ export function I08JustificationLog({
   pageSize,
   filters,
   facets,
+  descriptions = {},
 }: {
   items: ApiJustification[]
   /** Matching the filters. */
@@ -65,13 +65,12 @@ export function I08JustificationLog({
   pageSize: number
   filters: JustificationFilters
   facets: JustificationFacets
+  /** Material descriptions for the page, by material number. */
+  descriptions?: Record<string, string>
 }) {
   const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-
-  const activeFilters = [filters.q, filters.plant, filters.reason].filter(Boolean).length
-  const filtered = activeFilters > 0
 
   /** Every match, not the page on screen -- see `fetchAllJustifications`. */
   async function exportExcel() {
@@ -81,28 +80,17 @@ export function I08JustificationLog({
       const rows = await fetchAllJustifications(filters)
       const built = await downloadExcel(
         EXPORT_FILENAME,
-        [
-          "Kind",
-          "Material",
-          "Plant",
-          "Reason category",
-          "Free text",
-          "Author",
-          "Recorded at",
-          "Session",
-          "Exception",
-        ],
+        ["Recorded At", "Material", "Plant", "Reason", "Note", "Recorded By", "Session", "Exception"],
         rows.map((entry) => [
-          entry.kind,
+          i08DateTime(entry.recordedAt, ""),
           entry.materialId,
-          entry.plant,
-          entry.reasonCategory,
+          sapPlantName(entry.plant),
+          reasonLabel(entry.reasonCategory),
           entry.freeText,
-          entry.author,
-          entry.recordedAt,
+          actorLabel(entry.author),
           entry.sessionId ?? "",
           entry.exceptionId ?? "",
-        ])
+        ]),
       )
       if (!built) setExportError("The Excel file could not be built.")
     } catch (error) {
@@ -112,25 +100,55 @@ export function I08JustificationLog({
     }
   }
 
-  const filterBar = (
-    <div className="flex items-center gap-2">
-      <FilterBar className="flex-1">
+  const chips = [
+    filters.q && { key: "q", label: `Search: “${filters.q}”` },
+    filters.plant && { key: "plant", label: `Plant: ${sapPlantName(filters.plant)}` },
+    filters.reason && { key: "reason", label: `Reason: ${reasonLabel(filters.reason)}` },
+  ].filter((chip): chip is { key: string; label: string } => Boolean(chip))
+  const clearAll = () => push({ q: undefined, plant: undefined, reason: undefined })
+
+  return (
+    <I08Page
+      crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Justifications" }]}
+      title="Justifications"
+      summary={
+        <>
+          <span>
+            {plural(overall, "reason")} recorded for buying a new unit while a repairable one existed
+          </span>
+          {chips.length > 0 && (
+            <>
+              <Dot />
+              <span>{formatCount(total)} match the filters</span>
+            </>
+          )}
+          <InfoPopover title="About this log">
+            <p>
+              When someone chooses to buy a new unit although a repairable one exists, the Spares Assistant asks them
+              why, at the reservation. Each answer is recorded here, with the session it was given in.
+            </p>
+            <p>
+              These are the purchases the repair advice did not avoid, so the log is how anyone finds out whether the
+              advice is landing. An audit view only: nothing is changed from here.
+            </p>
+          </InfoPopover>
+        </>
+      }
+    >
+      <div className="mt-5 flex flex-wrap items-center gap-2">
         <UrlSearchInput
           value={filters.q ?? ""}
           onCommit={(value) => push({ q: value })}
-          placeholder="Search material, reason, author or text"
+          placeholder="Search material, note, person or session"
           ariaLabel="Search justifications"
-          className="sm:w-72"
+          className="w-full sm:w-80"
         />
         <UrlSelect
           value={filters.plant ?? ""}
           onChange={(value) => push({ plant: value })}
           allLabel="All plants"
-          options={withSelected(facets.plants, filters.plant).map((p) => ({
-            value: p,
-            label: sapPlantLabel(p),
-          }))}
-          className="sm:w-52"
+          options={withSelected(facets.plants, filters.plant).map((p) => ({ value: p, label: sapPlantName(p) }))}
+          className="sm:w-44"
         />
         <UrlSelect
           value={filters.reason ?? ""}
@@ -138,107 +156,122 @@ export function I08JustificationLog({
           allLabel="All reasons"
           options={withSelected(facets.reasonCategories, filters.reason).map((r) => ({
             value: r,
-            label: r.replace(/_/g, " "),
+            label: reasonLabel(r),
           }))}
           className="sm:w-56"
         />
-        <ClearFiltersButton
-          activeCount={activeFilters}
-          onClear={() => push({ q: undefined, plant: undefined, reason: undefined })}
-        />
-      </FilterBar>
-      <PendingSpinner pending={isPending} />
-    </div>
-  )
-
-  if (total === 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        {filterBar}
-        <EmptyState
-          title={
-            overall === 0
-              ? "No new-unit justifications recorded yet."
-              : "No justifications match these filters."
-          }
-          description={
-            overall === 0
-              ? "Nobody has yet chosen to buy a new unit while a repairable one exists. When someone does, the Spares Assistant asks them why at the reservation, and their reason appears here."
-              : `All ${formatCount(overall)} recorded justifications were filtered out. Clear the filters to see them.`
-          }
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {filterBar}
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-muted-foreground">
-          {formatCount(total)}
-          {filtered ? ` of ${formatCount(overall)}` : ""} justification(s)
-        </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:ml-auto">
           {exportError && (
-            <span role="alert" className="text-[11px] text-destructive">
+            <span role="alert" className="text-[12.5px] text-i08-crit-ink">
               Export failed: {exportError}
             </span>
           )}
-          <Button size="sm" variant="outline" onClick={() => void exportExcel()} disabled={exporting}>
-            {exporting ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Download className="size-3.5" />
-            )}
+          <Button
+            size="lg"
+            variant="outline"
+            className="px-3.5"
+            onClick={() => void exportExcel()}
+            disabled={exporting || total === 0}
+          >
+            {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             Export Excel
           </Button>
         </div>
       </div>
 
-      <div className={cn("flex flex-col gap-2", isPending && "opacity-60")}>
-        {items.map((entry) => (
-          <div key={entry.id} className="rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-foreground">{entry.materialId}</span>
-              <span className="text-muted-foreground">@ {sapPlantLabel(entry.plant)}</span>
-              <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {kindLabel(entry.kind)}
-              </span>
-              {/* The house format (`en-ZA`, "12 Oct 2026, 14:42"), not the
-                  viewer's browser locale -- see the shared log. */}
-              <span className="ml-auto text-muted-foreground">
-                {formatApiDateTime(entry.recordedAt)}
-              </span>
-            </div>
+      <FilterChips chips={chips} onRemove={(key) => push({ [key]: undefined })} onClear={clearAll} />
 
-            <p className="mt-1.5 text-xs font-medium text-foreground">
-              {entry.reasonCategory.replace(/_/g, " ")}
+      <ResultsCard pending={isPending}>
+        {total === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+            <p className="text-[15px] font-semibold text-foreground">
+              {overall === 0 ? "No justifications recorded yet" : "No justifications match"}
             </p>
-            {/* The part a person actually reads when this is reviewed. */}
-            <p className="mt-0.5 text-xs text-muted-foreground">{entry.freeText}</p>
-
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Recorded by{" "}
-              <span className={cn(isPlaceholderActor(entry.author) && "italic")}>
-                {entry.author}
-              </span>
-              {isPlaceholderActor(entry.author) && " (no sign-in — provisional)"}
-              {entry.sessionId && ` · session ${entry.sessionId}`}
-              {entry.exceptionId && ` · exception ${entry.exceptionId}`}
+            <p className="max-w-md text-[13.5px] text-muted-foreground">
+              {overall === 0
+                ? "Nobody has yet bought a new unit while a repairable one existed. When someone does, the Spares Assistant asks them why, and the answer appears here."
+                : `All ${formatCount(overall)} recorded justifications are filtered out.`}
             </p>
+            {overall > 0 && (
+              <Button variant="outline" size="lg" className="mt-1" onClick={clearAll}>
+                Clear filters
+              </Button>
+            )}
           </div>
-        ))}
-      </div>
-
-      <TablePagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        count={items.length}
-        noun="justifications"
-        hrefFor={(p) => justificationsHref(filters, p)}
-      />
-    </div>
+        ) : (
+          <>
+            <StickyScrollTable tableClassName="table-fixed min-w-[960px]">
+              <colgroup>
+                {[15, 21, 12, 14, 16, 11, 11].map((width, index) => (
+                  <col key={index} style={{ width: `${width}%` }} />
+                ))}
+              </colgroup>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <Head>Recorded</Head>
+                  <Head frozen>Material</Head>
+                  <Head>Plant</Head>
+                  <Head>Reason</Head>
+                  <Head>Note</Head>
+                  <Head>By</Head>
+                  <Head>Session</Head>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((entry) => (
+                  <TableRow key={entry.id} data-i08-row className="align-top">
+                    <Cell className="tabular-nums">{i08DateTime(entry.recordedAt)}</Cell>
+                    <Cell frozen>
+                      <MaterialCell code={entry.materialId} description={descriptions[entry.materialId]} />
+                    </Cell>
+                    <Cell wrap>{sapPlantName(entry.plant)}</Cell>
+                    <Cell wrap>{reasonLabel(entry.reasonCategory)}</Cell>
+                    <Cell wrap>
+                      {/* The part a person actually reads when this is reviewed. */}
+                      <p className="line-clamp-2 text-muted-foreground" title={entry.freeText}>
+                        {entry.freeText || "—"}
+                      </p>
+                    </Cell>
+                    <Cell>
+                      <span className="block truncate" title={actorLabel(entry.author)}>
+                        <Actor actor={entry.author} />
+                      </span>
+                    </Cell>
+                    <Cell>
+                      {entry.sessionId ? (
+                        <Link
+                          href={`/assistant/sessions/${encodeURIComponent(entry.sessionId)}`}
+                          className="font-mono text-[13px] text-i08-link hover:underline"
+                          title="Open the assistant session this was recorded in"
+                        >
+                          {entry.sessionId}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                      {entry.exceptionId && (
+                        <span className="mt-0.5 block truncate font-mono text-[12px] text-muted-foreground" title={entry.exceptionId}>
+                          {entry.exceptionId}
+                        </span>
+                      )}
+                    </Cell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </StickyScrollTable>
+            <div className="border-t border-border px-4 py-2.5">
+              <TablePagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                count={items.length}
+                noun="justifications"
+                hrefFor={(p) => justificationsHref(filters, p)}
+              />
+            </div>
+          </>
+        )}
+      </ResultsCard>
+    </I08Page>
   )
 }

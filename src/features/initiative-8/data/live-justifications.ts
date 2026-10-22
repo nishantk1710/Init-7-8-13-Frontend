@@ -29,6 +29,7 @@ import {
   type ApiJustification,
   type JustificationListResponse,
 } from "@/lib/api/assistant"
+import { getUniverse } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, pageOffset, parsePage } from "@/lib/pagination"
 
 export type { RawSearchParams }
@@ -141,6 +142,70 @@ export async function loadJustificationsPage(
     overall: unfiltered.total,
     facets: facetsOf(unfiltered),
   }
+}
+
+/** How long one description lookup may take before the row shows the number
+ *  alone. The page waits for these, so it is short. */
+const DESCRIPTION_TIMEOUT_MS = 5000
+
+/** "000000008000004596" and "8000004596" are one material. */
+function sameMaterial(a: string, b: string): boolean {
+  return a.replace(/^0+(?=\d)/, "") === b.replace(/^0+(?=\d)/, "")
+}
+
+/** What a description lookup returns: materials, each with its description. */
+export type MaterialLookup = (
+  materialId: string,
+) => Promise<{ items: { material: { materialId: string; description?: string | null } }[] }>
+
+/** I08's own list of repairable materials, searched by number. */
+const universeLookup: MaterialLookup = (materialId) => getUniverse({ search: materialId, pageSize: 5 })
+
+/** `promise`, or a rejection after `ms` -- whichever comes first. */
+function within<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * Descriptions for the materials on one page, by material number.
+ *
+ * A justification stores the number and nothing else about the part, and a
+ * column of bare numbers is what made this screen hard to read
+ * (I08_Live_UI_Redesign_Plan.md, L7). Every material here is an 80-series
+ * repairable -- that is what a new-acquisition justification is about -- so
+ * each distinct one on the page is looked up in I08's own list of them
+ * (`GET /i8/universe?search=`), in parallel; a page holds a handful.
+ *
+ * Not the Spares Assistant's material search, which would look the obvious
+ * choice: while the assistant's demo switch is on, as it is in the deployed
+ * build, that search is a scripted stub and finds nothing.
+ *
+ * Best-effort, every one: a lookup that fails, times out or finds no
+ * description leaves that row with the number alone. A label is never a
+ * reason to fail the log.
+ */
+export async function loadMaterialDescriptions(
+  materialIds: string[],
+  lookup: MaterialLookup = universeLookup,
+  timeoutMs = DESCRIPTION_TIMEOUT_MS,
+): Promise<Record<string, string>> {
+  const unique = [...new Set(materialIds.filter(Boolean))]
+  const found = await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const body = await within(lookup(id), timeoutMs)
+        const hit = body.items.find((item) => sameMaterial(item.material.materialId, id) && item.material.description)
+        return hit?.material.description ? ([id, hit.material.description] as const) : null
+      } catch {
+        return null
+      }
+    }),
+  )
+  return Object.fromEntries(found.filter((pair) => pair !== null))
 }
 
 /**

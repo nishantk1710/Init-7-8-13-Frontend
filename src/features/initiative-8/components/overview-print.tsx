@@ -33,7 +33,7 @@ export type OverviewPrintHeader = {
  */
 export function OverviewPrint(props: PropsWithChildren<OverviewPrintHeader>) {
   return createPortal(
-    <div className="i08-overview-print light-scope" aria-hidden>
+    <div className="i08-overview-print light-scope i08-scope" aria-hidden>
       <OverviewPrintDocument {...props} />
     </div>,
     document.body,

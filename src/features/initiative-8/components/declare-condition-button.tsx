@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { SquarePen } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,12 +24,17 @@ export function DeclareConditionButton({
   faultCategories,
   label = "Declare condition",
   variant = "outline",
+  size = "sm",
+  icon = false,
   supersedes,
 }: {
   chain: RepairChain
   faultCategories: string[]
   label?: string
-  variant?: "outline" | "default" | "ghost"
+  variant?: "outline" | "default" | "ghost" | "link"
+  /** `lg` where it is the page's main action, on the repair page. */
+  size?: "sm" | "lg"
+  icon?: boolean
   /** Set to amend an existing declaration rather than record a first one. */
   supersedes?: string
 }) {
@@ -40,13 +46,15 @@ export function DeclareConditionButton({
   return (
     <>
       <Button
-        size="sm"
+        size={size}
         variant={variant}
+        className={size === "lg" ? "px-3.5" : undefined}
         onClick={() => {
           setFormKey((k) => k + 1)
           setOpen(true)
         }}
       >
+        {icon && <SquarePen className="size-4" />}
         {label}
       </Button>
       {open && (

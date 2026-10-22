@@ -27,7 +27,8 @@ import type { TimelineEvent } from "@/components/shared/timeline"
 import { toRepairChain } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import type { ApiLifecycleStage } from "@/lib/api/i8"
-import { formatApiDate, getRepairLine } from "@/lib/api/i8"
+import { getRepairLine } from "@/lib/api/i8"
+import { i08Date } from "@/features/initiative-8/utils/format"
 
 export type LiveRepairDetail = {
   chain: RepairChain
@@ -51,7 +52,7 @@ function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {
     label: stage.label,
     // "Not recorded" rather than a dash: the stage did not merely lack a date,
     // nothing was ever written for it. The evidence line below says why.
-    timestamp: happened ? formatApiDate(stage.occurredAt) : "Not recorded",
+    timestamp: happened ? i08Date(stage.occurredAt) : "Not recorded",
     description: stage.evidence,
     tone: happened ? COMPLETED_TONE[stage.stage] ?? "default" : "warning",
   }

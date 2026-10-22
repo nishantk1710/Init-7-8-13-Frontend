@@ -70,12 +70,14 @@ import {
 } from "@/features/initiative-8/utils/status"
 import type {
   ApiRegisterPage,
+  ApiRegisterViewCounts,
   ApiRepairChain,
   ApiRegisterMeta,
   ApiRepairJustification,
   RegisterQuery,
 } from "@/lib/api/i8"
-import { formatApiDate, getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
+import { getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
+import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import { formatApiDateTime } from "@/lib/api/format"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
@@ -139,13 +141,13 @@ export function toRepairJustification(
       reasonCategory: orUndefined(entry.reasonCategory),
       freeText: orUndefined(entry.freeText),
       author: orUndefined(entry.author),
-      recordedAt: entry.recordedAt ? formatApiDateTime(entry.recordedAt) : undefined,
+      recordedAt: entry.recordedAt ? i08DateTime(entry.recordedAt) : undefined,
       sessionId: orUndefined(entry.sessionId),
     })),
     unjustifiedPurchases: value.unjustifiedPurchases.map((purchase) => ({
       exceptionId: purchase.exceptionId,
       purchase: document_(purchase.purchase) ?? { type: "PO", documentNumber: "—" },
-      raisedAt: purchase.raisedAt ? formatApiDate(purchase.raisedAt) : undefined,
+      raisedAt: purchase.raisedAt ? i08Date(purchase.raisedAt) : undefined,
       preAutomation: purchase.preAutomation,
     })),
   }
@@ -204,15 +206,15 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     agingBucket: row.agingBucket ?? DEFAULT_AGING_BUCKETS[0],
 
     // Dates: the API sends ISO, everything in this app renders "28 Jul 2026".
-    // formatApiDate is the one place that conversion happens.
-    raisedAt: formatApiDate(row.raisedAt),
-    poIssuedAt: row.poIssuedAt ? formatApiDate(row.poIssuedAt) : undefined,
+    // i08Date is the one place that conversion happens.
+    raisedAt: i08Date(row.raisedAt),
+    poIssuedAt: row.poIssuedAt ? i08Date(row.poIssuedAt) : undefined,
     daysInCurrentStage: row.daysInCurrentStage ?? undefined,
-    sentToVendorAt: row.sentToVendorAt ? formatApiDate(row.sentToVendorAt) : undefined,
+    sentToVendorAt: row.sentToVendorAt ? i08Date(row.sentToVendorAt) : undefined,
     // Undefined on the 63 lines with no schedule line. Nobody ever agreed a
     // return date for them, and those are precisely the lines nobody is
     // chasing — so no placeholder date is invented.
-    expectedReturn: row.expectedReturn ? formatApiDate(row.expectedReturn) : undefined,
+    expectedReturn: row.expectedReturn ? i08Date(row.expectedReturn) : undefined,
     daysRemainingInRepair: orUndefined(row.daysRemainingInRepair),
 
     // Undefined when the repair line carries no net price -- never 0, which
@@ -236,7 +238,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // full timestamp; the register shows its date, the way the queue did.
     declarationId: orUndefined(row.declarationId),
     declaredBy: orUndefined(row.declaredBy),
-    declaredAt: row.declaredAt ? formatApiDate(row.declaredAt.slice(0, 10)) : undefined,
+    declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --
     // that fallback would be the one answer that makes a Flagged line look fine.
     condition: CONDITIONS.includes(row.condition as DeclarationCondition)
@@ -485,9 +487,23 @@ export type RegisterFilters = {
   criticality?: string
   declarationStatus?: string
   aging?: string
+  /** The aging band of the days in the current stage: what one cell of the
+   *  Overview's stage-by-age table opens. */
+  stageAging?: string
   /** `?exceptions=1`: only lines a check has raised something against. */
   exceptions?: boolean
+  /** A quick view: `overdue`, `undeclared`, `atVendor` or `withExceptions`. */
+  view?: string
 }
+
+/** The register's quick views, in the order the screen shows them. */
+export const REGISTER_VIEWS = [
+  { value: "", label: "All" },
+  { value: "overdue", label: "Overdue" },
+  { value: "undeclared", label: "Not declared" },
+  { value: "atVendor", label: "At vendor" },
+  { value: "withExceptions", label: "With exceptions" },
+] as const
 
 /** The dropdowns' choices: the server's, over the whole listed register. */
 export type RegisterFacets = {
@@ -510,6 +526,9 @@ export type RegisterPage = {
   referenceDate: string
   agingBands: string[]
   sourceLoadedAt: string | null
+  /** Each quick view's count over the filtered lines; null from a backend
+   *  older than the quick views, when the buttons show no numbers. */
+  viewCounts: ApiRegisterViewCounts | null
 }
 
 type FetchRegister = typeof getRegister
@@ -523,6 +542,8 @@ const TEXT_FILTERS = [
   "criticality",
   "declarationStatus",
   "aging",
+  "stageAging",
+  "view",
 ] as const
 
 export function parseRegisterParams(raw: RawSearchParams): {
@@ -574,7 +595,9 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     criticality: filters.criticality,
     declarationStatus: filters.declarationStatus,
     agingBucket: filters.aging,
+    stageAgingBucket: filters.stageAging,
     withExceptions: filters.exceptions || undefined,
+    view: filters.view,
     excludeExceptionType: [...DROPPED_TYPES].join(","),
   }
 }
@@ -650,6 +673,7 @@ export async function loadRegisterPage(
     facets: facetsOf(body, chains),
     referenceDate: body.referenceDate,
     ...settings,
+    viewCounts: body.viewCounts ?? null,
   }
 }
 

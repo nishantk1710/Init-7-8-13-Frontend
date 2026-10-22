@@ -27,6 +27,7 @@ import {
   RECOMMENDATION,
   parseAttestationQuantity,
 } from "@/features/initiative-8/utils/attestation"
+import { conditionLabel, humanize } from "@/features/initiative-8/utils/format"
 import { ApiError } from "@/lib/api/client"
 import { createAttestation } from "@/lib/api/i8"
 
@@ -77,6 +78,9 @@ export type DeclarationTarget = {
 export type DeclarationFormDialogProps = {
   open: boolean
   onClose: () => void
+  /** After the declaration is recorded, before the dialog closes: the
+   *  exception panel re-reads its item, which the declaration may clear. */
+  onSaved?: () => void
   target: DeclarationTarget
   /**
    * The configured fault-category list, served by the API. Never hard-coded:
@@ -97,6 +101,7 @@ export type DeclarationFormDialogProps = {
 export function DeclarationFormDialog({
   open,
   onClose,
+  onSaved,
   target,
   faultCategories,
 }: DeclarationFormDialogProps) {
@@ -169,6 +174,7 @@ export function DeclarationFormDialog({
           : `Attestation ${created.id} recorded`,
         { description: created.coverageNote ?? undefined, duration: 12000 },
       )
+      onSaved?.()
       onClose()
       // Re-read from the server so the page shows the truth rather than a
       // guess. The status is the backend's to compute, not ours to assume.
@@ -191,53 +197,68 @@ export function DeclarationFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
+      {/* Portalled out of the page, so it carries the I08 look itself. */}
+      <DialogContent className="i08-scope gap-4 p-5 sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{amending ? "Amend declaration" : "Declare condition"}</DialogTitle>
-          <DialogDescription>{target.label}</DialogDescription>
+          <DialogTitle className="text-lg font-semibold">
+            {amending ? "Amend declaration" : "Declare condition"}
+          </DialogTitle>
+          <DialogDescription className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[13.5px] text-foreground">
+            {target.label}
+          </DialogDescription>
         </DialogHeader>
 
         {amending && (
-          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12.5px] text-muted-foreground">
             This records a new declaration that supersedes {target.supersedes}. The original stays
             readable — the pair is the audit trail, and nothing is overwritten.
           </p>
         )}
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted-foreground">Condition</label>
-          <Select value={condition} onValueChange={(v) => setCondition(v as DeclarationCondition)}>
-            <SelectTrigger className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CONDITIONS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Three choices, so three cards rather than a dropdown that hides two. */}
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1.5 text-[13px] font-medium text-foreground">Condition</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {CONDITIONS.map((c) => (
+              <label
+                key={c}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-[13.5px] font-medium transition-colors hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-accent has-[:checked]:text-accent-foreground"
+              >
+                <input
+                  type="radio"
+                  name="declaration-condition"
+                  value={c}
+                  checked={condition === c}
+                  onChange={() => setCondition(c as DeclarationCondition)}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                {conditionLabel(c)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted-foreground" htmlFor="fault-category">
-            Fault category
+          <label className="text-[13px] font-medium text-foreground" htmlFor="fault-category">
+            Fault
           </label>
           <Select value={faultCategory} onValueChange={(v) => setFaultCategory(v ?? "")}>
             <SelectTrigger id="fault-category" className="h-9 w-full">
-              <SelectValue placeholder="Select a fault category" />
+              {/* The words, not the code: BEARING_FAILURE reads "Bearing failure". */}
+              <SelectValue placeholder="Select a fault">
+                {(selected: string) => (selected ? humanize(selected) : "Select a fault")}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="i08-scope">
               {faultCategories.map((c) => (
                 <SelectItem key={c} value={c}>
-                  {c.replace(/_/g, " ").toLowerCase()}
+                  {humanize(c)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {faultCategories.length === 0 && (
-            <p className="text-[11px] text-destructive">
+            <p className="text-[12.5px] text-i08-crit-ink">
               The fault-category list could not be loaded, so nothing can be recorded. Reload
               the page to try again.
             </p>
@@ -245,26 +266,26 @@ export function DeclarationFormDialog({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted-foreground" htmlFor="condition-description">
-            Condition description
+          <label className="text-[13px] font-medium text-foreground" htmlFor="condition-description">
+            What is wrong with it
           </label>
           <textarea
             id="condition-description"
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What is wrong with it, and what did you measure?"
-            className="w-full rounded-md border border-border bg-background p-2 text-sm"
+            placeholder="e.g. Bearing noise at 1,200 rpm, seal weeping on the drive end"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
-          <p className="text-[11px] text-muted-foreground">
-            Required. This is the part a human reads — it is recorded as an
-            audit record and cannot be edited afterwards, only superseded.
+          <p className="text-[12.5px] text-muted-foreground">
+            Required, and kept as a permanent record: a correction is a new
+            declaration, never an edit.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground" htmlFor="attestation-quantity">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="attestation-quantity">
               Quantity
             </label>
             <Input
@@ -277,7 +298,7 @@ export function DeclarationFormDialog({
               onChange={(e) => setQuantity(e.target.value)}
               aria-invalid={parsedQuantity === undefined}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[12.5px] text-muted-foreground">
               {parsedQuantity === undefined
                 ? "Must be greater than 0."
                 : target.qtyUnderRepair && target.qtyUnderRepair > 0
@@ -286,8 +307,8 @@ export function DeclarationFormDialog({
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground" htmlFor="attestation-serial">
-              Serial number <span className="italic">(optional)</span>
+            <label className="text-[13px] font-medium text-foreground" htmlFor="attestation-serial">
+              Serial number <span className="font-normal text-muted-foreground">(optional)</span>
             </label>
             <Input
               id="attestation-serial"
