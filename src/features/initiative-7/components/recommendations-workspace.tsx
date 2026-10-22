@@ -164,7 +164,22 @@ function LiveRecommendationsWorkspace({
           }
         />
       ) : (
-        <>
+        // Keyed on the dropdown filters, so the results fade in when one changes -- not on each keystroke in the
+        // material search. Dropped for reduced motion.
+        <div
+          key={[
+            filters.recommendation,
+            filters.type,
+            filters.plant,
+            filters.circuit,
+            filters.criticality,
+            filters.demandPattern,
+            filters.risk,
+            filters.confidence,
+            filters.conversion,
+          ].join("|")}
+          className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+        >
           <RecommendationReviewTable
             recommendations={filtered}
             // Any listed row with a backend conversion decision -- cold-start or
@@ -195,7 +210,7 @@ function LiveRecommendationsWorkspace({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )

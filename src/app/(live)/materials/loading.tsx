@@ -1,21 +1,10 @@
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 
-export default function MaterialsLoading() {
+/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
+export default function Loading() {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-7 w-48" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Skeleton className="h-9 flex-1" />
-          <Skeleton className="h-9 w-40" />
-          <Skeleton className="h-9 w-44" />
-          <Skeleton className="h-9 w-36" />
-        </div>
-        <Skeleton className="h-80 rounded-xl" />
-      </div>
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+      <PageLoader label="Loading Materials" className="h-64 w-full" />
     </div>
   )
 }

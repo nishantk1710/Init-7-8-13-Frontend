@@ -1,5 +1,10 @@
-import { PageSkeleton } from "@/components/shared/page-skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 
+/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
 export default function Loading() {
-  return <PageSkeleton rows={2} />
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+      <PageLoader label="Loading the Action Center" className="h-64 w-full" />
+    </div>
+  )
 }

@@ -1,14 +1,11 @@
-import Link from "next/link"
 import { connection } from "next/server"
 
-import { ApprovalsTable } from "@/components/approvals/approvals-table"
-import { CappedNotice, FailureNotice, INITIATIVE_NAME } from "@/components/shared/load-status"
+import { ApprovalsView, type ApprovalsChip } from "@/components/approvals/approvals-view"
+import { FailureNotice, INITIATIVE_NAME } from "@/components/shared/load-status"
 import { PageHeader } from "@/components/shared/page-header"
 import { ProfileMenu } from "@/components/shared/profile-menu"
 import { combineActions, getLiveActions, INITIATIVE_IDS } from "@/lib/aggregation"
 import type { InitiativeId } from "@/lib/domain/contracts"
-import { cn } from "@/lib/utils"
-import { ApprovalsWorkspace } from "@/features/initiative-7/components/approvals-workspace"
 
 export const ALL = "all"
 export type ApprovalsFilter = InitiativeId | typeof ALL
@@ -45,84 +42,39 @@ export async function ApprovalsPage({ filter }: { filter: ApprovalsFilter }) {
 
   const approvals = combined.decisions.filter((a) => filter === ALL || a.initiative === filter)
 
-  const chips: { id: ApprovalsFilter; label: string; count: number | null }[] = [
-    {
-      id: ALL,
-      label: "All",
-      // With no module answering there is no total; 0 would read as "none waiting".
-      count: combined.failures.length === INITIATIVE_IDS.length ? null : combined.decisionTotal,
-    },
-    ...INITIATIVE_IDS.map((id) => {
-      const section = per[id]
-      return {
-        id,
-        label: INITIATIVE_NAME[id],
-        // `null` = the module did not answer. Never shown as 0.
-        count: section.status === "ready" ? section.data.decisionTotal : null,
-      }
-    }),
+  const chips: ApprovalsChip[] = [
+    { id: ALL, label: "All", href: "/approvals" },
+    ...INITIATIVE_IDS.map((id) => ({ id, label: INITIATIVE_NAME[id], href: `/approvals?module=${id}` })),
   ]
+
+  // The real number of decisions behind the selected filter, for the "Showing X of Y" card. `null` = it could not be
+  // determined (no module answered, or the selected one did not), never 0 -- 0 would read as "none waiting".
+  const selected = filter === ALL ? null : per[filter]
+  const total =
+    filter === ALL
+      ? combined.failures.length === INITIATIVE_IDS.length
+        ? null
+        : combined.decisionTotal
+      : selected && selected.status === "ready"
+        ? selected.data.decisionTotal
+        : null
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        <PageHeader
-          title="Approvals"
-          description={
-            combined.failures.length === INITIATIVE_IDS.length
-              ? "How many decisions are waiting could not be determined."
-              : `${combined.decisionTotal.toLocaleString()} waiting for a decision${
-                  combined.failures.length > 0 ? " (modules that could not be loaded are not counted)" : ""
-                }.`
-          }
-          actions={<ProfileMenu />}
-        />
+        <PageHeader title="Approvals" actions={<ProfileMenu />} />
 
         <FailureNotice failures={combined.failures} />
 
-        <div className="flex flex-wrap gap-2">
-          {chips.map((chip) => (
-            <Link
-              key={chip.id}
-              href={chip.id === ALL ? "/approvals" : `/approvals?module=${chip.id}`}
-              aria-current={filter === chip.id ? "page" : undefined}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                filter === chip.id
-                  ? "border-primary/40 bg-accent font-medium text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-muted/50"
-              )}
-            >
-              {chip.label}
-              <span className="ml-1.5 text-[11px] text-muted-foreground">
-                {chip.count === null ? "not loaded" : chip.count.toLocaleString()}
-              </span>
-            </Link>
-          ))}
-        </div>
-
-        {filter === "initiative-7" ? (
-          <ApprovalsWorkspace />
-        ) : (
-          <>
-            {combined.capped && (
-              <CappedNotice
-                shown={approvals.length}
-                total={
-                  filter === ALL
-                    ? combined.decisionTotal
-                    : (() => {
-                        const s = per[filter]
-                        return s.status === "ready" ? s.data.decisionTotal : approvals.length
-                      })()
-                }
-                noun="decisions"
-              />
-            )}
-            {/* Keyed on the module chip, so switching module starts at page 1. */}
-            <ApprovalsTable key={filter} approvals={approvals} incomplete={combined.failures.length > 0} />
-          </>
-        )}
+        <ApprovalsView
+          filter={filter}
+          chips={chips}
+          approvals={approvals}
+          total={total}
+          moduleName={filter === ALL ? "" : INITIATIVE_NAME[filter]}
+          notLoaded={selected !== null && selected.status !== "ready"}
+          incomplete={combined.failures.length > 0}
+        />
       </div>
     </div>
   )

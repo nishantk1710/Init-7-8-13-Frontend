@@ -21,7 +21,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { AlertTriangle, RefreshCw, Search } from "lucide-react"
+import { AlertTriangle, RefreshCw, RotateCcw, Search } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -109,7 +109,8 @@ export function AdoptionTrackingWorkspace() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* The same bold bordered, shadowed track as the other pages' filters. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-primary/40 bg-card p-3 shadow-lg">
         <div className="relative w-full sm:w-56">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -134,9 +135,28 @@ export function AdoptionTrackingWorkspace() {
             ))}
           </SelectContent>
         </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary sm:ml-auto"
+          disabled={statusFilter === ALL && query.trim() === ""}
+          onClick={() => {
+            setStatusFilter(ALL)
+            setQuery("")
+          }}
+        >
+          <RotateCcw className="size-3.5" />
+          Clear filters
+        </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      {/* Keyed on the status, so the table fades in when it changes -- not on each keystroke in the search. Dropped
+          for reduced motion. */}
+      <div
+        key={statusFilter}
+        className="overflow-x-auto rounded-xl border border-border bg-card animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
