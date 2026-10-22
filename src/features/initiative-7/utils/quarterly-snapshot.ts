@@ -183,8 +183,8 @@ export function pageCount(total: number, pageSize: number): number {
 
 // --- Which quarters the landing grid offers ----------------------------------------------------------
 
-/** Quarters kept off the landing grid. Q3 2026's generated report is not shown. */
-export const HIDDEN_QUARTERS: readonly string[] = ["Q3 2026"]
+/** Quarters kept off the landing grid. Q3 2026's and Q4 2026's generated reports are not shown. */
+export const HIDDEN_QUARTERS: readonly string[] = ["Q3 2026", "Q4 2026"]
 
 /**
  * The generated reports' quarters plus the Q2 snapshot, newest first, without the hidden ones. The snapshot is
