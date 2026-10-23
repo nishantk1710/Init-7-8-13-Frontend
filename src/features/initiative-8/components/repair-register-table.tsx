@@ -325,7 +325,7 @@ export function RepairRegisterTable({
         />
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         {/* The browser's own find sees one page; this looks through every line. */}
         <UrlSearchInput
           value={filters.q ?? ""}

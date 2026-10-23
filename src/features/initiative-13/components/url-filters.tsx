@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Loader2, X } from "lucide-react"
+import { Loader2, RotateCcw, Search, X } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { FilterBar } from "@/components/shared/filter-bar"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -61,6 +62,7 @@ export function I13UrlFilters({
   exceptionTypes,
   exceptionStatuses,
   className,
+  layout = "bar",
 }: {
   /** Which controls this screen wants. Not every screen filters by everything. */
   fields: readonly (
@@ -84,6 +86,8 @@ export function I13UrlFilters({
   exceptionTypes?: string[]
   exceptionStatuses?: string[]
   className?: string
+  /** `panel` is the labelled, bordered bar the Initiative 7 dashboards put above their content; `bar` is the compact row. */
+  layout?: "bar" | "panel"
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -107,12 +111,24 @@ export function I13UrlFilters({
   }
 
   const selectedPlant = searchParams.get("plant")
+  const panel = layout === "panel"
+  const Shell = panel ? PanelBar : FilterBar
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status"}
+  /** In the panel every control sits under its own name; in the bar it is left bare. */
+  const wrap = (field: string, node: ReactNode) =>
+    panel ? (
+      <FilterField label={titles[field] ?? field} className={field === "material" || field === "reservation" ? "order-last" : undefined}>
+        {node}
+      </FilterField>
+    ) : (
+      node
+    )
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <FilterBar className="flex-1">
-        {fields.includes("plant") && (
-          <UrlSelect
+    <div className={cn(!panel && "flex items-center gap-2", className)}>
+      <PanelContext.Provider value={panel}>
+      <Shell className={panel ? undefined : "flex-1"}>
+        {fields.includes("plant") && wrap("plant", <UrlSelect
             label="All plants"
             width="sm:w-52"
             value={selectedPlant ?? ""}
@@ -121,29 +137,23 @@ export function I13UrlFilters({
               label: sapPlantLabel(p),
             }))}
             onChange={(value) => push({ plant: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("material") && (
-          <DebouncedInput
+        {fields.includes("material") && wrap("material", <DebouncedInput
             placeholder="Material"
             value={searchParams.get("material") ?? ""}
             onCommit={(value) => push({ material: value })}
             className="sm:w-44"
-          />
-        )}
+          />)}
 
-        {fields.includes("reservation") && (
-          <DebouncedInput
+        {fields.includes("reservation") && wrap("reservation", <DebouncedInput
             placeholder="Reservation ID"
             value={searchParams.get("reservation") ?? ""}
             onCommit={(value) => push({ reservation: value })}
             className="sm:w-44"
-          />
-        )}
+          />)}
 
-        {fields.includes("agingBand") && (
-          <UrlSelect
+        {fields.includes("agingBand") && wrap("agingBand", <UrlSelect
             label="All stock types"
             width="sm:w-40"
             value={searchParams.get("agingBand") ?? ""}
@@ -151,11 +161,9 @@ export function I13UrlFilters({
               (band) => ({ value: band, label: labelFor(AGING_BAND_LABEL, band) })
             )}
             onChange={(value) => push({ agingBand: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("acquiredVsPlanStatus") && (
-          <UrlSelect
+        {fields.includes("acquiredVsPlanStatus") && wrap("acquiredVsPlanStatus", <UrlSelect
             label="All plan statuses"
             width="sm:w-44"
             value={searchParams.get("acquiredVsPlanStatus") ?? ""}
@@ -165,11 +173,9 @@ export function I13UrlFilters({
               searchParams.get("acquiredVsPlanStatus")
             ).map((value) => ({ value, label: labelFor(PLAN_STATUS_LABEL, value) }))}
             onChange={(value) => push({ acquiredVsPlanStatus: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("type") && (
-          <UrlSelect
+        {fields.includes("type") && wrap("type", <UrlSelect
             label="All exception types"
             width="sm:w-48"
             value={searchParams.get("type") ?? ""}
@@ -179,11 +185,9 @@ export function I13UrlFilters({
               searchParams.get("type")
             ).map((t) => ({ value: t, label: labelFor(EXCEPTION_TYPE_LABEL, t) }))}
             onChange={(value) => push({ type: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("status") && (
-          <UrlSelect
+        {fields.includes("status") && wrap("status", <UrlSelect
             label="All statuses"
             width="sm:w-48"
             value={searchParams.get("status") ?? ""}
@@ -193,44 +197,58 @@ export function I13UrlFilters({
               searchParams.get("status")
             ).map((st) => ({ value: st, label: labelFor(EXCEPTION_STATUS_LABEL, st) }))}
             onChange={(value) => push({ status: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("procurementStatus") && (
-          <UrlSelect
+        {fields.includes("procurementStatus") && wrap("procurementStatus", <UrlSelect
             label="All procurement statuses"
             width="sm:w-48"
             value={searchParams.get("procurementStatus") ?? ""}
             options={PROCUREMENT_STATUSES.map((value) => ({ value, label: words(value) }))}
             onChange={(value) => push({ procurementStatus: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("utilisationStatus") && (
-          <UrlSelect
+        {fields.includes("utilisationStatus") && wrap("utilisationStatus", <UrlSelect
             label="All utilization statuses"
             width="sm:w-48"
             value={searchParams.get("utilisationStatus") ?? ""}
             options={UTILISATION_STATUSES.map((value) => ({ value, label: words(value) }))}
             onChange={(value) => push({ utilisationStatus: value })}
-          />
-        )}
+          />)}
 
-        {fields.includes("deliveryStatus") && (
-          <UrlSelect
+        {fields.includes("deliveryStatus") && wrap("deliveryStatus", <UrlSelect
             label="All delivery statuses"
             width="sm:w-48"
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ deliveryStatus: value })}
-          />
-        )}
+          />)}
 
-        <ClearFiltersButton activeCount={activeCount} onClear={clearAll} />
-      </FilterBar>
+        {panel ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={activeCount === 0}
+              onClick={clearAll}
+              className="order-last shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+            >
+              <RotateCcw className="size-3.5" />
+              Clear filters
+            </Button>
+            {isPending && (
+              <Loader2 className="order-last size-4 shrink-0 animate-spin self-center text-muted-foreground" aria-label="Loading filtered results" />
+            )}
+          </>
+        ) : (
+          <ClearFiltersButton activeCount={activeCount} onClear={clearAll} />
+        )}
+      </Shell>
+      </PanelContext.Provider>
 
       {/* Sized and reserved whether or not it is spinning, so the filter row
           does not jump every time somebody changes a value. */}
+      {!panel && (
       <span className="flex size-4 shrink-0 items-center justify-center">
         {isPending && (
           <Loader2
@@ -239,6 +257,44 @@ export function I13UrlFilters({
           />
         )}
       </span>
+      )}
+    </div>
+  )
+}
+
+/** Whether the controls are drawn for the panel (32px, "All", a search icon). */
+const PanelContext = createContext(false)
+
+/**
+ * The Initiative 7 dashboards' filter bar: a bordered, shadowed row of fields, each under its name, the controls
+ * 32px high. Written out here rather than imported -- modules do not import each other -- and `min-h-8!`
+ * because `.oar-scope` gives every control a 44px floor, which would make this bar taller than the one it copies.
+ */
+function PanelBar({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 bg-card p-4 shadow-lg",
+        "[&>div]:min-w-[132px] [&>div]:flex-1",
+        "[&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground",
+        "[&_[data-slot=select-trigger]]:min-h-8! [&_[data-slot=select-trigger]]:font-semibold",
+        "[&_[data-slot=input]]:min-h-8! [&_[data-slot=input]]:font-semibold",
+        "[&_[data-slot=button]]:min-h-8!",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+function FilterField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      <span data-slot="filter-label" className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+        {label}
+      </span>
+      {children}
     </div>
   )
 }
@@ -273,8 +329,10 @@ function UrlSelect({
   width: string
 }) {
   const labels = Object.fromEntries(options.map((o) => [o.value, o.label]))
+  const panel = useContext(PanelContext)
+  const allLabel = panel ? "All" : label
   return (
-    <div className={cn("relative w-full", width)}>
+    <div className={cn("relative w-full", !panel && width)}>
       <Select
         value={value || ALL}
         onValueChange={(v) => {
@@ -282,13 +340,13 @@ function UrlSelect({
           onChange(next === ALL ? "" : next)
         }}
       >
-        <SelectTrigger className={cn("h-9 w-full", value && "pr-12")}>
-          <SelectValue placeholder={label}>
-            {(v: string) => (v === ALL ? label : labels[v] ?? v)}
+        <SelectTrigger className={cn(panel ? "h-8" : "h-9", "w-full", value && "pr-12")}>
+          <SelectValue placeholder={allLabel}>
+            {(v: string) => (v === ALL ? allLabel : labels[v] ?? v)}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>{label}</SelectItem>
+          <SelectItem value={ALL}>{allLabel}</SelectItem>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -348,6 +406,7 @@ function DebouncedInput({
   placeholder: string
   className?: string
 }) {
+  const panel = useContext(PanelContext)
   const [draft, setDraft] = useState(value)
 
   // Re-sync when the URL-side value changes underneath us — a back button, or
@@ -373,13 +432,14 @@ function DebouncedInput({
   }, [draft])
 
   return (
-    <div className={cn("relative w-full", className)}>
+    <div className={cn("relative w-full", !panel && className)}>
+      {panel && <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />}
       <Input
-        placeholder={placeholder}
+        placeholder={panel && placeholder === "Material" ? "Search material..." : placeholder}
         aria-label={placeholder}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        className={cn("h-9 w-full", draft && "pr-8")}
+        className={cn(panel ? "h-8 pl-7 text-sm" : "h-9", "w-full", draft && "pr-8")}
       />
       {draft && (
         <ClearOne

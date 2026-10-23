@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Download, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 /**
  * An Excel export that fetches every matching row when pressed.
@@ -30,6 +31,7 @@ export function ExportButton({
       <Button
         size="sm"
         variant="outline"
+        className={cn("whitespace-nowrap", "h-9 min-h-9! border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action")}
         disabled={isPending}
         onClick={() =>
           startTransition(async () => {

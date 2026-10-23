@@ -93,20 +93,20 @@ function PageButton({
   const className = buttonVariants({ variant: "outline", size: "sm" })
   if (!enabled) {
     return (
-      <span aria-disabled="true" className={cn(className, "pointer-events-none opacity-50")}>
+      <span data-slot="button" aria-disabled="true" className={cn(className, "pointer-events-none opacity-50")}>
         {children}
       </span>
     )
   }
   if (hrefFor) {
     return (
-      <Link href={hrefFor(target)} scroll={false} className={className}>
+      <Link data-slot="button" href={hrefFor(target)} scroll={false} className={className}>
         {children}
       </Link>
     )
   }
   return (
-    <button type="button" className={className} onClick={() => onPageChange?.(target)}>
+    <button data-slot="button" type="button" className={className} onClick={() => onPageChange?.(target)}>
       {children}
     </button>
   )

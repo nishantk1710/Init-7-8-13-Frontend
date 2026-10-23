@@ -19,7 +19,7 @@ export function CriticalityReportsPage() {
   const errorText = error ? (error instanceof ApiError ? error.detailText() : error.message) : null
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
+    <div className="blue-scope min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
           title="Criticality Reports"

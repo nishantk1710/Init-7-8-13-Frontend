@@ -18,6 +18,9 @@ import {
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { cn } from "@/lib/utils"
 
+/** The page you are on: a solid indigo pill with white text, in every section. */
+const ACTIVE_ITEM = "bg-primary-strong font-semibold text-white hover:bg-primary-strong-hover"
+
 type NavLink = {
   label: string
   href: string

@@ -104,12 +104,12 @@ export function ActionCenterTabs({
       {/* The "Showing X of Y" section, where it has always been: above the filter, and following the selected filter. */}
       {notice}
       <Tabs value={tab} onValueChange={(v) => setTab(v as (typeof TABS)[number]["id"])}>
-        <TabsList className="w-full max-w-4xl border-2 border-primary/40 bg-card p-1 shadow-lg ring-0 group-data-horizontal/tabs:h-11">
+        <TabsList className="w-full max-w-4xl border-2 border-action/40 bg-card p-1 shadow-lg ring-0 group-data-horizontal/tabs:h-11">
           {TABS.map((t) => (
             <TabsTrigger
               key={t.id}
               value={t.id}
-              className="px-4 font-semibold text-foreground/70 duration-300 ease-out data-active:border-primary data-active:bg-background data-active:text-foreground data-active:shadow-md dark:data-active:border-primary dark:data-active:bg-background dark:data-active:text-foreground"
+              className="px-4 font-semibold text-foreground/70 duration-300 ease-out data-active:border-action data-active:bg-background data-active:text-foreground data-active:shadow-md dark:data-active:border-action dark:data-active:bg-background dark:data-active:text-foreground"
             >
               {t.label}
             </TabsTrigger>

@@ -208,6 +208,21 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
 
   return (
     <div className="flex flex-col gap-4">
+      <DashboardFilters
+        layout="bar"
+        value={filters}
+        onChange={setFilters}
+        plantOptions={PLANT_OPTIONS}
+        showSapAdoptionFilter
+        showCircuitFilter={false}
+        showStatusFilter={false}
+        showRiskFilter={false}
+        showTypeFilter
+        typeFilterAllowAll
+        typeFilterLabel="Recommendation"
+        mergeCriticalIntoHigh
+      />
+
       <InventoryPortfolioKpis
         showInfo
         recommendations={filtered}
@@ -252,21 +267,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-        <DashboardFilters
-          value={filters}
-          onChange={setFilters}
-          plantOptions={PLANT_OPTIONS}
-          showSapAdoptionFilter
-          showCircuitFilter={false}
-          showStatusFilter={false}
-          showRiskFilter={false}
-          showTypeFilter
-          typeFilterAllowAll
-          typeFilterLabel="Recommendation"
-          mergeCriticalIntoHigh
-        />
-
+      <div className="grid grid-cols-1 gap-4">
         <div className="flex min-w-0 flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <ChartCard

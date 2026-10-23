@@ -110,7 +110,7 @@ export function AdoptionTrackingWorkspace() {
   return (
     <div className="flex flex-col gap-4">
       {/* The same bold bordered, shadowed track as the other pages' filters. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-primary/40 bg-card p-3 shadow-lg">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <div className="relative w-full sm:w-56">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -139,7 +139,7 @@ export function AdoptionTrackingWorkspace() {
         <Button
           variant="outline"
           size="sm"
-          className="h-8 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary sm:ml-auto"
+          className="h-8 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action sm:ml-auto"
           disabled={statusFilter === ALL && query.trim() === ""}
           onClick={() => {
             setStatusFilter(ALL)

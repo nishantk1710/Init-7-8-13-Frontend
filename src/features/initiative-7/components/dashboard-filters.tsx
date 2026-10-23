@@ -263,7 +263,7 @@ export function DashboardFilters({
           ? // The bar: the same bold bordered, shadowed track as the filters on the Action Center, Approvals and
             // Audit trail.
             // Field names bold and dark, and the chosen values semi-bold, so the bar reads at a glance.
-            "flex flex-wrap items-end gap-3 rounded-lg border-2 border-primary/40 shadow-lg [&>div]:min-w-[132px] [&>div]:flex-1 [&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground [&_[data-slot=select-trigger]]:font-semibold [&_[data-slot=input]]:font-semibold"
+            "flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 shadow-lg [&>div]:min-w-[132px] [&>div]:flex-1 [&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground [&_[data-slot=select-trigger]]:font-semibold [&_[data-slot=input]]:font-semibold"
           : // The Overview's rail: field names (Recommendation, Plant, ...) a little bolder than the bar's.
             "flex flex-col gap-4 rounded-xl border border-border [&_[data-slot=filter-label]]:font-semibold"
       )}
@@ -496,7 +496,7 @@ export function DashboardFilters({
         className={
           isBar
             ? // Highlighted like Clear filters on the Audit trail; it dims, as before, while there is nothing to clear.
-              "shrink-0 grow-0 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary"
+              "shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
             : undefined
         }
         disabled={!isDashboardFiltersActive(value, resetFilters)}
