@@ -12,7 +12,7 @@ import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
 import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
-import { journeySteps, journeyStop } from "@/features/initiative-13/utils/oar-display"
+import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
   TableBody,
@@ -21,27 +21,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { UtilisationLedgerEntry } from "@/lib/api/i13"
+import type { LedgerUtilisationStatus, ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
-<<<<<<< HEAD
-=======
-const PROCUREMENT_TONE: Record<ProcurementStatus, "default" | "success" | "warning"> = {
-  OPEN: "default",
-  PARTIALLY_RECEIVED: "warning",
-  RECEIVED: "success",
-  CLOSED: "default",
-  NOT_AN_ORDER: "default",
+const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
+  OPEN: "neutral",
+  PARTIALLY_RECEIVED: "caution",
+  RECEIVED: "healthy",
+  CLOSED: "neutral",
+  NOT_AN_ORDER: "neutral",
 }
 
-const UTILISATION_TONE: Record<LedgerUtilisationStatus, "default" | "success" | "warning"> = {
-  NOT_ISSUED: "default",
-  PARTIALLY_ISSUED: "warning",
-  FULLY_ISSUED: "success",
+const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
+  NOT_ISSUED: "neutral",
+  PARTIALLY_ISSUED: "caution",
+  FULLY_ISSUED: "healthy",
 }
 
->>>>>>> origin/main
 function label(value: string): string {
   return value
     .toLowerCase()
@@ -220,16 +217,12 @@ export function UtilizationLedgerTable({
                     <Quantity value={entry.issuedQuantity} empty="notIssued" />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <TableCell>
-<<<<<<< HEAD
-                      <StatusPill tone="primary" className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.procurementStatus)}</StatusPill>
-=======
-                      <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
+                      <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
-                      </StatusBadge>
->>>>>>> origin/main
+                      </StatusPill>
                     </TableCell>
                     <TableCell>
-                      <StatusPill tone="caution" className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>
+                      <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>
                     </TableCell>
                   </TableRow>
                   <TableRow className="hover:bg-transparent">

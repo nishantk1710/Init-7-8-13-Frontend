@@ -6,9 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-<<<<<<< HEAD
   --color-action: var(--action);
-=======
   --color-nav-bg: var(--nav-bg);
   --color-nav-fg: var(--nav-fg);
   --color-nav-muted: var(--nav-muted);
@@ -19,7 +17,6 @@
   --color-nav-btn: var(--nav-btn);
   --color-nav-btn-fg: var(--nav-btn-fg);
   --color-canvas: var(--canvas);
->>>>>>> origin/main
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -140,16 +137,6 @@
 
 .dark {
   color-scheme: dark;
-<<<<<<< HEAD
-  --background: oklch(0.145 0 0);
-  --action: #7cb9ee;
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #6366f1;
-=======
   /* Deep navy page, slightly lighter navy cards, hairline borders, one vivid
      blue for actions. The chart, plant and status colours below are NOT part of
      this palette and keep their own values. */
@@ -168,7 +155,7 @@
   --popover: #0e1527;
   --popover-foreground: #f4f6fb;
   --primary: #1f6bff;
->>>>>>> origin/main
+  --action: #7cb9ee;
   --primary-foreground: #ffffff;
   --secondary: #141c31;
   --secondary-foreground: #f4f6fb;
