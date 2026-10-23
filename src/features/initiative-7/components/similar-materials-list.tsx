@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { getPlantById } from "@/lib/shared-data/plants"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
 import { fetchSimilarMaterials, type SimilarMaterial } from "@/features/initiative-7/services/i7-api"
 
@@ -85,7 +85,7 @@ export function SimilarMaterialsList({ recommendationId }: { recommendationId: s
                       {item.contributed ? "" : " · not used in estimate"}
                     </div>
                   </td>
-                  <td className="py-1.5 pr-2 text-muted-foreground">{getPlantById(item.plant)?.name ?? item.plant}</td>
+                  <td className="py-1.5 pr-2 text-muted-foreground">{sapPlantName(item.plant)}</td>
                   <td className="py-1.5 pr-2 text-right font-medium tabular-nums">{percent(item.similarity)}</td>
                   <td className="py-1.5 pr-2 text-right tabular-nums">{stock(item.rop)}</td>
                   <td className="py-1.5 pr-2 text-right tabular-nums">{stock(item.safetyStock)}</td>

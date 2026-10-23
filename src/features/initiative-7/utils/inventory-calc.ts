@@ -1,8 +1,6 @@
-// Pure aggregate calculations over the mock recommendation dataset — kept
-// separate from the data file so pages/selectors can share one source of
-// derived numbers instead of recomputing ad hoc.
+// Pure aggregate calculations over a list of recommendations, so pages/selectors
+// share one source of derived numbers instead of recomputing ad hoc.
 
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { ConsumptionPoint, Recommendation, RecommendationStatus } from "@/features/initiative-7/types/inventory"
 
 export const OPEN_STATUSES: RecommendationStatus[] = ["Pending Review", "In Approval", "Returned"]
@@ -11,25 +9,25 @@ export function isOpenRecommendation(rec: Recommendation): boolean {
   return OPEN_STATUSES.includes(rec.status)
 }
 
-export function countByCriticality(recs: Recommendation[] = RECOMMENDATIONS, level: Recommendation["criticality"]) {
+export function countByCriticality(recs: Recommendation[], level: Recommendation["criticality"]) {
   return recs.filter((r) => r.criticality === level).length
 }
 
-export function countAtStockoutRisk(recs: Recommendation[] = RECOMMENDATIONS): number {
+export function countAtStockoutRisk(recs: Recommendation[]): number {
   return recs.filter((r) => r.risk === "high" || r.risk === "critical").length
 }
 
-export function countExcessCandidates(recs: Recommendation[] = RECOMMENDATIONS): number {
+export function countExcessCandidates(recs: Recommendation[]): number {
   return recs.filter((r) => r.recommended.maxStock < r.current.maxStock).length
 }
 
-export function countAwaitingApproval(recs: Recommendation[] = RECOMMENDATIONS): number {
+export function countAwaitingApproval(recs: Recommendation[]): number {
   return recs.filter(isOpenRecommendation).length
 }
 
 /** Net ZAR working-capital impact across every recommendation except
  * rejected ones (a rejected recommendation was never applied). */
-export function netWorkingCapitalImpact(recs: Recommendation[] = RECOMMENDATIONS): number {
+export function netWorkingCapitalImpact(recs: Recommendation[]): number {
   return recs
     .filter((r) => r.status !== "Rejected")
     .reduce((sum, r) => sum + r.workingCapitalImpact, 0)
@@ -41,13 +39,13 @@ export function formatSignedZAR(amount: number): string {
   return `${sign}R ${abs.toLocaleString("en-US")}`
 }
 
-export function statusDistribution(recs: Recommendation[] = RECOMMENDATIONS) {
+export function statusDistribution(recs: Recommendation[]) {
   const counts = new Map<RecommendationStatus, number>()
   for (const r of recs) counts.set(r.status, (counts.get(r.status) ?? 0) + 1)
   return Array.from(counts.entries()).map(([status, count]) => ({ status, count }))
 }
 
-export function circuitExposure(recs: Recommendation[] = RECOMMENDATIONS) {
+export function circuitExposure(recs: Recommendation[]) {
   const map = new Map<string, { circuit: string; atRisk: number; healthy: number }>()
   for (const r of recs) {
     const entry = map.get(r.circuit) ?? { circuit: r.circuit, atRisk: 0, healthy: 0 }
@@ -58,7 +56,7 @@ export function circuitExposure(recs: Recommendation[] = RECOMMENDATIONS) {
   return Array.from(map.values())
 }
 
-export function deriveOverallHealth(recs: Recommendation[] = RECOMMENDATIONS): "healthy" | "attention" | "critical" {
+export function deriveOverallHealth(recs: Recommendation[]): "healthy" | "attention" | "critical" {
   const criticalOpen = recs.filter(
     (r) => r.risk === "critical" && r.status !== "Implemented" && r.status !== "Rejected"
   ).length
@@ -176,7 +174,7 @@ export function hasRecentConsumption(rec: Pick<Recommendation, "consumptionHisto
 
 /** Sums consumptionHistory across recommendations, period-aligned — every
  * material in the mock dataset shares the same six period labels. */
-export function aggregateConsumption(recs: Recommendation[] = RECOMMENDATIONS): ConsumptionPoint[] {
+export function aggregateConsumption(recs: Recommendation[]): ConsumptionPoint[] {
   if (recs.length === 0) return []
   return recs[0].consumptionHistory.map((point, i) => ({
     period: point.period,

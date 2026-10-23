@@ -6,7 +6,6 @@ import { AiEyebrow } from "@/components/assistant/ai-visuals"
 import { SessionDownloadMenu } from "@/components/assistant/session-download-menu"
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type { ApiRouting } from "@/lib/api/assistant"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 
 type Destination = { href: string; label: string; what: string }
 
@@ -16,22 +15,6 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
     href: `/assistant/sessions/${encodeURIComponent(sessionId)}`,
     label: "Session trace",
     what: "every question and answer, as recorded",
-  }
-  if (ASSISTANT_DEMO) {
-    // Only the screens that have a demo stand-in. The rest read the live
-    // backend, which never saw a demo session, and would show it missing.
-    const sessions: Destination = {
-      href: "/assistant/sessions",
-      label: "Sessions",
-      what: "this session beside every other session",
-    }
-    const landed: Destination[] =
-      routing.flow === "i13"
-        ? [{ href: `/oar-utilization?tab=plans&${scope}`, label: "Consumption plans", what: "the plan you just gave, if you gave one" }]
-        : routing.flow === "i08"
-          ? [{ href: "/repairable-spares/justifications", label: "Justifications", what: "the new-acquisition reason, if you recorded one" }]
-          : []
-    return [...landed, trace, sessions]
   }
   if (routing.flow === "i13") {
     return [
@@ -92,8 +75,7 @@ export function ConversationOutcome({ sessionId, routing }: { sessionId: string;
             What you recorded is already on these screens:
           </p>
         </div>
-        {/* Demo sessions live in the browser; the backend has no record to read. */}
-        {!ASSISTANT_DEMO && <SessionDownloadMenu sessionId={sessionId} className="shrink-0 self-start" />}
+        <SessionDownloadMenu sessionId={sessionId} className="shrink-0 self-start" />
       </div>
       <ul className="relative mt-4 grid gap-2 sm:grid-cols-2">
         {destinations(sessionId, routing).map((d, index) => (

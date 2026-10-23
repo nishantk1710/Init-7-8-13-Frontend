@@ -1,20 +1,14 @@
 // Part 22 — I07 complete frontend live data integration.
 //
-// Live-mode counterpart to approvals-workspace.tsx. Reuses the same table/
-// filter/sidebar layout and the same shared UI primitives, but every row
-// comes from the real backend (GET /recommendations, filtered by the real
-// submitted statuses -- see hooks/use-live-approval-queue.ts) instead of the
-// scenario dataset's in-memory simulation. The outcome tabs use the
-// backend's own status vocabulary (Pending/Approved/Rejected/Returned) --
-// not the scenario's approve/adjust/reject taxonomy, since ADJUST/HOLD/
-// SEND_BACK are real, distinct backend statuses with no single scenario
-// equivalent.
+// Every row comes from the real backend (GET /recommendations, filtered by the
+// real submitted statuses -- see hooks/use-live-approval-queue.ts). The outcome
+// tabs use the backend's own status vocabulary (Pending/Approved/Rejected/
+// Returned), since ADJUST/HOLD/SEND_BACK are real, distinct backend statuses.
 //
 // AUTHENTICATION LIMITATION (Part 13 deferred): there is no signed-in user,
-// so "My queue" here is not filterable by a real identity the way the
-// scenario's DEMO_ROLE persona fakes it -- this component shows only "All
-// approvals", honestly, rather than fabricating a queue split with no real
-// basis.
+// so "My queue" here is not filterable by a real identity -- this component
+// shows only "All approvals", honestly, rather than fabricating a queue split
+// with no real basis.
 
 "use client"
 
@@ -43,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatMoney } from "@/lib/utils"
 import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import { CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
@@ -177,7 +170,6 @@ export function LiveApprovalsWorkspace({
   /** Called with the figures whenever they change, and with `null` while loading, on an error, and on unmount. */
   onSummaryChange?: (summary: ApprovalsSummary | null) => void
 }) {
-  const { openMaterial360 } = useMaterial360()
   const { recommendations, loading, error, refetch } = useLiveApprovalQueue()
   const [statusTab, setStatusTab] = useState<StatusTab>("pending")
   const [criticality, setCriticality] = useState<string>(ALL)
@@ -336,7 +328,6 @@ export function LiveApprovalsWorkspace({
                         <TableCell>
                           <MaterialIdentity
                             material={rec.material}
-                            onOpen={openMaterial360}
                             className="max-w-[210px]"
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">

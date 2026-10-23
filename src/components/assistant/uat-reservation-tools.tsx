@@ -1,13 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { Link2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import {
   getUatStatus,
   listUatCandidates,
@@ -18,11 +16,6 @@ import {
   type UatCandidate,
   type UatReservation,
 } from "@/lib/api/session-links"
-
-/** Loaded only when the demo switch is on, so live never fetches the fixtures. */
-const DemoReservationTools = dynamic(() =>
-  import("@/components/assistant/demo/demo-reservation-tools").then((m) => m.DemoReservationTools)
-)
 
 /**
  * UAT stand-in for "the requester typed the session ID into SAP".
@@ -48,13 +41,7 @@ export function UatReservationTools({
    *  request line types the bare request ID). Display only. */
   sapText?: string
 }) {
-  // The demo has its own stand-in, against the browser's demo store. A module
-  // constant, so the same branch is taken on every render.
-  return ASSISTANT_DEMO ? (
-    <DemoReservationTools sessionId={sessionId} />
-  ) : (
-    <LiveUatReservationTools sessionId={sessionId} sapText={sapText ?? sessionId} />
-  )
+  return <LiveUatReservationTools sessionId={sessionId} sapText={sapText ?? sessionId} />
 }
 
 function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sapText: string }) {

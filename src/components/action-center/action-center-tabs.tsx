@@ -13,8 +13,7 @@ import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { formatWhen } from "@/lib/api/format"
 import type { GlobalAction, InitiativeId } from "@/lib/domain/contracts"
 import { cn } from "@/lib/utils"
-import { ApprovalsWorkspace } from "@/features/initiative-7/components/approvals-workspace"
-import type { ApprovalsSummary } from "@/features/initiative-7/components/live-approvals-workspace"
+import { LiveApprovalsWorkspace, type ApprovalsSummary } from "@/features/initiative-7/components/live-approvals-workspace"
 import { initiative7Manifest } from "@/features/initiative-7/manifest"
 import { initiative8Manifest } from "@/features/initiative-8/manifest"
 import { initiative13Manifest } from "@/features/initiative-13/manifest"
@@ -124,7 +123,7 @@ export function ActionCenterTabs({
         className="animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
       >
         {tab === "initiative-7" ? (
-          <ApprovalsWorkspace onSummaryChange={setI7Summary} />
+          <LiveApprovalsWorkspace onSummaryChange={setI7Summary} />
         ) : filtered.length === 0 ? (
           <EmptyState title="Nothing here" description="No open actions in this module right now." />
         ) : (

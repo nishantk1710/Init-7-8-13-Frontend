@@ -8,8 +8,7 @@ import { AlertBanner } from "@/components/shared/alert-banner"
 import { CappedNotice } from "@/components/shared/load-status"
 import type { GlobalAction, InitiativeId } from "@/lib/domain/contracts"
 import { cn } from "@/lib/utils"
-import { ApprovalsWorkspace } from "@/features/initiative-7/components/approvals-workspace"
-import type { ApprovalsSummary } from "@/features/initiative-7/components/live-approvals-workspace"
+import { LiveApprovalsWorkspace, type ApprovalsSummary } from "@/features/initiative-7/components/live-approvals-workspace"
 
 export type ApprovalsChip = { id: InitiativeId | "all"; label: string; href: string }
 
@@ -97,7 +96,7 @@ export function ApprovalsView({
         className="animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
       >
         {filter === "initiative-7" ? (
-          <ApprovalsWorkspace onSummaryChange={setI7Summary} />
+          <LiveApprovalsWorkspace onSummaryChange={setI7Summary} />
         ) : (
           <ApprovalsTable approvals={approvals} incomplete={incomplete} onShownChange={setShown} />
         )}

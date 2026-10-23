@@ -80,13 +80,6 @@ export const ICONS: Record<IconKey, LucideIcon> = {
   upload: Upload,
 }
 
-export const CATEGORIES: { label: Category; icon: IconKey }[] = [
-  { label: "Flotation", icon: "droplet" },
-  { label: "Conveyance", icon: "arrows-right-left" },
-  { label: "Milling", icon: "wrench" },
-  { label: "Instrumentation", icon: "gauge" },
-]
-
 /**
  * Fixed categorical identity color per plant area — validated for CVD/contrast
  * (dataviz skill, 4-slot categorical palette). Assigned by entity, never by
@@ -119,7 +112,6 @@ export const QUICK_ACTIONS: {
     icon: "layout-dashboard",
     href: "/home",
   },
-  { label: "Search materials", icon: "search", href: "/materials" },
   // Pending items across every module surface in the Action Center, which
   // links straight into each module's own action surface.
   { label: "Action Center", icon: "inbox", href: "/actions" },

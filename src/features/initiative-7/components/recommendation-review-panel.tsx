@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { ArrowRightLeft, MessageSquare, Send, ShieldCheck } from "lucide-react"
+import { ArrowRightLeft, MessageSquare, ShieldCheck } from "lucide-react"
 
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,6 @@ import { formatCount, formatMoney } from "@/lib/utils"
 import { ForecastVsActualChart, hasNoForecast } from "@/features/initiative-7/components/forecast-vs-actual-chart"
 import { SimilarMaterialsList } from "@/features/initiative-7/components/similar-materials-list"
 import { ParameterComparison } from "@/features/initiative-7/components/parameter-comparison"
-import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import type { Criticality, DemandPattern, OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRecentConsumption, serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
 
@@ -189,48 +188,6 @@ function RationaleList({ rec }: { rec: Recommendation }) {
         <li key={factor.label}>{factor.detail}</li>
       ))}
     </ul>
-  )
-}
-
-/**
- * "Send for approval" box — the planner-side action, shown while a
- * recommendation is still theirs to submit.
- */
-export function SubmitForApprovalBox({ rec }: { rec: Recommendation }) {
-  const { stateFor, pendingRole, sendForApproval } = useInventoryWorkflow()
-  const state = stateFor(rec.id)
-  const role = pendingRole(rec.id)
-
-  if (state.submitted) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={state.outcome === "rejected" ? "danger" : state.outcome ? "success" : "warning"}>
-            {state.outcome === "rejected" ? "Rejected" : state.outcome ? "Approved" : `Awaiting ${role}`}
-          </StatusBadge>
-          <span className="text-[11px] text-muted-foreground">
-            {state.requestedBy ? `Sent by ${state.requestedBy}` : "In the approval chain"}
-            {state.submittedOn ? ` · ${state.submittedOn}` : ""}
-          </span>
-        </div>
-        <p className="text-[11px] text-muted-foreground">
-          Decisions are taken on the Approvals screen — this recommendation is already in the chain.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Button size="sm" className="self-start" onClick={() => sendForApproval(rec)}>
-        <Send className="size-3.5" />
-        Send for approval
-      </Button>
-      <p className="text-[11px] text-muted-foreground">
-        Submits the parameter change into the four-step approval chain, starting with the End User. Approve, adjust
-        and reject decisions are taken on the Approvals screen.
-      </p>
-    </div>
   )
 }
 

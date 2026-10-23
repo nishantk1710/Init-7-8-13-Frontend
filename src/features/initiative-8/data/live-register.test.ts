@@ -11,7 +11,6 @@ import {
   toRegisterLine,
   toRepairChain,
 } from "@/features/initiative-8/data/live-register"
-import { REPAIR_CHAINS } from "@/features/initiative-8/data/repair-chains"
 import {
   REGISTER_CSV_HEADERS,
   registerRowsToCsv,
@@ -213,14 +212,10 @@ describe("toRepairChain", () => {
     expect(chain.material.description).toBe("8000000007")
   })
 
-  it("produces rows the register table can filter exactly like the fixtures", () => {
-    // The point of the adapter: one shape, so the client-side filtering the
-    // table already does keeps working untouched.
+  it("produces rows with every field the register table filters on", () => {
     const chain = toRepairChain(apiRow())
-    const fixture = REPAIR_CHAINS[0]
     for (const key of ["id", "material", "plant", "repairStatus", "declarationStatus", "agingBucket"]) {
       expect(chain).toHaveProperty(key)
-      expect(fixture).toHaveProperty(key)
     }
   })
 })
@@ -702,12 +697,9 @@ describe("overdueStatusOf and isOpenRepair", () => {
     )
   })
 
-  it("still reads a closed scenario fixture as back, not open", () => {
-    // The live register serves open lines only; the fixtures behind the
-    // cross-initiative selectors still carry a closed repair.
-    const closed = REPAIR_CHAINS.find((chain) => chain.repairStatus === "Closed")
-    expect(closed).toBeDefined()
-    expect(isOpenRepair(closed!)).toBe(false)
+  it("reads a closed repair as back, not open", () => {
+    const closed = { ...toRepairChain(apiRow()), overdueStatus: "RECEIVED" as const }
+    expect(isOpenRepair(closed)).toBe(false)
     expect(isOpenRepair(toRepairChain(apiRow()))).toBe(true)
   })
 })
@@ -793,32 +785,5 @@ describe("registerDescription", () => {
     for (const absent of [undefined, null, ""]) {
       expect(registerDescription(meta, "2026-09-24", absent)).not.toContain("loaded")
     }
-  })
-})
-
-describe("the default dataset mode", () => {
-  it("is live when NEXT_PUBLIC_DATASET is unset", async () => {
-    // Deliberately inverted from what this asserted through W5.4, when `live`
-    // was an opt-in third mode and the fixture path had to stay byte-identical.
-    // Initiative 8's backed screens now read the backend unconditionally, so a
-    // typo in the env var must not silently serve hand-written demo numbers to
-    // somebody who asked for their real ones.
-    const { DATASET_MODE, USING_LIVE_DATA } = await import("@/lib/dataset-mode")
-    expect(DATASET_MODE).toBe("live")
-    expect(USING_LIVE_DATA).toBe(true)
-  })
-
-  it("still resolves Initiative 7's cross-initiative signal", async () => {
-    // I07's recommendation page reads material 500-14892 through the RC-8002
-    // fixture. No such material exists in the backend.
-    //
-    // This is now the load-bearing test for the fixture cleanup: Initiative 8's
-    // own screens stopped reading these rows, but the cross-initiative
-    // selectors did not, and deleting the fixture files would silently cost
-    // somebody else's page a feature that was built to be demonstrated.
-    const { getInitiative8Material360Signal } = await import(
-      "@/features/initiative-8/selectors/material-360-adapter"
-    )
-    expect(getInitiative8Material360Signal("500-14892")).not.toBeNull()
   })
 })
