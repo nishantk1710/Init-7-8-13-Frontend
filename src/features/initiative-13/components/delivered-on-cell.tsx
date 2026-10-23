@@ -2,7 +2,11 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { TableCell } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
-import type { DeliveryStatus } from "@/features/initiative-13/utils/delivery-status"
+import {
+  DELIVERY_STATE_EXPLANATIONS,
+  DELIVERY_STATE_LABELS,
+  type DeliveryStatus,
+} from "@/features/initiative-13/utils/delivery-status"
 import { cn, formatCount } from "@/lib/utils"
 
 /** Hover text naming the SAP field, so the cell itself can stay short. */
@@ -24,7 +28,8 @@ function ExpectedLine({ date, overdue, prefix }: { date: string; overdue: boolea
  * The "Delivered on" cell: goods-receipt date (EKBE-BUDAT) with its status
  * underneath, so a partial delivery never shows as a bare date. A line not
  * (fully) delivered also says when the rest is expected (EKET-EINDT), in red
- * with an Overdue badge once that date has passed.
+ * with an Overdue badge once that date has passed. A line nothing more will
+ * arrive on (closed in SAP, or not an order) says so, never "Not delivered".
  */
 export function DeliveredOnCell({
   status,
@@ -40,6 +45,22 @@ export function DeliveredOnCell({
     return (
       <TableCell>
         <EmptyValue kind="noPoYet" />
+      </TableCell>
+    )
+  }
+  if (status.state === "CLOSED" || status.state === "NOT_AN_ORDER") {
+    const received = receivedQuantity ?? 0
+    return (
+      <TableCell title={DELIVERY_STATE_EXPLANATIONS[status.state]}>
+        <div className="flex flex-col items-start gap-1">
+          {received > 0 && status.date && (
+            <span className="whitespace-nowrap text-foreground">{formatApiDate(status.date)}</span>
+          )}
+          <StatusBadge>
+            {DELIVERY_STATE_LABELS[status.state]}
+            {received > 0 ? ` · ${formatCount(received)} received` : ""}
+          </StatusBadge>
+        </div>
       </TableCell>
     )
   }

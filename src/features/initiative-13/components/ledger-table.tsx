@@ -4,7 +4,7 @@ import { Fragment, useState } from "react"
 import { ChevronRight } from "lucide-react"
 
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
-import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/delivery-status"
+import { deliveryStatusFromProcurement, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -31,6 +31,8 @@ const PROCUREMENT_TONE: Record<ProcurementStatus, "default" | "success" | "warni
   OPEN: "default",
   PARTIALLY_RECEIVED: "warning",
   RECEIVED: "success",
+  CLOSED: "default",
+  NOT_AN_ORDER: "default",
 }
 
 const UTILISATION_TONE: Record<LedgerUtilisationStatus, "default" | "success" | "warning"> = {
@@ -242,7 +244,7 @@ export function UtilizationLedgerTable({
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <TableCell>
                       <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
-                        {label(entry.procurementStatus)}
+                        {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
                       </StatusBadge>
                     </TableCell>
                     <TableCell>

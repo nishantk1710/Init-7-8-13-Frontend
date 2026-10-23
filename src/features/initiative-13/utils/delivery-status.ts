@@ -7,12 +7,18 @@
  * they reversed, so a fully reversed receipt has a date and zero received --
  * that line must read "Not delivered", and only the quantities can say so.
  *
+ * A line nothing more will arrive on is neither: SAP closed it (delivery
+ * completed, deleted, blocked) or it was never an order (a contract or a request
+ * for quotation) -- the backend decides which (UAT, 23 Oct).
+ *
  * A line not (fully) delivered also carries when the rest is expected:
  * EKET-EINDT of its PO line's next open schedule line (UAT, 21 Oct), and
  * whether that date has already passed.
  */
 
-export type DeliveryState = "DELIVERED" | "PARTIAL" | "NOT_DELIVERED" | "NO_PO"
+import type { ProcurementStatus } from "@/lib/api/i13"
+
+export type DeliveryState = "DELIVERED" | "PARTIAL" | "NOT_DELIVERED" | "CLOSED" | "NOT_AN_ORDER" | "NO_PO"
 
 export interface DeliveryStatus {
   state: DeliveryState
@@ -76,7 +82,7 @@ function receiptStatus(input: DeliveryInput): Omit<DeliveryStatus, "expectedDate
 export function deliveryStatusFromProcurement(
   input: {
     hasPo: boolean
-    procurementStatus: "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED"
+    procurementStatus: ProcurementStatus
     firstGrDate: string | null
     latestGrDate: string | null
     expectedDeliveryDate?: string | null
@@ -88,7 +94,7 @@ export function deliveryStatusFromProcurement(
 
 function procurementReceipt(input: {
   hasPo: boolean
-  procurementStatus: "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED"
+  procurementStatus: ProcurementStatus
   firstGrDate: string | null
   latestGrDate: string | null
 }): Omit<DeliveryStatus, "expectedDate" | "overdue"> {
@@ -102,6 +108,10 @@ function procurementReceipt(input: {
       return { state: "PARTIAL", date, firstDate }
     case "RECEIVED":
       return { state: "DELIVERED", date, firstDate }
+    case "CLOSED":
+    case "NOT_AN_ORDER":
+      // A short-closed line keeps the date of what did arrive.
+      return { state: input.procurementStatus, date, firstDate }
   }
 }
 
@@ -110,5 +120,24 @@ export const DELIVERY_STATE_LABELS: Record<DeliveryState, string> = {
   DELIVERED: "Delivered",
   PARTIAL: "Partially received",
   NOT_DELIVERED: "Not delivered",
+  CLOSED: "Closed in SAP",
+  NOT_AN_ORDER: "Not an order",
   NO_PO: "No PO yet",
+}
+
+/** Hover text for the two states a reader will not guess from the label. */
+export const DELIVERY_STATE_EXPLANATIONS: Partial<Record<DeliveryState, string>> = {
+  CLOSED:
+    "SAP has closed this PO line -- delivery completed (EKPO-ELIKZ) or deleted/blocked (EKPO-LOEKZ) -- so nothing more will be delivered on it, whatever was not received.",
+  NOT_AN_ORDER:
+    "Not an order: a contract or a request for quotation (EKKO-BSART), or a line ordering nothing. Goods arrive on separate purchase orders, never on this line.",
+}
+
+/** The procurement-status filter and badge wording. */
+export const PROCUREMENT_STATUS_LABELS: Record<ProcurementStatus, string> = {
+  OPEN: "Open",
+  PARTIALLY_RECEIVED: "Partially Received",
+  RECEIVED: "Received",
+  CLOSED: "Closed in SAP",
+  NOT_AN_ORDER: "Not an order",
 }
