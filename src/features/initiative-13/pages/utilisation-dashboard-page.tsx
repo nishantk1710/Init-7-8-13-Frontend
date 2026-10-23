@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic"
 import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
@@ -36,7 +35,6 @@ import {
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
 import type { AcquiredVsPlanStatus, ActExceptionStatus } from "@/lib/api/i13"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { formatApiDateTime } from "@/lib/api/format"
 import { buttonVariants } from "@/components/ui/button"
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
@@ -58,11 +56,6 @@ function inOrder(counts: Record<string, number>, order: readonly string[]): { ke
   const extra = Object.keys(counts).filter((k) => !order.includes(k))
   return [...order, ...extra].map((key) => ({ key, count: counts[key] ?? 0 }))
 }
-
-/** Demo mode only: the plans captured in this browser's demo sessions. */
-const DemoPlans = dynamic(() =>
-  import("@/components/assistant/demo/demo-records").then((m) => m.DemoPlans)
-)
 
 /**
  * W6.7 — the Utilisation Dashboard (FR-10), and the module's landing page at
@@ -347,12 +340,7 @@ export async function UtilisationDashboardPage({
               </TabsContent>
 
               <TabsContent value="plans">
-                {ASSISTANT_DEMO ? (
-                  <DemoPlans
-                    material={searchParams.material || undefined}
-                    plant={searchParams.plant || undefined}
-                  />
-                ) : dashboard.plans.status === "ready" ? (
+                {dashboard.plans.status === "ready" ? (
                   <div className="flex flex-col gap-2">
                     <p className="text-xs text-muted-foreground">
                       Plans stated by requesters in the assistant, kept apart from generated

@@ -7,10 +7,8 @@ import { useSyncExternalStore, type ComponentType } from "react"
 import { ChevronRight, ListChecks, Plus } from "lucide-react"
 
 import { SidebarAccount } from "@/components/auth/sidebar-account"
-import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
 import {
-  CATEGORIES,
   ICONS,
   INITIATIVE_NAV_SECTIONS,
   QUICK_ACTIONS,
@@ -79,23 +77,18 @@ function within(pathname: string, href: string): boolean {
 }
 
 /**
- * The live app's sidebar -- I08_Live_UI_Redesign_Plan.md, V4 and decision D3.
+ * The app's side navigation: a floating, rounded panel -- light in light mode,
+ * dark in dark mode -- with the logo at the top, the current page drawn as a
+ * pill that runs out to the panel's edge with curved flares above and below, and
+ * Logout at the foot.
  *
- * It was 30 links in always-open groups, 1.9 screens tall, with Home the 21st
- * link under "Quick actions" and a CPU icon where the brand should be. Now:
- *
- * - the Vedanta logo heads it, on a white chip in dark mode -- it was only on
- *   the sign-in page, so users signed in on a branded page and landed in a
- *   template;
  * - Home comes first;
- * - every group collapses, and the one holding the current page starts open,
- *   so about fifteen links show rather than thirty. A group someone opens or
- *   closes stays that way in their browser;
+ * - every group collapses, and the one holding the current page starts open. A
+ *   group someone opens or closes stays that way in their browser;
  * - the current page stays highlighted on the pages under it -- a repair line
- *   lights up Repair Register -- where it used to match the exact address only.
+ *   lights up Repair Register.
  *
- * App-wide in Live mode; Snapshot renders its own copy of the old sidebar
- * (`src/demo/components/layout/sidebar.tsx`) and is unchanged.
+ * Colours come from the `--nav-*` tokens in globals.css.
  */
 export function Sidebar() {
   const pathname = usePathname()
@@ -130,18 +123,10 @@ export function Sidebar() {
         badge: action.badge,
       })),
     },
-    {
-      title: "Categories",
-      links: CATEGORIES.map((category) => ({
-        label: category.label,
-        href: `/materials?category=${encodeURIComponent(category.label)}`,
-        icon: ICONS[category.icon],
-      })),
-    },
   ]
 
   // The most specific link the current page is under: Sessions, not "Open the
-  // assistant", on /assistant/sessions/SXXXX. Category links never are.
+  // assistant", on /assistant/sessions/SXXXX.
   const allLinks = [...(home ? [home.href] : []), ...groups.flatMap((g) => g.links.map((l) => l.href))]
   const active = allLinks
     .filter((href) => !href.includes("?") && within(pathname, href))
@@ -150,69 +135,74 @@ export function Sidebar() {
   const HomeIcon = home ? ICONS[home.icon] : null
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
-      <div className="border-b border-border px-4 pt-4 pb-3.5">
-        <Link href="/home" aria-label="Spares AI home" className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          {/* The logo has a white ground, so in dark mode it sits on a white chip. */}
-          <span className="inline-flex dark:rounded-md dark:bg-white dark:px-2 dark:py-1">
-            <Image
-              src="/brand/vedanta-zinc-logo.png"
-              alt="Vedanta Zinc International"
-              width={245}
-              height={70}
-              priority
-              className="h-8 w-auto"
-            />
-          </span>
-          <span className="mt-2 block text-[13px] font-semibold text-foreground">Spares AI</span>
-        </Link>
-      </div>
-
-      <div className="px-2 pt-3 pb-1">
-        <Link
-          href="/assistant"
-          className={cn(
-            "flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] transition-colors",
-            pathname === "/assistant"
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Plus className="size-4 shrink-0" />
-          <span className="font-medium">New session</span>
-        </Link>
-      </div>
-
-      {home && HomeIcon && (
-        <div className="pt-1">
-          <NavItem link={{ label: home.label, href: home.href, icon: HomeIcon }} active={active === home.href} />
+    <div className="flex shrink-0 py-3 pl-3">
+      <aside className="flex w-[232px] flex-col overflow-hidden rounded-[28px] bg-nav-bg text-nav-fg shadow-xl ring-1 ring-nav-border">
+        <div className="px-5 pt-5 pb-3">
+          <Link href="/home" aria-label="Spares AI home" className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            {/* The logo has a white ground, so it sits on a white chip (invisible on a light panel). */}
+            <span className="inline-flex rounded-lg bg-white px-2 py-1">
+              <Image
+                src="/brand/vedanta-zinc-logo.png"
+                alt="Vedanta Zinc International"
+                width={245}
+                height={70}
+                priority
+                className="h-8 w-auto"
+              />
+            </span>
+            <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>
+          </Link>
         </div>
-      )}
 
-      {groups.map((group) => {
-        const holdsCurrent = group.links.some((link) => link.href === active)
-        const open = opened[group.title] ?? holdsCurrent
-        return (
-          <NavSection
-            key={group.title}
-            title={group.title}
-            open={open}
-            holdsCurrent={holdsCurrent}
-            onToggle={() => writeToggle(group.title, !open)}
-          >
-            {group.links.map((link) => (
-              <NavItem key={link.href} link={link} active={link.href === active} />
-            ))}
-          </NavSection>
-        )
-      })}
+        <nav
+          aria-label="Main"
+          className="min-h-0 flex-1 overflow-y-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="px-3 pb-1">
+            <Link
+              href="/assistant"
+              className={cn(
+                "flex items-center gap-2 rounded-xl border border-dashed border-nav-muted/40 px-4 py-2 text-[13px] transition-colors",
+                pathname === "/assistant" ? "bg-nav-hover text-nav-fg" : "text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
+              )}
+            >
+              <Plus className="size-4 shrink-0" />
+              <span className="font-medium">New session</span>
+            </Link>
+          </div>
 
-      <div className="mt-auto border-t border-border py-1">
-        <SidebarAccount />
-        <DataModeToggle />
-        <ThemeToggle />
-      </div>
-    </aside>
+          {home && HomeIcon && (
+            <div className="-my-2 py-4">
+              <NavItem link={{ label: home.label, href: home.href, icon: HomeIcon }} active={active === home.href} />
+            </div>
+          )}
+
+          {groups.map((group) => {
+            const holdsCurrent = group.links.some((link) => link.href === active)
+            const open = opened[group.title] ?? holdsCurrent
+            return (
+              <NavSection
+                key={group.title}
+                title={group.title}
+                open={open}
+                holdsCurrent={holdsCurrent}
+                onToggle={() => writeToggle(group.title, !open)}
+              >
+                {group.links.map((link) => (
+                  <NavItem key={link.href} link={link} active={link.href === active} />
+                ))}
+              </NavSection>
+            )
+          })}
+        </nav>
+
+        <div className="px-3 pt-2 pb-4">
+          <SidebarAccount>
+            <ThemeToggle />
+          </SidebarAccount>
+        </div>
+      </aside>
+    </div>
   )
 }
 
@@ -236,29 +226,54 @@ function NavSection({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="mx-2 flex w-[calc(100%-1rem)] items-center gap-1.5 rounded-md px-2 pt-2.5 pb-1.5 text-left text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="mx-3 flex w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-md px-3 pt-3 pb-1.5 text-left text-[11px] font-medium tracking-[0.5px] text-nav-muted uppercase transition-colors outline-none hover:text-nav-fg focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <ChevronRight
           aria-hidden="true"
           className={cn("size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")}
         />
         <span className="min-w-0 flex-1 truncate">{title}</span>
-        {holdsCurrent && !open && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />}
+        {holdsCurrent && !open && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-nav-active" />}
       </button>
-      {/* Grid rows animate the height without measuring it. */}
+      {/* Grid rows animate the height without measuring it. The inner box is padded and
+          pulled back by the same amount so the active pill's flares, which poke 16px above
+          and below it, are not clipped. It ignores the pointer so that padding never covers
+          the group header above it; the links turn the pointer back on. */}
       <div
         className={cn(
           "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         )}
       >
-        <div className="flex min-h-0 flex-col overflow-hidden" inert={!open}>
+        <div
+          className={cn(
+            "pointer-events-none -my-4 flex min-h-0 flex-col overflow-hidden py-4 transition-[visibility] duration-200 motion-reduce:transition-none",
+            // Clipping is to the padding box, so the tops of the closed links would show in that padding
+            // as dashes above the next heading. Hidden once the collapse finishes, shown as it starts.
+            !open && "invisible"
+          )}
+          inert={!open}
+        >
           {children}
         </div>
       </div>
     </div>
   )
 }
+
+/**
+ * The current page is a pill that runs to the panel's right edge. The two flares
+ * above and below it are 16px squares: the far corner is filled with the accent,
+ * the near corner is cut away by a quarter circle, which makes the pill's ends
+ * curve into the edge. (Class names are written out in full so Tailwind sees them.)
+ */
+const ACTIVE_ITEM = cn(
+  "ml-3 rounded-l-full bg-nav-active pr-5 pl-4 font-medium text-nav-active-fg",
+  "before:pointer-events-none before:absolute before:-top-4 before:right-0 before:size-4",
+  "before:bg-[image:radial-gradient(circle_at_0_0,transparent_16px,var(--nav-active)_16.5px)]",
+  "after:pointer-events-none after:absolute after:-bottom-4 after:right-0 after:size-4",
+  "after:bg-[image:radial-gradient(circle_at_0_100%,transparent_16px,var(--nav-active)_16.5px)]"
+)
 
 function NavItem({ link, active }: { link: NavLink; active: boolean }) {
   const Icon = link.icon
@@ -267,14 +282,14 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
       href={link.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-        active ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        "pointer-events-auto relative my-0.5 flex items-center gap-3 py-2.5 text-[13px] transition-colors",
+        active ? ACTIVE_ITEM : "mx-3 rounded-xl px-4 text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
       )}
     >
       <Icon className="size-4 shrink-0" />
       <span className="min-w-0 truncate">{link.label}</span>
       {link.badge ? (
-        <span className="ml-auto shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
+        <span className="ml-auto shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
           {link.badge}
         </span>
       ) : null}

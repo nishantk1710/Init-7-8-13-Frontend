@@ -1,5 +1,11 @@
 # Demo mode — two frontends, one deployment
 
+> **Retired.** The Data source toggle (Snapshot / Live), the `spares-data-mode`
+> cookie and `NEXT_PUBLIC_DEFAULT_DATA_MODE` / `DATA_MODE` are gone; `src/proxy.ts`
+> now always serves the live frontend. `app/demo/` and `src/demo/` remain in the
+> tree but are unreachable. What follows describes the old behaviour, kept for
+> history.
+
 The app serves one of two frontends, chosen per browser at runtime:
 
 | Mode | Frontend | Data |

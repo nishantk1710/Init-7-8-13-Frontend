@@ -22,13 +22,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Shared by both frontends this app serves (see src/proxy.ts):
- *
- *   live   app/(live)/  -- this branch's frontend, reading the real backend
- *   demo   app/demo/    -- main's frontend as it was, on its own mock data
- *
- * Each brings its own shell (sidebar, providers) in its own layout; this one
- * only holds what they have in common, plus the strip saying which is showing.
+ * Root layout: theme provider plus the strip shown when the live backend is
+ * down. The app shell (sidebar, providers) lives in app/(live)/layout.tsx.
  */
 export default function RootLayout({
   children,

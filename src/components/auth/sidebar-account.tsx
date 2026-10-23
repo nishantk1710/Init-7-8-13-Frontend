@@ -10,38 +10,37 @@ import { signOut } from "@/lib/auth/mock-auth"
 import { cn } from "@/lib/utils"
 
 /**
- * The signed-in user at the foot of the sidebar: a link to /profile and a
- * sign-out button. Used by both sidebars (live and demo), so the profile is
- * one click away on every page.
+ * The foot of the sidebar: the signed-in user (a link to /profile), whatever
+ * `children` the sidebar puts between (the theme toggle), then Logout.
  */
-export function SidebarAccount() {
+export function SidebarAccount({ children }: { children?: React.ReactNode }) {
   const user = useCurrentUser()
   const pathname = usePathname()
   const isActive = pathname === "/profile"
 
   return (
-    <div className="mx-2 my-0.5 flex items-center gap-1">
+    <div className="flex flex-col gap-1">
       <Link
         href="/profile"
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition-colors",
-          isActive ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-muted"
+          "flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] text-nav-fg transition-colors",
+          isActive ? "bg-nav-hover" : "hover:bg-nav-hover"
         )}
       >
         <Avatar name={user?.name ?? " "} size="sm" />
         <span className="flex min-w-0 flex-col leading-tight">
-          <span className="truncate font-medium">{user?.name ?? " "}</span>
-          <span className="truncate text-[11px] text-muted-foreground">My profile</span>
+          <span className="truncate font-medium">{user?.name ?? " "}</span>
+          <span className="truncate text-[11px] text-nav-muted">My profile</span>
         </span>
       </Link>
+      {children}
       <button
         type="button"
         onClick={signOut}
-        aria-label="Sign out"
-        title="Sign out"
-        className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-nav-btn px-4 py-2.5 text-[13px] font-semibold text-nav-btn-fg shadow-sm transition-opacity hover:opacity-90"
       >
         <LogOut className="size-4" />
+        Logout
       </button>
     </div>
   )

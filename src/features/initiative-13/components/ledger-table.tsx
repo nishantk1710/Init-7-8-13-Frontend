@@ -4,7 +4,7 @@ import { Fragment, useState } from "react"
 import { TriangleAlert } from "lucide-react"
 
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
-import { deliveryStatusFromProcurement } from "@/features/initiative-13/utils/delivery-status"
+import { deliveryStatusFromProcurement, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { DataTable, RowToggle, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
@@ -25,6 +25,23 @@ import type { UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
+<<<<<<< HEAD
+=======
+const PROCUREMENT_TONE: Record<ProcurementStatus, "default" | "success" | "warning"> = {
+  OPEN: "default",
+  PARTIALLY_RECEIVED: "warning",
+  RECEIVED: "success",
+  CLOSED: "default",
+  NOT_AN_ORDER: "default",
+}
+
+const UTILISATION_TONE: Record<LedgerUtilisationStatus, "default" | "success" | "warning"> = {
+  NOT_ISSUED: "default",
+  PARTIALLY_ISSUED: "warning",
+  FULLY_ISSUED: "success",
+}
+
+>>>>>>> origin/main
 function label(value: string): string {
   return value
     .toLowerCase()
@@ -203,7 +220,13 @@ export function UtilizationLedgerTable({
                     <Quantity value={entry.issuedQuantity} empty="notIssued" />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <TableCell>
+<<<<<<< HEAD
                       <StatusPill tone="primary" className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.procurementStatus)}</StatusPill>
+=======
+                      <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
+                        {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
+                      </StatusBadge>
+>>>>>>> origin/main
                     </TableCell>
                     <TableCell>
                       <StatusPill tone="caution" className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>

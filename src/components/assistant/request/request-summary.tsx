@@ -8,8 +8,7 @@ import { toast } from "sonner"
 import { AiEyebrow } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
-import { LinkSimulator } from "@/components/assistant/request/link-simulator"
-import { Chip, CopyReference, DemoBanner, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
+import { Chip, CopyReference, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import { useRequest } from "@/components/assistant/request/use-requests"
 import { DownloadMenu } from "@/components/shared/download-menu"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -22,7 +21,6 @@ import {
   type ApiRequestLine,
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 
 /**
@@ -50,8 +48,6 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <DemoBanner>This request is held in this browser only. The reference cannot link to a real reservation.</DemoBanner>
-
       <section className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
         <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Type in SAP</span>
         <CopyReference value={request.requestId} size="lg" />
@@ -124,7 +120,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
         </section>
       )}
 
-      {ASSISTANT_DEMO ? <LinkSimulator request={request} /> : <LiveLinks request={request} onSimulated={reload} />}
+      <LiveLinks request={request} onSimulated={reload} />
 
       <div className="flex flex-wrap gap-2">
         <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />

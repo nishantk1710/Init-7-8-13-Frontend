@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DELIVERY_STATE_LABELS } from "@/features/initiative-13/utils/delivery-status"
+import { DELIVERY_STATE_LABELS, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
 import {
@@ -203,7 +203,7 @@ export function I13UrlFilters({
             label="All procurement statuses"
             width="sm:w-48"
             value={searchParams.get("procurementStatus") ?? ""}
-            options={PROCUREMENT_STATUSES.map((value) => ({ value, label: words(value) }))}
+            options={Object.entries(PROCUREMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ procurementStatus: value })}
           />)}
 
@@ -299,7 +299,6 @@ function FilterField({ label, className, children }: { label: string; className?
   )
 }
 
-const PROCUREMENT_STATUSES = ["OPEN", "PARTIALLY_RECEIVED", "RECEIVED"] as const
 const UTILISATION_STATUSES = ["NOT_ISSUED", "PARTIALLY_ISSUED", "FULLY_ISSUED"] as const
 
 /** `PARTIALLY_RECEIVED` -> "Partially Received", as the ledger's badges read. */

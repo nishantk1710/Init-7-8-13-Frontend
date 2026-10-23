@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { cn, formatCount } from "@/lib/utils"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -75,7 +74,7 @@ function segmentHeightsPx(counts: { level: RiskLevel; count: number }[], total: 
  * to Low) alongside a legend giving each tier's count and share of the set.
  * Clicking a tier cross-filters the rest of the dashboard by that risk level. */
 export function InventoryHealthCard({
-  recommendations = RECOMMENDATIONS,
+  recommendations,
   activeRisk,
   onRiskClick,
   riskOverride,
@@ -83,7 +82,7 @@ export function InventoryHealthCard({
   visibleTiers,
   footnote,
 }: {
-  recommendations?: Recommendation[]
+  recommendations: Recommendation[]
   activeRisk?: RiskLevel | null
   onRiskClick?: (level: RiskLevel) => void
   /** Part 36 -- portfolio-wide { level, count }[] + total, from GET
