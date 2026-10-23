@@ -29,14 +29,15 @@ const ICON_TONE: Record<Tone, string> = {
   danger: "bg-destructive/10 text-destructive",
 }
 
-// The Overview's cards are always drawn highlighted: a border and a faint wash in their own tone, with
-// a soft shadow. The pointer only lifts them a little further, and a press dips them back down. Written
+// The Overview's cards take the Repairable Spares Overview's look: a plain card with a 3px accent bar
+// down its left edge in the card's own tone, and the tone carried by the icon chip rather than a wash
+// over the whole card. The pointer only lifts them a little, and a press dips them back down. Written
 // out in full so Tailwind can see every class.
-const CARD_TONE: Record<Tone, string> = {
-  info: "border-primary/60 bg-primary/5 active:border-primary active:bg-primary/10",
-  success: "border-success/60 bg-success/5 active:border-success active:bg-success/10",
-  warning: "border-warning/60 bg-warning/5 active:border-warning active:bg-warning/10",
-  danger: "border-destructive/60 bg-destructive/5 active:border-destructive active:bg-destructive/10",
+const CARD_BAR: Record<Tone, string> = {
+  info: "before:bg-primary",
+  success: "before:bg-success",
+  warning: "before:bg-warning",
+  danger: "before:bg-destructive",
 }
 
 function pct(part: number, whole: number): string {
@@ -92,33 +93,55 @@ function PortfolioKpiCard({
   /** Puts the (i) icon beside the title, explaining how the figure is calculated. */
   infoId?: OverviewInfoId
 }) {
-  return (
-    <div
-      className={cn(
-        "group/card flex min-w-0 flex-col gap-1.5 rounded-xl border p-4",
-        // Only where the card explains itself (the Overview): the quarterly reports reuse these cards
-        // and keep the plain card.
-        infoId
-          ? cn(
-              "shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.99] active:shadow-sm motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
-              CARD_TONE[tone]
-            )
-          : "border-border bg-card"
-      )}
-      aria-busy={loading || undefined}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-foreground">{title}</span>
-          {infoId && <OverviewInfo id={infoId} />}
+  // Only where the card explains itself (the Overview): the quarterly reports reuse these cards and
+  // keep the plain card below.
+  if (infoId) {
+    return (
+      <div
+        className={cn(
+          "group/card relative flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-card px-5 py-4 shadow-xs",
+          "before:absolute before:inset-y-4 before:-left-px before:w-[3px] before:rounded-r-full",
+          CARD_BAR[tone],
+          "transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] active:shadow-xs motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100"
+        )}
+        aria-busy={loading || undefined}
+      >
+        <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-muted-foreground">
+          <span
+            className={cn(
+              "grid size-[30px] shrink-0 place-items-center rounded-lg transition-transform duration-150 group-hover/card:scale-105 motion-reduce:transition-none",
+              ICON_TONE[tone]
+            )}
+          >
+            {icon}
+          </span>
+          <span className="truncate">{title}</span>
+          <OverviewInfo id={infoId} />
         </span>
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-full",
-            infoId && "transition-transform duration-200 group-hover/card:scale-110 motion-reduce:transition-none",
-            ICON_TONE[tone]
-          )}
-        >
+        {loading ? (
+          // As tall as a card's value and its two lines, so the card does not change size when the figure arrives.
+          <ChartLoader label={`Loading ${title}`} className="h-[76px]" />
+        ) : (
+          <>
+            <div className="mt-1.5 flex min-w-0 items-baseline gap-1.5">
+              <span className="truncate text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
+                {value}
+              </span>
+              {suffix && <span className="shrink-0 text-[13px] text-muted-foreground">{suffix}</span>}
+            </div>
+            {caption && <span className="truncate text-[13.5px] text-muted-foreground">{caption}</span>}
+            {note && <span className="truncate text-xs text-muted-foreground">{note}</span>}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-4" aria-busy={loading || undefined}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="truncate text-sm font-medium text-foreground">{title}</span>
+        <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", ICON_TONE[tone])}>
           {icon}
         </span>
       </div>
@@ -127,23 +150,21 @@ function PortfolioKpiCard({
         <ChartLoader label={`Loading ${title}`} className="h-[76px]" />
       ) : (
         <>
-      <div className="flex min-w-0 items-baseline gap-1.5">
-        <span className={cn("truncate text-2xl font-bold tabular-nums", VALUE_TONE[tone])}>
-          {value}
-        </span>
-        {suffix && <span className="shrink-0 text-xs text-muted-foreground">{suffix}</span>}
-      </div>
-      {caption && (
-        <span
-          className={cn(
-            "truncate text-[11px] font-medium",
-            captionMuted ? "font-normal text-muted-foreground" : VALUE_TONE[tone]
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className={cn("truncate text-2xl font-bold tabular-nums", VALUE_TONE[tone])}>{value}</span>
+            {suffix && <span className="shrink-0 text-xs text-muted-foreground">{suffix}</span>}
+          </div>
+          {caption && (
+            <span
+              className={cn(
+                "truncate text-[11px] font-medium",
+                captionMuted ? "font-normal text-muted-foreground" : VALUE_TONE[tone]
+              )}
+            >
+              {caption}
+            </span>
           )}
-        >
-          {caption}
-        </span>
-      )}
-      {note && <span className="truncate text-[11px] text-muted-foreground">{note}</span>}
+          {note && <span className="truncate text-[11px] text-muted-foreground">{note}</span>}
         </>
       )}
     </div>

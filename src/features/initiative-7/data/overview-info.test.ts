@@ -110,19 +110,22 @@ describe("the (i) icon", () => {
     expect(markup).not.toContain("is calculated")
   })
 
-  it("draws the Overview's KPI cards highlighted at rest, each in its own tone, and leaves the reports' plain", () => {
+  it("draws the Overview's KPI cards with an accent bar in each card's own tone, and leaves the reports' plain", () => {
     const overview = renderToStaticMarkup(createElement(InventoryPortfolioKpis, { ...props, showInfo: true }))
     for (const tone of ["destructive", "primary", "success", "warning"]) {
-      // The border and wash are the base classes, not hover: variants -- on at rest.
-      expect(overview).toMatch(new RegExp(`(?<![:\\w-])border-${tone}/60`))
-      expect(overview).toMatch(new RegExp(`(?<![:\\w-])bg-${tone}/5`))
+      // The accent bar is on at rest, not a hover: variant.
+      expect(overview).toContain(`before:bg-${tone}`)
     }
+    // The tone is the bar and the icon chip; the card itself is no longer washed or bordered in it.
+    expect(overview).not.toMatch(/border-(destructive|primary|success|warning)\/60/)
+    expect(overview).not.toMatch(/(?<![:\w-])bg-(destructive|primary|success|warning)\/5(?!\d)/)
     expect(overview).not.toContain("hover:border-")
     expect(overview).toContain("hover:-translate-y-0.5")
     expect(overview).toContain("active:scale-[0.99]")
 
     const report = renderToStaticMarkup(createElement(InventoryPortfolioKpis, props))
     expect(report).not.toMatch(/border-(destructive|primary|success|warning)\/60/)
+    expect(report).not.toContain("before:bg-")
     expect(report).not.toContain("hover:-translate-y-0.5")
   })
 
