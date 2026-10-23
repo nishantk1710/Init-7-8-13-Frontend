@@ -1,18 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
-import { Chip, DemoBanner } from "@/components/assistant/request/request-parts"
+import { Chip } from "@/components/assistant/request/request-parts"
 import { useRequestList } from "@/components/assistant/request/use-requests"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isNotEnabled } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import { departmentLabel } from "@/lib/assistant/request/record"
-import { resetRequests } from "@/lib/assistant/request/store"
 
 /** Recent multi-material requests, newest first (`GET /assistant/requests`). */
 export function RequestList() {
@@ -21,16 +19,10 @@ export function RequestList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <DemoBanner />
       <div className="flex flex-wrap gap-2">
         <Link href="/assistant/requests/new" className={buttonVariants({ size: "sm" })}>
           <Plus /> New request
         </Link>
-        {ASSISTANT_DEMO && requests && requests.length > 0 && (
-          <Button type="button" variant="ghost" size="sm" onClick={resetRequests}>
-            <Trash2 /> Clear demo requests
-          </Button>
-        )}
       </div>
 
       {loading ? (

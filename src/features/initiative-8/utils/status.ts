@@ -234,11 +234,9 @@ export function overdueStatusOf(chain: RepairChain): OverdueStatus {
 }
 
 /**
- * Still out: the unit has not come back. Every live line is -- the register
- * serves only lines SAP still has open -- so this matters for the scenario
- * fixtures, whose closed rows it leaves out. Not `repairStatus !== "Closed"`:
- * a fixture can read "Received" without being closed, and it is back all the
- * same.
+ * Still out: the unit has not come back. Every line the register serves is --
+ * it lists only lines SAP still has open. Not `repairStatus !== "Closed"`: a
+ * line can read "Received" without being closed, and it is back all the same.
  */
 export function isOpenRepair(chain: RepairChain): boolean {
   return overdueStatusOf(chain) !== "RECEIVED"

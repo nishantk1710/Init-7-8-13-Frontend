@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Copy, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
 import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
-import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
+import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
@@ -23,8 +23,6 @@ import {
   searchRequestMaterials,
   type ApiReasonCategory,
 } from "@/lib/api/assistant-requests"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-import { REQUEST_CATALOGUE } from "@/lib/assistant/request/catalogue"
 import type { RequestEntry } from "@/lib/assistant/request/entry"
 import {
   DEFAULT_MAX_LINES,
@@ -45,8 +43,11 @@ import {
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
-import { PLANTS } from "@/lib/shared-data/plants"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+
+/** The sites a request can be for: the two plants VZI's delivery names. */
+const REQUEST_PLANTS = ["1300", "1500"] as const
 
 /** A material as picked: from search, or a number typed with a plant. */
 type Picked = { materialId: string; plant: string; description: string | null }
@@ -111,7 +112,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
 
   /** Fixed by the first material added; null while the request is empty. */
   const requestPlant = rows.length > 0 ? rows[0].plant : null
-  const plantName = PLANTS.find((p) => p.sapPlantCode === requestPlant)?.name ?? null
+  const plantName = requestPlant ? sapPlantName(requestPlant) : null
   const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
@@ -263,8 +264,6 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
 
   return (
     <div className="flex flex-col gap-5 pb-24">
-      <DemoBanner />
-
       <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
         <AiEyebrow>1 · Who is it for</AiEyebrow>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -540,7 +539,7 @@ function AddMaterials({
   onAdd: (picked: Picked) => void
 }) {
   const [query, setQuery] = useState("")
-  const [typedPlant, setTypedPlant] = useState<string>(PLANTS[0].sapPlantCode)
+  const [typedPlant, setTypedPlant] = useState<string>(REQUEST_PLANTS[0])
   const [results, setResults] = useState<{ query: string; items: ApiMaterialMatch[]; error: string | null } | null>(null)
   const plant = requestPlant ?? typedPlant
   const typedNumber = /^\d{3,18}$/.test(query.replace(/[\s-]/g, "")) ? query.replace(/[\s-]/g, "") : null
@@ -629,9 +628,9 @@ function AddMaterials({
                   disabled={!!requestPlant}
                   onChange={(e) => setTypedPlant(e.target.value)}
                 >
-                  {PLANTS.map((p) => (
-                    <option key={p.sapPlantCode} value={p.sapPlantCode}>
-                      {p.sapPlantCode} {p.name}
+                  {REQUEST_PLANTS.map((code) => (
+                    <option key={code} value={code}>
+                      {code} {sapPlantName(code)}
                     </option>
                   ))}
                 </select>
@@ -654,79 +653,7 @@ function AddMaterials({
         )}
       </div>
 
-      {ASSISTANT_DEMO && <DemoCatalogue rows={rows} requestPlant={requestPlant} onAdd={onAdd} />}
     </section>
-  )
-}
-
-/** Demo only: the mock catalogue's materials, one per case. */
-function DemoCatalogue({
-  rows,
-  requestPlant,
-  onAdd,
-}: {
-  rows: DraftLine[]
-  requestPlant: string | null
-  onAdd: (picked: Picked) => void
-}) {
-  const otherPlant = (plant: string) => !!requestPlant && plant !== requestPlant
-  return (
-    <details className="group rounded-xl border border-dashed border-border px-4 py-3" open>
-      <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-        <span>Demo materials -- one per case. Click to add.</span>
-        <span className="flex gap-1.5">
-          {PLANTS.filter((p) => !requestPlant || p.sapPlantCode === requestPlant).map((p) => (
-            <Button
-              key={p.sapPlantCode}
-              type="button"
-              size="xs"
-              variant="outline"
-              onClick={(e) => {
-                e.preventDefault()
-                for (const m of REQUEST_CATALOGUE) {
-                  if (m.plant === p.sapPlantCode && !isDuplicate(rows, m.materialId, m.plant)) {
-                    onAdd({ materialId: m.materialId, plant: m.plant, description: m.description })
-                  }
-                }
-              }}
-            >
-              <Copy /> Add all at {p.sapPlantCode}
-            </Button>
-          ))}
-        </span>
-      </summary>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {REQUEST_CATALOGUE.map((m) => {
-          const added = isDuplicate(rows, m.materialId, m.plant)
-          return (
-            <li key={`${m.materialId}-${m.plant}`}>
-              <button
-                type="button"
-                disabled={added || otherPlant(m.plant)}
-                onClick={() => onAdd({ materialId: m.materialId, plant: m.plant, description: m.description })}
-                className="flex w-full flex-col items-start gap-0.5 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-ai-2/40 hover:bg-muted/40 disabled:opacity-45"
-              >
-                <span className="flex w-full items-center gap-2">
-                  <span className="font-mono text-[11px] font-semibold">{m.materialId}</span>
-                  <span className="text-[11px] text-muted-foreground">@ {m.plant}</span>
-                  <span className="ml-auto">
-                    {added ? (
-                      <Chip tone="muted">Added</Chip>
-                    ) : otherPlant(m.plant) ? (
-                      <Chip tone="muted">Other plant</Chip>
-                    ) : (
-                      <Plus className="size-3.5 text-ai-2" />
-                    )}
-                  </span>
-                </span>
-                <span className="text-xs text-foreground">{m.description}</span>
-                <span className="text-[11px] text-ai-2">{m.scenario}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </details>
   )
 }
 

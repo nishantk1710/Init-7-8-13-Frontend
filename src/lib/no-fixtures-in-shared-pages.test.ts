@@ -10,8 +10,7 @@ import { describe, expect, it } from "vitest"
 //
 // This reads import specifiers, so it catches the way a fixture actually gets
 // in: somebody importing a fixture module (or the old synchronous selectors that
-// wrapped them) into one of these pages. The demo tree (`src/demo`, `app/demo`)
-// is a deliberate, separate copy on mock data and is not governed here.
+// wrapped them) into one of these pages.
 
 const ROOTS = [
   "src/lib/aggregation.ts",
@@ -75,18 +74,4 @@ describe("shared pages never read demo data", () => {
       expect(offenders).toEqual([])
     })
   }
-
-  it("the Inventory Planning approvals workspace follows the flag that defaults to live", () => {
-    // Approvals and the Action Center both render this component. Reading the
-    // older flag (default: scenario) made a build with no env var show fixture
-    // recommendations on a page that otherwise reads the backend.
-    const text = readFileSync("src/features/initiative-7/components/approvals-workspace.tsx", "utf-8")
-    expect(text).toMatch(/USING_LIVE_DATA\s*}\s*from\s*"@\/lib\/dataset-mode"/)
-    expect(text).not.toMatch(/lib\/sap\/dataset-mode/)
-  })
-
-  it("the default dataset really is live, so the workspace defaults to the backend", async () => {
-    const { USING_LIVE_DATA } = await import("@/lib/dataset-mode")
-    expect(USING_LIVE_DATA).toBe(true)
-  })
 })

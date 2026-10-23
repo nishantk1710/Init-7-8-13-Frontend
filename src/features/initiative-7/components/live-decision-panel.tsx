@@ -1,13 +1,10 @@
 // Part 21 — I07 frontend/backend integration.
 //
-// Live (backend-driven) counterpart to decision-panel.tsx's DecisionActions/
-// DecisionHistory. Rendered only when NEXT_PUBLIC_DATASET=live (see
-// recommendation-detail-page.tsx) -- decision-panel.tsx itself is untouched
-// and keeps driving the scenario/generated simulation exactly as before.
+// Backend-driven DecisionActions/DecisionHistory, rendered by
+// recommendation-detail-page.tsx.
 //
 // AUTHENTICATION LIMITATION (Part 13 deferred, revisited Part 35): no real
-// login exists yet. Until one does, this follows decision-panel.tsx's own
-// existing pattern exactly (see DEMO_ROLE in approvals-workspace.tsx) rather
+// login exists yet. Until one does, this uses a placeholder identity rather
 // than asking the user to type an actor id and pick a role from every
 // possible value: a single fixed demo identity acts, and the role it acts AS
 // is derived from the backend's own pending_role for this recommendation
@@ -37,8 +34,7 @@ import {
 } from "@/features/initiative-7/utils/decision-panel-mode"
 
 /** Stand-in for a real signed-in identity (see the AUTHENTICATION LIMITATION
- * note above) -- one fixed demo user/role, exactly like the scenario chain's
- * own DEMO_ROLE ("Engineering Manager", approvals-workspace.tsx). "End User"
+ * note above) -- one fixed placeholder user/role. "End User"
  * is chosen here because it is the first step of both real routing chains
  * (criticality-tier and OAR/SOP 3.1.1), so a fresh recommendation is
  * immediately actionable rather than always showing "not your turn". */
@@ -62,8 +58,7 @@ const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
 /**
  * Decision controls for a LIVE recommendation. The acting role is always
  * DEMO_ACTOR_ROLE (see above) -- never chosen per action -- and the pending
- * role comes from the backend's own workflow state, matching
- * decision-panel.tsx's "Approve as {role}" pattern instead of a role picker.
+ * role comes from the backend's own workflow state, instead of a role picker.
  *
  * `surface` decides what is offered. On a recommendation page ("recommendation", the default) a planner
  * can Send for approval or Reject (with a reason, so a recommendation they will not adopt does not have to

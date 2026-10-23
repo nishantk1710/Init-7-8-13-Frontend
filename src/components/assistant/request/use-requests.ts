@@ -8,16 +8,11 @@ import {
   type ApiRequest,
   type ApiRequestSummary,
 } from "@/lib/api/assistant-requests"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-import { subscribe } from "@/lib/assistant/request/store"
 
 /** A fetch's three states. `error` is the thrown value, for `isNotEnabled` and the message. */
 export type Loaded<T> = { data: T | null; error: unknown; loading: boolean }
 
-/**
- * Read once, and again whenever the demo store changes (the demo's simulated
- * links). `reload` re-reads on demand -- after a live UAT simulation.
- */
+/** Read once. `reload` re-reads on demand -- after a live UAT simulation. */
 function useLoaded<T>(load: () => Promise<T>, key: string): Loaded<T> & { reload: () => void } {
   const [state, setState] = useState<Loaded<T>>({ data: null, error: null, loading: true })
   const [tick, setTick] = useState(0)
@@ -26,10 +21,8 @@ function useLoaded<T>(load: () => Promise<T>, key: string): Loaded<T> & { reload
     load()
       .then((data) => !cancelled && setState({ data, error: null, loading: false }))
       .catch((error) => !cancelled && setState({ data: null, error, loading: false }))
-    const off = ASSISTANT_DEMO ? subscribe(() => setTick((t) => t + 1)) : undefined
     return () => {
       cancelled = true
-      off?.()
     }
     // `load` is a fresh closure every render; `key` says when it means something new.
     // eslint-disable-next-line react-hooks/exhaustive-deps

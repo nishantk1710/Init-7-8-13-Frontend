@@ -3,7 +3,6 @@ import { AlertTriangle, CheckCircle2, Layers, Wallet } from "lucide-react"
 
 import { ChartLoader } from "@/components/shared/chart-loader"
 import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
 import type { OverviewInfoId } from "@/features/initiative-7/data/overview-info"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -181,7 +180,7 @@ function PortfolioKpiCard({
  * catalog by default, or the dashboard's current filter selection.
  */
 export function InventoryPortfolioKpis({
-  recommendations = RECOMMENDATIONS,
+  recommendations,
   adoptedOverride,
   adoptedUnavailable,
   stockoutRiskOverride,
@@ -193,7 +192,7 @@ export function InventoryPortfolioKpis({
 }: {
   /** Adds the (i) icon to each card. Off by default: the quarterly reports reuse these cards. */
   showInfo?: boolean
-  recommendations?: Recommendation[]
+  recommendations: Recommendation[]
   /** Portfolio-wide { count, total } for "Adopted recommendation", from GET
    * /recommendations/adoption/summary: `count` are the recommendations SAP's change history shows
    * adopted, `total` the recommendations with something to adopt (an OAR one eligible for the

@@ -2,11 +2,11 @@
 
 import Link from "next/link"
 import { useSyncExternalStore, type ReactNode } from "react"
-import { Calendar, Check, Clock, Cog, Copy, Package, SquarePen, TriangleAlert, Truck, Warehouse } from "lucide-react"
+import { Calendar, Check, Clock, Cog, Copy, SquarePen, TriangleAlert, Truck, Warehouse } from "lucide-react"
 import { toast } from "sonner"
 
 import type { TimelineEvent } from "@/components/shared/timeline"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { DeclareConditionButton } from "@/features/initiative-8/components/declare-condition-button"
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
 import { Card, Dot, I08Page, type Crumb } from "@/features/initiative-8/components/kit/page"
@@ -25,7 +25,6 @@ import {
   justificationCellOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatZAR } from "@/lib/utils"
 
 export type RepairDetailPageProps = {
@@ -81,7 +80,6 @@ export function RepairDetailPage({
   faultCategories = [],
   exceptions = null,
 }: RepairDetailPageProps) {
-  const { openMaterial360 } = useMaterial360()
   const registerHref = useRegisterHref()
   const crumbs: Crumb[] = [
     { label: "Repairable Spares", href: "/repairable-spares" },
@@ -160,10 +158,6 @@ export function RepairDetailPage({
           ) : (
             <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
           )}
-          <Button variant="outline" size="lg" className="px-3.5" onClick={() => openMaterial360(chain.material.materialId)}>
-            <Package className="size-4" />
-            Material 360
-          </Button>
         </>
       }
     >

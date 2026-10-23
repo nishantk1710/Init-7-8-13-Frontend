@@ -6,6 +6,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-fg: var(--nav-fg);
+  --color-nav-muted: var(--nav-muted);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-border: var(--nav-border);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-fg: var(--nav-active-fg);
+  --color-nav-btn: var(--nav-btn);
+  --color-nav-btn-fg: var(--nav-btn-fg);
+  --color-canvas: var(--canvas);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -66,6 +76,20 @@
      the browser forced its own highlight colours. Declaring the scheme is
      what tells the browser which way round the page actually is. */
   color-scheme: light;
+  /* The page behind the cards: the grey Initiative 8 introduced (--i08-canvas),
+     now the app-wide page. Cards stay white (--card), as in I08. */
+  --canvas: #f4f6f8;
+  /* The floating side navigation. Light panel in light mode, dark in dark mode;
+     one accent for the current page. Change these to recolour the whole bar. */
+  --nav-bg: #ffffff;
+  --nav-fg: #0f172a;
+  --nav-muted: #5b6577;
+  --nav-hover: rgb(15 23 42 / 0.06);
+  --nav-border: rgb(15 23 42 / 0.08);
+  --nav-active: #1f74c0;
+  --nav-active-fg: #ffffff;
+  --nav-btn: #0f172a;
+  --nav-btn-fg: #ffffff;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -110,28 +134,39 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #6366f1;
+  /* Deep navy page, slightly lighter navy cards, hairline borders, one vivid
+     blue for actions. The chart, plant and status colours below are NOT part of
+     this palette and keep their own values. */
+  --canvas: var(--background);
+  --nav-bg: #0a1020;
+  --nav-fg: #f4f6fb;
+  --nav-muted: #9aa5ba;
+  --nav-hover: rgb(255 255 255 / 0.07);
+  --nav-border: rgb(255 255 255 / 0.07);
+  --nav-btn: #ffffff;
+  --nav-btn-fg: #0b1220;
+  --background: #060a16;
+  --foreground: #f4f6fb;
+  --card: #0c1223;
+  --card-foreground: #f4f6fb;
+  --popover: #0e1527;
+  --popover-foreground: #f4f6fb;
+  --primary: #1f6bff;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: rgba(99, 102, 241, 0.16);
-  --accent-foreground: #c7d2fe;
+  --secondary: #141c31;
+  --secondary-foreground: #f4f6fb;
+  --muted: #141c31;
+  --muted-foreground: #8f98b0;
+  --accent: rgb(31 107 255 / 0.16);
+  --accent-foreground: #b4cdff;
   --destructive: oklch(0.704 0.191 22.216);
   --success: #22b989;
   --success-foreground: #06231a;
   --warning: #fbbf24;
   --warning-foreground: #451a03;
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: #818cf8;
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.1);
+  --ring: #4d8aff;
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;
@@ -140,14 +175,14 @@
   --plant-all: #8f73ea;
   --plant-1300: #1fb3a7;
   --plant-1500: #f08a3c;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #080d1b;
+  --sidebar-foreground: #f4f6fb;
+  --sidebar-primary: #1f6bff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #111a30;
+  --sidebar-accent-foreground: #f4f6fb;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #4d8aff;
 }
 
 @layer base {

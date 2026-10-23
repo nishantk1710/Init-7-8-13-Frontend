@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { cn } from "@/lib/utils"
-import { getPlantById, PLANTS } from "@/lib/shared-data/plants"
 import {
   CIRCUITS,
   CRITICALITIES,
@@ -196,12 +195,9 @@ export function DashboardFilters({
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
   layout?: "rail" | "bar"
-  /** Live mode only: the real SAP plant codes present in the data, from the
-   * backend's own by_plant aggregate. The default PLANTS list is app-side
-   * scenario master data keyed on invented ids (PLANT-GBG etc.) that never
-   * match a live row's SAP WERKS code, so selecting one filtered everything
-   * out -- see utils/sap-plants.ts. When provided, these replace that list. */
-  plantOptions?: { value: string; label: string; count?: number }[]
+  /** The real SAP plant codes present in the data, from the backend's own
+   * by_plant aggregate -- see utils/sap-plants.ts. */
+  plantOptions: { value: string; label: string; count?: number }[]
   /** Live mode only -- the scenario dataset has no "blocked vs calculated"
    * distinction to filter on (every fixture row carries values). */
   showRecommendationFilter?: boolean
@@ -248,12 +244,8 @@ export function DashboardFilters({
   }
 
   const isBar = layout === "bar"
-  const plants: { value: string; label: string; count?: number }[] =
-    plantOptions ?? PLANTS.map((p) => ({ value: p.plantId, label: p.name }))
-  const plantLabel = (v: string) =>
-    plantOptions
-      ? (plantOptions.find((p) => p.value === v)?.label ?? v)
-      : (getPlantById(v)?.name ?? v)
+  const plants = plantOptions
+  const plantLabel = (v: string) => plantOptions.find((p) => p.value === v)?.label ?? v
 
   return (
     <div

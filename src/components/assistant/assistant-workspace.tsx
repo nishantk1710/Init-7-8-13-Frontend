@@ -15,7 +15,6 @@ import { NarrativeNote } from "@/components/assistant/narrative-note"
 import { SessionReference } from "@/components/assistant/session-reference"
 import { postTurn, type ApiStep, type StartSessionResponse } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import {
   choiceAnswer,
   formAnswer,
@@ -94,9 +93,8 @@ export function AssistantWorkspace({
       try {
         const response = await postTurn(start.sessionId, payload)
         setTranscript((previous) => appendAnswer(previous, echo, response.step))
-        // Best-effort: the records are written whether or not this lands. A
-        // demo session writes nothing, so there is nothing to revalidate.
-        if (response.step.kind === "terminal" && !ASSISTANT_DEMO) {
+        // Best-effort: the records are written whether or not this lands.
+        if (response.step.kind === "terminal") {
           void revalidateAfterConversation(start.routing.flow).catch(() => undefined)
         }
       } catch (caught) {

@@ -11,7 +11,6 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import { OarConversionLabel, RecommendationReviewPanel } from "./recommendation-review-panel"
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { OarConversionInfo, Recommendation } from "@/features/initiative-7/types/inventory"
 
 const OAR: OarConversionInfo = {
@@ -26,9 +25,42 @@ const OAR: OarConversionInfo = {
   i13HodApproved: null,
 }
 
+const BASE: Recommendation = {
+  id: "rec-test",
+  material: { materialId: "000000000000000001", materialCode: "TEST-1", description: "Test material" },
+  plantId: "1300",
+  circuit: "Unassigned",
+  criticality: "Medium",
+  demandPattern: "Smooth",
+  risk: "low",
+  status: "Pending Review",
+  current: { rop: 5, safetyStock: 2, maxStock: 12 },
+  recommended: { rop: 4, safetyStock: 2, maxStock: 8 },
+  avgDailyConsumption: 0.5,
+  leadTimeDays: 30,
+  leadTimeVarianceDays: 5,
+  serviceLevelTarget: 0.95,
+  unitPrice: 100,
+  annualConsumption: 120,
+  workingCapitalImpact: 400,
+  consumptionHistory: [
+    { period: "Jan", qty: 10 },
+    { period: "Feb", qty: 12 },
+  ],
+  factors: [{ label: "Demand", detail: "Steady" }],
+  championChallenger: {
+    champion: { name: "Champion", description: "Baseline", accuracyPct: 80 },
+    challenger: { name: "Challenger", description: "Alternative", accuracyPct: 85 },
+    selected: "champion",
+    rationale: "Test",
+  },
+  workflow: [],
+  generatedAt: "2026-01-01T00:00:00Z",
+}
+
 function rec(overrides: Partial<Recommendation>): Recommendation {
   return {
-    ...RECOMMENDATIONS[0],
+    ...BASE,
     rationale: { text: "- Demand is steady\n- Lead time is short", source: "DETERMINISTIC_FALLBACK" },
     ...overrides,
   }

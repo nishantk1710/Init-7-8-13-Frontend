@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest"
 import type { ApiPreviewLine, ApiRequest } from "@/lib/api/assistant-requests"
 import { conflictDetail, isNotEnabled, refusedDetail } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { isWellFormed } from "@/lib/assistant/demo/ids"
-import { findDemoMaterial } from "@/lib/assistant/request/catalogue"
 import {
   answersOf,
   isDuplicate,
@@ -17,7 +15,6 @@ import {
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
-import { requestReferencesIn, resolveLink } from "@/lib/assistant/request/link"
 import { matchesDepartment } from "@/components/assistant/department-picker"
 import {
   departmentLabel,
@@ -25,9 +22,7 @@ import {
   departmentsOf,
   isDeclined,
   lineReference,
-  mintRequestId,
   outcomeSentence,
-  requestIdFrom,
 } from "@/lib/assistant/request/record"
 import { needsJustification, suggestWindow, suggestionKind } from "@/lib/assistant/request/suggest"
 
@@ -227,7 +222,7 @@ describe("submit's refusals", () => {
 // --- a recorded request ------------------------------------------------------------
 
 function sampleRequest(): ApiRequest {
-  const id = requestIdFrom("7K2M4P8Q")
+  const id = "R7K2M4P8QX"
   const line = (lineNo: number, overrides: Partial<ApiRequest["lines"][number]>): ApiRequest["lines"][number] => ({
     lineNo,
     reference: lineReference(id, lineNo),
@@ -278,14 +273,6 @@ function sampleRequest(): ApiRequest {
 }
 
 describe("a recorded request", () => {
-  it("has well-formed R references", () => {
-    for (let i = 0; i < 50; i += 1) {
-      const id = mintRequestId()
-      expect(id).toMatch(/^R[0-9A-HJKMNP-TV-Z]{9}$/)
-      expect(isWellFormed(id)).toBe(true)
-    }
-  })
-
   it("says what each line decided", () => {
     const [oarLine, pump, motor] = sampleRequest().lines
     expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
@@ -320,41 +307,5 @@ describe("department names", () => {
     expect(matchesDepartment(finance, "100")).toBe(false)
     expect(matchesDepartment(unnamed, "1010")).toBe(true)
     expect(matchesDepartment(unnamed, "finance")).toBe(false)
-  })
-})
-
-describe("the demo's link simulator", () => {
-  const request = sampleRequest()
-  const id = request.requestId
-  const find = (rid: string) => (rid === id ? request : undefined)
-  const pump = { materialId: "8000005632", plant: "1300" }
-
-  it("reads every way of writing the suffix", () => {
-    expect(requestReferencesIn(`${id}/2`)[0]).toMatchObject({ requestId: id, lineNo: 2, valid: true })
-    expect(requestReferencesIn(`${id}-2`)[0].lineNo).toBe(2)
-    expect(requestReferencesIn(`${id.slice(0, 4)} ${id.slice(4)}/2`)[0]).toMatchObject({ requestId: id, valid: true })
-  })
-
-  it("links the bare header reference by material, with no warning", () => {
-    expect(resolveLink({ ...pump, sgtxt: id }, find)).toMatchObject({
-      status: "LINKED",
-      line: { lineNo: 2 },
-      notes: [`Matched to ${id}/2 by material and plant.`],
-    })
-  })
-
-  it("links by material, warning on a wrong /n or a declined line", () => {
-    expect(resolveLink({ ...pump, sgtxt: `${id}/2` }, find)).toMatchObject({ status: "LINKED", line: { lineNo: 2 } })
-    expect(resolveLink({ ...pump, sgtxt: `${id}/1` }, find).status).toBe("LINKED_WITH_WARNING")
-    expect(resolveLink({ materialId: "8000006120", plant: "1300", sgtxt: `${id}/3` }, find).status).toBe(
-      "LINKED_WITH_WARNING"
-    )
-    expect(resolveLink({ materialId: "3000001122", plant: "1300", sgtxt: `${id}/2` }, find).status).toBe(
-      "NOT_ON_REQUEST"
-    )
-  })
-
-  it("knows every catalogue material", () => {
-    expect(findDemoMaterial("0008000005632", "1300")?.description).toBe("Pump, centrifugal")
   })
 })

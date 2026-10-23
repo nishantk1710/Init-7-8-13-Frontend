@@ -37,15 +37,6 @@
  */
 
 import { apiFetch, apiPost } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-
-/**
- * The scripted demo, loaded only when `NEXT_PUBLIC_ASSISTANT_DEMO` is on.
- *
- * Imported lazily so a live build does not carry the fixtures. Temporary: see
- * `lib/assistant/demo/flag.ts` for when and how it is switched off.
- */
-const demo = () => import("@/lib/assistant/demo")
 
 // --- the conversation -------------------------------------------------------
 
@@ -480,7 +471,6 @@ export type DepartmentListResponse = {
 export async function startSession(
   body: StartSessionRequest
 ): Promise<StartSessionResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).startSession(body)
   return apiPost<StartSessionResponse>("/assistant/sessions", body)
 }
 
@@ -496,7 +486,6 @@ export async function postTurn(
   sessionId: string,
   answer: Record<string, unknown>
 ): Promise<AnswerResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).postTurn(sessionId, answer)
   return apiPost<AnswerResponse>(
     `/assistant/sessions/${encodeURIComponent(sessionId)}/turns`,
     { answer } satisfies AnswerRequest
@@ -544,7 +533,6 @@ export async function searchMaterials(
   q: string,
   options?: { limit?: number; signal?: AbortSignal }
 ): Promise<MaterialSearchResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).searchMaterials(q)
   return apiFetch<MaterialSearchResponse>(
     `/assistant/materials${query({ q, limit: options?.limit })}`,
     { signal: options?.signal }
@@ -553,15 +541,11 @@ export async function searchMaterials(
 
 /**
  * The opener's department codes, `plant`'s own first.
- *
- * The demo has no list: it answers "not loaded", which lets any 5-digit code
- * through, the same as a live backend that has not loaded one yet.
  */
 export async function listDepartments(
   plant: string,
   options?: { signal?: AbortSignal }
 ): Promise<DepartmentListResponse> {
-  if (ASSISTANT_DEMO) return { plant, items: [], loaded: false }
   return apiFetch<DepartmentListResponse>(`/assistant/departments${query({ plant })}`, {
     signal: options?.signal,
   })
