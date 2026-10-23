@@ -6,6 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-action: var(--action);
   --color-nav-bg: var(--nav-bg);
   --color-nav-fg: var(--nav-fg);
   --color-nav-muted: var(--nav-muted);
@@ -91,6 +92,8 @@
   --nav-btn: #0f172a;
   --nav-btn-fg: #ffffff;
   --background: oklch(1 0 0);
+  /* The OAR screens' action buttons (Export, Summary report, ...): blue, in the logo's family. */
+  --action: #0a66b5;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -152,6 +155,7 @@
   --popover: #0e1527;
   --popover-foreground: #f4f6fb;
   --primary: #1f6bff;
+  --action: #7cb9ee;
   --primary-foreground: #ffffff;
   --secondary: #141c31;
   --secondary-foreground: #f4f6fb;
@@ -250,6 +254,141 @@
   --primary: #1f74c0;
   --ring: #5aa2e0;
   --brand-link: #7cb9ee;
+}
+
+/* `.blue-scope` swaps the app's primary (indigo) for the action blue on one subtree: the shared
+   Button, chips and focus rings inside recolour without being edited. Same blue as `--action`
+   (the tinted buttons); the dark value is the one the brand scope uses, because white text has
+   to stay readable on a solid fill. */
+.blue-scope {
+  --primary: #0a66b5;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --accent: #e6f0f9;
+  --accent-foreground: #004b87;
+}
+
+.dark .blue-scope {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --accent: rgb(31 116 192 / 0.2);
+  --accent-foreground: #a9d0f5;
+}
+
+/* Semantic status tokens -- one meaning per colour, everywhere it is used:
+   healthy (fast-moving, done), caution (slow, in progress), urgent
+   (non-moving, overdue), attention (banners asking for a follow-up). Each has
+   a solid fill, an ink for text on its tint, and the tint itself. The inks
+   meet 4.5:1 on their tints and on white. Declared on :root so the sidebar can
+   use them too; the OAR screens add the layout tokens in `.oar-scope` below. */
+@theme inline {
+  --color-page: var(--page);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-strong-hover: var(--primary-strong-hover);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-ink: var(--primary-ink);
+  --color-healthy: var(--healthy);
+  --color-healthy-ink: var(--healthy-ink);
+  --color-healthy-tint: var(--healthy-tint);
+  --color-caution: var(--caution);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-tint: var(--caution-tint);
+  --color-urgent: var(--urgent);
+  --color-urgent-ink: var(--urgent-ink);
+  --color-urgent-tint: var(--urgent-tint);
+  --color-attention: var(--attention);
+  --color-attention-line: var(--attention-line);
+  --color-attention-ink: var(--attention-ink);
+  --radius-card: 16px;
+}
+
+:root,
+.light-scope {
+  --page: #f4f6fb;
+  --line: #e2e8f0;
+  --ink: #0f172a;
+  --ink-muted: #475569;
+  --primary-strong: #4338ca;
+  --primary-strong-hover: #3730a3;
+  --primary-tint: #e0e7ff;
+  --primary-ink: #3730a3;
+  --healthy: #10b981;
+  --healthy-ink: #065f46;
+  --healthy-tint: #d1fae5;
+  --caution: #f59e0b;
+  --caution-ink: #92400e;
+  --caution-tint: #fef3c7;
+  --urgent: #ef4444;
+  --urgent-ink: #b91c1c;
+  --urgent-tint: #fee2e2;
+  --attention: #fff7ed;
+  --attention-line: #fdba74;
+  --attention-ink: #9a3412;
+}
+
+.dark {
+  --page: oklch(0.145 0 0);
+  --line: oklch(1 0 0 / 12%);
+  --ink: oklch(0.985 0 0);
+  --ink-muted: #a3adbd;
+  --primary-strong: #4f46e5;
+  --primary-strong-hover: #4338ca;
+  --primary-tint: rgba(99, 102, 241, 0.2);
+  --primary-ink: #c7d2fe;
+  --healthy: #10b981;
+  --healthy-ink: #6ee7b7;
+  --healthy-tint: rgba(16, 185, 129, 0.16);
+  --caution: #f59e0b;
+  --caution-ink: #fcd34d;
+  --caution-tint: rgba(245, 158, 11, 0.16);
+  --urgent: #ef4444;
+  --urgent-ink: #fca5a5;
+  --urgent-tint: rgba(239, 68, 68, 0.16);
+  --attention: rgba(249, 115, 22, 0.1);
+  --attention-line: rgba(253, 186, 116, 0.45);
+  --attention-ink: #fdba74;
+}
+
+/* The OAR Utilization screens (features/initiative-13/components/ui/oar-scope.tsx).
+   The shared shadcn tokens are re-pointed here, so Button, Tabs, Select and
+   Input inside take the indigo primary, slate text and borders without being
+   edited -- the rest of the app keeps its own. */
+.oar-scope {
+  --primary: var(--primary-strong);
+  --ring: #6366f1;
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --muted-foreground: var(--ink-muted);
+  --border: var(--line);
+  --input: var(--line);
+  --accent: var(--primary-tint);
+  --accent-foreground: var(--primary-ink);
+  background-color: var(--page);
+  color: var(--ink);
+}
+
+.dark .oar-scope {
+  --ring: #818cf8;
+}
+
+/* 44px touch targets for every control on these screens, shared ones included. */
+.oar-scope :is([data-slot="button"], [data-slot="select-trigger"], [data-slot="input"], [data-slot="tabs-trigger"]) {
+  min-height: 44px;
+}
+
+/* Filters sit on the page background; their fields stay card-coloured. */
+.oar-scope :is([data-slot="select-trigger"], [data-slot="input"]) {
+  background-color: var(--card);
+}
+
+/* Table headers: the same size and weight as the other modules' tables (13px, medium). */
+.oar-scope [data-slot="table-head"] {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
 }
 
 /* The petal loader (components/shared/loading-spinner.tsx): the whole ring turns in twelve steps, one petal at a time. It turns

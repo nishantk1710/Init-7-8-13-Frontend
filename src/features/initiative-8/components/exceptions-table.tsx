@@ -139,7 +139,7 @@ export function ExceptionsTable({
 
   return (
     <>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <UrlSearchInput
           value={filters.q ?? ""}
           onCommit={(value) => update({ q: value })}

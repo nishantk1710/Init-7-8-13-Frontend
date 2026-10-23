@@ -425,7 +425,7 @@ export function CodingCandidatesTable({
         ]}
       />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         {/* Number or name. The name of a material here is the text people
             typed on its PO and PR lines -- there is no master description. */}
         <Input

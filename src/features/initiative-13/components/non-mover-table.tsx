@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
   Table,
@@ -13,29 +12,38 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
+import { DataTable } from "@/features/initiative-13/components/ui/data-table"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
+import { TONE_INK } from "@/features/initiative-13/components/ui/tones"
+import { idleTone, isLongIdle } from "@/features/initiative-13/utils/oar-display"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
 import { exportNonMoverRows } from "@/features/initiative-13/export-actions"
 import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
-import { downloadExcel, formatCount } from "@/lib/utils"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
-/** "4,716 days" alone is hard to read at a glance; the years say how stale. */
+/**
+ * "4,716 days" alone is hard to read at a glance; the years say how stale.
+ * Red from 150 days, amber below -- the number says it too.
+ */
 function IdleFor({ days }: { days: number }) {
+  const tone = idleTone(days)
   return (
-    <span className="tabular-nums">
-      {formatCount(days)} days
-      {days >= 365 && (
-        <span className="ml-1 text-muted-foreground">({(days / 365).toFixed(1)} yrs)</span>
-      )}
-    </span>
+    <div className="ml-auto text-right">
+      <span className={cn("font-bold tabular-nums", TONE_INK[tone])}>
+        {formatCount(days)} days
+        {days >= 365 && <span className="ml-1 font-medium text-ink-muted">({(days / 365).toFixed(1)} yrs)</span>}
+        {isLongIdle(days) && <span className="sr-only"> (idle 150 days or more)</span>}
+      </span>
+    </div>
   )
 }
 
 function CriticalBadge({ value }: { value: boolean | null }) {
-  if (value === null) return <span className="text-muted-foreground">Unknown</span>
-  return <StatusBadge tone={value ? "danger" : "default"}>{value ? "Yes" : "No"}</StatusBadge>
+  if (value === null) return <StatusPill tone="neutral">Unknown</StatusPill>
+  return <StatusPill tone={value ? "urgent" : "neutral"}>{value ? "Yes" : "No"}</StatusPill>
 }
 
 /**
@@ -84,14 +92,14 @@ export function NonMoverTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground">
-          {formatCount(total ?? rows.length)} non-moving position{(total ?? rows.length) === 1 ? "" : "s"}, most
-          recent activity first
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-ink-muted">
+          <span className="font-bold text-ink">{formatCount(total ?? rows.length)}</span> non-moving position
+          {(total ?? rows.length) === 1 ? "" : "s"}, most recent activity first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <DataTable>
         <Table>
           <TableHeader>
             <TableRow>
@@ -114,9 +122,9 @@ export function NonMoverTable({
                   {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : <EmptyValue kind="noMovement" />}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
-                  {row.stockOnHand !== null ? formatCount(row.stockOnHand) : <EmptyValue kind="noStockRecord" />}
+                  {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
                 </TableCell>
-                <TableCell className="text-right text-foreground">{formatCount(row.consumptionCount12m)}</TableCell>
+                <TableCell className="text-right font-semibold text-foreground">{formatCount(row.consumptionCount12m)}</TableCell>
                 <TableCell>
                   <CriticalBadge value={row.criticalImpactIndicator} />
                 </TableCell>
@@ -124,7 +132,7 @@ export function NonMoverTable({
             ))}
           </TableBody>
         </Table>
-      </div>
+      </DataTable>
       {pagination}
     </div>
   )

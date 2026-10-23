@@ -6,10 +6,12 @@ import { MessagesSquare } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
+import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { deliveryStatus } from "@/features/initiative-13/utils/delivery-status"
+import type { DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { StatusBadge } from "@/components/shared/status-badge"
 import {
   Table,
   TableBody,
@@ -27,8 +29,16 @@ function qty(value: number | null) {
   return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
 }
 
+/** The lifecycle view's own tones, in the pills' vocabulary. */
+const LIFECYCLE_TONE: Record<"default" | "success" | "warning", DisplayTone> = {
+  default: "neutral",
+  success: "healthy",
+  warning: "caution",
+}
+
 /**
  * One row per reservation item, and the assistant session its item text names.
+ * Drawn like the Procurement lines table: the same fitted frame, compact document numbers and status pills.
  *
  * The **Session** column is the link FR-4 asks for: the requester typed the
  * session ID into the reservation's item text (SGTXT) in SAP, the extract
@@ -46,7 +56,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
+    <DataTable className={FITTED_TABLE}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -67,13 +77,11 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
               <TableCell>
-                <SAPDocumentChip
-                  doc={{ type: "RESERVATION", documentNumber: row.reservationNumber, line: row.reservationItem }}
-                />
+                <DocNo number={row.reservationNumber} item={row.reservationItem} />
               </TableCell>
               <TableCell className="text-foreground">
                 {row.materialDescription ? (
-                  <div className="flex max-w-[240px] flex-col gap-0.5">
+                  <div className="flex max-w-[200px] flex-col gap-0.5">
                     <span className="truncate font-medium" title={row.materialDescription}>
                       {row.materialDescription}
                     </span>
@@ -83,15 +91,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   <span className="font-medium">{row.material}</span>
                 )}
               </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
               <TableCell className="text-right text-foreground">{qty(row.reservationQuantity)}</TableCell>
               <TableCell>
-                <div className="flex flex-col gap-1">
-                  {row.prNumber && <SAPDocumentChip doc={{ type: "PR", documentNumber: row.prNumber }} />}
-                  {row.poNumber && (
-                    <SAPDocumentChip doc={{ type: "PO", documentNumber: row.poNumber, line: row.poItem ?? undefined }} />
-                  )}
+                <div className="flex flex-col items-start gap-1">
+                  {row.prNumber && <DocNo number={row.prNumber} />}
+                  {row.poNumber && <DocNo number={row.poNumber} item={row.poItem} />}
                   {!row.prNumber && !row.poNumber && <EmptyValue kind="noPrOrPo" />}
                 </div>
               </TableCell>
@@ -110,13 +116,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
               />
               <IssuedCell row={row} />
               <TableCell>
-                <LifecycleBadge status={row.lifecycleStatus} />
+                <LifecyclePill status={row.lifecycleStatus} />
               </TableCell>
               <TableCell>
                 {row.sessionId ? (
                   <Link
                     href={`/assistant/sessions/${encodeURIComponent(row.sessionId)}`}
-                    className="inline-flex items-center gap-1 font-mono text-[11px] text-primary underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] text-action underline-offset-4 hover:underline"
                   >
                     <MessagesSquare className="size-3" aria-hidden />
                     {row.sessionId}
@@ -133,7 +139,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           ))}
         </TableBody>
       </Table>
-    </div>
+    </DataTable>
   )
 }
 
@@ -151,11 +157,15 @@ function IssuedCell({ row }: { row: ReservationLedgerRow }) {
 }
 
 /** The lifecycle as a label that never claims more than the data shows, explained on hover. */
-function LifecycleBadge({ status }: { status: string }) {
+function LifecyclePill({ status }: { status: string }) {
   const view = lifecycleView(status)
   return (
-    <span title={view.explanation || undefined}>
-      <StatusBadge tone={view.tone}>{view.label}</StatusBadge>
-    </span>
+    <StatusPill
+      tone={LIFECYCLE_TONE[view.tone]}
+      title={view.explanation || undefined}
+      className="h-auto py-0.5 leading-tight whitespace-normal"
+    >
+      {view.label}
+    </StatusPill>
   )
 }

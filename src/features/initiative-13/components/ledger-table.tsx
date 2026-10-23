@@ -1,16 +1,18 @@
 "use client"
 
 import { Fragment, useState } from "react"
-import { ChevronRight } from "lucide-react"
+import { TriangleAlert } from "lucide-react"
 
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import { deliveryStatusFromProcurement, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable, RowToggle, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
+import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
+import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
 import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
-import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
+import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
   TableBody,
@@ -19,26 +21,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type {
-  ProcurementStatus,
-  UtilisationLedgerEntry,
-  LedgerUtilisationStatus,
-} from "@/lib/api/i13"
+import type { LedgerUtilisationStatus, ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
-const PROCUREMENT_TONE: Record<ProcurementStatus, "default" | "success" | "warning"> = {
-  OPEN: "default",
-  PARTIALLY_RECEIVED: "warning",
-  RECEIVED: "success",
-  CLOSED: "default",
-  NOT_AN_ORDER: "default",
+const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
+  OPEN: "neutral",
+  PARTIALLY_RECEIVED: "caution",
+  RECEIVED: "healthy",
+  CLOSED: "neutral",
+  NOT_AN_ORDER: "neutral",
 }
 
-const UTILISATION_TONE: Record<LedgerUtilisationStatus, "default" | "success" | "warning"> = {
-  NOT_ISSUED: "default",
-  PARTIALLY_ISSUED: "warning",
-  FULLY_ISSUED: "success",
+const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
+  NOT_ISSUED: "neutral",
+  PARTIALLY_ISSUED: "caution",
+  FULLY_ISSUED: "healthy",
 }
 
 function label(value: string): string {
@@ -55,7 +53,7 @@ function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) 
       {value === null ? (
         <EmptyValue kind={empty} />
       ) : (
-        formatCount(value)
+        <span className="font-semibold tabular-nums">{formatCount(value)}</span>
       )}
     </TableCell>
   )
@@ -80,52 +78,30 @@ function deliveryOf(entry: UtilisationLedgerEntry) {
   })
 }
 
+/** The five steps at full size, and where the line stops if it has not reached goods issue. */
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
-  const events: TimelineEvent[] = [
-    {
-      id: "reservation",
-      label: "Reservation",
-      timestamp: "",
-      description: entry.reservationNumber
-        ? `Rsnum ${entry.reservationNumber}${entry.reservationItem ? `/${entry.reservationItem}` : ""}`
-        : "Not linked",
-      tone: entry.reservationNumber ? "success" : "default",
-    },
-    {
-      id: "pr",
-      label: "Purchase Requisition",
-      timestamp: "",
-      description: entry.prNumber ? `PR ${entry.prNumber}${entry.prItem ? `/${entry.prItem}` : ""}` : "Not linked",
-      tone: entry.prNumber ? "success" : "default",
-    },
-    {
-      id: "po",
-      label: "Purchase Order",
-      timestamp: "",
-      description: entry.poNumber ? `PO ${entry.poNumber}${entry.poItem ? `/${entry.poItem}` : ""}` : "Not linked",
-      tone: entry.poNumber ? "success" : "default",
-    },
-    {
-      id: "gr",
-      label: "Goods Receipt",
-      timestamp: entry.firstGrDate ?? "",
-      description: entry.firstGrDate
-        ? `First ${entry.firstGrDate}${entry.latestGrDate && entry.latestGrDate !== entry.firstGrDate ? `, latest ${entry.latestGrDate}` : ""}`
-        : "Not available",
-      tone: entry.firstGrDate ? "success" : "default",
-    },
-    {
-      id: "gi",
-      label: "Goods Issue",
-      timestamp: entry.firstGiDate ?? "",
-      description: entry.firstGiDate
-        ? `First ${entry.firstGiDate}${entry.latestGiDate && entry.latestGiDate !== entry.firstGiDate ? `, latest ${entry.latestGiDate}` : ""}`
-        : "Not available",
-      tone: entry.firstGiDate ? "success" : "default",
-    },
-  ]
-
-  return <Timeline events={events} />
+  const steps = journeySteps(entry)
+  const stop = journeyStop(steps)
+  return (
+    <div className="flex flex-col gap-4">
+      <Stepper steps={steps} />
+      {stop && (
+        <p className="flex items-start gap-2 rounded-lg bg-caution-tint px-3 py-2 text-sm text-caution-ink">
+          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {stop.after ? (
+              <>
+                Stops at <span className="font-bold">{stop.after.label}</span>
+              </>
+            ) : (
+              <>Nothing linked yet</>
+            )}{" "}
+            — next is <span className="font-bold">{stop.next.label}</span>: {stop.next.detail.toLowerCase()}.
+          </span>
+        </p>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -154,11 +130,13 @@ export function UtilizationLedgerTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <DataTable className={FITTED_TABLE}>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8" />
+              <TableHead className="w-12">
+                <span className="sr-only">Details</span>
+              </TableHead>
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead>Reservation</TableHead>
@@ -181,18 +159,16 @@ export function UtilizationLedgerTable({
                   <TableRow
                     className="cursor-pointer"
                     onClick={() => setExpandedId(isExpanded ? null : key)}
-                    aria-expanded={isExpanded}
                   >
-                    <TableCell>
-                      <ChevronRight
-                        className={cn(
-                          "size-4 text-muted-foreground transition-transform duration-300 ease-out",
-                          isExpanded && "rotate-90"
-                        )}
+                    <TableCell className="px-1">
+                      <RowToggle
+                        expanded={isExpanded}
+                        onToggle={() => setExpandedId(isExpanded ? null : key)}
+                        label={`ledger line ${entry.material}${entry.poNumber ? ` PO ${entry.poNumber}` : entry.prNumber ? ` PR ${entry.prNumber}` : ""}`}
                       />
                     </TableCell>
                     <TableCell className="text-foreground">
-                      <div className="flex max-w-[240px] flex-col gap-0.5">
+                      <div className="flex max-w-[200px] flex-col gap-0.5">
                         {entry.materialDescription ? (
                           <>
                             <span className="truncate font-medium" title={entry.materialDescription}>
@@ -210,23 +186,21 @@ export function UtilizationLedgerTable({
                     </TableCell>
                     <TableCell>
                       {entry.reservationNumber ? (
-                        <SAPDocumentChip
-                          doc={{ type: "RESERVATION", documentNumber: entry.reservationNumber, line: entry.reservationItem ?? undefined }}
-                        />
+                        <DocNo number={entry.reservationNumber} item={entry.reservationItem} />
                       ) : (
                         <span className="text-muted-foreground">Not linked</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {entry.prNumber ? (
-                        <SAPDocumentChip doc={{ type: "PR", documentNumber: entry.prNumber, line: entry.prItem ?? undefined }} />
+                        <DocNo number={entry.prNumber} item={entry.prItem} />
                       ) : (
                         <span className="text-muted-foreground">Not linked</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {entry.poNumber ? (
-                        <SAPDocumentChip doc={{ type: "PO", documentNumber: entry.poNumber, line: entry.poItem ?? undefined }} />
+                        <DocNo number={entry.poNumber} item={entry.poItem} />
                       ) : (
                         <span className="text-muted-foreground">Not linked</span>
                       )}
@@ -243,14 +217,12 @@ export function UtilizationLedgerTable({
                     <Quantity value={entry.issuedQuantity} empty="notIssued" />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <TableCell>
-                      <StatusBadge tone={PROCUREMENT_TONE[entry.procurementStatus]}>
+                      <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
-                      </StatusBadge>
+                      </StatusPill>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tone={UTILISATION_TONE[entry.utilisationStatus]}>
-                        {label(entry.utilisationStatus)}
-                      </StatusBadge>
+                      <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>
                     </TableCell>
                   </TableRow>
                   <TableRow className="hover:bg-transparent">
@@ -263,7 +235,7 @@ export function UtilizationLedgerTable({
                         )}
                       >
                         <div className="min-h-0 overflow-hidden">
-                          <div className="bg-muted/30 px-4 py-3">
+                          <div className="bg-page px-4 py-5">
                             {/* Rendered from the row we already have.
                                 This used to call GET /i13/ledger/{id} on
                                 every expansion -- which returns the SAME
@@ -282,7 +254,7 @@ export function UtilizationLedgerTable({
             })}
           </TableBody>
         </Table>
-      </div>
+      </DataTable>
     </div>
   )
 }

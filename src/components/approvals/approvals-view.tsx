@@ -71,7 +71,7 @@ export function ApprovalsView({
           box outlined in the theme colour. */}
       <nav
         aria-label="Filter by module"
-        className="flex w-full max-w-4xl flex-wrap items-center gap-1 rounded-lg border-2 border-primary/40 bg-card p-1 shadow-lg sm:flex-nowrap"
+        className="flex w-full max-w-4xl flex-wrap items-center gap-1 rounded-lg border-2 border-action/40 bg-card p-1 shadow-lg sm:flex-nowrap"
       >
         {chips.map((chip) => (
           <Link
@@ -81,7 +81,7 @@ export function ApprovalsView({
             className={cn(
               "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-4 text-sm font-semibold whitespace-nowrap transition-all duration-300 ease-out",
               filter === chip.id
-                ? "border-primary bg-background text-foreground shadow-md"
+                ? "border-action bg-background text-foreground shadow-md"
                 : "text-foreground/70 hover:text-foreground"
             )}
           >

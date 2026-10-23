@@ -1,9 +1,10 @@
 "use client"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
+import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import {
   Table,
   TableBody,
@@ -36,7 +37,7 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
+    <DataTable className={FITTED_TABLE}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -60,21 +61,13 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
                   <MaterialName material={row.material} description={row.materialDescription} />
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell>
-                <SAPDocumentChip
-                  doc={{
-                    type: "RESERVATION",
-                    documentNumber: row.reservationNumber,
-                    line: row.reservationItem || undefined,
-                  }}
-                />
+                <DocNo number={row.reservationNumber} item={row.reservationItem || undefined} />
               </TableCell>
               <TableCell>
                 {row.poNumber ? (
-                  <SAPDocumentChip
-                    doc={{ type: "PO", documentNumber: row.poNumber, line: row.poItem ?? undefined }}
-                  />
+                  <DocNo number={row.poNumber} item={row.poItem} />
                 ) : (
                   <EmptyValue kind="noPoLinked" />
                 )}
@@ -86,15 +79,15 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.lastGrDate)}</TableCell>
               <TableCell className="text-right">
-                <StatusBadge tone={row.daysSinceGr >= row.thresholdDays * 3 ? "danger" : "warning"}>
+                <StatusPill tone={row.daysSinceGr >= row.thresholdDays * 3 ? "urgent" : "caution"}>
                   {formatCount(row.daysSinceGr)} days
-                </StatusBadge>
+                </StatusPill>
               </TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-    </div>
+    </DataTable>
   )
 }

@@ -94,7 +94,7 @@ export function ApprovalsTable({
                 <TableCell>
                   <Link
                     href={a.href}
-                    className="inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-[13px] font-medium text-action hover:underline"
                   >
                     Review
                     <ArrowRight className="size-3" />

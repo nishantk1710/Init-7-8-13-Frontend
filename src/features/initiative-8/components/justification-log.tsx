@@ -135,7 +135,7 @@ export function I08JustificationLog({
         </>
       }
     >
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <UrlSearchInput
           value={filters.q ?? ""}
           onCommit={(value) => push({ q: value })}

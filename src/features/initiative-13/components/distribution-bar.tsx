@@ -45,7 +45,7 @@ export function DistributionBar({
       <div
         role="img"
         aria-label={`${label}. ${summary}`}
-        className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
+        className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
       >
         {segments
           .filter((s) => s.count > 0)

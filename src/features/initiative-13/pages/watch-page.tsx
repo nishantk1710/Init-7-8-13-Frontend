@@ -1,13 +1,13 @@
-import Link from "next/link"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
-import { PageHeader } from "@/components/shared/page-header"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { GrniTable } from "@/features/initiative-13/components/grni-table"
 import { CalculatedAtNote, LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
+import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
+import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
 import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
 import { WatchTable } from "@/features/initiative-13/components/watch-table"
 import {
@@ -25,7 +25,7 @@ import {
 } from "@/features/initiative-13/utils/watch-view"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
-import { cn, formatCount } from "@/lib/utils"
+import { formatCount } from "@/lib/utils"
 
 const PATH = "/oar-utilization/watch"
 
@@ -96,40 +96,29 @@ export async function WatchPage({ searchParams }: { searchParams: I13SearchParam
   const view = parseWatchView(searchParams.view)
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        {view === "grni" ? (
-          <GrniView searchParams={searchParams} />
-        ) : view === "usage" ? (
-          <UsageView searchParams={searchParams} />
-        ) : (
-          <MetricsView searchParams={searchParams} />
-        )}
-      </div>
-    </div>
+    <OarScope>
+      {view === "grni" ? (
+        <GrniView searchParams={searchParams} />
+      ) : view === "usage" ? (
+        <UsageView searchParams={searchParams} />
+      ) : (
+        <MetricsView searchParams={searchParams} />
+      )}
+    </OarScope>
   )
 }
 
 /** Metrics | 30-Day GR-Not-Issued | Usage Pattern, keeping the current filters. */
 function WatchTabs({ searchParams, active }: { searchParams: I13SearchParams; active: WatchView }) {
   return (
-    <div className="inline-flex w-fit gap-1 rounded-lg border border-border p-1">
-      {WATCH_VIEWS.map((view) => (
-        <Link
-          key={view}
-          href={watchViewHref(view, searchParams)}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium",
-            view === active
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          aria-current={view === active ? "page" : undefined}
-        >
-          {WATCH_VIEW_LABELS[view]}
-        </Link>
-      ))}
-    </div>
+    <SegmentedTabs
+      label="Consumption tracking view"
+      tabs={WATCH_VIEWS.map((view) => ({
+        href: watchViewHref(view, searchParams),
+        label: WATCH_VIEW_LABELS[view],
+        active: view === active,
+      }))}
+    />
   )
 }
 
@@ -169,18 +158,20 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
 
   return (
     <>
-      <PageHeader
+      <OarPageHeader
         title="Live Consumption Tracking"
-        description="Live consumption health per material and plant — months of cover, stock type, received-not-issued, and consumption plan status."
-        actions={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
+        subtitle="Live consumption health per material and plant — months of cover, stock type, received-not-issued, and consumption plan status."
+        meta={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
       />
-      <WatchTabs searchParams={searchParams} active="metrics" />
-
-      <I13UrlFilters
-        fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
-        plants={live?.plantOptions}
-        agingBands={live?.agingBandOptions}
-      />
+      <ToolbarRow>
+        <WatchTabs searchParams={searchParams} active="metrics" />
+        <I13UrlFilters
+          className="flex-1"
+          fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
+          plants={live?.plantOptions}
+          agingBands={live?.agingBandOptions}
+        />
+      </ToolbarRow>
 
       {live === null ? (
         <LoadFailure what="consumption tracking data" message={loadError} />
@@ -217,17 +208,18 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
 
   return (
     <>
-      <PageHeader
+      <OarPageHeader
         title="Live Consumption Tracking"
-        description={
+        subtitle={
           live
             ? `${formatCount(live.total ?? live.count)} OAR reservation lines received and not issued for 30 days or more, oldest receipt first.`
             : "OAR reservation lines received into stock and not issued for 30 days or more (FR-6)."
         }
       />
-      <WatchTabs searchParams={searchParams} active="grni" />
-
-      <I13UrlFilters fields={["plant", "material"]} plants={live?.plantOptions} />
+      <ToolbarRow>
+        <WatchTabs searchParams={searchParams} active="grni" />
+        <I13UrlFilters className="flex-1" fields={["plant", "material"]} plants={live?.plantOptions} />
+      </ToolbarRow>
 
       {live === null ? (
         <LoadFailure what="30-day GR-not-issued list" message={loadError} />
@@ -235,8 +227,9 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         <>
           <GrniTable rows={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="reservation lines" />
-          <p className="text-[11px] text-muted-foreground">
-            Outstanding across the lines on this page: {formatCount(live.outstandingQuantity)} units. The
+          <p className="text-sm text-ink-muted">
+            Outstanding across the lines on this page:{" "}
+            <span className="font-bold text-ink">{formatCount(live.outstandingQuantity)} units</span>. The
             same rule marks a material &ldquo;GRNI&rdquo; on the Metrics tab.
           </p>
         </>
@@ -276,11 +269,14 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
 
   return (
     <>
-      <PageHeader
+      <OarPageHeader
         title="Live Consumption Tracking"
-        description="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
+        subtitle="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
       />
-      <WatchTabs searchParams={searchParams} active="usage" />
+      <ToolbarRow>
+        <WatchTabs searchParams={searchParams} active="usage" />
+        <I13UrlFilters className="flex-1" fields={["plant", "material", "agingBand"]} plants={live?.plantOptions} />
+      </ToolbarRow>
 
       {from && to && (
         <AlertBanner tone="info" title={`History covers ${from} to ${to}`}>
@@ -288,8 +284,6 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
           material&rsquo;s shape; too short to call a trend.
         </AlertBanner>
       )}
-
-      <I13UrlFilters fields={["plant", "material", "agingBand"]} plants={live?.plantOptions} />
 
       {live === null ? (
         <LoadFailure what="usage patterns" message={loadError} />

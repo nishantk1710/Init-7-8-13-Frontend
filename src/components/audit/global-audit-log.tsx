@@ -103,7 +103,7 @@ export function GlobalAuditLog({
         ))}
 
       {/* The same bold bordered, shadowed track as the other pages' filters, around the date range and Export. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border-2 border-primary/40 bg-card p-3 shadow-lg">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           From
           <Input
@@ -135,7 +135,7 @@ export function GlobalAuditLog({
               href="/audit"
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "h-9 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary"
+                "h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
               )}
             >
               Clear filters
@@ -145,7 +145,7 @@ export function GlobalAuditLog({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 border-primary bg-primary/10 font-semibold text-primary shadow-sm hover:bg-primary/20 hover:text-primary"
+            className="h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
             onClick={handleExport}
           >
             <Download className="size-3.5" />

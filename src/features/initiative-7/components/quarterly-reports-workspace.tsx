@@ -765,7 +765,13 @@ function GenerateReportButton({
   onClick: () => void
 }) {
   return (
-    <Button size="sm" variant="outline" onClick={onClick} disabled={generating}>
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+      onClick={onClick}
+      disabled={generating}
+    >
       {generating ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
       {generating ? "Generating…" : label}
     </Button>
