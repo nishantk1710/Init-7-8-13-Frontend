@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { DELIVERY_STATE_LABELS, deliveryStatus, deliveryStatusFromProcurement } from "./delivery-status"
+import {
+  DELIVERY_STATE_LABELS,
+  deliveryStatus,
+  deliveryStatusFromProcurement,
+  PROCUREMENT_STATUS_LABELS,
+} from "./delivery-status"
 
 const base = {
   hasPo: true,
@@ -85,7 +90,14 @@ describe("deliveryStatusFromProcurement", () => {
 
 describe("DELIVERY_STATE_LABELS", () => {
   it("labels every state", () => {
-    expect(Object.keys(DELIVERY_STATE_LABELS).sort()).toEqual(["DELIVERED", "NOT_DELIVERED", "NO_PO", "PARTIAL"])
+    expect(Object.keys(DELIVERY_STATE_LABELS).sort()).toEqual([
+      "CLOSED",
+      "DELIVERED",
+      "NOT_AN_ORDER",
+      "NOT_DELIVERED",
+      "NO_PO",
+      "PARTIAL",
+    ])
   })
 })
 
@@ -136,5 +148,38 @@ describe("expected delivery (EKET-EINDT)", () => {
     expect(
       deliveryStatusFromProcurement({ ...line, hasPo: false, procurementStatus: "OPEN" }, TODAY)
     ).toMatchObject({ state: "NO_PO", expectedDate: null })
+  })
+})
+
+describe("a line nothing more will arrive on (UAT, 23 Oct)", () => {
+  const line = { hasPo: true, firstGrDate: null, latestGrDate: null, expectedDeliveryDate: "2026-10-01" }
+
+  it("is closed in SAP or not an order, never not delivered, and never overdue", () => {
+    for (const procurementStatus of ["CLOSED", "NOT_AN_ORDER"] as const) {
+      expect(deliveryStatusFromProcurement({ ...line, procurementStatus }, "2026-10-23")).toEqual({
+        state: procurementStatus,
+        date: null,
+        firstDate: null,
+        expectedDate: null,
+        overdue: false,
+      })
+    }
+  })
+
+  it("a line closed short keeps the date of what did arrive", () => {
+    expect(
+      deliveryStatusFromProcurement({
+        ...line,
+        procurementStatus: "CLOSED",
+        firstGrDate: "2026-09-01",
+        latestGrDate: "2026-09-10",
+      })
+    ).toMatchObject({ state: "CLOSED", date: "2026-09-10" })
+  })
+
+  it("every procurement status has a label", () => {
+    expect(Object.keys(PROCUREMENT_STATUS_LABELS).sort()).toEqual(
+      ["CLOSED", "NOT_AN_ORDER", "OPEN", "PARTIALLY_RECEIVED", "RECEIVED"]
+    )
   })
 })
