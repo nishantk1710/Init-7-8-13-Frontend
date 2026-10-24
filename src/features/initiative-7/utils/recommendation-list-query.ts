@@ -36,8 +36,8 @@ export function normaliseRecommendationFilters(next: DashboardFilterState): Dash
   return type === next.type && confidence === next.confidence ? next : { ...next, type, confidence }
 }
 
-/** Rows per page. */
-export const RECOMMENDATIONS_PAGE_SIZE = 50
+/** Rows per page. 25, the same as every I13 table. */
+export const RECOMMENDATIONS_PAGE_SIZE = 25
 
 function chosen(value: string): string | undefined {
   return value !== ALL_FILTER ? value : undefined

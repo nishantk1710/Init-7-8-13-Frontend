@@ -16,8 +16,8 @@ import Link from "next/link"
 import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashboard-filters"
@@ -29,7 +29,7 @@ import { MonthlyTrends, QuarterEndCard } from "@/features/initiative-7/component
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { ApiKpiCard, ApiMetricKind, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
-import { canGoNext, canGoPrevious, pagedFooterText, pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
+import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
 import {
   activityCell,
   adoptionSummaryOf,
@@ -288,22 +288,15 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground" aria-live="polite">
-              {pagedFooterText({ loading, page, pageSize: MATERIALS_PAGE_SIZE, total })}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!canGoPrevious(loading, page)}>
-                Previous
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {Math.max(1, Math.ceil(total / MATERIALS_PAGE_SIZE))}
-              </span>
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={!canGoNext(loading, page, MATERIALS_PAGE_SIZE, total)}>
-                Next
-              </Button>
-            </div>
-          </div>
+          <TablePagination
+            page={page}
+            pageSize={MATERIALS_PAGE_SIZE}
+            total={total}
+            count={data.length}
+            noun="recommendations"
+            loading={loading}
+            onPageChange={setPage}
+          />
         </div>
       ) : (
         <div className="text-sm text-muted-foreground">No recommendations were generated in this period.</div>

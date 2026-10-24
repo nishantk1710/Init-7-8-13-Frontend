@@ -14,6 +14,7 @@ import { FileBarChart, Loader2, RefreshCw } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -29,7 +30,6 @@ import {
   adoptionOf,
   findScope,
   loadQuarterlySnapshot,
-  pageCount,
   pageOf,
   plantPositions,
   SNAPSHOT_TYPES,
@@ -37,7 +37,6 @@ import {
   type QuarterlySnapshot,
   type SnapshotType,
 } from "@/features/initiative-7/utils/quarterly-snapshot"
-import { canGoNext, canGoPrevious, pagedFooterText } from "@/features/initiative-7/utils/paged-table-state"
 
 const PAGE_SIZE = 5
 
@@ -163,7 +162,6 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
   }, [pdfState])
 
   const materials = scope?.materials ?? null
-  const pages = pageCount(materials?.length ?? 0, PAGE_SIZE)
   const pageRows = pageOf(materials ?? [], page, PAGE_SIZE)
 
   return (
@@ -473,32 +471,15 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
                         </Table>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground" aria-live="polite">
-                          {pagedFooterText({ loading: false, page, pageSize: PAGE_SIZE, total: materials.length })}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            disabled={!canGoPrevious(false, page)}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-xs text-muted-foreground">
-                            Page {formatCount(page)} of {formatCount(pages)}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage((p) => p + 1)}
-                            disabled={!canGoNext(false, page, PAGE_SIZE, materials.length)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
+                      <TablePagination
+                        className="mt-3"
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        total={materials.length}
+                        count={pageRows.length}
+                        noun="recommendations"
+                        onPageChange={setPage}
+                      />
                     </>
                   )}
                 </ChartCard>

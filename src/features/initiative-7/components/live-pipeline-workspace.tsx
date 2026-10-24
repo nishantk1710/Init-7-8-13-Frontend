@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PageLoader } from "@/components/shared/page-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
 import {
   Table,
   TableBody,
@@ -37,14 +38,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
+import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { mapStatus } from "@/features/initiative-7/services/i7-api"
 import type { RecommendationStatus } from "@/features/initiative-7/types/inventory"
+import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
 
 const ALL = "all"
+/** How many rows of each status a tab that spans several statuses loads. */
 const LIVE_PIPELINE_PAGE_SIZE = 200
+/** Rows per page of the table -- the same 25 as every I13 table. */
+const PAGE_SIZE = DEFAULT_PAGE_SIZE
 
 type StatusTab = "in-flight" | "completed" | "not-submitted"
 
@@ -150,31 +157,48 @@ export function LivePipelineWorkspace() {
   const [tab, setTab] = useState<StatusTab>("in-flight")
   const [stage, setStage] = useState<string>(ALL)
   const [query, setQuery] = useState("")
+  // The backend is asked once the person pauses typing, not once per keystroke.
+  const searchTerm = useDebouncedValue(query.trim())
 
-  // One hook call per fixed status -- see ALL_RAW_STATUSES's own comment on
-  // why this is a fixed, not dynamic, hook count.
-  const byStatus = {
-    READY_FOR_REVIEW: useLiveRecommendations({ status: "READY_FOR_REVIEW", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    PENDING_APPROVAL: useLiveRecommendations({ status: "PENDING_APPROVAL", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    HELD: useLiveRecommendations({ status: "HELD", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    ADJUSTED: useLiveRecommendations({ status: "ADJUSTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    SENT_BACK: useLiveRecommendations({ status: "SENT_BACK", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    APPROVED: useLiveRecommendations({ status: "APPROVED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    SAP_EXECUTION_PENDING: useLiveRecommendations({
-      status: "SAP_EXECUTION_PENDING",
-      pageSize: LIVE_PIPELINE_PAGE_SIZE,
-    }),
-    REJECTED: useLiveRecommendations({ status: "REJECTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    SAP_EXECUTED: useLiveRecommendations({ status: "SAP_EXECUTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    ADOPTED: useLiveRecommendations({ status: "ADOPTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    PARTIALLY_ADOPTED: useLiveRecommendations({ status: "PARTIALLY_ADOPTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-    NOT_ADOPTED: useLiveRecommendations({ status: "NOT_ADOPTED", pageSize: LIVE_PIPELINE_PAGE_SIZE }),
-  }
+  // Page number, back to 1 whenever the view changes. Derived during render -- not in an effect -- the way the
+  // recommendations workspace does it.
+  const viewKey = `${tab}|${stage}|${searchTerm}`
+  const [pageState, setPageState] = useState({ key: viewKey, page: 1 })
+  const requestedPage = pageState.key === viewKey ? pageState.page : 1
+  const setPage = (next: number) => setPageState({ key: viewKey, page: next })
 
   const activeStatuses =
     stage !== ALL
       ? [stage as (typeof ALL_RAW_STATUSES)[number]]
       : ALL_RAW_STATUSES.filter((raw) => tabForStatus(mapStatus(raw)) === tab)
+
+  // Two shapes of view, paged two ways:
+  //  - ONE status in view (the Not submitted tab, or a stage picked from the dropdown): the backend pages and
+  //    searches it in SQL -- that is where the ~113k rows are, and 200 of them is not a table.
+  //  - SEVERAL statuses (In flight, Completed): the backend takes one status per request, so it cannot page their
+  //    union. Each is loaded up to LIVE_PIPELINE_PAGE_SIZE and the merged rows are paged here.
+  const singleStatus = activeStatuses.length === 1 ? activeStatuses[0] : null
+  const paramsFor = (raw: (typeof ALL_RAW_STATUSES)[number]) =>
+    raw === singleStatus
+      ? { status: raw, page: requestedPage, pageSize: PAGE_SIZE, search: searchTerm || undefined }
+      : { status: raw, pageSize: LIVE_PIPELINE_PAGE_SIZE }
+
+  // One hook call per fixed status -- see ALL_RAW_STATUSES's own comment on
+  // why this is a fixed, not dynamic, hook count.
+  const byStatus = {
+    READY_FOR_REVIEW: useLiveRecommendations(paramsFor("READY_FOR_REVIEW")),
+    PENDING_APPROVAL: useLiveRecommendations(paramsFor("PENDING_APPROVAL")),
+    HELD: useLiveRecommendations(paramsFor("HELD")),
+    ADJUSTED: useLiveRecommendations(paramsFor("ADJUSTED")),
+    SENT_BACK: useLiveRecommendations(paramsFor("SENT_BACK")),
+    APPROVED: useLiveRecommendations(paramsFor("APPROVED")),
+    SAP_EXECUTION_PENDING: useLiveRecommendations(paramsFor("SAP_EXECUTION_PENDING")),
+    REJECTED: useLiveRecommendations(paramsFor("REJECTED")),
+    SAP_EXECUTED: useLiveRecommendations(paramsFor("SAP_EXECUTED")),
+    ADOPTED: useLiveRecommendations(paramsFor("ADOPTED")),
+    PARTIALLY_ADOPTED: useLiveRecommendations(paramsFor("PARTIALLY_ADOPTED")),
+    NOT_ADOPTED: useLiveRecommendations(paramsFor("NOT_ADOPTED")),
+  }
 
   const active = activeStatuses.map((raw) => byStatus[raw])
   const loading = active.some((f) => f.loading)
@@ -205,18 +229,31 @@ export function LivePipelineWorkspace() {
     return counts
   }, [summary])
 
-  const visible = useMemo(() => {
-    const search = query.trim().toLowerCase()
-    return (data ?? []).filter((rec) => {
-      if (search) {
-        const haystack = `${rec.material.materialId} ${rec.material.description}`.toLowerCase()
-        if (!haystack.includes(search)) return false
-      }
-      return true
-    })
-  }, [data, query])
+  // Several statuses in view: the search narrows the merged rows here. One status: the backend already searched.
+  const search = searchTerm.toLowerCase()
+  const matching =
+    singleStatus || !search
+      ? (data ?? [])
+      : (data ?? []).filter((rec) =>
+          `${rec.material.materialId} ${rec.material.description}`.toLowerCase().includes(search),
+        )
 
-  if (loading) {
+  const page = singleStatus ? requestedPage : Math.min(requestedPage, pageCountOf(matching.length, PAGE_SIZE))
+  // A hook keeps its previous rows while the next page loads, so the table dims them instead of vanishing. The
+  // first time a status switches to paging it still holds its 200 rows for a moment; only a page's worth of them
+  // is shown under the "Loading page" line.
+  const rows = singleStatus ? matching.slice(0, PAGE_SIZE) : matching.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const total = singleStatus ? active[0].total : matching.length
+
+  // Several statuses: a status with more rows than LIVE_PIPELINE_PAGE_SIZE is only partly loaded, and the pager
+  // below can only reach what is loaded. Say so, rather than let "of N" read as the whole population.
+  const loadedCount = data?.length ?? 0
+  const populationCount = active.reduce((sum, f) => sum + f.total, 0)
+  const partlyLoaded = !singleStatus && !searchTerm && populationCount > loadedCount
+
+  // Only the very first load replaces the page. After that a page change dims the rows underneath instead, so the
+  // tabs and the search box stay where they are.
+  if (loading && data === null) {
     return (
       <PageLoader label="Loading the pipeline" className="h-72 w-full" />
     )
@@ -322,10 +359,15 @@ export function LivePipelineWorkspace() {
         </Select>
       </div>
 
-      {visible.length === 0 ? (
+      {pagedTableView(loading, rows) === "skeleton" ? (
+        <PageLoader label="Loading the pipeline" className="h-48 w-full" />
+      ) : rows.length === 0 ? (
         <EmptyState title="Nothing matches this view" />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <div
+          className={cn("overflow-x-auto rounded-xl border border-border transition-opacity", loading && "opacity-50")}
+          aria-busy={loading}
+        >
           <Table>
             <TableHeader>
               <TableRow>
@@ -339,7 +381,7 @@ export function LivePipelineWorkspace() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((rec) => {
+              {rows.map((rec) => {
                 const isInFlight = tabForStatus(rec.status) === "in-flight"
                 const days = isInFlight ? liveWaitingDays(rec.updatedAt) : null
                 const health = liveHealth(days)
@@ -403,6 +445,25 @@ export function LivePipelineWorkspace() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {rows.length > 0 && (
+        <TablePagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          count={rows.length}
+          noun="recommendations"
+          loading={loading}
+          onPageChange={setPage}
+        />
+      )}
+
+      {partlyLoaded && (
+        <p className="text-[11px] text-muted-foreground">
+          This view holds {formatCount(populationCount)} recommendations; the first{" "}
+          {formatCount(LIVE_PIPELINE_PAGE_SIZE)} of each status are loaded here.
+        </p>
       )}
 
       <p className="text-[11px] text-muted-foreground italic">

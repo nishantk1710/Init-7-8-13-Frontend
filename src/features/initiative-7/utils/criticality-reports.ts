@@ -1,7 +1,6 @@
 // Display helpers for the Criticality Reports page. Pure, so they are tested
 // without a DOM.
 
-import { formatCount } from "@/lib/utils"
 import type { CriticalityUpload, CriticalityUploadStatus } from "@/features/initiative-7/types/criticality-reports"
 
 /** Shown in the File column for the July 2026 delivery, which nobody uploaded. */
@@ -49,9 +48,4 @@ export const STATUS_TONE: Record<CriticalityUploadStatus, "success" | "default">
  * backend's order (newest month first). */
 export function filterUploads(uploads: CriticalityUpload[], plant: string | null): CriticalityUpload[] {
   return plant ? uploads.filter((u) => u.plant === plant) : uploads
-}
-
-/** "Showing 3 uploads" / "Showing 1 upload". */
-export function showingLabel(count: number): string {
-  return `Showing ${formatCount(count)} upload${count === 1 ? "" : "s"}`
 }
