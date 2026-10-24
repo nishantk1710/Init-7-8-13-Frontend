@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PageLoader } from "@/components/shared/page-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
 import {
   Table,
   TableBody,
@@ -43,12 +44,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatCount } from "@/lib/utils"
 import { useLiveAdoption } from "@/features/initiative-7/hooks/use-live-adoption"
 import type { AdoptionPageStatus } from "@/features/initiative-7/services/i7-api"
 
 const ALL = "all"
-const PAGE_SIZE = 20
+const PAGE_SIZE = 25
 
 const STATUS_OPTIONS: AdoptionPageStatus[] = [
   "Adopted",
@@ -192,33 +192,16 @@ export function AdoptionTrackingWorkspace() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-muted-foreground">
-          Showing {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(total, page * PAGE_SIZE)} of{" "}
-          {formatCount(total)}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            Previous
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * PAGE_SIZE >= total}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      {/* `count` is the rows the backend sent for this page, not `visible`: the status and search boxes
+          narrow what is drawn on the page, they do not move it. */}
+      <TablePagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        count={items?.length ?? 0}
+        noun="adoption checks"
+        onPageChange={setPage}
+      />
     </div>
   )
 }

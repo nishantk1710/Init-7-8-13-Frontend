@@ -23,7 +23,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe("listParamsFromFilters", () => {
   it("asks for nothing extra when no filter is set", () => {
     const params = listParamsFromFilters(filters(), 1)
-    expect(params).toMatchObject({ page: 1, pageSize: 50, sort: "generated_at", sortDesc: true })
+    expect(params).toMatchObject({ page: 1, pageSize: 25, sort: "generated_at", sortDesc: true })
     for (const key of ["status", "plant", "type", "search", "criticalityLevel", "demandClass", "statusGroup", "risk"] as const) {
       expect(params[key]).toBeUndefined()
     }

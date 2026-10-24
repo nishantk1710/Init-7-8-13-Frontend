@@ -7,6 +7,8 @@
  * waiting for a support ticket.
  */
 
+import { formatCount } from "@/lib/utils"
+
 /** Rows per page unless a screen says otherwise. */
 export const DEFAULT_PAGE_SIZE = 25
 
@@ -73,4 +75,37 @@ export function pageWindow({
     hasPrevious: page > 1,
     hasNext: pageCount === null ? count >= pageSize : page < pageCount,
   }
+}
+
+/**
+ * The pager's left-hand line: `Showing 26–50 of 42,649 exceptions`.
+ *
+ * `loading` is for a screen that keeps the previous page's rows on screen while
+ * the next page is fetched. The page number has already moved on, so the range
+ * would describe a page the rows underneath are not — it says which page is
+ * coming instead.
+ */
+export function pageSummary({
+  page,
+  pageSize,
+  total,
+  count,
+  noun,
+  loading = false,
+}: {
+  page: number
+  pageSize: number
+  total: number | null
+  count: number
+  noun?: string
+  loading?: boolean
+}): string {
+  if (loading) return `Loading page ${formatCount(page)}…`
+  if (count === 0) return "No rows on this page"
+  const { first, last } = pageWindow({ page, pageSize, total, count })
+  return (
+    `Showing ${formatCount(first)}–${formatCount(last)}` +
+    (total === null ? "" : ` of ${formatCount(total)}`) +
+    (noun ? ` ${noun}` : "")
+  )
 }

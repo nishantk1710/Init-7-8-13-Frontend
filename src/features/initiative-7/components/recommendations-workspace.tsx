@@ -8,6 +8,7 @@ import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/shared/page-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
 import { RecommendationReviewTable } from "@/features/initiative-7/components/recommendation-review-table"
 import {
   ALL_FILTER,
@@ -26,7 +27,6 @@ import {
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { formatCount } from "@/lib/utils"
 import type { DemandPattern, Recommendation } from "@/features/initiative-7/types/inventory"
 
 // Every filter below is sent to the backend (utils/recommendation-list-query.ts), which searches
@@ -186,30 +186,16 @@ function LiveRecommendationsWorkspace({
             // standard-path -- brings the column in, under whichever filter.
             showMinMaxConversion={filters.type === "oar" || filtered.some((rec) => rec.conversionEligibility)}
           />
-          {total > 0 && (
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">
-                Showing {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount(Math.min(total, page * PAGE_SIZE))} of{" "}
-                {formatCount(total)}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
-                  Previous
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(page + 1)}
-                  disabled={page * PAGE_SIZE >= total}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* `count` is the rows the backend sent for this page, before the dedupe and the Circuit filter
+              narrow what is drawn: the range is a position in the backend's list, not in what survived. */}
+          <TablePagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            count={data?.length ?? 0}
+            noun="recommendations"
+            onPageChange={setPage}
+          />
         </div>
       )}
     </div>
