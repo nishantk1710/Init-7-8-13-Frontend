@@ -41,7 +41,7 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * KPI formulas -- change how the Inventory Planning Overview's cards and charts are calculated.
+ * Calculation -- change how the Inventory Planning Overview's cards and charts are calculated.
  *
  * A formula is typed in a small, safe language (numbers, the listed values, + - * /, brackets and
  * comparisons); the backend checks it and says what is wrong in words. *Preview* shows what the portfolio
@@ -56,14 +56,14 @@ export function KpiFormulasPage() {
     <div className="blue-scope min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
-          title="KPI formulas"
+          title="Calculation"
           description="Change how the Overview's cards and charts are calculated. The information cards update to match."
         />
         {loading && !data ? (
-          <PageLoader label="Loading the KPI formulas" className="h-72 w-full" />
+          <PageLoader label="Loading the calculation" className="h-72 w-full" />
         ) : error && !data ? (
           <EmptyState
-            title="Could not load the KPI formulas"
+            title="Could not load the calculation"
             description={messageOf(error)}
             actions={
               <Button size="sm" variant="outline" onClick={refetch}>
