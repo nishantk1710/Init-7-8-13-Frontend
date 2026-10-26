@@ -10,7 +10,7 @@
 #
 # WHAT THIS DOES
 #
-#   Wait for approval on environment aicom-prod -> build with the prod values ->
+#   Wait for approval on environment aicom-prod-web -> build with the prod values ->
 #   zip deploy the standalone bundle to prod -> smoke check. The build happens
 #   after approval and per environment because NEXT_PUBLIC_* values are inlined
 #   into the JavaScript at build time; nonprod's bundle (built by GitHub with
@@ -21,7 +21,10 @@
 #
 #   * Variable group frontend-prod: FE_DEPLOY_USER, FE_DEPLOY_PASSWORD (secret),
 #     FE_HOST, FE_SCM_HOST, and the two build values below.
-#   * Environment aicom-prod, with the approval check.
+#   * Environment aicom-prod-web, with the approval, branch-control (main) and
+#     exclusive-lock checks. Its own environment, separate from the backend's
+#     aicom-prod-api, so the two apps deploy in parallel while each app still
+#     never has two deployments overlapping.
 #
 # Build values -- only these two; the rest default correctly in the code
 # (ASSISTANT_CHAT off, API_GET_TIMEOUT_MS 60000, ACTOR_ID unset as on nonprod):
@@ -42,7 +45,7 @@ stages:
       - group: frontend-prod
     jobs:
       - deployment: web
-        environment: aicom-prod
+        environment: aicom-prod-web
         pool:
           vmImage: ubuntu-latest
         strategy:
@@ -51,9 +54,10 @@ stages:
               steps:
                 - checkout: self
 
-                - task: NodeTool@0
+                # UseNode@1 replaces the deprecated NodeTool@0.
+                - task: UseNode@1
                   inputs:
-                    versionSpec: "22.x"
+                    version: "22.x"
 
                 - bash: |
                     set -euo pipefail
