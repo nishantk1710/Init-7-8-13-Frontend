@@ -20,6 +20,8 @@ const KPI_OF_INFO: Partial<Record<OverviewInfoId, KpiKey>> = {
   excessInventory: "excess",
   excessByPlant: "excess",
   workingCapital: "working_capital",
+  adoptedRecommendation: "adoption",
+  sapAdoption: "adoption",
 }
 
 const NO_EXAMPLE: OverviewInfoExample = {
@@ -52,7 +54,8 @@ function exampleFor(active: ActiveFormulas, kpi: KpiKey): OverviewInfoExample {
   if (!example) return NO_EXAMPLE
   return {
     kind: "real",
-    material: `${example.material} · plant ${example.plant}`,
+    // A plant code reads "plant 1300"; a portfolio-wide example already says "All plants".
+    material: `${example.material} · ${/^\d/.test(example.plant) ? `plant ${example.plant}` : example.plant}`,
     inputs: example.inputs,
     substitution: example.substitution,
     result: example.result,
@@ -101,6 +104,7 @@ export function overviewInfoFor(id: OverviewInfoId, active: ActiveFormulas | nul
         : "It counts materials, not money.",
     ]
   }
+  if (kpi === "adoption") spec.steps = base.steps
   if (kpi === "working_capital") {
     spec.steps = [
       "Positive: the recommendation lowers the reorder point, so cash is released.",

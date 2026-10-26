@@ -1,4 +1,4 @@
-// The editable Overview KPI formulas: what the backend sends (snake_case, `Api*`) and what the page
+// The editable Overview calculations: what the backend sends (snake_case, `Api*`) and what the page
 // uses (camelCase). See app/schemas/i7/kpi_formulas.py.
 
 export type ApiExample = {
@@ -27,11 +27,15 @@ export type ApiFormulaField = {
   help: string
   default: string | number
   value: string | number
-  allowed: { name: string; label: string }[]
+  data_set: string
+  helpers: { name: string; label: string }[]
+  example: string
   minimum: number | null
   maximum: number | null
   needs_rebuild: boolean
 }
+
+export type ApiDataItem = { name: string; label: string; description: string; group: string; unit: string }
 
 export type ApiVersion = {
   version: number
@@ -49,8 +53,10 @@ export type ApiStatus = { state: "idle" | "applying" | "failed"; version: number
 
 export type ApiFormulasPage = {
   active: ApiActiveFormulas
-  kpis: { key: string; title: string }[]
+  kpis: { key: string; title: string; data_set: string; controls: string[] }[]
   fields: ApiFormulaField[]
+  data: Record<string, ApiDataItem[]>
+  functions: string[]
   status: ApiStatus
   history: ApiVersion[]
 }
@@ -62,6 +68,8 @@ export type ApiFigures = {
   excess_count: number
   excess_opportunity: number | null
   working_capital: number | null
+  adoption_rate: number | null
+  counted_as_adopted: number | null
 }
 
 export type ApiPreview = {
@@ -73,7 +81,7 @@ export type ApiPreview = {
 
 // --- What the page uses ---------------------------------------------------------------------------
 
-export type KpiKey = "stockout" | "excess" | "working_capital"
+export type KpiKey = "stockout" | "excess" | "working_capital" | "adoption"
 
 export type FormulaExample = {
   material: string
@@ -101,11 +109,19 @@ export type FormulaField = {
   help: string
   defaultValue: string | number
   value: string | number
-  allowed: { name: string; label: string }[]
+  /** Which list of data this formula draws on (`FormulasPage.data`); empty for a plain number. */
+  dataSet: string
+  /** Values built by earlier formulas of the same card that this one may also use. */
+  helpers: { name: string; label: string }[]
+  /** One line showing what a formula here could look like. */
+  example: string
   minimum: number | null
   maximum: number | null
   needsRebuild: boolean
 }
+
+/** One fact a formula can use: a stored figure, in plain words. */
+export type DataItem = { name: string; label: string; description: string; group: string; unit: string }
 
 export type FormulaVersion = {
   version: number
@@ -123,8 +139,12 @@ export type ApplyStatus = { state: "idle" | "applying" | "failed"; version: numb
 
 export type FormulasPage = {
   active: ActiveFormulas
-  kpis: { key: KpiKey; title: string }[]
+  kpis: { key: KpiKey; title: string; dataSet: string; controls: string[] }[]
   fields: FormulaField[]
+  /** Every fact a formula may use, by data set. */
+  data: Record<string, DataItem[]>
+  /** The functions a formula may call, as written: `max(a, b)`. */
+  functions: string[]
   status: ApplyStatus
   history: FormulaVersion[]
 }
@@ -136,6 +156,9 @@ export type PortfolioFigures = {
   excessCount: number
   excessOpportunity: number | null
   workingCapital: number | null
+  /** As a percentage: 75 means 75%. */
+  adoptionRate: number | null
+  countedAsAdopted: number | null
 }
 
 export type FormulaPreview = {
