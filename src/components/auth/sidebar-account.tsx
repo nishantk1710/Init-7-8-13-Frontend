@@ -6,7 +6,7 @@ import { LogOut } from "lucide-react"
 
 import { Avatar } from "@/components/ui/avatar"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { signOut } from "@/lib/auth/mock-auth"
+import { signOutEverywhere } from "@/lib/auth/sign-out"
 import { cn } from "@/lib/utils"
 
 /**
@@ -36,7 +36,7 @@ export function SidebarAccount({ children }: { children?: React.ReactNode }) {
       {children}
       <button
         type="button"
-        onClick={signOut}
+        onClick={() => void signOutEverywhere()}
         className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-nav-btn px-4 py-2.5 text-[13px] font-semibold text-nav-btn-fg shadow-sm transition-opacity hover:opacity-90"
       >
         <LogOut className="size-4" />

@@ -1,9 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { connection } from "next/server"
 
 import { AuthShell } from "@/components/auth/auth-shell"
 import { SignupForm } from "@/components/auth/signup-form"
 import { normaliseUsername, safeNext } from "@/lib/auth/mock-auth"
+import { serverAuthMode } from "@/lib/auth/mode"
 
 export const metadata: Metadata = { title: "Create account — Spares AI" }
 
@@ -12,6 +15,9 @@ export default async function SignupPage({
 }: {
   searchParams: Promise<{ next?: string | string[]; username?: string | string[] }>
 }) {
+  // With Microsoft sign-in, accounts are created in Entra ID, not here.
+  await connection()
+  if (serverAuthMode() === "entra") redirect("/login")
   const { next, username } = await searchParams
   const target = safeNext(typeof next === "string" ? next : undefined)
 
