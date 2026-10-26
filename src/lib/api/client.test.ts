@@ -37,6 +37,30 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe("an I07 refusal ({error: {code, message}}, not FastAPI's {detail})", () => {
+  it("carries the backend's reason and code to the caller instead of a bare status", async () => {
+    respond(409, {
+      error: {
+        code: "INSUFFICIENT_NEIGHBOURS_AFTER_EXCLUSION",
+        message: "Cannot remove this similar material: 1 would be left and at least 2 are needed.",
+        details: { remaining_neighbours: 1 },
+      },
+    })
+    const error = await failure()
+    expect(error.status).toBe(409)
+    expect(error.code).toBe("INSUFFICIENT_NEIGHBOURS_AFTER_EXCLUSION")
+    expect(error.detailText()).toBe("Cannot remove this similar material: 1 would be left and at least 2 are needed.")
+    expect(error.rawDetail).toMatchObject({ details: { remaining_neighbours: 1 } })
+  })
+
+  it("leaves FastAPI's own {detail} bodies exactly as they were", async () => {
+    respond(422, { detail: [{ type: "missing", loc: ["body", "plant"], msg: "Field required" }] })
+    const error = await failure()
+    expect(error.code).toBeUndefined()
+    expect(error.fieldErrors()).toEqual({ plant: "Field required" })
+  })
+})
+
 describe("a snapshot 503", () => {
   it("says 'still preparing' while the snapshot is building", async () => {
     respond(

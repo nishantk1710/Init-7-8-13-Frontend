@@ -120,6 +120,7 @@ function RecommendationDetailView({
           <ChartCard title="Recommended inventory changes" span={12}>
             <RecommendationReviewPanel
               rec={recommendation}
+              onSimilarMaterialsChanged={() => onLiveChanged?.()}
               action={
                 <LiveDecisionActions
                   recommendationId={recommendation.id}

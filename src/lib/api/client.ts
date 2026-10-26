@@ -136,6 +136,8 @@ function fieldNameOf(issue: ValidationIssue): string | null {
 /** What a failed response's body said. */
 type ErrorBody = {
   detail: ApiErrorDetail
+  /** The I07 envelope's machine-readable `error.code`, when the body was that shape. */
+  code?: string
   /** `detail` as sent, when it was an object. */
   raw?: unknown
   /** The snapshot 503's `status` ("building" or "failed"); null on any other body. */
@@ -152,6 +154,23 @@ type ErrorBody = {
 async function readErrorBody(response: Response): Promise<ErrorBody> {
   try {
     const body: unknown = await response.json()
+    // The I07 routes answer {error: {code, message, details}} (app/schemas/i7/errors.py), not FastAPI's
+    // {detail}. Without this a refused request read as "failed with 409" and the reason -- which the
+    // backend wrote for the person looking at the screen -- never reached it.
+    if (typeof body === "object" && body !== null && "error" in body) {
+      const error = (body as { error: unknown }).error
+      if (typeof error === "object" && error !== null && "message" in error) {
+        const { code, message } = error as { code?: unknown; message: unknown }
+        if (typeof message === "string") {
+          return {
+            detail: message,
+            code: typeof code === "string" ? code : undefined,
+            snapshotStatus: null,
+            raw: error,
+          }
+        }
+      }
+    }
     if (typeof body === "object" && body !== null && "detail" in body) {
       const detail = (body as { detail: unknown }).detail
       if (typeof detail === "string") return { detail, snapshotStatus: null }
@@ -274,7 +293,7 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
         ? unavailableMessage(response, body)
         : `${method} ${url} failed with ${response.status}`,
       response.status,
-      undefined,
+      body.code,
       body.detail,
       body.raw ?? null
     )
