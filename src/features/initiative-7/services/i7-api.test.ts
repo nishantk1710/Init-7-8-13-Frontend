@@ -9,6 +9,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  excludeSimilarMaterial,
+  fetchSimilarMaterials,
+  fetchSimilarMaterialsView,
+  restoreSimilarMaterial,
   fetchForecastVsActual,
   fetchRecommendations,
   mapDemandType,
@@ -971,6 +975,128 @@ describe("fetchQuarterlyReport", () => {
 
       expect(result.metadata.quarter).toBe("Q3 2026")
     })
+  })
+})
+
+describe("removing and restoring a similar material", () => {
+  const apiNeighbour = (n: number) => ({
+    rank: n,
+    material: `D000${n}`,
+    plant: "1300",
+    description: `Bearing ${n}`,
+    similarity: "0.800000",
+    criticality: "normal",
+    history_months: 24,
+    safety_stock: 3,
+    rop: 8,
+    max_stock: 20,
+    current_rop: "8.000",
+    current_safety_stock: "3.000",
+    current_max_stock: "20.000",
+    contributed: true,
+  })
+  const listing = {
+    sap_material_number: "T0001",
+    sap_plant_code: "1300",
+    neighbours: [apiNeighbour(2), apiNeighbour(3)],
+    excluded: [
+      {
+        material: "D0001",
+        plant: "1300",
+        description: "Bearing 1",
+        similarity: "0.820000",
+        rank: 1,
+        reason: "different shaft size",
+        excluded_by: "alice",
+        excluded_at: "2026-10-25T10:00:00Z",
+      },
+    ],
+    can_edit: true,
+    edit_blocked_reason: null,
+    minimum_neighbours: 2,
+  }
+
+  it("maps the removed materials, whether editing is allowed and how many the estimate needs", async () => {
+    stubFetchJson(listing)
+    const view = await fetchSimilarMaterialsView("REC-OAR-T0001-1300")
+    expect(view.items.map((i) => [i.material, i.criticality, i.rop])).toEqual([
+      ["D0002", "NORMAL", 8],
+      ["D0003", "NORMAL", 8],
+    ])
+    expect(view.excluded).toEqual([
+      {
+        material: "D0001",
+        plant: "1300",
+        description: "Bearing 1",
+        similarity: 0.82,
+        rank: 1,
+        reason: "different shaft size",
+        excludedBy: "alice",
+        excludedAt: "2026-10-25T10:00:00Z",
+      },
+    ])
+    expect(view.canEdit).toBe(true)
+    expect(view.minimumNeighbours).toBe(2)
+  })
+
+  it("reads a backend that predates removal as 'editing unknown', never as 'editing allowed'", async () => {
+    stubFetchJson({ sap_material_number: "T0001", sap_plant_code: "1300", neighbours: [apiNeighbour(1)] })
+    const view = await fetchSimilarMaterialsView("REC-OAR-T0001-1300")
+    expect(view.canEdit).toBeNull()
+    expect(view.excluded).toEqual([])
+    expect(await fetchSimilarMaterials("REC-OAR-T0001-1300")).toHaveLength(1)
+  })
+
+  it("POSTs the donor and reason -- and no user id: who it is comes from the request identity header", async () => {
+    stubFetchJson({
+      recommendation_id: "REC-OAR-T0001-1300",
+      status: "READY_FOR_REVIEW",
+      current_version: 2,
+      oar_estimate_status: "SUCCESS",
+      oar_neighbour_count: 2,
+      recommended_safety_stock: "4.000000",
+      recommended_rop: "9.000000",
+      recommended_max_stock: "21.000000",
+      similar_materials: listing,
+    })
+
+    const change = await excludeSimilarMaterial("REC-OAR-T0001-1300", "D0001", "1300", "  different shaft size ")
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(String(url)).toMatch(/\/recommendations\/REC-OAR-T0001-1300\/similar-materials\/exclusions$/)
+    expect(init?.method).toBe("POST")
+    expect(JSON.parse(init?.body as string)).toEqual({
+      donor_material: "D0001",
+      donor_plant: "1300",
+      reason: "different shaft size",
+    })
+    expect((init?.headers as Record<string, string>)["X-Actor-Id"]).toBeTruthy()
+    expect(change).toMatchObject({ status: "READY_FOR_REVIEW", safetyStock: 4, rop: 9, maxStock: 21 })
+    expect(change.view.excluded).toHaveLength(1)
+  })
+
+  it("sends no reason at all rather than an empty one", async () => {
+    stubFetchJson({
+      recommendation_id: "r", status: "READY_FOR_REVIEW", current_version: 2, oar_estimate_status: "SUCCESS",
+      oar_neighbour_count: 2, recommended_safety_stock: null, recommended_rop: null, recommended_max_stock: null,
+      similar_materials: listing,
+    })
+    await excludeSimilarMaterial("r", "D0001", "1300", "   ")
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string).reason).toBeNull()
+  })
+
+  it("restores with a POST to .../restore (the API has no DELETE)", async () => {
+    stubFetchJson({
+      recommendation_id: "r", status: "SENT_BACK", current_version: 3, oar_estimate_status: "SUCCESS",
+      oar_neighbour_count: 3, recommended_safety_stock: "3", recommended_rop: "8", recommended_max_stock: "20",
+      similar_materials: { ...listing, excluded: [] },
+    })
+    const change = await restoreSimilarMaterial("r", "D0001", "1300")
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(String(url)).toMatch(/\/recommendations\/r\/similar-materials\/exclusions\/restore$/)
+    expect(init?.method).toBe("POST")
+    expect(JSON.parse(init?.body as string)).toEqual({ donor_material: "D0001", donor_plant: "1300" })
+    expect(change.view.excluded).toEqual([])
   })
 })
 

@@ -277,10 +277,41 @@ export interface ApiSimilarMaterial {
   contributed: boolean
 }
 
+/** A similar material a user removed for this material (app/schemas/i7/recommendations.py). */
+export interface ApiExcludedSimilarMaterial {
+  material: string
+  plant: string
+  description: string | null
+  /** The score it had when it was removed. */
+  similarity: ApiDecimal | null
+  rank: number | null
+  reason: string | null
+  excluded_by: string
+  excluded_at: string | null
+}
+
 export interface ApiSimilarMaterialsResponse {
   sap_material_number: string
   sap_plant_code: string
   neighbours: ApiSimilarMaterial[]
+  /** Absent from a backend that predates removing similar materials. */
+  excluded?: ApiExcludedSimilarMaterial[]
+  can_edit?: boolean
+  edit_blocked_reason?: string | null
+  minimum_neighbours?: number | null
+}
+
+/** POST .../similar-materials/exclusions (and /restore): the recommendation after the change. */
+export interface ApiSimilarMaterialsChangeResponse {
+  recommendation_id: string
+  status: string
+  current_version: number
+  oar_estimate_status: string | null
+  oar_neighbour_count: number | null
+  recommended_safety_stock: ApiDecimal | null
+  recommended_rop: ApiDecimal | null
+  recommended_max_stock: ApiDecimal | null
+  similar_materials: ApiSimilarMaterialsResponse
 }
 
 // --- Approvals --------------------------------------------------------

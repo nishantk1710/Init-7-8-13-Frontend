@@ -156,6 +156,7 @@ function LiveExpandedRecommendationPanel({
   return (
     <RecommendationReviewPanel
       rec={detail}
+      onSimilarMaterialsChanged={refetch}
       action={
         <LiveDecisionActions
           recommendationId={detail.id}

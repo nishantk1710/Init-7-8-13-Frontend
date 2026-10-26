@@ -200,9 +200,13 @@ function RationaleList({ rec }: { rec: Recommendation }) {
 export function RecommendationReviewPanel({
   rec,
   action,
+  onSimilarMaterialsChanged,
 }: {
   rec: Recommendation
   action?: ReactNode
+  /** Called after a similar material was removed or restored, so the caller can re-read the
+   * recommendation: its recommended figures are recalculated by the backend. */
+  onSimilarMaterialsChanged?: () => void
 }) {
   const capital = rec.workingCapitalImpact
 
@@ -230,7 +234,9 @@ export function RecommendationReviewPanel({
           </div>
         )}
 
-        {hasNoForecast([rec]) && <SimilarMaterialsList recommendationId={rec.id} />}
+        {hasNoForecast([rec]) && (
+          <SimilarMaterialsList key={rec.id} recommendationId={rec.id} onChanged={onSimilarMaterialsChanged} />
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
