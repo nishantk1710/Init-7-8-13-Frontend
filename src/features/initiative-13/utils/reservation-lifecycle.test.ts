@@ -25,6 +25,11 @@ describe("lifecycleView", () => {
     expect(lifecycleView("PR_SHARED").explanation).toMatch(/other reservations name the same PR/)
   })
 
+  it("says a PR SAP deleted is deleted, not raised", () => {
+    expect(lifecycleView("PR_DELETED").label).toBe("PR deleted in SAP")
+    expect(lifecycleView("PR_DELETED").explanation).toMatch(/EBAN-LOEKZ/)
+  })
+
   it("marks partial stages amber and issued green", () => {
     expect(lifecycleView("PARTIALLY_RECEIVED").tone).toBe("warning")
     expect(lifecycleView("PARTIALLY_ISSUED").tone).toBe("warning")
