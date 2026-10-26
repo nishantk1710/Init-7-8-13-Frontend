@@ -33,7 +33,7 @@ export function useKpiFormulasPage(): AsyncState<FormulasPage> & { refetch: () =
         if (!cancelled) setState({ data, loading: false, error: null })
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ data: null, loading: false, error: toError(error, "Failed to load the KPI formulas.") })
+        if (!cancelled) setState({ data: null, loading: false, error: toError(error, "Failed to load the calculation.") })
       })
     return () => {
       cancelled = true

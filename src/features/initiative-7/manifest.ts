@@ -38,9 +38,9 @@ export const initiative7Manifest: InitiativeManifest = {
         href: "/inventory-planning/criticality-reports",
       },
       {
-        label: "KPI formulas",
+        label: "Calculation",
         icon: "sliders",
-        href: "/inventory-planning/kpi-formulas",
+        href: "/inventory-planning/calculation",
       },
     ],
   },
