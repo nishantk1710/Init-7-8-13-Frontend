@@ -55,7 +55,10 @@ function mapField(field: ApiFormulaField): FormulaField {
     help: field.help,
     defaultValue: field.default,
     value: field.value,
-    allowed: field.allowed,
+    // `?? ` throughout: a backend that predates the data list sends none of these, and the page must still open.
+    dataSet: field.data_set ?? "",
+    helpers: field.helpers ?? [],
+    example: field.example ?? "",
     minimum: field.minimum,
     maximum: field.maximum,
     needsRebuild: field.needs_rebuild,
@@ -88,6 +91,8 @@ function mapFigures(figures: ApiFigures): PortfolioFigures {
     excessCount: figures.excess_count,
     excessOpportunity: figures.excess_opportunity,
     workingCapital: figures.working_capital,
+    adoptionRate: figures.adoption_rate,
+    countedAsAdopted: figures.counted_as_adopted,
   }
 }
 
@@ -101,8 +106,10 @@ export async function fetchFormulasPage(): Promise<FormulasPage> {
   const page = await apiFetch<ApiFormulasPage>(BASE)
   return {
     active: mapActive(page.active),
-    kpis: page.kpis as FormulasPage["kpis"],
+    kpis: page.kpis.map((kpi) => ({ key: kpi.key as KpiKey, title: kpi.title, dataSet: kpi.data_set ?? "", controls: kpi.controls ?? [] })),
     fields: page.fields.map(mapField),
+    data: page.data ?? {},
+    functions: page.functions ?? [],
     status: mapStatus(page.status),
     history: page.history.map(mapVersion),
   }

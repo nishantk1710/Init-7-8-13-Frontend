@@ -1122,6 +1122,9 @@ export interface AdoptionSummaryResult {
    * from the denominator) -- null when every evaluated row is still
    * UNKNOWN, never a fabricated 0%. See ApiAdoptionSummary's own docstring. */
   adoptionRatePercentage: number | null
+  /** What the Adopted card counts. `adoptedCount` unless the Calculation page changed the rule; absent or null
+   * means use `adoptedCount`. */
+  countedAsAdopted?: number | null
 }
 
 /** What the adoption summary can be narrowed by. All optional; none means the whole portfolio. */
@@ -1161,6 +1164,7 @@ export async function fetchAdoptionSummary(params: AdoptionSummaryParams = {}): 
     notAdoptedCount: response.not_adopted_count,
     unknownCount: response.unknown_count,
     adoptionRatePercentage: response.adoption_rate_percentage,
+    countedAsAdopted: response.counted_as_adopted ?? null,
   }
 }
 

@@ -233,7 +233,13 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
         showInfo
         recommendations={filtered}
         adoptedOverride={
-          adoptionSummary ? { count: adoptionSummary.adoptedCount, total: adoptionSummary.totalEvaluated } : null
+          adoptionSummary
+            ? {
+                // The card counts what the Calculation page says counts as adopted (adopted, by default).
+                count: adoptionSummary.countedAsAdopted ?? adoptionSummary.adoptedCount,
+                total: adoptionSummary.totalEvaluated,
+              }
+            : null
         }
         loading={{
           stockout: summaryRefreshing,

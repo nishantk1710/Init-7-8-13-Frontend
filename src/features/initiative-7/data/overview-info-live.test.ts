@@ -25,6 +25,7 @@ const CUSTOM: ActiveFormulas = {
     ],
     excess: ["Excess candidate when current max stock > recommended max stock × 1.1"],
     working_capital: ["Working capital impact = unit price × (current safety stock - recommended safety stock)"],
+    adoption: ["Adoption rate = adopted ÷ all tracked", "Adopted card counts = adopted + partially adopted"],
   },
   examples: {
     stockout: {
@@ -36,6 +37,13 @@ const CUSTOM: ActiveFormulas = {
     },
     excess: null,
     working_capital: null,
+    adoption: {
+      material: "All 50 recommendations with something to adopt",
+      plant: "All plants",
+      inputs: [{ label: "Adopted", value: "10" }],
+      substitution: ["Adoption rate = 10 ÷ 50 = 20.0%"],
+      result: "20.0% adoption rate; the card counts 15.",
+    },
   },
 }
 
@@ -73,9 +81,17 @@ describe("overviewInfoFor", () => {
     expect(spec.example.substitution).toEqual([])
   })
 
-  it("never changes the adoption cards, which have no formula", () => {
-    expect(overviewInfoFor("adoptedRecommendation", CUSTOM)).toBe(OVERVIEW_INFO.adoptedRecommendation)
-    expect(overviewInfoFor("sapAdoption", CUSTOM)).toBe(OVERVIEW_INFO.sapAdoption)
+  it("writes the edited adoption rule onto the adoption card and chart, keeping their explanation", () => {
+    for (const id of ["adoptedRecommendation", "sapAdoption"] as const) {
+      const spec = overviewInfoFor(id, CUSTOM)
+      expect(spec.formula).toEqual(CUSTOM.formulaLines.adoption)
+      expect(spec.steps).toEqual(OVERVIEW_INFO[id].steps)
+      expect(spec.example.material).toBe("All 50 recommendations with something to adopt · All plants")
+    }
+  })
+
+  it("says \"plant 1300\" for a plant code and nothing extra for a portfolio-wide example", () => {
+    expect(overviewInfoFor("stockoutRisk", CUSTOM).example.material).toBe("Sodium cyanide (4000000001) · plant 1300")
   })
 
   it("falls back to the built-in text when the backend sent no lines for a KPI", () => {

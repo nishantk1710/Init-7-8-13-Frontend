@@ -434,6 +434,9 @@ export interface ApiAdoptionSummary {
   not_adopted_count: number
   unknown_count: number
   adoption_rate_percentage: number | null
+  /** What the Adopted card counts: `adopted_count` unless the Calculation page changed it. Absent from a
+   * backend that predates editable calculations. */
+  counted_as_adopted?: number | null
 }
 
 export interface ApiAdoptionResponse {

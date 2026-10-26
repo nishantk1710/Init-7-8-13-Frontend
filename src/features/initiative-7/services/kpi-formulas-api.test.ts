@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "@/lib/api/client"
 import { formulaErrors, mapActive } from "./kpi-formulas-api"
@@ -41,5 +41,26 @@ describe("formulaErrors", () => {
 
   it("ignores anything that is not a sentence", () => {
     expect(formulaErrors(refusal("FORMULA_INVALID", { a: "ok", b: 3, c: null }))).toEqual({ a: "ok" })
+  })
+})
+
+describe("fetchFormulasPage against a backend that predates the data list", () => {
+  it("opens with empty lists instead of crashing", async () => {
+    const { fetchFormulasPage } = await import("./kpi-formulas-api")
+    const client = await import("@/lib/api/client")
+    const spy = vi.spyOn(client, "apiFetch").mockResolvedValue({
+      active: { version: null, is_default: true, settings: { window_days: 90, lookback_days: 730 }, formula_lines: {}, examples: {} },
+      kpis: [{ key: "stockout", title: "High Stockout Risk" }],
+      fields: [{ key: "at_risk", kpi: "stockout", label: "At risk when", kind: "condition", help: "", default: "a < b", value: "a < b", minimum: null, maximum: null, needs_rebuild: false }],
+      status: { state: "idle", version: null, message: null },
+      history: [],
+    })
+    const page = await fetchFormulasPage()
+    spy.mockRestore()
+    expect(page.data).toEqual({})
+    expect(page.functions).toEqual([])
+    expect(page.kpis[0]?.controls).toEqual([])
+    expect(page.fields[0]?.helpers).toEqual([])
+    expect(page.fields[0]?.dataSet).toBe("")
   })
 })
