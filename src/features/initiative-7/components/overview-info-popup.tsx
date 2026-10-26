@@ -4,7 +4,9 @@ import type { ReactNode } from "react"
 
 import { INFO_TONE, InfoPopup, riseIn, slideIn, type InfoTone } from "@/components/shared/info-popup"
 import { cn } from "@/lib/utils"
-import { OVERVIEW_INFO, type OverviewInfoId } from "@/features/initiative-7/data/overview-info"
+import { useOverviewFormulas } from "@/features/initiative-7/components/overview-formulas-context"
+import type { OverviewInfoId } from "@/features/initiative-7/data/overview-info"
+import { overviewInfoFor } from "@/features/initiative-7/data/overview-info-live"
 
 function Section({
   heading,
@@ -32,10 +34,11 @@ function Section({
 }
 
 /** The (i) icon on an Overview card or chart; its popup explains the rule, the formula and one worked
- * example from `OVERVIEW_INFO`. Two columns on a wide screen -- the rule on the left, the example on
+ * example from `OVERVIEW_INFO`, or from the saved formulas when somebody has edited them (see
+ * `overviewInfoFor`). Two columns on a wide screen -- the rule on the left, the example on
  * the right -- so it reads as a landscape card rather than a tall one. */
 export function OverviewInfo({ id }: { id: OverviewInfoId }) {
-  const spec = OVERVIEW_INFO[id]
+  const spec = overviewInfoFor(id, useOverviewFormulas())
   const { example, tone } = spec
   const colours = INFO_TONE[tone]
   const result = riseIn(700)

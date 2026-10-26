@@ -25,6 +25,7 @@ import {
   EMPTY_DASHBOARD_FILTERS,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
+import { OverviewFormulasProvider } from "@/features/initiative-7/components/overview-formulas-context"
 import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
 import { InventoryPortfolioKpis } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import {
@@ -39,6 +40,7 @@ import {
 import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
 import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
+import { useActiveKpiFormulas } from "@/features/initiative-7/hooks/use-kpi-formulas"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality, DemandPattern } from "@/features/initiative-7/types/inventory"
 import { DEMAND_CLASS_FOR_PATTERN } from "@/features/initiative-7/utils/recommendation-list-query"
@@ -66,6 +68,9 @@ const TYPE_LABEL: Record<"oar" | "stock_item", string> = { oar: "OAR", stock_ite
 
 export function LiveInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
+  // The formulas in force, for the (i) popups. Not awaited: until they arrive (or if they cannot be read) the
+  // popups show the built-in text, so the Overview never waits on them.
+  const activeFormulas = useActiveKpiFormulas()
   // Plant, Criticality, Demand Pattern and the Recommendation type are asked of the backend, not
   // applied to whichever 200 rows happen to be newest: a plant or tier with no rows among them would
   // otherwise read as "nothing matches". The KPIs, the distribution, both plant cards and the SAP
@@ -207,6 +212,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     : ""
 
   return (
+    <OverviewFormulasProvider value={activeFormulas}>
     <div className="flex flex-col gap-4">
       <DashboardFilters
         layout="bar"
@@ -327,5 +333,6 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
         </div>
       </div>
     </div>
+    </OverviewFormulasProvider>
   )
 }

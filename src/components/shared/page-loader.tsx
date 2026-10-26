@@ -2,8 +2,9 @@ import { cn } from "@/lib/utils"
 
 /**
  * The loader for a whole page: an hourglass, in the app's blue, that empties from top to bottom and then turns over to start
- * again. One colour -- everything is `currentColor`, and the colour is the theme's `primary` -- so it follows light and dark
- * mode.
+ * again. One colour -- everything is `currentColor`, and the colour is the theme's `action` blue -- so it follows light and
+ * dark mode. It is `action`, not `primary`, on purpose: `primary` is indigo outside the `.blue-scope` pages, and the loader
+ * must be the same blue on every page.
  *
  * Use it where a page is opening (a refresh, a click in the sidebar, a page's first load). A card or chart that is waiting
  * for its own figure uses the smaller petal spinner (`LoadingSpinner`) instead.
@@ -14,7 +15,7 @@ import { cn } from "@/lib/utils"
 export function PageLoader({ label, className }: { label: string; className?: string }) {
   return (
     <div role="status" aria-label={label} className={cn("flex flex-col items-center justify-center gap-3", className)}>
-      <svg viewBox="0 0 64 64" aria-hidden="true" className="page-loader-glass size-16 shrink-0 text-primary">
+      <svg viewBox="0 0 64 64" aria-hidden="true" className="page-loader-glass size-16 shrink-0 text-action">
         {/* The glass: a cap at each end and two bulbs meeting at the neck. */}
         <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16 8 H48" />
