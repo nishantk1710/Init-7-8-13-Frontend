@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Eye, Loader2, RotateCcw, Save } from "lucide-react"
+import { Loader2, RotateCcw, Save } from "lucide-react"
 import { toast } from "sonner"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
@@ -12,6 +12,7 @@ import { PageLoader } from "@/components/shared/page-loader"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ApiError } from "@/lib/api/client"
 import { formatApiDateTime } from "@/lib/api/format"
 import { cn, formatCount } from "@/lib/utils"
@@ -148,15 +149,13 @@ function FormulasEditor({ page, onApplied }: { page: FormulasPage; onApplied: ()
     setFailure(Object.keys(fieldErrors).length > 0 ? "Fix the highlighted formulas and try again." : messageOf(caught))
   }
 
-  /** Runs the preview for the whole draft (it is one request whatever section asked). `openFull` also opens the full
-   * results; a section's own "Preview impact" only fills its panel. */
-  function runPreview(openFull: boolean) {
+  /** Runs the preview for the whole draft (it is one request whatever section asked) and fills the panels. */
+  function runPreview() {
     setFailure(null)
     startTransition(async () => {
       try {
         setErrors({})
         setPreview(await previewFormulas(fieldsFromDraft(page.fields, draft)))
-        if (openFull) setFullOpen(true)
       } catch (caught) {
         setPreview(null)
         fail(caught)
@@ -199,11 +198,7 @@ function FormulasEditor({ page, onApplied }: { page: FormulasPage; onApplied: ()
           <span className="whitespace-pre-line">{failure}</span>
         </AlertBanner>
       )}
-      {page.active.isDefault ? (
-        <AlertBanner tone="info" title="The built-in calculation is in use">
-          Nothing has been changed yet. Edit a formula below, preview the effect, then save and apply it.
-        </AlertBanner>
-      ) : (
+      {!page.active.isDefault && (
         <AlertBanner tone="warning" title={`Your calculation is in use (version ${page.active.version})`}>
           The Overview, its charts, its information cards and new quarterly reports use it. Quarterly reports already
           generated keep the figures they were generated with.
@@ -258,19 +253,23 @@ function FormulasEditor({ page, onApplied }: { page: FormulasPage; onApplied: ()
         </p>
       </details>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-xs text-muted-foreground">Show the calculations behind the Overview&apos;s</span>
-        <nav className="flex flex-wrap items-center gap-2 text-xs" aria-label="Show">
+      {/* The same filter as the Action Center's. */}
+      <Tabs value={view} onValueChange={(next) => setView(next as CalcView)}>
+        <TabsList
+          aria-label="Show the calculations behind the Overview's"
+          className="w-full max-w-md border-2 border-action/40 bg-card p-1 shadow-lg ring-0 group-data-horizontal/tabs:h-11"
+        >
           {CALC_VIEWS.map((option) => (
-            <ViewChip
+            <TabsTrigger
               key={option.value}
-              active={view === option.value}
-              onClick={() => setView(option.value)}
-              label={option.label}
-            />
+              value={option.value}
+              className="px-4 font-semibold text-foreground/70 duration-300 ease-out data-active:border-action data-active:bg-background data-active:text-foreground data-active:shadow-md dark:data-active:border-action dark:data-active:bg-background dark:data-active:text-foreground"
+            >
+              {option.label}
+            </TabsTrigger>
           ))}
-        </nav>
-      </div>
+        </TabsList>
+      </Tabs>
 
       <div className="flex flex-col gap-4">
         {sectionsFor(view, page.kpis).map((section, position) => {
@@ -300,7 +299,7 @@ function FormulasEditor({ page, onApplied }: { page: FormulasPage; onApplied: ()
                       ? "The usage window changed, so these figures still use the old window. They change when you Save & Apply."
                       : undefined
                   }
-                  onPreview={() => runPreview(false)}
+                  onPreview={runPreview}
                   onFullResults={() => setFullOpen(true)}
                 />
               }
@@ -316,10 +315,6 @@ function FormulasEditor({ page, onApplied }: { page: FormulasPage; onApplied: ()
           <span className={cn("mr-1 text-sm", dirty ? "font-medium text-foreground" : "text-muted-foreground")}>
             {dirty ? `${changes.length} unsaved change${changes.length > 1 ? "s" : ""}` : "No unsaved changes"}
           </span>
-          <Button type="button" variant="outline" disabled={locked} onClick={() => (preview ? setFullOpen(true) : runPreview(true))}>
-            <Eye className="size-3.5" />
-            Preview the effect
-          </Button>
           <Button
             type="button"
             disabled={locked || !dirty}
@@ -510,22 +505,5 @@ function HistoryCard({ history }: { history: FormulasPage["history"] }) {
         </Table>
       )}
     </ChartCard>
-  )
-}
-
-/** The same pill toggle the Criticality history card uses for its plants. */
-function ViewChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-full border px-2.5 py-0.5 font-medium transition-colors",
-        active ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground hover:bg-muted"
-      )}
-    >
-      {label}
-    </button>
   )
 }
