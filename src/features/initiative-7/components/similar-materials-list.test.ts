@@ -86,7 +86,12 @@ describe("removing a similar material", () => {
     expect(markup).toContain("Reason (optional)")
     expect(markup).toContain("other part family")
     expect(markup).toContain("Confirm remove")
+    expect(markup).toContain("Nothing takes its place")
+    expect(markup).toContain("recalculated from the ones that remain")
+    expect(markup).not.toContain("next closest")
     expect(markup).toContain("Other materials are not affected")
+    // a space between the material name and "from" (it once rendered as "6Mfrom")
+    expect(markup).toMatch(/Bearing 2<\/span>\s+from this/)
   })
 
   it("disables every control while a request is in flight and says what is happening", () => {

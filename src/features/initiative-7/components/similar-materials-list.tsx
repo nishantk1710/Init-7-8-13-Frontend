@@ -267,9 +267,9 @@ function SimilarRow({
           <td colSpan={editable ? 8 : 7} className="pb-2.5">
             <div className="flex flex-col gap-2 rounded-md bg-muted/40 p-2.5">
               <p className="text-xs text-foreground">
-                Remove <span className="font-medium">{item.description ?? item.material}</span> from this
-                material&apos;s similar materials? The next closest match takes its place and the recommended figures
-                are recalculated. Other materials are not affected.
+                Remove <span className="font-medium">{item.description ?? item.material}</span>{" "}
+                from this material&apos;s similar materials? Nothing takes its place: the recommended figures are
+                recalculated from the ones that remain. Other materials are not affected.
               </p>
               <label htmlFor={reasonId} className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
                 Reason (optional)
