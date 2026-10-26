@@ -40,6 +40,12 @@ const VIEWS: Record<string, LifecycleView> = {
       "A purchase requisition is named on the reservation, but other reservations name the same PR, so its PO and receipts cannot be attributed to this one. It may already be ordered or received; the platform cannot tell for this reservation.",
     tone: "default",
   },
+  PR_DELETED: {
+    label: "PR deleted in SAP",
+    explanation:
+      "The purchase requisition named on this reservation was deleted in SAP (EBAN-LOEKZ = X) before any purchase order was placed on it. Nothing will be ordered or received against it.",
+    tone: "default",
+  },
   ORDERED: {
     label: "PO raised",
     explanation: "A purchase order has been placed; nothing received yet.",
