@@ -38,6 +38,15 @@ function valueChangeSortKey(rec: Recommendation): number | null {
   return view.kind === "released" ? view.amount : view.kind === "tied-up" ? -view.amount : 0
 }
 
+/** The rows a Value change sort shows. Sorting by a direction also limits the list to it: `released-first` keeps
+ * only the rows that release capital (green down arrows), `tied-up-first` only the ones that tie it up (amber up
+ * arrows). Unchanged rows and rows with no figure belong to neither, so they drop out. No sort keeps every row. */
+export function filterByValueChange(recs: Recommendation[], sort: ValueChangeSort): Recommendation[] {
+  if (sort === null) return recs
+  const kind = sort === "released-first" ? "released" : "tied-up"
+  return recs.filter((rec) => valueChangeView(rec).kind === kind)
+}
+
 /** The rows ordered by Value change. Rows with no figure always come last, whichever way it is sorted, and rows
  * that tie keep the order they came in. Orders what it is given: a page, not the catalogue. */
 export function sortByValueChange(recs: Recommendation[], sort: ValueChangeSort): Recommendation[] {

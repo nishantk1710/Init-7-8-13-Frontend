@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
-import { sortByValueChange, valueChangeView } from "./value-change"
+import { filterByValueChange, sortByValueChange, valueChangeView } from "./value-change"
 
 function rec(overrides: { impact: number | null; currentRop?: number; recommendedRop?: number; blocked?: boolean }) {
   return {
@@ -98,6 +98,15 @@ describe("sortByValueChange", () => {
   it("rows with no figure come last either way and are never ranked as 0", () => {
     expect(ids(sortByValueChange(rows, "released-first")).slice(5)).toEqual(["none", "blocked"])
     expect(ids(sortByValueChange(rows, "tied-up-first")).slice(5)).toEqual(["none", "blocked"])
+  })
+
+  it("a direction shows only that direction: no unchanged, no missing figure, nothing from the other side", () => {
+    expect(ids(filterByValueChange(rows, "released-first"))).toEqual(["released-big", "released-small"])
+    expect(ids(filterByValueChange(rows, "tied-up-first"))).toEqual(["tied-small", "tied-big"])
+  })
+
+  it("no sort filters nothing", () => {
+    expect(filterByValueChange(rows, null)).toBe(rows)
   })
 
   it("no sort keeps the order given, and does not change the input", () => {
