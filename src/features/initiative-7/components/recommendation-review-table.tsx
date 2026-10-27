@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
 
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
@@ -24,6 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
+import { valueChangeView } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
@@ -73,29 +74,28 @@ function isNotYetComputed(rec: Recommendation): boolean {
  * monetary delta. */
 function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?: Recommendation }) {
   const source = liveDetail ?? rec
-  if (isNotYetComputed(source)) {
+  const view = valueChangeView(source)
+  if (view.kind === "not-computed") {
     return <span className="text-muted-foreground">not yet computed</span>
   }
-
-  const delta = source.workingCapitalImpact
-  if (delta === 0) {
-    return <span className="text-muted-foreground">no change</span>
+  if (view.kind === "not-available") {
+    return <span className="text-muted-foreground">not available</span>
   }
 
-  const ropDelta = source.recommended.rop - source.current.rop
-  const pct = source.current.rop === 0 ? null : Math.round((ropDelta / source.current.rop) * 100)
-  // Positive workingCapitalImpact releases capital; negative ties more up.
-  const DeltaIcon = delta > 0 ? ArrowDown : ArrowUp
-  const tone = delta > 0 ? "text-success" : "text-warning"
+  // Released: reorder point down, green down arrow. Tied up: reorder point up, amber up arrow.
+  // Unchanged: a real 0, neutral. The arrow carries the direction, so the amount has no sign.
+  const DeltaIcon = view.kind === "released" ? ArrowDown : view.kind === "tied-up" ? ArrowUp : Minus
+  const tone =
+    view.kind === "released" ? "text-success" : view.kind === "tied-up" ? "text-warning" : "text-muted-foreground"
 
   return (
     <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
-      {formatMoney(Math.abs(delta), source.currency)}
-      {pct !== null && (
+      {formatMoney(view.amount, source.currency)}
+      {view.ropPercent !== null && (
         <span className="font-normal text-muted-foreground">
-          ({pct > 0 ? "+" : ""}
-          {pct}%)
+          ({view.ropPercent > 0 ? "+" : ""}
+          {view.ropPercent}%)
         </span>
       )}
     </div>
@@ -303,6 +303,15 @@ export function RecommendationReviewTable({
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
                       <TableCell colSpan={columnCount - 1} className="bg-muted/30 py-4 whitespace-normal">
+                        {/* The row truncates a long description to fit its column; the open row shows all of it. */}
+                        <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="text-sm font-medium break-words text-foreground">
+                            {rec.material.description}
+                          </span>
+                          {rec.material.materialCode !== rec.material.description && (
+                            <span className="text-xs text-muted-foreground">{rec.material.materialCode}</span>
+                          )}
+                        </div>
                         <ExpandedRecommendationPanel rec={rec} onDetail={recordDetail} />
                       </TableCell>
                     </TableRow>

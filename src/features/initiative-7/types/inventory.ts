@@ -210,8 +210,10 @@ export interface Recommendation {
    * absent on the scenario fixtures, which are ZAR. Format with formatMoney. */
   currency?: string | null
   annualConsumption: number
-  /** ZAR — positive releases working capital (stock reduced), negative is additional investment */
-  workingCapitalImpact: number
+  /** Unit price x (current ROP - recommended ROP), from the backend -- the Working Capital Impact card's rule.
+   * Positive releases working capital (reorder point reduced), negative is additional investment. `null` when it
+   * could not be calculated (blocked, no price, no reorder point): not 0, which would claim "no change". */
+  workingCapitalImpact: number | null
   consumptionHistory: ConsumptionPoint[]
   factors: RecommendationFactor[]
   championChallenger: ChampionChallenger

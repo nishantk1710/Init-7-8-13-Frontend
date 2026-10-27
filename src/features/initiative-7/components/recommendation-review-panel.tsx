@@ -299,11 +299,15 @@ export function RecommendationReviewPanel({
             {rec.unavailable?.includes("consumption") ? <NotAvailable /> : <>{formatCount(rec.annualConsumption)} units</>}
           </Fact>
           <Fact label="Working capital">
-            <span className={capital > 0 ? "font-medium text-success" : "font-medium text-warning"}>
-              {capital > 0 ? "−" : "+"}
-              {formatMoney(Math.abs(capital), rec.currency)}
-              {capital > 0 ? " released" : " tied up"}
-            </span>
+            {capital === null ? (
+              <NotAvailable />
+            ) : (
+              <span className={capital > 0 ? "font-medium text-success" : "font-medium text-warning"}>
+                {capital > 0 ? "−" : "+"}
+                {formatMoney(Math.abs(capital), rec.currency)}
+                {capital > 0 ? " released" : " tied up"}
+              </span>
+            )}
           </Fact>
         </dl>
 
