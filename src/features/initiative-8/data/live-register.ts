@@ -52,7 +52,6 @@
  * goods receipts are not read. The register `meta` counts what was left out.
  */
 
-import { DROPPED_TYPES } from "@/features/initiative-8/data/live-exceptions"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
   DeclarationCondition,
@@ -665,11 +664,10 @@ export function registerHref(filters: RegisterFilters, page = 1): string {
 /**
  * The request for what the screen shows.
  *
- * One parameter is always on, because it says what this listing is rather
- * than narrows it: `excludeExceptionType` keeps the Exceptions column to the
- * checks the exception queue carries (`DROPPED_TYPES`). Nothing is held back
- * from the listing itself any more -- every line the backend serves is open
- * in SAP.
+ * Nothing is held back: every line the backend serves is open in SAP, and
+ * the Exceptions column carries every check the exception queue does. It
+ * sent `excludeExceptionType=UNJUSTIFIED_ACQUISITION` from 14-Oct until
+ * 27-Oct-2026, while the queue left that check out (see `live-exceptions.ts`).
  */
 function registerQuery(filters: RegisterFilters): RegisterQuery {
   return {
@@ -684,7 +682,6 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     stageAgingBucket: filters.stageAging,
     withExceptions: filters.exceptions || undefined,
     view: filters.view,
-    excludeExceptionType: [...DROPPED_TYPES].join(","),
   }
 }
 

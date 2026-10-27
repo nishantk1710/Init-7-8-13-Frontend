@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import type { RepairChain } from "../types/repair"
 import {
+  EXCEPTION_TYPE_LABEL,
+  JUSTIFICATION_CELL_NOTE,
   UNKNOWN,
+  exceptionTypeLabel,
   formatDaysRemaining,
   hasNoDueDate,
   OVERDUE_STATUSES,
@@ -13,6 +16,8 @@ import {
   isPrOnly,
   isRepairOverdue,
   orUnknown,
+  purchaseFactLabel,
+  purchaseSummary,
   vendorLabel,
 } from "./status"
 
@@ -205,5 +210,49 @@ describe("NOT_ORDERED", () => {
     const requested = chain({ overdueStatus: "NOT_ORDERED", expectedReturn: undefined })
     expect(isRepairOverdue(requested)).toBe(false)
     expect(hasNoDueDate(requested)).toBe(false)
+  })
+})
+
+describe("bought new while a repair was open", () => {
+  it("names the check the way the queue's tab and drawer read it", () => {
+    expect(exceptionTypeLabel("UNJUSTIFIED_ACQUISITION")).toBe("Bought new while a repair was open")
+    expect(EXCEPTION_TYPE_LABEL.UNJUSTIFIED_ACQUISITION).toBe("Bought new while a repair was open")
+  })
+
+  it("says a new-buy PR requested a unit, not that it bought one", () => {
+    expect(
+      purchaseSummary({
+        purchase: { type: "PR", documentNumber: "1000201234", line: "10" },
+        raisedAt: "14 Mar 2026",
+      }),
+    ).toBe("New unit requested 14 Mar 2026 (PR 1000201234/10)")
+  })
+
+  it("keeps the PO wording for a PO ordered directly", () => {
+    expect(
+      purchaseSummary({
+        purchase: { type: "PO", documentNumber: "4100100001", line: "10" },
+        raisedAt: "14 Mar 2026",
+      }),
+    ).toBe("4100100001/10 bought 14 Mar 2026")
+  })
+
+  it("says so when the date is not known", () => {
+    expect(purchaseSummary({ purchase: { type: "PR", documentNumber: "1000201234" } })).toBe(
+      "New unit requested on an unknown date (PR 1000201234)",
+    )
+  })
+
+  it("calls a PR a purchase request in the drawer, anything else a purchase line", () => {
+    expect(purchaseFactLabel("PR")).toBe("Purchase request")
+    expect(purchaseFactLabel("PO")).toBe("Purchase line")
+    // An older backend's row, which carries no type.
+    expect(purchaseFactLabel(undefined)).toBe("Purchase line")
+  })
+
+  it("words the justification notes for a request as well as a purchase", () => {
+    expect(JUSTIFICATION_CELL_NOTE.MISSING).toBe(
+      "A new unit was requested or bought while this repair was out, and no reason was recorded.",
+    )
   })
 })

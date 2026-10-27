@@ -37,6 +37,7 @@ import {
   isPrOnly,
   isRepairOverdue,
   justificationCellOf,
+  purchaseSummary,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { cn, formatZAR } from "@/lib/utils"
@@ -616,8 +617,7 @@ function Justification({ chain }: { chain: RepairChain }) {
         <ul className="mt-3 flex flex-col gap-1.5 text-[13px]">
           {purchases.map((purchase) => (
             <li key={purchase.exceptionId} className="text-muted-foreground">
-              <span className="font-mono text-foreground">{docRef(purchase.purchase)}</span> bought{" "}
-              {purchase.raisedAt ?? "on an unknown date"}
+              <span className="text-foreground">{purchaseSummary(purchase)}</span>
               {purchase.preAutomation ? ", before the control existed" : ", no reason recorded"}
             </li>
           ))}

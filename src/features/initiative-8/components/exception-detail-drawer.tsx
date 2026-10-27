@@ -15,7 +15,7 @@ import { repairHref } from "@/features/initiative-8/components/repair-register-t
 import { toExceptionRow } from "@/features/initiative-8/data/live-exceptions"
 import type { ExceptionEvent, ExceptionQueueRow, ExceptionStatus } from "@/features/initiative-8/types/repair"
 import { actorLabel, isUnsigned, plantShort } from "@/features/initiative-8/utils/format"
-import { EXCEPTION_STATUS_LABEL, exceptionTypeLabel } from "@/features/initiative-8/utils/status"
+import { EXCEPTION_STATUS_LABEL, exceptionTypeLabel, purchaseFactLabel } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
 import { appendExceptionEvent, getException, type ApiExceptionItem } from "@/lib/api/i8"
 
@@ -236,6 +236,12 @@ export function ExceptionDetailDrawer({
                     SAP marking repair line {lineLink} delivery completed, or a later delivery date agreed with the
                     vendor and entered on the PO in SAP. Either one stops the check finding this item.
                   </>
+                ) : item.type === "UNJUSTIFIED_ACQUISITION" ? (
+                  <>
+                    A reason for buying new, recorded in the Spares Assistant for this part and plant near the date
+                    the new unit was requested. Once it is recorded the check stops finding this item. If the new unit was needed for a reason the assistant
+                    was never asked about, close the item with a note saying why.
+                  </>
                 ) : (
                   "The item clears itself when the data it was raised on changes."
                 )}
@@ -272,7 +278,7 @@ export function ExceptionDetailDrawer({
               <Fact label="Plant">{item.plant ? plantShort(item.plant.name ?? item.plant.plantId) : "Not known"}</Fact>
               <Fact label="Repair line">{lineLink}</Fact>
               {item.acquisitionLine && (
-                <Fact label="Purchase line">
+                <Fact label={purchaseFactLabel(item.acquisitionType)}>
                   <span className="font-mono">{item.acquisitionLine}</span>
                 </Fact>
               )}

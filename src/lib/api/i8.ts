@@ -232,10 +232,12 @@ export type ApiRepairJustificationEntry = {
   sessionId: string | null
 }
 
-/** A new unit bought while the line was out, with no reason on record — the
- *  `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
+/** A new unit requested or bought while the line was out, with no reason on
+ *  record — the `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
 export type ApiUnjustifiedPurchase = {
   exceptionId: string
+  /** `type` `PR` for a new-buy purchase request (since 27-Oct-2026), `PO` for
+   *  a PO ordered directly with no PR. An older backend always sent `PO`. */
   purchase: ApiSAPDocumentReference
   raisedAt: string | null
   /** Bought before the justification control existed — nobody was asked. */
@@ -524,10 +526,10 @@ export type ApiDeclarationPage = ApiPage<ApiDeclarationItem, ApiDeclarationMeta>
 /**
  * One row of `GET /api/i8/exceptions`.
  *
- * `type` is a plain string, not a closed union. Two are raised today —
+ * `type` is a plain string, not a closed union. Among those raised are
  * `MISSING_ATTESTATION` (a repair line went out with no condition assessment)
- * and `UNJUSTIFIED_ACQUISITION` (a new unit was bought while a repair of the
- * same material and plant was open, and nobody recorded why) — and the backend
+ * and `UNJUSTIFIED_ACQUISITION` (a new unit was requested or bought while a
+ * repair of the same material and plant was open, and nobody recorded why) — and the backend
  * declares more than it raises. A type this build has not heard of must still
  * render, so nothing may switch exhaustively over it.
  */
@@ -538,11 +540,14 @@ export type ApiExceptionItem = {
   material: ApiMaterialReference
   plant: ApiPlantReference | null
   /** The repair line. For `UNJUSTIFIED_ACQUISITION`, the repair that was open
-   *  when the new unit was bought. */
+   *  when the new unit was requested or bought: `type` `PO` for a repair PO
+   *  line, `PR` (since 27-Oct-2026) for a repair PR with no PO yet. */
   repairLine: ApiSAPDocumentReference
   /**
-   * The new-purchase PO line, for `UNJUSTIFIED_ACQUISITION`. Null for
-   * `MISSING_ATTESTATION`; optional until every backend in use serves it.
+   * The new-unit purchase, for `UNJUSTIFIED_ACQUISITION`: `type` `PR` for a
+   * new-buy purchase request (the usual case since 27-Oct-2026), `PO` for a
+   * PO ordered directly with no PR. An older backend always sent a PO line.
+   * Null for the other types; optional until every backend in use serves it.
    */
   acquisitionLine?: ApiSAPDocumentReference | null
   title: string

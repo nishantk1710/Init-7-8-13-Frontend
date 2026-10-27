@@ -18,27 +18,28 @@ import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
 /**
- * The FR-8 checks this queue carries, in the order their tabs read.
+ * The FR-8 checks this queue carries, in the order their tabs read. Each gets
+ * a tab only once the backend runs it.
  *
- * `UNJUSTIFIED_ACQUISITION` is deliberately not among them since 14-Oct-2026:
- * the reason for a new purchase is asked for at the reservation, by the Spares
- * Assistant (FR-5b), so it is a control rather than a queue item -- see
- * `DROPPED_TYPES` in `live-exceptions.ts`. `MISSING_SESSION_ID` gets a tab
- * only once the backend raises it.
+ * `UNJUSTIFIED_ACQUISITION` is back since 27-Oct-2026. It was left out from
+ * 14-Oct because it never fired (it dated a purchase from a PO-line date the
+ * live data does not carry); the backend now checks the new-buy purchase
+ * request, so it finds real work. See the header of `live-exceptions.ts`.
  */
-const ALL_CHECKS = ["MISSING_ATTESTATION", "OVERDUE_REPAIR", "MISSING_SESSION_ID"] as const
+const ALL_CHECKS = ["MISSING_ATTESTATION", "OVERDUE_REPAIR", "UNJUSTIFIED_ACQUISITION", "MISSING_SESSION_ID"] as const
 
 /** The tabs' short names; the drawer and the rows keep the full ones. */
 const TAB_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No declaration",
   OVERDUE_REPAIR: "Overdue",
+  UNJUSTIFIED_ACQUISITION: "Bought new",
   MISSING_SESSION_ID: "No assistant session",
 }
 
 /**
  * Repair Exceptions (FR-8, FR-9, FR-11) -- I08_Live_UI_Redesign_Plan.md, L5.
  *
- * Type tabs -- All, No declaration, Overdue -- with an Open / Closed / All
+ * Type tabs -- All, No declaration, Overdue, Bought new -- with an Open / Closed / All
  * switch beside them, in place of a type dropdown, a status dropdown, a
  * summary band and a "How each check works" box above the table. All comes
  * first so the Overview's "open exceptions" card lands on the same number.
@@ -123,6 +124,14 @@ export function ExceptionsScreen({
               <p>
                 <strong className="font-semibold text-foreground">Repair overdue.</strong> A repair line SAP still has
                 open, more than the grace period past the delivery date on its PO.
+              </p>
+            )}
+            {running("UNJUSTIFIED_ACQUISITION") && (
+              <p>
+                <strong className="font-semibold text-foreground">Bought new while a repair was open.</strong> A new
+                unit of a part was requested (or ordered directly) while a repair of the same part at the same plant
+                was still open, and no reason for buying new was recorded
+                {summary.justificationWindowDays ? ` within ${plural(summary.justificationWindowDays, "day")}` : ""}.
               </p>
             )}
             {running("MISSING_SESSION_ID") ? (

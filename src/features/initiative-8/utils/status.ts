@@ -6,6 +6,7 @@ import type {
   OverdueStatus,
   RepairChain,
   RepairStatus,
+  UnjustifiedPurchase,
 } from "@/features/initiative-8/types/repair"
 
 type Tone = "default" | "success" | "warning" | "danger"
@@ -64,14 +65,38 @@ export const JUSTIFICATION_CELL_TONE: Record<Exclude<JustificationCell, "NONE">,
   NOT_ASKED: "default",
 }
 
-/** The hover text behind each cell — what it means, in a sentence. */
+/** The hover text behind each cell — what it means, in a sentence. Since
+ *  27-Oct-2026 the check looks at the request for a new unit (the new-buy PR)
+ *  as well as a PO ordered directly, so the notes say "requested or bought". */
 export const JUSTIFICATION_CELL_NOTE: Record<JustificationCell, string> = {
   RECORDED: "A reason for buying new was recorded while this repair was out.",
   MISSING:
-    "A new unit was bought while this repair was out, and no reason was recorded.",
+    "A new unit was requested or bought while this repair was out, and no reason was recorded.",
   NOT_ASKED:
-    "A new unit was bought while this repair was out, before the justification control existed — nobody was asked.",
-  NONE: "No new unit was bought, and no reason recorded, while this repair was out.",
+    "A new unit was requested or bought while this repair was out, before the justification control existed — nobody was asked.",
+  NONE: "No new unit was requested or bought, and no reason recorded, while this repair was out.",
+}
+
+/**
+ * One purchase made while a repair was out, as the repair detail page lists
+ * it. A new-buy PR is a request for a unit, not a purchase yet, so it reads
+ * "New unit requested {date} (PR {n}/{item})"; a PO ordered directly keeps
+ * "{n}/{item} bought {date}". `raisedAt` is already a display date.
+ */
+export function purchaseSummary(
+  purchase: Pick<UnjustifiedPurchase, "purchase" | "raisedAt">,
+): string {
+  const { documentNumber, line } = purchase.purchase
+  const document = line ? `${documentNumber}/${line}` : documentNumber
+  const when = purchase.raisedAt ?? "on an unknown date"
+  return purchase.purchase.type === "PR"
+    ? `New unit requested ${when} (PR ${document})`
+    : `${document} bought ${when}`
+}
+
+/** The exception drawer's name for the purchase an item is about. */
+export function purchaseFactLabel(type: string | undefined): string {
+  return type === "PR" ? "Purchase request" : "Purchase line"
 }
 
 /** The lifecycle order, for sorting status options that come from the data. */
@@ -336,7 +361,7 @@ export function orUnknown(value: number | string | undefined): string {
  */
 export const EXCEPTION_TYPE_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No condition declaration",
-  UNJUSTIFIED_ACQUISITION: "Bought new, no justification",
+  UNJUSTIFIED_ACQUISITION: "Bought new while a repair was open",
   MISSING_SESSION_ID: "No assistant session",
   OVERDUE_REPAIR: "Repair overdue",
 }

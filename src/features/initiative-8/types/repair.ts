@@ -348,10 +348,12 @@ export interface RepairJustificationEntry {
   sessionId?: string
 }
 
-/** A new unit bought while the line was out, with no reason recorded. */
+/** A new unit requested or bought while the line was out, with no reason
+ *  recorded. */
 export interface UnjustifiedPurchase {
   /** The `UNJUSTIFIED_ACQUISITION` exception this is. */
   exceptionId: string
+  /** The new-buy PR (`type: 'PR'`), or a PO ordered directly with no PR. */
   purchase: SAPDocumentReference
   raisedAt?: string
   /** Bought before the justification control existed — nobody was asked. */
@@ -497,13 +499,22 @@ export interface ExceptionQueueRow {
   severity: string
   material: MaterialReference
   plant?: PlantReference
-  /** The repair line, as `{document}-{item}`. For an unjustified acquisition,
-   *  the repair that was already open when the new unit was bought. */
+  /** The repair, as the register keys it: `{EBELN}-{EBELP}` for a repair PO
+   *  line, `PR-{BANFN}-{BNFPO}` for a repair requested on a PR with no PO yet.
+   *  For an unjustified acquisition, the repair that was already open when the
+   *  new unit was requested or bought. */
   repairLine: string
   /** The register detail key, when the line can be linked at all. */
   repairId?: string
-  /** The new-purchase PO line, on an unjustified acquisition only. */
+  /** `PO` or `PR` (since 27-Oct-2026 a repair can be a PR with no PO yet).
+   *  An older backend always says `PO`. */
+  repairLineType?: SAPDocumentReference["type"]
+  /** The new-unit purchase, as `{document}-{item}`, on an unjustified
+   *  acquisition only. Usually a new-buy PR since 27-Oct-2026; a PO only when
+   *  it was ordered directly, with no PR. `acquisitionType` says which. */
   acquisitionLine?: string
+  /** `PR` or `PO`. Undefined when there is no purchase on the item. */
+  acquisitionType?: SAPDocumentReference["type"]
   title: string
   /** Says what is missing AND what was searched for — a finding nobody can
    *  trace to a rule is a finding nobody will act on. */

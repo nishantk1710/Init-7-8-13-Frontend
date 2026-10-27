@@ -389,13 +389,14 @@ describe("loadRegisterPage", () => {
     })
 
     // No excludeHeld since 19-Oct-2026: every line the backend serves is open
-    // in SAP, so there is nothing to hold back from the listing.
+    // in SAP, so there is nothing to hold back from the listing. No
+    // excludeExceptionType since 27-Oct-2026: the Exceptions column carries
+    // "bought new while a repair was open" again, as the queue does.
     expect(fetchPage).toHaveBeenCalledTimes(1)
     expect(fetchPage).toHaveBeenCalledWith({
       q: "pump",
       plant: "1300",
       withExceptions: true,
-      excludeExceptionType: "UNJUSTIFIED_ACQUISITION",
       page: 3,
       pageSize: 25,
     })
