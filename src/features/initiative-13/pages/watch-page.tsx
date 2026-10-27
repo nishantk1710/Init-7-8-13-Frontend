@@ -8,7 +8,7 @@ import { CalculatedAtNote, LoadFailure } from "@/features/initiative-13/componen
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
-import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
+import { UsagePatternView } from "@/features/initiative-13/components/usage-pattern-view"
 import { WatchTable } from "@/features/initiative-13/components/watch-table"
 import {
   loadLiveGrni,
@@ -289,7 +289,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
         <LoadFailure what="usage patterns" message={loadError} />
       ) : (
         <>
-          <UsagePatternTable rows={live.rows} />
+          <UsagePatternView rows={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="material-plants" />
         </>
       )}
