@@ -24,7 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
-import { sortByValueChange, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
+import { filterByValueChange, sortByValueChange, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
@@ -210,19 +210,23 @@ export function RecommendationReviewTable({
   const showCircuit = hasRealCircuit(recommendations)
   const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
-  // Clicking the Value change header cycles: backend order -> released first -> tied up first -> backend order.
-  // The backend pages the list and cannot order by this figure, so it reorders the rows on this page only.
+  // Clicking the Value change header cycles: all rows -> released only (largest first) -> tied up only (largest
+  // first) -> all rows. The backend pages the list and has no filter or sort for this figure, so this narrows and
+  // reorders the rows on this page only.
   const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
-  const rows = useMemo(() => sortByValueChange(recommendations, valueSort), [recommendations, valueSort])
+  const rows = useMemo(
+    () => sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
+    [recommendations, valueSort],
+  )
   const cycleValueSort = () =>
     setValueSort((current) => (current === null ? "released-first" : current === "released-first" ? "tied-up-first" : null))
   const SortIcon = valueSort === "released-first" ? ArrowDown : valueSort === "tied-up-first" ? ArrowUp : ArrowUpDown
   const sortHint =
     valueSort === null
-      ? "Sort by value change: released first"
+      ? "Show only released value change (down arrows)"
       : valueSort === "released-first"
-        ? "Sorted: most released first. Click for most tied up first"
-        : "Sorted: most tied up first. Click to clear"
+        ? "Showing only released, largest first. Click to show only tied up"
+        : "Showing only tied up, largest first. Click to show all"
 
   if (recommendations.length === 0) {
     return (
@@ -253,11 +257,17 @@ export function RecommendationReviewTable({
                   onClick={cycleValueSort}
                   title={sortHint}
                   aria-label={sortHint}
-                  className="inline-flex items-center justify-end gap-1 hover:text-foreground"
+                  className={cn(
+                    "inline-flex items-center justify-end gap-1 hover:text-foreground",
+                    valueSort !== null && "rounded-md bg-primary/10 px-1.5 py-0.5 text-foreground",
+                  )}
                 >
                   Value change
                   <SortIcon
-                    className={cn("size-3.5 shrink-0", valueSort === null && "text-muted-foreground")}
+                    className={cn(
+                      "size-3.5 shrink-0",
+                      valueSort === null ? "text-muted-foreground" : valueSort === "released-first" ? "text-success" : "text-warning",
+                    )}
                     aria-hidden="true"
                   />
                 </button>
@@ -268,6 +278,13 @@ export function RecommendationReviewTable({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {rows.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount} className="py-6 text-center text-muted-foreground">
+                  No {valueSort === "released-first" ? "released" : "tied-up"} value change on this page.
+                </TableCell>
+              </TableRow>
+            )}
             {rows.map((rec) => {
               const isExpanded = expandedId === rec.id
               const atRisk = rec.risk === "critical" || rec.risk === "high"
@@ -354,9 +371,10 @@ export function RecommendationReviewTable({
         </Table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Showing {recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"} · open a row for the
+        Showing {rows.length} recommendation{rows.length === 1 ? "" : "s"} · open a row for the
         forecast, rationale and submit action.
-        {valueSort !== null && " Value change is sorted within this page."}
+        {valueSort !== null &&
+          ` Only ${valueSort === "released-first" ? "released" : "tied-up"} value change on this page is shown (${recommendations.length} on the page); other pages are not filtered.`}
       </p>
     </div>
   )
