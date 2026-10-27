@@ -4,9 +4,10 @@ import Link from "next/link"
 import { Plus } from "lucide-react"
 
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
+import { deleteDraft, useRequestDrafts, type RequestDraft } from "@/components/assistant/request/request-drafts"
 import { Chip } from "@/components/assistant/request/request-parts"
 import { useRequestList } from "@/components/assistant/request/use-requests"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isNotEnabled } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
@@ -24,6 +25,8 @@ export function RequestList() {
           <Plus /> New request
         </Link>
       </div>
+
+      <DraftList />
 
       {loading ? (
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -76,5 +79,71 @@ export function RequestList() {
         </div>
       )}
     </div>
+  )
+}
+
+/** Requests saved as a draft in this browser (`request-drafts.ts`). Nothing when there are none. */
+function DraftList() {
+  const drafts = useRequestDrafts()
+  if (!drafts || drafts.length === 0) return null
+
+  function remove(draft: RequestDraft) {
+    if (window.confirm("Delete this draft? It cannot be recovered.")) deleteDraft(draft.id)
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <h2 className="text-sm font-semibold text-foreground">Drafts</h2>
+        <span className="text-xs text-muted-foreground">
+          Saved in this browser only. Nothing is recorded and no reference is given until you submit.
+        </span>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-dashed border-border bg-card">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
+            <tr>
+              <th className="px-3 py-2 font-medium">Saved</th>
+              <th className="px-3 py-2 font-medium">Requester</th>
+              <th className="px-3 py-2 font-medium">Plant · department</th>
+              <th className="px-3 py-2 font-medium">Materials</th>
+              <th className="px-3 py-2 font-medium">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {drafts.map((d) => (
+              <tr key={d.id} className="border-t border-border">
+                <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(d.savedAt).toLocaleString("en-GB")}</td>
+                <td className="px-3 py-2">{d.requester || "—"}</td>
+                <td className="px-3 py-2 text-xs">
+                  <span className="font-mono font-semibold">{d.rows[0]?.plant ?? "—"}</span>
+                  {d.department && <span className="ml-1.5 text-muted-foreground">{d.department}</span>}
+                </td>
+                <td className="px-3 py-2">
+                  <Chip tone="muted">
+                    {d.rows.length} material{d.rows.length === 1 ? "" : "s"}
+                  </Chip>
+                </td>
+                <td className="px-3 py-2">
+                  <span className="flex justify-end gap-1">
+                    <Link
+                      href={`/assistant/requests/new?draft=${encodeURIComponent(d.id)}`}
+                      className={buttonVariants({ variant: "outline", size: "xs" })}
+                    >
+                      Resume
+                    </Link>
+                    <Button type="button" variant="ghost" size="xs" onClick={() => remove(d)}>
+                      Delete
+                    </Button>
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }
