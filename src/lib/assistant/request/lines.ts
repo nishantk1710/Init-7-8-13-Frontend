@@ -69,9 +69,12 @@ export const EMPTY_DECLARATION: DeclarationDraft = {
   evidenceReference: "",
 }
 
-/** What is still missing on an open declaration, in the order the form asks. */
-export function declarationIssues(d: DeclarationDraft): string[] {
-  if (!d.open) return []
+/**
+ * What is still missing on an open declaration, in the order the form asks.
+ * A line from a draft saved before 27-Oct-2026 has no declaration at all: none made.
+ */
+export function declarationIssues(d: DeclarationDraft | undefined): string[] {
+  if (!d?.open) return []
   const issues: string[] = []
   if (parseQuantity(d.quantity) === null) issues.push("declared quantity")
   if (!d.conditionDescription.trim()) issues.push("condition")
@@ -81,9 +84,9 @@ export function declarationIssues(d: DeclarationDraft): string[] {
   return issues
 }
 
-/** The wire form of an open declaration; undefined when none is made. */
-export function declarationOf(d: DeclarationDraft): ApiLineDeclaration | undefined {
-  if (!d.open) return undefined
+/** The wire form of an open declaration; undefined when none is made (or the line predates them). */
+export function declarationOf(d: DeclarationDraft | undefined): ApiLineDeclaration | undefined {
+  if (!d?.open) return undefined
   const evidence = d.evidenceReference.trim()
   return {
     quantity: parseQuantity(d.quantity) ?? 0,
@@ -230,7 +233,8 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
         decision:
           previous?.kind === "i08" ? previous.decision : preview.unitExists === true ? null : "proceed_new",
         justification: previous?.kind === "i08" ? previous.justification : EMPTY_JUSTIFICATION,
-        declaration: previous?.kind === "i08" ? previous.declaration : EMPTY_DECLARATION,
+        // `?? EMPTY_DECLARATION`: a draft saved before declarations existed has none.
+        declaration: (previous?.kind === "i08" ? previous.declaration : undefined) ?? EMPTY_DECLARATION,
       }
     default:
       return { ...common, kind: preview.kind, reason: preview.reason }

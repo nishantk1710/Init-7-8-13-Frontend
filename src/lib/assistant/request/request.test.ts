@@ -222,6 +222,13 @@ describe("declaring the faulty unit with the request", () => {
     expect(answersOf(line)).not.toHaveProperty("declaration")
   })
 
+  it("treats a line from an older saved draft, with no declaration, as none made", () => {
+    const { declaration: _dropped, ...rest } = repair(false)
+    const old = rest as unknown as RepairableLine
+    expect(lineIssues(old)).toEqual([])
+    expect(answersOf(old)).not.toHaveProperty("declaration")
+  })
+
   it("asks for every required field once opened", () => {
     const line = repair(false)
     expect(lineIssues({ ...line, declaration: { ...line.declaration, open: true, quantity: "0" } })).toEqual([

@@ -18,6 +18,7 @@ import {
   type I08StockView,
 } from "@/lib/assistant/i08-facts-format"
 import {
+  EMPTY_DECLARATION,
   lineIssues,
   repairableNeedsJustification,
   toNumber,
@@ -212,7 +213,7 @@ function RepairableCard({
         <div className="border-t border-line px-4 py-3">
           <DeclarationFields
             idPrefix={row.key}
-            value={row.declaration}
+            value={row.declaration ?? EMPTY_DECLARATION}
             showErrors={showErrors}
             faultCategories={faultCategories}
             recommendations={recommendations}
