@@ -194,7 +194,13 @@ function LineRow({ line }: { line: ApiRequestLine }) {
   return (
     <tr className="border-t border-border align-top">
       <td className="px-3 py-3">
-        <span className="font-mono font-semibold tracking-wider text-foreground">{line.reference}</span>
+        <Link
+          href={`/assistant/sessions/${line.sessionId}`}
+          className="font-mono font-semibold tracking-wider text-ai-2 hover:underline"
+          title="Open this line's full conversation record"
+        >
+          {line.reference}
+        </Link>
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-0.5">
@@ -204,13 +210,7 @@ function LineRow({ line }: { line: ApiRequestLine }) {
             ) : (
               <Wrench className="size-3.5 text-ai-2" aria-label="Repairable" />
             )}
-            <Link
-              href={`/assistant/sessions/${line.sessionId}`}
-              className="font-mono text-xs font-semibold hover:underline"
-              title="Open this line's full conversation record"
-            >
-              {line.materialId}
-            </Link>
+            <span className="font-mono text-xs font-semibold">{line.materialId}</span>
           </span>
           <span>{line.materialDescription ?? <span className="text-muted-foreground italic">No description</span>}</span>
           <span className="text-[11px] text-muted-foreground">Plant {line.plant}</span>
