@@ -38,7 +38,7 @@ const LIFECYCLE_TONE: Record<"default" | "success" | "warning", DisplayTone> = {
 
 /** The row's left edge, in its lifecycle pill's colour. */
 const LIFECYCLE_EDGE: Record<"default" | "success" | "warning", string> = {
-  default: "shadow-[inset_4px_0_0_var(--primary-strong)]",
+  default: "shadow-[inset_4px_0_0_var(--action)]",
   success: "shadow-[inset_4px_0_0_var(--healthy)]",
   warning: "shadow-[inset_4px_0_0_var(--caution)]",
 }

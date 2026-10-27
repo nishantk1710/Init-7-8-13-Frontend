@@ -183,7 +183,7 @@ export function CopyReference({
       <span
         className={cn(
           "font-mono font-semibold tracking-wider text-foreground select-all",
-          size === "lg" && "ai-gradient-text text-xl font-bold tracking-[0.18em]"
+          size === "lg" && "ai-gradient-text text-xl font-semibold tracking-[0.18em]"
         )}
       >
         {value}

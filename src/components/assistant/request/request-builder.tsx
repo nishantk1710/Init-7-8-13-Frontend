@@ -383,7 +383,7 @@ export function RequestBuilder({
 
   return (
     <div className="flex flex-col gap-5 pb-28 [&_input]:min-h-11 [&_select]:min-h-11">
-      <section className="flex flex-col gap-4 rounded-card border border-line bg-card p-5">
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
         <StepHeading n={1}>Who is it for</StepHeading>
         <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
@@ -397,7 +397,7 @@ export function RequestBuilder({
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Plant</span>
             {requestPlant ? (
-              <div className="flex min-h-11 items-center gap-2 rounded-lg border border-line bg-action/10 px-3 text-sm">
+              <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-action/10 px-3 text-sm">
                 <span className="font-mono font-semibold">{requestPlant}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{plantName}</span>
                 <Button type="button" variant="ghost" size="xs" onClick={changePlant}>
@@ -405,7 +405,7 @@ export function RequestBuilder({
                 </Button>
               </div>
             ) : (
-              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-line px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Set by the first material you add
               </div>
             )}
@@ -426,7 +426,7 @@ export function RequestBuilder({
                 onChange={(code) => setPicked({ plant: requestPlant, code })}
               />
             ) : (
-              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-line px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Pick once the plant is set
               </div>
             )}
@@ -454,7 +454,7 @@ export function RequestBuilder({
       <AddMaterials rows={rows} requestPlant={requestPlant} maxLines={maxLines} onAdd={add} />
 
       {rows.length === 0 && (
-        <div className="rounded-card border border-dashed border-line bg-card p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Add materials above. Each one is checked and goes to the right table automatically.
         </div>
       )}
@@ -528,7 +528,7 @@ export function RequestBuilder({
             subtitle="Kept on the request so you can see why nothing is asked. Reserve these as usual."
             count={noSessionRows.length}
           />
-          <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-card">
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
             {noSessionRows.map((row) => (
               <li key={row.key} className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 text-sm">
                 <span className="font-mono text-xs font-semibold">{row.materialId}</span>
@@ -549,9 +549,9 @@ export function RequestBuilder({
         </section>
       )}
 
-      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-card border border-line bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
+      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-sm font-bold text-foreground">
+          <span className="text-sm font-semibold text-foreground">
             {sessionRows.length === 0
               ? "No materials that need the assistant yet"
               : `${readyCount} of ${sessionRows.length} line${sessionRows.length === 1 ? "" : "s"} ready`}
@@ -622,7 +622,7 @@ export function RequestBuilder({
 
 export function NotEnabledNotice() {
   return (
-    <div className="flex flex-col gap-2 rounded-card border border-line bg-card p-6 text-sm">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm">
       <span className="font-medium text-foreground">Requests are not switched on yet.</span>
       <span className="text-muted-foreground">
         The backend answers these routes only when ASSISTANT_REQUESTS_ENABLED is set. Until then, check one material at
@@ -635,8 +635,8 @@ export function NotEnabledNotice() {
 /** A numbered step: the number in a filled circle, then the step's name. */
 function StepHeading({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <h2 className="flex items-center gap-2.5 text-base font-bold text-foreground">
-      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+    <h2 className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
         {n}
       </span>
       <span>
@@ -662,7 +662,7 @@ function SectionTitle({
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-lg bg-action/10 text-action">{icon}</span>
       <div className="flex flex-col">
-        <h2 className="text-base font-bold text-foreground">
+        <h2 className="text-base font-semibold text-foreground">
           {title} <span className="font-normal text-muted-foreground">({count})</span>
         </h2>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -755,7 +755,7 @@ function AddMaterials({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-line bg-card p-5">
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <StepHeading n={2}>Add materials</StepHeading>
       <p className="-mt-2 text-xs text-muted-foreground">
         {requestPlant
@@ -856,7 +856,7 @@ function OarApplyAll({
   const active = rows.filter((r) => r.decision === "proceed").length
 
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-line bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
         Apply to all {active} OAR line{active === 1 ? "" : "s"} being procured
       </span>
@@ -930,8 +930,8 @@ function JustificationApplyAll({
 }) {
   const [value, setValue] = useState<Justification>(EMPTY_JUSTIFICATION)
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-card border border-line bg-card p-4")}>
-      <span className="text-sm font-bold text-foreground">{label}</span>
+    <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-xl border border-border bg-card p-4")}>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
       <select
         aria-label={`${label} -- reason`}
         className={cn(SELECT_CLASS, "w-48")}

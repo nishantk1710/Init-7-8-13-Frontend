@@ -25,12 +25,12 @@ export function AttentionTotalCard({
   const total = areas.reduce((sum, a) => sum + a.count, 0)
   const summary = areas.map((a) => `${INITIATIVE_NAME[a.id]}: ${formatCount(a.count)}`).join(", ")
   return (
-    <section className="flex flex-col gap-5 rounded-card border border-line bg-card p-5 lg:flex-row lg:items-center lg:gap-8">
+    <section className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5 lg:flex-row lg:items-center lg:gap-8">
       <div className="shrink-0">
-        <p className="text-[44px] leading-none font-extrabold tracking-tight text-ink tabular-nums">
+        <p className="text-[30px] leading-none font-semibold tracking-tight text-foreground tabular-nums">
           {formatCount(total)}
         </p>
-        <p className="mt-1.5 text-sm text-ink-muted">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           items need attention across {areas.length} area{areas.length === 1 ? "" : "s"}
         </p>
       </div>
@@ -55,14 +55,14 @@ export function AttentionTotalCard({
           {areas.map((a) => (
             <li key={a.id} className="flex items-center gap-2">
               <span aria-hidden className={cn("size-2 rounded-full", AREA_FILL[a.id])} />
-              <span className="text-ink">{INITIATIVE_NAME[a.id]}</span>
-              <span className="font-semibold text-ink-muted tabular-nums">{formatCount(a.count)}</span>
+              <span className="text-foreground">{INITIATIVE_NAME[a.id]}</span>
+              <span className="font-semibold text-muted-foreground tabular-nums">{formatCount(a.count)}</span>
             </li>
           ))}
           <li className="flex items-center gap-2">
             <span aria-hidden className={cn("size-2 rounded-full", APPROVALS_FILL)} />
-            <span className="text-ink">Of which waiting for a decision</span>
-            <span className="font-semibold text-ink-muted tabular-nums">{formatCount(decisionTotal)}</span>
+            <span className="text-foreground">Of which waiting for a decision</span>
+            <span className="font-semibold text-muted-foreground tabular-nums">{formatCount(decisionTotal)}</span>
           </li>
         </ul>
         {failedModules > 0 && (

@@ -279,7 +279,7 @@ export function SessionLogTable({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-card border border-line bg-card [&_[data-slot=table-cell]]:py-3 [&_[data-slot=table-head]]:h-11 [&_[data-slot=table-head]]:text-xs [&_[data-slot=table-head]]:font-semibold [&_[data-slot=table-head]]:text-muted-foreground">
+        <div className="overflow-hidden rounded-xl border border-border bg-card [&_[data-slot=table-cell]]:py-3 [&_[data-slot=table-head]]:h-11 [&_[data-slot=table-head]]:text-xs [&_[data-slot=table-head]]:font-semibold [&_[data-slot=table-head]]:text-muted-foreground">
           <Table>
             <caption className="sr-only">
               Assistant sessions{flow === "all" ? "" : `, ${flowLabel(flow)} only`}
@@ -315,7 +315,7 @@ export function SessionLogTable({
                         multi-material request, the session ID otherwise. */}
                     <Link
                       href={`/assistant/sessions/${session.sessionId}`}
-                      className="font-mono text-sm font-bold tracking-wider text-action underline-offset-4 hover:underline"
+                      className="font-mono text-sm font-semibold tracking-wider text-action underline-offset-4 hover:underline"
                     >
                       {session.reference ?? session.sessionId}
                     </Link>
@@ -433,7 +433,7 @@ export function SessionLogTable({
 
       <div className="flex flex-col gap-1">
         <p className="text-xs text-muted-foreground">
-          <span className="font-bold text-foreground">{filtered.length}</span> of {sessions.length} loaded sessions match
+          <span className="font-semibold text-foreground">{filtered.length}</span> of {sessions.length} loaded sessions match
           {total > sessions.length && ` · ${total} recorded in total`}
         </p>
         {/* The backend's own note about what this list is and is not. Served
@@ -524,7 +524,7 @@ function FilterGroup({
               "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
               value === option.value
                 ? "border-foreground bg-foreground text-background"
-                : "border-line bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                : "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
             )}
           >
             {option.label}

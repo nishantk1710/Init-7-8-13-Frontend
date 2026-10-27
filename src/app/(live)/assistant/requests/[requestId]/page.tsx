@@ -18,7 +18,7 @@ export async function generateMetadata({
 export default async function RequestPage({ params }: { params: Promise<{ requestId: string }> }) {
   const { requestId } = await params
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Link

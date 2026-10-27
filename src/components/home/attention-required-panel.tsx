@@ -20,9 +20,9 @@ const SEVERITY_ICON = {
 
 /** The icon sits in a tinted circle in its severity's colour. */
 const SEVERITY_CLASS = {
-  info: "bg-muted text-ink-muted",
-  warning: "bg-caution-tint text-caution-ink",
-  critical: "bg-urgent-tint text-urgent-ink",
+  info: "bg-muted text-muted-foreground",
+  warning: "bg-warning/15 text-warning",
+  critical: "bg-destructive/10 text-destructive",
 } as const
 
 const SEVERITY_LABEL = {
@@ -78,13 +78,13 @@ export function AttentionRequiredPanel({
 }) {
   const hidden = (total ?? actions.length) - Math.min(actions.length, SHOWN)
   return (
-    <section aria-labelledby="priority-actions-heading" className="rounded-card border border-line bg-card p-5">
+    <section aria-labelledby="priority-actions-heading" className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 id="priority-actions-heading" className="text-base font-bold text-ink">
+          <h2 id="priority-actions-heading" className="text-base font-semibold text-foreground">
             Priority actions
           </h2>
-          <p className="mt-0.5 text-sm text-ink-muted">What needs a decision right now. Click through to act on it.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">What needs a decision right now. Click through to act on it.</p>
         </div>
         {(onFilterChange || onSortChange) && (
           <div className="flex flex-wrap items-center gap-2">
@@ -99,8 +99,8 @@ export function AttentionRequiredPanel({
                     className={cn(
                       "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                       filter === f.value
-                        ? "border-ink bg-ink text-card"
-                        : "border-line bg-card text-ink-muted hover:border-ink-muted hover:text-ink"
+                        ? "border-foreground bg-foreground text-card"
+                        : "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
                     )}
                   >
                     {f.label}
@@ -114,7 +114,7 @@ export function AttentionRequiredPanel({
                 <select
                   value={sort}
                   onChange={(e) => onSortChange(e.target.value as ActionSort)}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm font-medium text-ink focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="min-h-11 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
                   <option value="urgent">Most urgent first</option>
                   <option value="newest">Newest first</option>
@@ -137,7 +137,7 @@ export function AttentionRequiredPanel({
           )
         ) : (
           <>
-            <ul className="flex flex-col divide-y divide-line">
+            <ul className="flex flex-col divide-y divide-border">
               {actions.slice(0, SHOWN).map((action) => {
                 const Icon = SEVERITY_ICON[action.severity]
                 const due = action.dueAt ? relativeDue(action.dueAt) : null
@@ -145,7 +145,7 @@ export function AttentionRequiredPanel({
                   <li key={action.id}>
                     <Link
                       href={action.href}
-                      className="flex min-h-14 items-center gap-3 rounded-lg px-2 py-3 hover:bg-page focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                      className="flex min-h-14 items-center gap-3 rounded-lg px-2 py-3 hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <span
                         className={cn(
@@ -157,8 +157,8 @@ export function AttentionRequiredPanel({
                         <span className="sr-only">{SEVERITY_LABEL[action.severity]}</span>
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-ink">{action.title}</div>
-                        <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+                        <div className="truncate text-sm font-medium text-foreground">{action.title}</div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span aria-hidden className={cn("size-1.5 rounded-full", AREA_FILL[action.initiative])} />
                           {INITIATIVE_LABEL[action.initiative]} · {formatWhen(action.createdAt)}
                         </div>
@@ -174,14 +174,14 @@ export function AttentionRequiredPanel({
               })}
             </ul>
             {hidden > 0 && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-sm text-ink-muted">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-sm text-muted-foreground">
                 <span>
-                  Showing <span className="font-bold text-ink">{Math.min(actions.length, SHOWN)}</span> of{" "}
-                  <span className="font-bold text-ink">{formatCount(total ?? actions.length)}</span>
+                  Showing <span className="font-semibold text-foreground">{Math.min(actions.length, SHOWN)}</span> of{" "}
+                  <span className="font-semibold text-foreground">{formatCount(total ?? actions.length)}</span>
                 </span>
                 <Link
                   href="/actions"
-                  className="inline-flex min-h-11 items-center font-semibold text-primary-ink hover:underline"
+                  className="inline-flex min-h-11 items-center font-semibold text-action hover:underline"
                 >
                   View all actions
                 </Link>

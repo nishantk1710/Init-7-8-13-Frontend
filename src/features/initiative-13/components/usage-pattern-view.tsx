@@ -50,16 +50,16 @@ export function UsagePatternView({ rows }: { rows: UsagePattern[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ul aria-label="Pattern key" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink-muted">
+        <ul aria-label="Pattern key" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
           {KEY_ORDER.map((kind) => (
             <li key={kind} className="flex items-center gap-1.5">
               <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[kind])} />
               {USAGE_KIND_LABEL[kind]}
             </li>
           ))}
-          <li className="text-ink-muted/80">Gone quiet: nothing issued in the last 6 months of history. Steady: issued in at least half the months.</li>
+          <li className="text-muted-foreground/80">Gone quiet: nothing issued in the last 6 months of history. Steady: issued in at least half the months.</li>
         </ul>
-        <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-line bg-card p-1">
+        <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-border bg-card p-1">
           {(
             [
               ["cards", LayoutGrid, "Cards"],
@@ -75,7 +75,7 @@ export function UsagePatternView({ rows }: { rows: UsagePattern[] }) {
               onClick={() => choose(value)}
               className={cn(
                 "inline-flex size-10 items-center justify-center rounded-md transition-colors",
-                layout === value ? "bg-primary-tint text-primary-ink" : "text-ink-muted hover:text-ink"
+                layout === value ? "bg-action/10 text-action" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon aria-hidden className="size-4" />
