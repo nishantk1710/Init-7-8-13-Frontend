@@ -311,10 +311,12 @@
   --line: #e2e8f0;
   --ink: #0f172a;
   --ink-muted: #475569;
-  --primary-strong: #4338ca;
-  --primary-strong-hover: #3730a3;
-  --primary-tint: #e0e7ff;
-  --primary-ink: #3730a3;
+  /* The sidebar's active blue (--nav-active), not indigo: one blue for every
+     selected and primary thing on the pages that use these tokens. */
+  --primary-strong: #1f74c0;
+  --primary-strong-hover: #1a63a5;
+  --primary-tint: #e6f0f9;
+  --primary-ink: #0b5394;
   --healthy: #10b981;
   --healthy-ink: #065f46;
   --healthy-tint: #d1fae5;
@@ -334,10 +336,10 @@
   --line: oklch(1 0 0 / 12%);
   --ink: oklch(0.985 0 0);
   --ink-muted: #a3adbd;
-  --primary-strong: #4f46e5;
-  --primary-strong-hover: #4338ca;
-  --primary-tint: rgba(99, 102, 241, 0.2);
-  --primary-ink: #c7d2fe;
+  --primary-strong: #1f74c0;
+  --primary-strong-hover: #2a82d0;
+  --primary-tint: rgb(31 116 192 / 0.22);
+  --primary-ink: #a9d0f5;
   --healthy: #10b981;
   --healthy-ink: #6ee7b7;
   --healthy-tint: rgba(16, 185, 129, 0.16);
@@ -352,13 +354,26 @@
   --attention-ink: #fdba74;
 }
 
+/* `.nav-blue-scope`: the restyled Home and assistant pages (Requests, Request,
+   New request, Sessions). The shared Button, badges, rings and links take the
+   sidebar's active blue in place of the app's indigo primary. */
+.nav-blue-scope {
+  --primary: var(--primary-strong);
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+}
+
+.dark .nav-blue-scope {
+  --ring: #5aa2e0;
+}
+
 /* The OAR Utilization screens (features/initiative-13/components/ui/oar-scope.tsx).
    The shared shadcn tokens are re-pointed here, so Button, Tabs, Select and
    Input inside take the indigo primary, slate text and borders without being
    edited -- the rest of the app keeps its own. */
 .oar-scope {
   --primary: var(--primary-strong);
-  --ring: #6366f1;
+  --ring: #2f80c9;
   --foreground: var(--ink);
   --card-foreground: var(--ink);
   --muted-foreground: var(--ink-muted);
@@ -371,7 +386,7 @@
 }
 
 .dark .oar-scope {
-  --ring: #818cf8;
+  --ring: #5aa2e0;
 }
 
 /* 44px touch targets for every control on these screens, shared ones included. */
