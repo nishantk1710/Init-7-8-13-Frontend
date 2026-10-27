@@ -167,6 +167,9 @@ export interface RepairChain {
    * second, unrelated one — which is how an audit chain becomes a pile.
    */
   declarationId?: string
+  /** How that declaration was matched to the line; undefined when none
+   *  covers it or the backend does not say. */
+  declarationLink?: "BOUND" | "REFERENCE" | "WINDOW"
 
   /**
    * Where this line stands against its promised date. Authoritative when
@@ -515,6 +518,11 @@ export interface ExceptionQueueRow {
   acquisitionLine?: string
   /** `PR` or `PO`. Undefined when there is no purchase on the item. */
   acquisitionType?: SAPDocumentReference["type"]
+  /** The reservation line, as `{RSNUM}-{RSPOS}`, on a reservation with no
+   *  R-reference (`MISSING_SESSION_ID`) only. */
+  reservationLine?: string
+  /** The declaration the item is about, on the two declaration-based checks. */
+  declarationId?: string
   title: string
   /** Says what is missing AND what was searched for — a finding nobody can
    *  trace to a rule is a finding nobody will act on. */

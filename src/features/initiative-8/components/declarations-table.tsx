@@ -22,7 +22,7 @@ import {
 } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationQueueRow, RepairStatus } from "@/features/initiative-8/types/repair"
 import { plantShort, stageLabel } from "@/features/initiative-8/utils/format"
-import { declarationAction, declarationDisplay } from "@/features/initiative-8/utils/declaration"
+import { declarationAction, declarationDisplay, queueRowLine } from "@/features/initiative-8/utils/declaration"
 import { requesterText } from "@/features/initiative-8/utils/repair-request"
 import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { downloadExcel } from "@/lib/utils"
@@ -323,9 +323,9 @@ export function DeclarationsTable({
             defaultQuantity: "1",
             // A covered row amends its declaration rather than adding a second one.
             supersedes: declaring.declarationId,
-            // FR-4's link to the repair PO: working a queue row declares THAT line.
-            repairDocument: declaring.repairPO?.documentNumber,
-            repairItem: declaring.repairPO?.line,
+            // FR-4's link to the repair line: working a queue row declares THAT
+            // line -- its repair PO, or the open repair PR on a PR row.
+            ...queueRowLine(declaring),
           }}
           faultCategories={faultCategories}
         />

@@ -29,7 +29,7 @@ import { isRepairRequestId } from "@/features/initiative-8/data/live-repair-deta
 import type { ExceptionQueueRow, RepairChain } from "@/features/initiative-8/types/repair"
 import { conditionLabel, humanize, isUnsigned, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { NO_PO_YET, repairRequestBanner, requesterText } from "@/features/initiative-8/utils/repair-request"
-import { declarationAction, declarationDisplay } from "@/features/initiative-8/utils/declaration"
+import { declarationAction, declarationDisplay, declarationLinkLabel } from "@/features/initiative-8/utils/declaration"
 import {
   JUSTIFICATION_CELL_NOTE,
   exceptionTypeLabel,
@@ -91,9 +91,9 @@ function useRegisterHref(): string {
  *
  * A repair requested with no PO yet (a PR row, `PR-{BANFN}-{BNFPO}`, since
  * 27-Oct-2026) has no vendor, no return date and no PO line to declare
- * against: it says "No PO yet" in a banner, its timeline starts at "Repair
- * requested", and Declare is not offered -- the backend refuses a declaration
- * on it until phase 2.
+ * against: it says "No PO yet" in a banner and its timeline starts at "Repair
+ * requested". Since phase 2 (27-Oct-2026) it is declared on the repair PR
+ * itself, so Declare is offered there as on a PO line.
  */
 export function RepairDetailPage({
   repairId,
@@ -176,23 +176,21 @@ export function RepairDetailPage({
         </>
       }
       actions={
-        requested ? undefined : (
-          <>
-            {declarationAction(chain.declarationStatus, chain.declarationId) === null ? undefined : chain.declarationId ? (
-              // An attestation is never edited: an amendment is a new row
-              // pointing at the old one, which stays readable.
-              <DeclareConditionButton
-                chain={chain}
-                faultCategories={faultCategories}
-                label="Amend declaration"
-                size="lg"
-                supersedes={chain.declarationId}
-              />
-            ) : (
-              <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
-            )}
-          </>
-        )
+        <>
+          {declarationAction(chain.declarationStatus, chain.declarationId) === null ? undefined : chain.declarationId ? (
+            // An attestation is never edited: an amendment is a new row
+            // pointing at the old one, which stays readable.
+            <DeclareConditionButton
+              chain={chain}
+              faultCategories={faultCategories}
+              label="Amend declaration"
+              size="lg"
+              supersedes={chain.declarationId}
+            />
+          ) : (
+            <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
+          )}
+        </>
       }
     >
       {banner && (
@@ -230,15 +228,11 @@ export function RepairDetailPage({
         <span>Open {plural(chain.daysOpen, "day")}</span>
         <span className="inline-flex items-center gap-1.5">
           Declaration
-          {requested && chain.declarationStatus === "Required" ? (
-            <StatusDot tone="muted">Not yet, no PO</StatusDot>
-          ) : (
-            <StatusDot tone={declarationDisplay(chain.declarationStatus).tone}>
-              <span title={declarationDisplay(chain.declarationStatus).hint}>
-                {declarationDisplay(chain.declarationStatus).label}
-              </span>
-            </StatusDot>
-          )}
+          <StatusDot tone={declarationDisplay(chain.declarationStatus).tone}>
+            <span title={declarationLinkLabel(chain.declarationLink) ?? declarationDisplay(chain.declarationStatus).hint}>
+              {declarationDisplay(chain.declarationStatus).label}
+            </span>
+          </StatusDot>
         </span>
       </div>
 
@@ -408,7 +402,7 @@ function RepairTimeline({
             icon: TriangleAlert,
             state: "late",
             when: chain.declaredAt ?? stage.timestamp,
-            note: `${conditionLabel(chain.condition)}, declared by ${isUnsigned(chain.declaredBy) ? "someone not signed in" : chain.declaredBy}`,
+            note: `${conditionLabel(chain.condition)}, declared by ${isUnsigned(chain.declaredBy) ? "someone not signed in" : chain.declaredBy}${declarationLinkLabel(chain.declarationLink) ? ` · ${declarationLinkLabel(chain.declarationLink)}` : ""}`,
           }
         }
         if (happened || chain.declarationStatus === "Completed") {
@@ -420,16 +414,17 @@ function RepairTimeline({
             note: (
               <>
                 {conditionLabel(chain.condition)}, declared by <Actor actor={chain.declaredBy} />
+                {declarationLinkLabel(chain.declarationLink) && <> · {declarationLinkLabel(chain.declarationLink)}</>}
               </>
             ),
           }
         }
-        // No Declare on a repair request: there is no PO line to declare
-        // against yet, and the backend refuses one.
+        // Declare on a PO line and, since 27-Oct-2026, on a repair request
+        // (bound to its PR). Never on a Historical line.
         return {
           ...base,
           state: "todo",
-          note: requested ? (
+          note: declarationAction(chain.declarationStatus, chain.declarationId) !== "declare" ? (
             "Not declared yet"
           ) : (
             <span className="inline-flex flex-wrap items-center gap-x-1.5">

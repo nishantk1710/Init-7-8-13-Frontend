@@ -43,7 +43,8 @@ export type LiveRepairDetail = {
 
 /** Stages that mean something happened, so a date makes them a success. No
  *  "received" stage since 19-Oct-2026: every line served is open in SAP.
- *  `pr_raised` ("Repair requested") arrived on 27-Oct-2026, on PR rows. */
+ *  `pr_raised` ("Repair requested") arrived on 27-Oct-2026, on PR rows, and
+ *  in phase 2 on PO rows whose PR is known. */
 const COMPLETED_TONE: Record<string, TimelineEvent["tone"]> = {
   pr_raised: "default",
   attested: "success",

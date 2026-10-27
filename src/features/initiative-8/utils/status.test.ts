@@ -256,3 +256,12 @@ describe("bought new while a repair was open", () => {
     )
   })
 })
+
+describe("the declaration and reservation checks (27-Oct-2026)", () => {
+  it("names each new check the way the queue and the drawer read it", () => {
+    expect(exceptionTypeLabel("REPAIRED_AGAINST_ASSESSMENT")).toBe("Repaired against the assessment")
+    expect(exceptionTypeLabel("REPAIR_PR_NOT_DECLARED")).toBe("Repair PR not declared")
+    expect(exceptionTypeLabel("DECLARED_NO_REPAIR_PR")).toBe("Declared, no repair PR yet")
+    expect(exceptionTypeLabel("MISSING_SESSION_ID")).toBe("Reservation with no R-reference")
+  })
+})

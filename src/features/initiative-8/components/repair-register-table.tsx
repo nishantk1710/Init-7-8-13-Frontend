@@ -464,8 +464,7 @@ export function RepairRegisterTable({
                   const overdue = overdueStatusOf(c)
                   const late = c.daysRemainingInRepair !== undefined && c.daysRemainingInRepair < 0 ? -c.daysRemainingInRepair : 0
                   const declaration = DECLARATION[c.declarationStatus] ?? { tone: "warn" as const, label: c.declarationStatus }
-                  // A repair requested with no PO yet: no vendor, no date, and
-                  // nothing to declare against until the PO is raised.
+                  // A repair requested with no PO yet: no vendor and no date.
                   const requested = isPrOnly(c)
                   return (
                     <TableRow
@@ -536,21 +535,17 @@ export function RepairRegisterTable({
                       </Cell>
                       <Cell right>{formatCount(c.daysOpen)}</Cell>
                       <Cell>
-                        {requested ? (
-                          <span className="text-muted-foreground" title="Nothing to declare against until the repair has a PO">
-                            —
-                          </span>
-                        ) : (
-                          <span
-                            title={
-                              c.declaredAt
-                                ? `Declared ${c.declaredAt}${c.condition ? `: ${c.condition}` : ""}`
-                                : declaration.hint
-                            }
-                          >
-                            <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>
-                          </span>
-                        )}
+                        {/* A repair request is declared on its PR since 27-Oct-2026,
+                            so it shows its status like a PO line. */}
+                        <span
+                          title={
+                            c.declaredAt
+                              ? `Declared ${c.declaredAt}${c.condition ? `: ${c.condition}` : ""}`
+                              : declaration.hint
+                          }
+                        >
+                          <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>
+                        </span>
                       </Cell>
                       <Cell>
                         {c.exceptions === undefined ? (

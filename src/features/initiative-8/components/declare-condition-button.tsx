@@ -20,8 +20,8 @@ import { isPrOnly } from "@/features/initiative-8/utils/status"
  * needed the same form per row and the part-first entry point needed it with
  * no repair line at all.
  *
- * Renders nothing on a repair requested with no PO yet (`targetOf` refuses
- * it): the screens already hide it there, and this is the backstop.
+ * On a repair requested with no PO yet (a PR row) it declares on that PR,
+ * since 27-Oct-2026. Renders nothing only when `targetOf` finds no line.
  */
 export function DeclareConditionButton({
   chain,
@@ -77,17 +77,17 @@ export function DeclareConditionButton({
 }
 
 /**
- * One repair line as a declaration target, or null for a repair requested
- * with no PO yet.
+ * One repair line as a declaration target: its repair PO line, or for a
+ * repair requested with no PO yet (a PR row) its open repair PR, sent as
+ * `repairDocumentType: 'PR'` (contract B1, 27-Oct-2026).
  *
- * Refused rather than sent without a line: a declaration from a repair line
- * that names no PO would land as a part-level one, matched on material, plant
- * and a date window, and read as if it were this line's. The backend refuses a
- * declaration on a repair request too (since 27-Oct-2026), until declaring on
- * the PR is built.
+ * Null for a line that names neither: a declaration from it would land as a
+ * part-level one, matched on material, plant and a date window, and read as
+ * if it were this line's.
  */
 export function targetOf(chain: RepairChain, supersedes?: string): DeclarationTarget | null {
-  if (isPrOnly(chain)) return null
+  const onRequest = isPrOnly(chain)
+  if (onRequest && !(chain.repairPR?.documentNumber && chain.repairPR.line)) return null
   return {
     materialId: chain.material.materialId,
     // The live adapter spells a line with no plant as "—". An attestation is
@@ -104,7 +104,8 @@ export function targetOf(chain: RepairChain, supersedes?: string): DeclarationTa
     // Taken from `repairPO` rather than splitting `chain.id`: the backend
     // builds both from the same EBELN/EBELP, and splitting a string on a
     // hyphen guesses at a document number that may one day contain one.
-    repairDocument: chain.repairPO?.documentNumber,
-    repairItem: chain.repairPO?.line,
+    ...(onRequest
+      ? { repairDocument: chain.repairPR.documentNumber, repairItem: chain.repairPR.line, repairDocumentType: "PR" as const }
+      : { repairDocument: chain.repairPO?.documentNumber, repairItem: chain.repairPO?.line, repairDocumentType: "PO" as const }),
   }
 }

@@ -77,3 +77,79 @@ export function declarationFormProblem(form: {
 export function optionalText(value: string): string | undefined {
   return value.trim() || undefined
 }
+
+/**
+ * How the covering declaration was matched to a repair line (contract B3,
+ * 27-Oct-2026), in the words the repair page uses. Undefined for a link this
+ * build has not heard of, so nothing is claimed about it.
+ */
+export const DECLARATION_LINK_LABEL: Record<string, string> = {
+  BOUND: "Declared",
+  REFERENCE: "Linked through the R-reference on the repair order",
+  WINDOW: "Matched by part and date",
+}
+
+export function declarationLinkLabel(link: string | undefined | null): string | undefined {
+  return link ? DECLARATION_LINK_LABEL[link] : undefined
+}
+
+/**
+ * A register row id as the line a declaration binds to: `{EBELN}-{EBELP}` is
+ * a repair PO line, `PR-{BANFN}-{BNFPO}` a repair PR with no PO yet. Cut at
+ * the last hyphen, because the item number never holds one.
+ */
+export function repairLineOfId(repairId: string | undefined): {
+  repairDocument?: string
+  repairItem?: string
+  repairDocumentType?: "PO" | "PR"
+} {
+  if (!repairId) return {}
+  const cut = repairId.lastIndexOf("-")
+  if (cut <= 0) return {}
+  const document = repairId.slice(0, cut)
+  const repairItem = repairId.slice(cut + 1)
+  return document.startsWith("PR-")
+    ? { repairDocument: document.slice(3), repairItem, repairDocumentType: "PR" }
+    : { repairDocument: document, repairItem, repairDocumentType: "PO" }
+}
+
+/** The checks whose finding a first declaration clears. */
+const CLEARED_BY_DECLARING = new Set(["MISSING_ATTESTATION", "REPAIR_PR_NOT_DECLARED"])
+/** The checks about a declaration already recorded: amending it is the fix
+ *  when the declaration itself was wrong. */
+const ABOUT_A_DECLARATION = new Set(["REPAIRED_AGAINST_ASSESSMENT", "DECLARED_NO_REPAIR_PR"])
+
+/**
+ * What the exception drawer offers: Declare, Amend, or nothing. The same rules
+ * as the register: nothing on an item raised before declarations began (the
+ * drawer's Historical), nothing once the check no longer finds it, and nothing
+ * without a plant, because a declaration is per material and plant.
+ */
+export function exceptionDeclarationAction(item: {
+  type: string
+  stillDetected: boolean
+  preAutomation: boolean
+  declarationId?: string
+  plant?: { plantId: string }
+}): "declare" | "amend" | null {
+  if (!item.stillDetected || item.preAutomation || !item.plant?.plantId) return null
+  if (CLEARED_BY_DECLARING.has(item.type)) return "declare"
+  if (ABOUT_A_DECLARATION.has(item.type) && item.declarationId) return "amend"
+  return null
+}
+
+/**
+ * The line a declaration-queue row binds to: its repair PO line, else (a PR
+ * row, `PR-{BANFN}-{BNFPO}`, since 27-Oct-2026) its open repair PR. Nothing
+ * for a row that names neither, which then declares on part and plant.
+ */
+export function queueRowLine(row: {
+  relatedRepairId: string
+  repairPO?: { documentNumber: string; line?: string }
+}): { repairDocument?: string; repairItem?: string; repairDocumentType?: "PO" | "PR" } {
+  if (row.repairPO?.documentNumber) {
+    return { repairDocument: row.repairPO.documentNumber, repairItem: row.repairPO.line, repairDocumentType: "PO" }
+  }
+  const line = repairLineOfId(row.relatedRepairId)
+  return line.repairDocumentType === "PR" ? line : {}
+}

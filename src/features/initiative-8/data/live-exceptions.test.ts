@@ -168,6 +168,37 @@ describe("toExceptionRow: bought new while a repair was open", () => {
   })
 })
 
+describe("toExceptionRow: the declaration and reservation checks", () => {
+  it("carries the reservation line of a reservation with no R-reference", () => {
+    const row = toExceptionRow(
+      item({
+        id: "EX-MISSING_SESSION_ID-R-0000123456-0001",
+        type: "MISSING_SESSION_ID",
+        reservationLine: { type: "RESERVATION", documentNumber: "0000123456", line: "0001" },
+      }) as ApiExceptionItem,
+    )
+
+    expect(row.reservationLine).toBe("0000123456-0001")
+    expect(row.declarationId).toBeUndefined()
+  })
+
+  it("carries the declaration a declaration-based item is about", () => {
+    const row = toExceptionRow(
+      item({ type: "REPAIRED_AGAINST_ASSESSMENT", declarationId: "att-42" }) as ApiExceptionItem,
+    )
+
+    expect(row.declarationId).toBe("att-42")
+    expect(row.reservationLine).toBeUndefined()
+  })
+
+  it("reads an older backend's item, which sends neither", () => {
+    const row = toExceptionRow(item() as ApiExceptionItem)
+
+    expect(row.reservationLine).toBeUndefined()
+    expect(row.declarationId).toBeUndefined()
+  })
+})
+
 /**
  * The Exceptions screen pages on the server. What these pin: the screen opens
  * on Open and its URL says so only when it is not; the queue's own two

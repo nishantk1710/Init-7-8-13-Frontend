@@ -191,6 +191,13 @@ export type ApiRepairChain = {
   /** The attestation covering this line, when one does — so the detail page
    *  can offer to amend it rather than only to add another. */
   declarationId?: string | null
+  /**
+   * How the covering declaration was matched to this line: it named the line
+   * (`BOUND`), the R-reference typed on the repair order (`REFERENCE`), or the
+   * material, plant and date window (`WINDOW`). Null when nothing covers it.
+   * Absent on an older backend.
+   */
+  declarationLink?: "BOUND" | "REFERENCE" | "WINDOW" | null
   declaredBy?: string | null
   /** ISO timestamp of the attestation. */
   declaredAt?: string | null
@@ -558,6 +565,18 @@ export type ApiExceptionItem = {
    * Null for the other types; optional until every backend in use serves it.
    */
   acquisitionLine?: ApiSAPDocumentReference | null
+  /**
+   * The 80-series reservation line with no valid R-reference, on a
+   * `MISSING_SESSION_ID` item (`type` `RESERVATION`: RSNUM and RSPOS). Absent
+   * on an older backend.
+   */
+  reservationLine?: ApiSAPDocumentReference | null
+  /**
+   * The declaration a `REPAIRED_AGAINST_ASSESSMENT` or `DECLARED_NO_REPAIR_PR`
+   * item is about, so the drawer can offer to amend it. Absent on an older
+   * backend.
+   */
+  declarationId?: string | null
   title: string
   /** Says what is missing AND what was searched for. */
   detail: string

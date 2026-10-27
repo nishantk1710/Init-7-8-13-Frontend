@@ -250,6 +250,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // What the Declaration Queue used to show per row. The attestation is a
     // full timestamp; the register shows its date, the way the queue did.
     declarationId: orUndefined(row.declarationId),
+    declarationLink: orUndefined(row.declarationLink),
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --

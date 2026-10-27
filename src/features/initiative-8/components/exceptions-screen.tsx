@@ -26,14 +26,25 @@ import { formatCount } from "@/lib/utils"
  * live data does not carry); the backend now checks the new-buy purchase
  * request, so it finds real work. See the header of `live-exceptions.ts`.
  */
-const ALL_CHECKS = ["MISSING_ATTESTATION", "OVERDUE_REPAIR", "UNJUSTIFIED_ACQUISITION", "MISSING_SESSION_ID"] as const
+const ALL_CHECKS = [
+  "MISSING_ATTESTATION",
+  "REPAIR_PR_NOT_DECLARED",
+  "REPAIRED_AGAINST_ASSESSMENT",
+  "DECLARED_NO_REPAIR_PR",
+  "OVERDUE_REPAIR",
+  "UNJUSTIFIED_ACQUISITION",
+  "MISSING_SESSION_ID",
+] as const
 
 /** The tabs' short names; the drawer and the rows keep the full ones. */
 const TAB_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No declaration",
   OVERDUE_REPAIR: "Overdue",
   UNJUSTIFIED_ACQUISITION: "Bought new",
-  MISSING_SESSION_ID: "No assistant session",
+  MISSING_SESSION_ID: "No R-reference",
+  REPAIR_PR_NOT_DECLARED: "PR not declared",
+  REPAIRED_AGAINST_ASSESSMENT: "Against assessment",
+  DECLARED_NO_REPAIR_PR: "No repair PR",
 }
 
 /**
@@ -120,6 +131,25 @@ export function ExceptionsScreen({
                 {summary.attestationWindowDays} days of the line being raised.
               </p>
             )}
+            {running("REPAIR_PR_NOT_DECLARED") && (
+              <p>
+                <strong className="font-semibold text-foreground">Repair PR not declared.</strong> A repair requested
+                on a purchase requisition, open longer than the grace period, with no condition declaration for it.
+              </p>
+            )}
+            {running("REPAIRED_AGAINST_ASSESSMENT") && (
+              <p>
+                <strong className="font-semibold text-foreground">Repaired against the assessment.</strong> A unit
+                declared beyond economical repair or scrap was sent for repair anyway.
+              </p>
+            )}
+            {running("DECLARED_NO_REPAIR_PR") && (
+              <p>
+                <strong className="font-semibold text-foreground">Declared, no repair PR yet.</strong> A unit declared
+                repairable longer ago than the grace period, with no repair requested for the same part and plant
+                since.
+              </p>
+            )}
             {running("OVERDUE_REPAIR") && (
               <p>
                 <strong className="font-semibold text-foreground">Repair overdue.</strong> A repair line SAP still has
@@ -136,8 +166,9 @@ export function ExceptionsScreen({
             )}
             {running("MISSING_SESSION_ID") ? (
               <p>
-                <strong className="font-semibold text-foreground">No assistant session.</strong> A reservation for an
-                80-series part whose item text names no valid Spares Assistant session.
+                <strong className="font-semibold text-foreground">Reservation with no R-reference.</strong> A
+                reservation for an 80-series part whose item text carries no valid Spares Assistant R-reference, or
+                carries one that is mistyped.
               </p>
             ) : (
               <p>

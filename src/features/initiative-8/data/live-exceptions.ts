@@ -124,6 +124,12 @@ export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
         : row.acquisitionLine.documentNumber
       : undefined,
     acquisitionType: row.acquisitionLine?.type,
+    reservationLine: row.reservationLine
+      ? row.reservationLine.line
+        ? `${row.reservationLine.documentNumber}-${row.reservationLine.line}`
+        : row.reservationLine.documentNumber
+      : undefined,
+    declarationId: row.declarationId ?? undefined,
     title: row.title,
     detail: row.detail,
     raisedAt: row.raisedAt ? i08Date(row.raisedAt) : undefined,

@@ -364,8 +364,12 @@ export function orUnknown(value: number | string | undefined): string {
 export const EXCEPTION_TYPE_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No condition declaration",
   UNJUSTIFIED_ACQUISITION: "Bought new while a repair was open",
-  MISSING_SESSION_ID: "No assistant session",
+  MISSING_SESSION_ID: "Reservation with no R-reference",
   OVERDUE_REPAIR: "Repair overdue",
+  // The declaration checks, 27-Oct-2026 (contract B4).
+  REPAIRED_AGAINST_ASSESSMENT: "Repaired against the assessment",
+  REPAIR_PR_NOT_DECLARED: "Repair PR not declared",
+  DECLARED_NO_REPAIR_PR: "Declared, no repair PR yet",
 }
 
 export const EXCEPTION_SEVERITY_TONE: Record<string, Tone> = {
