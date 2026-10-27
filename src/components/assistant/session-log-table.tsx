@@ -31,6 +31,32 @@ import {
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { departmentText } from "@/lib/assistant/request/record"
+import {
+  SESSION_OUTCOME_LABEL,
+  sessionOutcome,
+  type SessionOutcome,
+} from "@/lib/assistant/session-outcome"
+
+/** Outcome pill and the row's left edge, one colour each. */
+const OUTCOME_PILL: Record<SessionOutcome, string> = {
+  followed: "bg-success/10 text-success",
+  "went-ahead": "bg-warning/15 text-warning",
+  "not-acted": "bg-destructive/10 text-destructive",
+  open: "bg-muted text-muted-foreground",
+}
+
+const OUTCOME_EDGE: Record<SessionOutcome, string> = {
+  followed: "shadow-[inset_4px_0_0_var(--success)]",
+  "went-ahead": "shadow-[inset_4px_0_0_var(--warning)]",
+  "not-acted": "shadow-[inset_4px_0_0_var(--destructive)]",
+  open: "shadow-[inset_4px_0_0_var(--line)]",
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  COMPLETED: "Completed",
+  OPEN: "Open",
+  ABANDONED: "Abandoned",
+}
 
 /**
  * The session log.
@@ -54,13 +80,18 @@ export function SessionLogTable({
   sessions,
   note,
   total,
+  wentAheadIds = [],
 }: {
   sessions: ApiSessionSummary[]
   note: string
   total: number
+  /** Sessions with a "went ahead anyway" justification (`wentAheadSessionIds`). */
+  wentAheadIds?: string[]
 }) {
   const [flow, setFlow] = useState<string>("all")
   const [outcome, setOutcome] = useState<string>("all")
+  const [result, setResult] = useState<string>("all")
+  const wentAhead = useMemo(() => new Set(wentAheadIds), [wentAheadIds])
   const [reservation, setReservation] = useState<string>("all")
   const [search, setSearch] = useState("")
 
@@ -69,6 +100,7 @@ export function SessionLogTable({
     return sessions.filter((session) => {
       if (flow !== "all" && session.flow !== flow) return false
       if (outcome !== "all" && session.outcome !== outcome) return false
+      if (result !== "all" && sessionOutcome(session, wentAhead) !== result) return false
       if (!matchesReservationFilter(session, reservation)) return false
       if (
         needle &&
@@ -94,17 +126,18 @@ export function SessionLogTable({
       }
       return true
     })
-  }, [sessions, flow, outcome, reservation, search])
+  }, [sessions, flow, outcome, result, wentAhead, reservation, search])
 
   // 25 to a page on screen; the filters, search and export still cover every
   // loaded session.
   const { paged, page, pageSize, total: filteredTotal, setPage } = usePaginatedRows(filtered, {
-    resetKey: [flow, outcome, reservation, search].join("|"),
+    resetKey: [flow, outcome, result, reservation, search].join("|"),
   })
 
   const activeFilters =
     (flow !== "all" ? 1 : 0) +
     (outcome !== "all" ? 1 : 0) +
+    (result !== "all" ? 1 : 0) +
     (reservation !== "all" ? 1 : 0) +
     (search.trim() ? 1 : 0)
 
@@ -126,6 +159,7 @@ export function SessionLogTable({
         "Opened from",
         "Turns",
         "AI session status",
+        "Outcome",
         "Issued",
         "Expires",
         "Reservation",
@@ -145,6 +179,7 @@ export function SessionLogTable({
         session.origin,
         session.turns,
         session.outcome,
+        SESSION_OUTCOME_LABEL[sessionOutcome(session, wentAhead)],
         session.issuedAt,
         session.expiresAt,
         reservationExportCell(session),
@@ -153,15 +188,27 @@ export function SessionLogTable({
   }
 
   return (
-    <div className="ai-scope flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, request, material, reservation…"
+          placeholder="Search reference, request, material, requester…"
           aria-label="Search sessions"
-          className="h-9 w-full sm:w-72"
+          className="h-11 w-full bg-card sm:w-80"
         />
+        <Button
+          variant="outline"
+          size="lg"
+          className="min-h-11 px-4 font-semibold"
+          onClick={exportExcel}
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-4" aria-hidden />
+          Export Excel
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <FilterGroup
           label="Flow"
           value={flow}
@@ -184,6 +231,18 @@ export function SessionLogTable({
           ]}
         />
         <FilterGroup
+          label="Outcome"
+          value={result}
+          onChange={setResult}
+          options={[
+            { value: "all", label: "All" },
+            { value: "followed", label: SESSION_OUTCOME_LABEL.followed },
+            { value: "went-ahead", label: SESSION_OUTCOME_LABEL["went-ahead"] },
+            { value: "not-acted", label: SESSION_OUTCOME_LABEL["not-acted"] },
+            { value: "open", label: SESSION_OUTCOME_LABEL.open },
+          ]}
+        />
+        <FilterGroup
           label="Reservation"
           value={reservation}
           onChange={setReservation}
@@ -199,21 +258,11 @@ export function SessionLogTable({
           onClear={() => {
             setFlow("all")
             setOutcome("all")
+            setResult("all")
             setReservation("all")
             setSearch("")
           }}
         />
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={exportExcel}
-          disabled={filtered.length === 0}
-        >
-          <Download className="size-3.5" />
-          Export Excel
-        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -230,11 +279,12 @@ export function SessionLogTable({
           }
         />
       ) : (
-        <div className="animate-ai-message-in overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="overflow-hidden rounded-card border border-line bg-card [&_[data-slot=table-cell]]:py-3 [&_[data-slot=table-head]]:h-11 [&_[data-slot=table-head]]:text-xs [&_[data-slot=table-head]]:font-semibold [&_[data-slot=table-head]]:text-muted-foreground">
           <Table>
             <caption className="sr-only">
               Assistant sessions{flow === "all" ? "" : `, ${flowLabel(flow)} only`}
               {outcome === "all" ? "" : `, ${outcome.toLowerCase()} only`}
+              {result === "all" ? "" : `, ${SESSION_OUTCOME_LABEL[result as SessionOutcome].toLowerCase()} only`}
               {reservation === "all" ? "" : `, ${reservation === "linked" ? "linked" : "not linked"} only`}
               {search.trim() ? `, matching "${search.trim()}"` : ""}
             </caption>
@@ -250,19 +300,22 @@ export function SessionLogTable({
                 <TableHead>Opened from</TableHead>
                 <TableHead>Turns</TableHead>
                 <TableHead>AI session status</TableHead>
+                <TableHead>Outcome</TableHead>
                 <TableHead>Issued</TableHead>
                 <TableHead>Reservation</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paged.map((session) => (
-                <TableRow key={session.sessionId} className="transition-colors hover:bg-ai-2/[0.04]">
-                  <TableCell>
+              {paged.map((session) => {
+                const result = sessionOutcome(session, wentAhead)
+                return (
+                <TableRow key={session.sessionId}>
+                  <TableCell className={OUTCOME_EDGE[result]}>
                     {/* What the requester typed into SAP: R…/n for a line of a
                         multi-material request, the session ID otherwise. */}
                     <Link
                       href={`/assistant/sessions/${session.sessionId}`}
-                      className="ai-gradient-text font-mono text-xs font-semibold tracking-wider underline-offset-4 hover:underline"
+                      className="font-mono text-sm font-bold tracking-wider text-action underline-offset-4 hover:underline"
                     >
                       {session.reference ?? session.sessionId}
                     </Link>
@@ -271,7 +324,7 @@ export function SessionLogTable({
                     {session.requestId ? (
                       <Link
                         href={`/assistant/requests/${session.requestId}`}
-                        className="font-mono text-ai-2 underline-offset-4 hover:underline"
+                        className="font-mono text-action underline-offset-4 hover:underline"
                         title="Open the multi-material request this line belongs to"
                       >
                         {session.requestId}
@@ -281,7 +334,12 @@ export function SessionLogTable({
                     )}
                   </TableCell>
                   <TableCell>
-                    <span className="whitespace-nowrap rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-semibold text-ai-2">
+                    <span
+                      className={cn(
+                        "whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        session.flow === "i13" ? "bg-action/10 text-action" : "bg-warning/15 text-warning"
+                      )}
+                    >
                       {flowLabel(session.flow)}
                     </span>
                   </TableCell>
@@ -328,14 +386,26 @@ export function SessionLogTable({
                   <TableCell>
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-semibold lowercase",
-                        session.outcome === "COMPLETED" && "bg-success/15 text-success",
-                        session.outcome === "OPEN" && "bg-ai-2/10 text-ai-2",
+                        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        session.outcome === "COMPLETED" && "bg-success/10 text-success",
+                        session.outcome === "OPEN" && "bg-action/10 text-action",
                         // Abandoned is an outcome, not a failure: neutral.
                         session.outcome === "ABANDONED" && "bg-muted text-muted-foreground"
                       )}
                     >
-                      {session.outcome}
+                      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                      {STATUS_LABEL[session.outcome] ?? session.outcome}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        OUTCOME_PILL[result]
+                      )}
+                    >
+                      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                      {SESSION_OUTCOME_LABEL[result]}
                     </span>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -345,7 +415,8 @@ export function SessionLogTable({
                     <ReservationCell session={session} />
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>
@@ -361,8 +432,8 @@ export function SessionLogTable({
       />
 
       <div className="flex flex-col gap-1">
-        <p className="text-[11px] text-muted-foreground">
-          {filtered.length} of {sessions.length} loaded sessions match
+        <p className="text-xs text-muted-foreground">
+          <span className="font-bold text-foreground">{filtered.length}</span> of {sessions.length} loaded sessions match
           {total > sessions.length && ` · ${total} recorded in total`}
         </p>
         {/* The backend's own note about what this list is and is not. Served
@@ -407,7 +478,7 @@ function ReservationCell({ session }: { session: ApiSessionSummary }) {
     <span className="flex flex-wrap items-center gap-1">
       <Link
         href={linkedReservationsHref(session)}
-        className="font-mono whitespace-nowrap text-ai-2 underline-offset-4 hover:underline"
+        className="font-mono whitespace-nowrap text-action underline-offset-4 hover:underline"
         title={`${session.flow === "i13" ? "Open in the Utilization Ledger" : "Open the session trace"}: ${state.refs.join(", ")}`}
       >
         {shown.join(", ")}
@@ -437,18 +508,11 @@ function FilterGroup({
   options: { value: string; label: string }[]
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className="text-[11px] tracking-[0.3px] text-muted-foreground uppercase"
-        id={`filter-${label}`}
-      >
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-muted-foreground" id={`filter-${label.replaceAll(" ", "-")}`}>
         {label}
       </span>
-      <div
-        className="flex gap-0.5 rounded-full bg-muted p-0.5"
-        role="group"
-        aria-labelledby={`filter-${label}`}
-      >
+      <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`filter-${label.replaceAll(" ", "-")}`}>
         {options.map((option) => (
           <button
             key={option.value}
@@ -456,11 +520,11 @@ function FilterGroup({
             onClick={() => onChange(option.value)}
             aria-pressed={value === option.value}
             className={cn(
-              "rounded-full px-2.5 py-1 text-xs font-medium transition-all",
+              "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors",
               "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
               value === option.value
-                ? "ai-gradient text-white shadow-sm shadow-ai-2/30"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-foreground bg-foreground text-background"
+                : "border-line bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
             )}
           >
             {option.label}
@@ -474,7 +538,7 @@ function FilterGroup({
 function formatDate(iso: string): string {
   const parsed = new Date(iso)
   if (Number.isNaN(parsed.getTime())) return iso
-  return parsed.toLocaleDateString(undefined, {
+  return parsed.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",

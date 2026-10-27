@@ -26,7 +26,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
 const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
-  OPEN: "neutral",
+  OPEN: "primary",
   PARTIALLY_RECEIVED: "caution",
   RECEIVED: "healthy",
   CLOSED: "neutral",
@@ -34,7 +34,7 @@ const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
 }
 
 const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
-  NOT_ISSUED: "neutral",
+  NOT_ISSUED: "urgent",
   PARTIALLY_ISSUED: "caution",
   FULLY_ISSUED: "healthy",
 }
@@ -145,7 +145,7 @@ export function UtilizationLedgerTable({
               <TableHead className="text-right">Received</TableHead>
               <TableHead>Delivered on</TableHead>
               <TableHead className="text-right">Issued</TableHead>
-              <TableHead className="text-right">Open</TableHead>
+              <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead>Procurement</TableHead>
               <TableHead>Utilization</TableHead>
             </TableRow>

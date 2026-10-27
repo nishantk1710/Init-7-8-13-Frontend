@@ -46,7 +46,7 @@ export function OarTable({
   onRemove: (key: string) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <div className="overflow-x-auto rounded-card border border-line bg-card">
       <table className="w-full min-w-[1120px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
@@ -55,7 +55,7 @@ export function OarTable({
             <th className="px-3 py-2 font-medium">On hand</th>
             <th className="w-48 px-3 py-2 font-medium">
               <span className="inline-flex items-center gap-1">
-                <Sparkles className="size-3 text-ai-2" aria-hidden />1 · Suggested
+                <Sparkles className="size-3 text-action" aria-hidden />1 · Suggested
               </span>
             </th>
             <th className="w-24 px-3 py-2 font-medium">2 · Quantity</th>
@@ -160,7 +160,7 @@ function OarRow({
               <span
                 className={cn(
                   "w-fit rounded-md px-2 py-0.5 font-mono text-base font-bold",
-                  kind === "suggested" && "ai-gradient text-white",
+                  kind === "suggested" && "bg-primary text-primary-foreground",
                   kind === "covered" && "bg-success/15 text-success",
                   kind === "none" && "bg-muted font-sans text-xs font-medium text-muted-foreground"
                 )}
@@ -191,7 +191,7 @@ function OarRow({
             {!declined && row.suggested !== null && row.suggested > 0 && quantity !== row.suggested && (
               <button
                 type="button"
-                className="inline-flex w-fit items-center gap-1 text-[11px] text-ai-2 hover:underline"
+                className="inline-flex w-fit items-center gap-1 text-[11px] text-action hover:underline"
                 onClick={() => onChange(withSuggestedWindow({ ...row, quantity: String(row.suggested), changed: false }))}
               >
                 <RotateCcw className="size-3" aria-hidden />
@@ -234,7 +234,7 @@ function OarRow({
             {!declined && windowDiffers && (
               <button
                 type="button"
-                className="inline-flex w-fit items-center gap-1 text-[11px] text-ai-2 hover:underline"
+                className="inline-flex w-fit items-center gap-1 text-[11px] text-action hover:underline"
                 onClick={() => onChange(withSuggestedWindow({ ...row, windowEdited: false }))}
               >
                 <RotateCcw className="size-3" aria-hidden />

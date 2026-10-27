@@ -103,7 +103,7 @@ export function KpiCard({
       <span className="mt-1.5 truncate text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
         {value}
       </span>
-      {hint && <p className="text-[13.5px] text-muted-foreground">{hint}</p>}
+      {hint && <div className="text-[13.5px] text-muted-foreground">{hint}</div>}
     </div>
   )
 }

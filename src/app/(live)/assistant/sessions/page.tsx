@@ -3,6 +3,7 @@ import Link from "next/link"
 import { connection } from "next/server"
 
 import { SessionLogTable } from "@/components/assistant/session-log-table"
+import { wentAheadSessionIds } from "@/lib/assistant/session-outcome"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import {
   CompliancePanel,
@@ -114,9 +115,10 @@ export default async function AssistantSessionsPage({
   ]
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <AssistantPageHeader
+          plain
           title="Assistant sessions"
           description={
             material || plant
@@ -144,6 +146,7 @@ export default async function AssistantSessionsPage({
               sessions={sessions.items}
               note={sessions.note}
               total={sessions.total}
+              wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
             />
           </>
         )}
