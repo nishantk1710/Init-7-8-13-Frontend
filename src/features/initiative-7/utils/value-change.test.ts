@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
-import { valueChangeView } from "./value-change"
+import { sortByValueChange, valueChangeView } from "./value-change"
 
 function rec(overrides: { impact: number | null; currentRop?: number; recommendedRop?: number; blocked?: boolean }) {
   return {
@@ -58,5 +58,51 @@ describe("valueChangeView", () => {
     expect(valueChangeView(rec({ impact: 0, currentRop: 0, recommendedRop: 0, blocked: true }))).toEqual({
       kind: "not-computed",
     })
+  })
+})
+
+describe("sortByValueChange", () => {
+  const row = (id: string, impact: number | null, blocked = false) =>
+    ({ ...rec({ impact, blocked }), id }) as unknown as Recommendation
+  const ids = (recs: Recommendation[]) => recs.map((r) => (r as unknown as { id: string }).id)
+  const rows = [
+    row("tied-small", -10),
+    row("none", null),
+    row("released-big", 500),
+    row("unchanged", 0),
+    row("blocked", 999, true),
+    row("tied-big", -300),
+    row("released-small", 20),
+  ]
+
+  it("released first: largest release at the top, then unchanged, then the most tied up", () => {
+    expect(ids(sortByValueChange(rows, "released-first")).slice(0, 5)).toEqual([
+      "released-big",
+      "released-small",
+      "unchanged",
+      "tied-small",
+      "tied-big",
+    ])
+  })
+
+  it("tied up first: the most tied up at the top", () => {
+    expect(ids(sortByValueChange(rows, "tied-up-first")).slice(0, 5)).toEqual([
+      "tied-big",
+      "tied-small",
+      "unchanged",
+      "released-small",
+      "released-big",
+    ])
+  })
+
+  it("rows with no figure come last either way and are never ranked as 0", () => {
+    expect(ids(sortByValueChange(rows, "released-first")).slice(5)).toEqual(["none", "blocked"])
+    expect(ids(sortByValueChange(rows, "tied-up-first")).slice(5)).toEqual(["none", "blocked"])
+  })
+
+  it("no sort keeps the order given, and does not change the input", () => {
+    expect(sortByValueChange(rows, null)).toBe(rows)
+    sortByValueChange(rows, "released-first")
+    expect(ids(rows)[0]).toBe("tied-small")
   })
 })
