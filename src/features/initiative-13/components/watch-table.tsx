@@ -42,14 +42,14 @@ const AGING_TONE: Record<AgingBand, "healthy" | "caution" | "urgent"> = {
 function CoverCell({ months }: { months: number | null }) {
   if (months === null) {
     return (
-      <span className="text-sm text-ink-muted" title={EMPTY_LABEL.noConsumptionHistory.title}>
+      <span className="text-sm text-muted-foreground" title={EMPTY_LABEL.noConsumptionHistory.title}>
         Insufficient consumption history
       </span>
     )
   }
   const tone = coverTone(months)
   return (
-    <span className={cn("block text-right font-bold tabular-nums", TONE_INK[tone])}>{months.toFixed(1)}</span>
+    <span className={cn("block text-right font-semibold tabular-nums", TONE_INK[tone])}>{months.toFixed(1)}</span>
   )
 }
 
@@ -132,7 +132,7 @@ export function WatchTable({
                       <span
                         className={cn(
                           "tabular-nums",
-                          isLongIdle(m.daysSinceLastMovement) ? "font-bold text-urgent-ink" : "font-semibold"
+                          isLongIdle(m.daysSinceLastMovement) ? "font-semibold text-destructive" : "font-semibold"
                         )}
                       >
                         {m.daysSinceLastMovement}d
@@ -144,7 +144,7 @@ export function WatchTable({
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     <span className="font-semibold tabular-nums">{formatCount(m.consumptionCount12m)}</span>{" "}
-                    <span className="text-ink-muted">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
+                    <span className="text-muted-foreground">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     {m.inventoryTurns !== null ? (

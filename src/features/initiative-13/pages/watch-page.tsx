@@ -227,9 +227,9 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         <>
           <GrniTable rows={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="reservation lines" />
-          <p className="text-sm text-ink-muted">
+          <p className="text-sm text-muted-foreground">
             Outstanding across the lines on this page:{" "}
-            <span className="font-bold text-ink">{formatCount(live.outstandingQuantity)} units</span>. The
+            <span className="font-semibold text-foreground">{formatCount(live.outstandingQuantity)} units</span>. The
             same rule marks a material &ldquo;GRNI&rdquo; on the Metrics tab.
           </p>
         </>

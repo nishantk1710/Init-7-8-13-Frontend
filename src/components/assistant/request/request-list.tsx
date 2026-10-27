@@ -60,13 +60,13 @@ export function RequestList() {
       <DraftList />
 
       {loading ? (
-        <Skeleton className="h-40 w-full rounded-card" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       ) : error ? (
-        <div className="rounded-card border border-line bg-card p-6 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
           {error instanceof ApiError ? error.detailText() : "Requests could not be loaded."}
         </div>
       ) : !requests || requests.length === 0 ? (
-        <div className="rounded-card border border-dashed border-line bg-card p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           No requests yet.
         </div>
       ) : (
@@ -83,20 +83,20 @@ export function RequestList() {
               />
             </label>
             <span className="text-sm text-muted-foreground">
-              <span className="font-bold text-foreground">{formatCount(shown.length)}</span> request
+              <span className="font-semibold text-foreground">{formatCount(shown.length)}</span> request
               {shown.length === 1 ? "" : "s"}
             </span>
           </div>
 
           {groups.length === 0 ? (
-            <div className="rounded-card border border-dashed border-line bg-card p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               No requests match.
             </div>
           ) : (
             groups.map((group) => (
               <section key={group.key} aria-labelledby={`day-${group.key}`} className="flex flex-col gap-2">
                 <h2 id={`day-${group.key}`} className="flex items-baseline gap-2">
-                  <span className="text-base font-bold text-foreground">{group.heading}</span>
+                  <span className="text-base font-semibold text-foreground">{group.heading}</span>
                   <span className="text-xs text-muted-foreground">
                     {group.date && `${group.date} · `}
                     {group.items.length} request{group.items.length === 1 ? "" : "s"}
@@ -124,13 +124,13 @@ function RequestRow({ request: r }: { request: ApiRequestSummary }) {
   return (
     <Link
       href={`/assistant/requests/${r.requestId}`}
-      className="grid min-h-14 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-card border border-line bg-card px-4 py-3 transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:grid-cols-[9rem_10rem_1fr_auto_auto_auto]"
+      className="grid min-h-14 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-xl border border-border bg-card px-4 py-3 transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:grid-cols-[9rem_10rem_1fr_auto_auto_auto]"
     >
-      <span className="font-mono text-sm font-bold text-action">{r.requestId}</span>
+      <span className="font-mono text-sm font-semibold text-action">{r.requestId}</span>
       <span className="flex items-center gap-2 text-sm text-foreground max-md:order-3 max-md:col-span-2">
         <span
           aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-full bg-action/10 text-xs font-bold text-action uppercase"
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-action/10 text-xs font-semibold text-action uppercase"
         >
           {who ? who[0] : "?"}
         </span>
@@ -166,12 +166,12 @@ function DraftList() {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <h2 className="text-base font-bold text-foreground">Drafts</h2>
+        <h2 className="text-base font-semibold text-foreground">Drafts</h2>
         <span className="text-xs text-muted-foreground">
           Saved in this browser only. Nothing is recorded and no reference is given until you submit.
         </span>
       </div>
-      <div className="overflow-x-auto rounded-card border border-dashed border-line bg-card">
+      <div className="overflow-x-auto rounded-xl border border-dashed border-border bg-card">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
             <tr>

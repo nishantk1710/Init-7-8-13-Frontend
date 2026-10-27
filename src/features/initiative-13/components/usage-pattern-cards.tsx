@@ -24,26 +24,26 @@ const BAND_TONE = { FAST: "healthy", SLOW: "caution", NON_MOVING: "urgent" } as 
 const BAND_LABEL = { FAST: "Fast", SLOW: "Slow", NON_MOVING: "Non-moving" } as const
 
 export const KIND_DOT: Record<UsageKind, string> = {
-  steady: "bg-healthy",
-  bursts: "bg-primary-strong",
-  quiet: "bg-urgent",
-  never: "bg-ink-muted/50",
+  steady: "bg-success",
+  bursts: "bg-action",
+  quiet: "bg-destructive",
+  never: "bg-muted-foreground/50",
 }
 
 const KIND_PANEL: Record<UsageKind, string> = {
-  steady: "bg-healthy-tint",
-  bursts: "bg-primary-tint",
-  quiet: "bg-urgent-tint",
+  steady: "bg-success/10",
+  bursts: "bg-action/10",
+  quiet: "bg-destructive/10",
   never: "bg-muted",
 }
 
 /** Heat steps for the year calendar: nothing, then four shares of the busiest month. */
 export const HEAT_FILL = [
   "bg-muted",
-  "bg-primary-strong/20",
-  "bg-primary-strong/45",
-  "bg-primary-strong/75",
-  "bg-primary-strong",
+  "bg-action/20",
+  "bg-action/45",
+  "bg-action/75",
+  "bg-action",
 ] as const
 
 /** The row's columns, shared by the header labels and every card so they line up. */
@@ -81,7 +81,7 @@ export function UsagePatternCards({ rows }: { rows: UsagePattern[] }) {
     <div className="flex flex-col gap-2.5">
       <div
         aria-hidden
-        className={cn("hidden gap-4 px-5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid", ROW_COLUMNS)}
+        className={cn("hidden gap-4 px-5 text-[13px] font-medium text-muted-foreground md:grid", ROW_COLUMNS)}
       >
         <span>Material</span>
         <span>Pattern</span>
@@ -126,14 +126,14 @@ function UsageCard({
     <article
       aria-label={name}
       className={cn(
-        "overflow-hidden rounded-card border-2 bg-card transition-[box-shadow,border-color] duration-200 motion-reduce:transition-none",
-        open ? "border-primary-strong shadow-lg shadow-primary-strong/10" : "border-transparent ring-1 ring-line hover:shadow-md"
+        "overflow-hidden rounded-xl border-2 bg-card transition-[box-shadow,border-color] duration-200 motion-reduce:transition-none",
+        open ? "border-action shadow-lg shadow-action/10" : "border-transparent ring-1 ring-border hover:shadow-md"
       )}
     >
       <div className={cn("grid grid-cols-2 items-center gap-x-4 gap-y-3 px-5 py-3.5", ROW_COLUMNS)}>
         <div className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-1">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[15px] font-bold text-ink" title={name}>
+            <span className="truncate text-[15px] font-semibold text-foreground" title={name}>
               {name}
             </span>
             {row.agingBand && (
@@ -142,28 +142,28 @@ function UsageCard({
               </StatusPill>
             )}
           </span>
-          <span className="truncate text-xs text-ink-muted">
+          <span className="truncate text-xs text-muted-foreground">
             <span className="font-mono">{row.material}</span> · {sapPlantLabel(row.plant)}
           </span>
         </div>
         <div className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1">
-          <span className="flex items-center gap-1.5 text-sm font-bold text-ink">
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
             <span aria-hidden className={cn("size-2 shrink-0 rounded-full", KIND_DOT[reading.kind])} />
             {reading.label}
           </span>
-          <span className="truncate text-xs text-ink-muted">{reading.hint}</span>
+          <span className="truncate text-xs text-muted-foreground">{reading.hint}</span>
         </div>
         <Cell label="Issued" className="md:text-right">
-          <span className="text-lg font-extrabold tabular-nums text-ink">{formatCount(row.issuedQuantityTotal)}</span>
+          <span className="text-lg font-semibold tabular-nums text-foreground">{formatCount(row.issuedQuantityTotal)}</span>
         </Cell>
         <Cell label="Last issue">
-          <span className="text-sm font-semibold text-ink">{row.lastIssueMonth ?? "Never"}</span>
+          <span className="text-sm font-semibold text-foreground">{row.lastIssueMonth ?? "Never"}</span>
         </Cell>
         <Cell label="Stock" className="md:text-right">
           {row.stockOnHand === null ? (
             <EmptyValue kind="noStockRecord" />
           ) : (
-            <span className={cn("text-base font-extrabold tabular-nums", row.stockOnHand === 0 ? "text-urgent-ink" : "text-ink")}>
+            <span className={cn("text-base font-semibold tabular-nums", row.stockOnHand === 0 ? "text-destructive" : "text-foreground")}>
               {formatCount(row.stockOnHand)}
             </span>
           )}
@@ -174,11 +174,11 @@ function UsageCard({
           aria-expanded={open}
           aria-controls={panelId(row)}
           className={cn(
-            "col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-bold transition-colors md:col-span-1 md:justify-self-end",
+            "col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-colors md:col-span-1 md:justify-self-end",
             "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
             open
-              ? "border-primary-strong bg-primary-strong text-white hover:bg-primary-strong-hover"
-              : "border-primary-strong/30 bg-primary-tint text-primary-ink hover:bg-primary-strong/20"
+              ? "border-action bg-action/10 text-action ring-1 ring-action"
+              : "border-border bg-card text-action hover:bg-action/10"
           )}
         >
           {open ? "Hide details" : "Show details"}
@@ -197,7 +197,7 @@ function UsageCard({
 function Cell({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
-      <span className="text-xs text-ink-muted md:hidden">{label}</span>
+      <span className="text-xs text-muted-foreground md:hidden">{label}</span>
       {children}
     </div>
   )
@@ -216,15 +216,15 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
     <section
       id={panelId(row)}
       aria-label={`${row.materialDescription || row.material}: usage detail`}
-      className="grid gap-5 border-t border-primary-strong/20 bg-page/60 p-5 animate-in fade-in slide-in-from-top-1 duration-300 motion-reduce:animate-none lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1.1fr)]"
+      className="grid gap-5 border-t border-action/20 bg-muted/30 p-5 animate-in fade-in slide-in-from-top-1 duration-300 motion-reduce:animate-none lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1.1fr)]"
     >
       <div className="flex flex-col gap-3">
         <div className={cn("flex flex-col gap-2 rounded-xl p-4", KIND_PANEL[reading.kind])}>
-          <span className="flex items-center gap-2 text-[13px] font-bold tracking-wide text-ink uppercase">
+          <span className="flex items-center gap-2 text-[13px] font-semibold tracking-wide text-foreground uppercase">
             <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[reading.kind])} />
             {reading.label}
           </span>
-          <p className="text-[15px] leading-relaxed text-ink">{reading.story}</p>
+          <p className="text-[15px] leading-relaxed text-foreground">{reading.story}</p>
         </div>
         <dl className="grid grid-cols-2 gap-2">
           <Figure label="Active months" value={`${row.activeMonths} / ${months.length}`} />
@@ -246,7 +246,7 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
         </dl>
         <Link
           href={`/oar-utilization/watch?material=${encodeURIComponent(row.material)}&plant=${encodeURIComponent(row.plant)}`}
-          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-card px-4 text-sm font-bold text-primary-ink hover:bg-primary-tint"
+          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-semibold text-action hover:bg-action/10"
         >
           Open in Metrics
         </Link>
@@ -254,11 +254,11 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
 
       <div className="flex min-w-0 flex-col gap-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-[15px] font-bold text-ink">Issued each month</h3>
-          <span className="text-xs text-ink-muted">Hover or tab to a month for details</span>
+          <h3 className="text-[15px] font-semibold text-foreground">Issued each month</h3>
+          <span className="text-xs text-muted-foreground">Hover or tab to a month for details</span>
         </div>
         <div className="relative">
-          <div className="flex h-[190px] items-end gap-[3px] border-b border-line pt-2" onMouseLeave={() => setHover(null)}>
+          <div className="flex h-[190px] items-end gap-[3px] border-b border-border pt-2" onMouseLeave={() => setHover(null)}>
             {months.map((m, i) => {
               const height = m.issuedQuantity > 0 && max > 0 ? Math.max(3, (m.issuedQuantity / max) * 100) : 0
               const on = hover === i
@@ -277,13 +277,13 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
                       "w-full rounded-t-[3px] animate-in fade-in slide-in-from-bottom-1 duration-500 motion-reduce:animate-none",
                       height > 0
                         ? on
-                          ? "bg-ink"
+                          ? "bg-foreground"
                           : i === reading.peakIndex
-                            ? "bg-primary-strong"
-                            : "bg-primary-strong/55"
+                            ? "bg-action"
+                            : "bg-action/55"
                         : on
-                          ? "bg-ink-muted"
-                          : "bg-line"
+                          ? "bg-muted-foreground"
+                          : "bg-border"
                     )}
                     style={{ height: height > 0 ? `${height}%` : "3px" }}
                   />
@@ -294,7 +294,7 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
           {hover !== null && months[hover] && <MonthCard month={months[hover]} at={(hover + 0.5) / months.length} />}
         </div>
         {first && last && (
-          <div aria-hidden className="flex justify-between text-[11px] text-ink-muted">
+          <div aria-hidden className="flex justify-between text-[11px] text-muted-foreground">
             <span>{monthLabel(first)}</span>
             <span>{monthLabel(last)}</span>
           </div>
@@ -302,8 +302,8 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
       </div>
 
       <div className="flex min-w-0 flex-col gap-2.5">
-        <h3 className="text-[15px] font-bold text-ink">By year</h3>
-        <div className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] items-center gap-[3px] text-[10px] text-ink-muted">
+        <h3 className="text-[15px] font-semibold text-foreground">By year</h3>
+        <div className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] items-center gap-[3px] text-[10px] text-muted-foreground">
           <span />
           {["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map((d, i) => (
             <span key={i} aria-hidden className="text-center">
@@ -312,10 +312,10 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
           ))}
           {years.map((y) => (
             <Fragment key={y.year}>
-              <span className="text-xs font-semibold text-ink">{y.year}</span>
+              <span className="text-xs font-semibold text-foreground">{y.year}</span>
               {y.cells.map((c) =>
                 c.index === null ? (
-                  <span key={c.month} aria-hidden className="aspect-square rounded border border-dashed border-line" />
+                  <span key={c.month} aria-hidden className="aspect-square rounded border border-dashed border-border" />
                 ) : (
                   <span
                     key={c.month}
@@ -325,7 +325,7 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
                     className={cn(
                       "aspect-square rounded",
                       HEAT_FILL[heatLevel(months[c.index].issuedQuantity, max)],
-                      hover === c.index && "outline-2 outline-offset-1 outline-ink"
+                      hover === c.index && "outline-2 outline-offset-1 outline-foreground"
                     )}
                   />
                 )
@@ -333,14 +333,14 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
             </Fragment>
           ))}
         </div>
-        <div aria-hidden className="flex items-center gap-1.5 text-xs text-ink-muted">
+        <div aria-hidden className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span>Less</span>
           {HEAT_FILL.map((fill) => (
             <span key={fill} className={cn("size-3 rounded-[3px]", fill)} />
           ))}
           <span>More issued</span>
         </div>
-        <p className="text-xs text-ink-muted">Dashed: outside the movement history.</p>
+        <p className="text-xs text-muted-foreground">Dashed: outside the movement history.</p>
       </div>
     </section>
   )
@@ -348,9 +348,9 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
 
 function Figure({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-card p-3">
-      <dt className="text-xs text-ink-muted">{label}</dt>
-      <dd className="mt-0.5 text-lg font-extrabold tabular-nums text-ink">{value}</dd>
+    <div className="rounded-xl border border-border bg-card p-3">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{value}</dd>
     </div>
   )
 }
@@ -364,26 +364,26 @@ function MonthCard({ month, at }: { month: UsagePattern["months"][number]; at: n
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute top-0 z-10 w-[220px] -translate-x-1/2 rounded-xl bg-ink p-3.5 text-card shadow-xl"
+      className="pointer-events-none absolute top-0 z-10 w-[220px] -translate-x-1/2 rounded-xl bg-foreground p-3.5 text-card shadow-xl"
       style={{ left: `clamp(110px, ${at * 100}%, calc(100% - 110px))` }}
     >
-      <div className="mb-2 text-[13px] font-bold">{monthLabel(month.month)}</div>
+      <div className="mb-2 text-[13px] font-semibold">{monthLabel(month.month)}</div>
       <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[13px]">
         <dt className="flex items-center gap-2 opacity-80">
-          <span className="size-2 rounded-[2px] bg-primary-strong/70" />
+          <span className="size-2 rounded-[2px] bg-action/70" />
           Issued
         </dt>
-        <dd className="text-right font-bold tabular-nums">{formatCount(month.issuedQuantity)}</dd>
+        <dd className="text-right font-semibold tabular-nums">{formatCount(month.issuedQuantity)}</dd>
         <dt className="flex items-center gap-2 opacity-80">
           <span className="size-2 rounded-full border-[1.5px] border-current" />
           Movements
         </dt>
-        <dd className="text-right font-bold tabular-nums">{formatCount(month.issueCount)}</dd>
+        <dd className="text-right font-semibold tabular-nums">{formatCount(month.issueCount)}</dd>
         <dt className="flex items-center gap-2 opacity-80">
-          <span className="size-2 rounded-[2px] bg-healthy" />
+          <span className="size-2 rounded-[2px] bg-success" />
           Received
         </dt>
-        <dd className="text-right font-bold tabular-nums">{formatCount(month.receivedQuantity)}</dd>
+        <dd className="text-right font-semibold tabular-nums">{formatCount(month.receivedQuantity)}</dd>
       </dl>
       <div className="mt-2 border-t border-card/20 pt-2 text-xs opacity-80">{monthNote(month)}</div>
     </div>

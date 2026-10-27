@@ -49,7 +49,7 @@ export function InitiativeSummaryCard({
       footer={
         attention !== null && attention > 0 ? (
           <>
-            <span className="font-bold text-ink">{attention.toLocaleString()}</span> item
+            <span className="font-semibold text-foreground">{attention.toLocaleString()}</span> item
             {attention === 1 ? "" : "s"} need{attention === 1 ? "s" : ""} attention
           </>
         ) : null
@@ -59,13 +59,13 @@ export function InitiativeSummaryCard({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           {summary.metrics.slice(0, 4).map((m) => (
             <div key={m.label} className="min-w-0">
-              <dt className="text-xs text-ink-muted">{m.label}</dt>
-              <dd className="text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] text-ink tabular-nums 2xl:text-2xl">{formatMetric(m.value)}</dd>
+              <dt className="text-xs text-muted-foreground">{m.label}</dt>
+              <dd className="text-xl font-semibold tracking-tight [overflow-wrap:anywhere] text-foreground tabular-nums 2xl:text-2xl">{formatMetric(m.value)}</dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p className="text-xs text-ink-muted">No metrics reported yet.</p>
+        <p className="text-xs text-muted-foreground">No metrics reported yet.</p>
       )}
     </AreaCard>
   )
@@ -96,20 +96,20 @@ export function AreaCard({
     <Link
       href={href}
       className={cn(
-        "group flex flex-col gap-4 rounded-card border border-t-4 border-line bg-card p-5 transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "group flex flex-col gap-4 rounded-xl border border-t-4 border-border bg-card p-5 transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
         edge
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-base font-bold text-ink">{label}</span>
+        <span className="text-base font-semibold text-foreground">{label}</span>
         <ArrowRight
           aria-hidden
-          className="size-4 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5"
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
         />
       </div>
       <div>{status}</div>
       {children}
-      {footer && <div className="mt-auto border-t border-line pt-3 text-sm text-ink-muted">{footer}</div>}
+      {footer && <div className="mt-auto border-t border-border pt-3 text-sm text-muted-foreground">{footer}</div>}
     </Link>
   )
 }
@@ -132,9 +132,9 @@ export function SummaryCardFailure({
     <Link
       href={href}
       role="alert"
-      className="flex flex-col gap-3 rounded-card border border-t-4 border-destructive/40 bg-destructive/5 p-5 transition-colors hover:border-destructive/60"
+      className="flex flex-col gap-3 rounded-xl border border-t-4 border-destructive/40 bg-destructive/5 p-5 transition-colors hover:border-destructive/60"
     >
-      <span className="text-base font-bold text-foreground">{label}</span>
+      <span className="text-base font-semibold text-foreground">{label}</span>
       <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
         <CircleAlert className="size-3" />
         Could not be loaded

@@ -120,13 +120,13 @@ function RepairableCard({
     <article
       aria-label={`Line ${lineNo}: ${row.materialId}`}
       className={cn(
-        "overflow-hidden rounded-card border border-line bg-card",
+        "overflow-hidden rounded-xl border border-border bg-card",
         refused && "outline-2 -outline-offset-2 outline-destructive"
       )}
     >
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3">
         <span className="font-mono text-xs text-muted-foreground">/{lineNo}</span>
-        <span className="font-mono text-sm font-bold text-foreground">{row.materialId}</span>
+        <span className="font-mono text-sm font-semibold text-foreground">{row.materialId}</span>
         <span className="min-w-0 text-sm text-foreground">
           {row.description ?? <span className="text-muted-foreground italic">No description</span>}
         </span>
@@ -167,7 +167,7 @@ function RepairableCard({
                 role="radiogroup"
                 aria-label={`Decision for ${row.materialId}`}
                 className={cn(
-                  "grid grid-cols-2 gap-1 rounded-lg border border-line bg-muted/50 p-1",
+                  "grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/50 p-1",
                   showErrors && row.decision === null && "border-destructive"
                 )}
               >
@@ -210,7 +210,7 @@ function RepairableCard({
         </div>
       </div>
       {faultCategories.length > 0 && (
-        <div className="border-t border-line px-4 py-3">
+        <div className="border-t border-border px-4 py-3">
           <DeclarationFields
             idPrefix={row.key}
             value={row.declaration ?? EMPTY_DECLARATION}
@@ -242,7 +242,7 @@ function Segment({
       onClick={onClick}
       className={cn(
         "min-h-10 rounded-md px-3 text-sm font-semibold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        active ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted-foreground hover:text-foreground"
+        active ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground"
       )}
     >
       {children}
@@ -302,7 +302,7 @@ function ReadyStock({ figureText, note }: { figureText: string; note: string }) 
         <Check className="size-4" strokeWidth={3} />
       </span>
       <span className="flex flex-col">
-        <span className="font-bold text-foreground">{figureText}</span>
+        <span className="font-semibold text-foreground">{figureText}</span>
         <span className="text-xs text-muted-foreground">{note}</span>
       </span>
     </li>

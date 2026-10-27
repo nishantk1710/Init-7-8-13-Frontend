@@ -276,7 +276,7 @@ function PanelBar({ className, children }: { className?: string; children: React
       className={cn(
         "flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 bg-card p-4 shadow-lg",
         "[&>div]:min-w-[132px] [&>div]:flex-1",
-        "[&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground",
+        "[&_[data-slot=filter-label]]:font-semibold [&_[data-slot=filter-label]]:text-foreground",
         "[&_[data-slot=select-trigger]]:min-h-8! [&_[data-slot=select-trigger]]:font-semibold",
         "[&_[data-slot=input]]:min-h-8! [&_[data-slot=input]]:font-semibold",
         "[&_[data-slot=button]]:min-h-8!",

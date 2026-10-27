@@ -271,9 +271,9 @@ export async function UtilisationDashboardPage({
       </Card>
 
 
-      <section aria-labelledby="oar-details-heading" className="rounded-card border border-line bg-card">
+      <section aria-labelledby="oar-details-heading" className="rounded-xl border border-border bg-card">
         <Tabs defaultValue={initialTab} className="gap-0">
-          <div className="flex flex-col gap-3 border-b border-line px-4 pt-5 sm:px-5">
+          <div className="flex flex-col gap-3 border-b border-border px-4 pt-5 sm:px-5">
             <CardHeading
               id="oar-details-heading"
               title="Details"
@@ -409,7 +409,7 @@ function DetailTab({
     >
       {label}
       {count !== null && (
-        <span className="rounded-full bg-action/10 px-2 py-0.5 text-xs font-bold tabular-nums text-action">
+        <span className="rounded-full bg-action/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-action">
           {formatCount(count)}
         </span>
       )}
@@ -434,8 +434,8 @@ function sectionCount<T>(section: Section<T>, count: (data: T) => number): numbe
 /** A calm "nothing to do" — smaller than `EmptyState`, which is sized for a page. */
 function QuietState({ title, description }: { title: string; description?: ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-healthy-tint px-4 py-8 text-center text-healthy-ink">
-      <div className="text-sm font-bold">{title}</div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-success/10 px-4 py-8 text-center text-success">
+      <div className="text-sm font-semibold">{title}</div>
       {description && <p className="text-sm">{description}</p>}
     </div>
   )

@@ -46,7 +46,7 @@ export function OarTable({
   onRemove: (key: string) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-card border border-line bg-card">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full min-w-[1120px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
@@ -159,7 +159,7 @@ function OarRow({
             <span className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  "w-fit rounded-md px-2 py-0.5 font-mono text-base font-bold",
+                  "w-fit rounded-md px-2 py-0.5 font-mono text-base font-semibold",
                   kind === "suggested" && "bg-primary text-primary-foreground",
                   kind === "covered" && "bg-success/15 text-success",
                   kind === "none" && "bg-muted font-sans text-xs font-medium text-muted-foreground"
