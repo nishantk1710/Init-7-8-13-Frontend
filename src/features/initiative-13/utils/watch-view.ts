@@ -1,5 +1,3 @@
-import type { I13SearchParams } from "@/features/initiative-13/utils/search-params"
-
 /**
  * The WATCH screen's tabs. The 30-day goods-received-not-issued lines and the
  * monthly usage pattern are FR-6 WATCH metrics, not screens of their own, so
@@ -22,16 +20,11 @@ export function parseWatchView(value: string | undefined): WatchView {
 }
 
 /**
- * The href for a tab, carrying the filters over. `metrics` is the default and
+ * The href for a tab. Switching tabs starts clean (UAT, 27 Oct): no filters and
+ * page 1, because each tab answers a different question and a filter carried
+ * over from another tab reads as this tab's own. `metrics` is the default and
  * drops `view` entirely, so the plain WATCH link and the Metrics tab are one URL.
  */
-export function watchViewHref(view: WatchView, params: I13SearchParams): string {
-  const query = new URLSearchParams()
-  for (const key of ["plant", "material", "agingBand", "acquiredVsPlanStatus"] as const) {
-    const value = params[key]
-    if (value) query.set(key, value)
-  }
-  if (view !== "metrics") query.set("view", view)
-  const qs = query.toString()
-  return qs ? `/oar-utilization/watch?${qs}` : "/oar-utilization/watch"
+export function watchViewHref(view: WatchView): string {
+  return view === "metrics" ? "/oar-utilization/watch" : `/oar-utilization/watch?view=${view}`
 }

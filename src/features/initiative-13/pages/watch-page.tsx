@@ -108,13 +108,13 @@ export async function WatchPage({ searchParams }: { searchParams: I13SearchParam
   )
 }
 
-/** Metrics | 30-Day GR-Not-Issued | Usage Pattern, keeping the current filters. */
-function WatchTabs({ searchParams, active }: { searchParams: I13SearchParams; active: WatchView }) {
+/** Metrics | 30-Day GR-Not-Issued | Usage Pattern. A tab opens with its filters cleared. */
+function WatchTabs({ active }: { active: WatchView }) {
   return (
     <SegmentedTabs
       label="Consumption tracking view"
       tabs={WATCH_VIEWS.map((view) => ({
-        href: watchViewHref(view, searchParams),
+        href: watchViewHref(view),
         label: WATCH_VIEW_LABELS[view],
         active: view === active,
       }))}
@@ -164,7 +164,7 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
         meta={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="metrics" />
+        <WatchTabs active="metrics" />
         <I13UrlFilters
           className="flex-1"
           fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
@@ -217,7 +217,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         }
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="grni" />
+        <WatchTabs active="grni" />
         <I13UrlFilters className="flex-1" fields={["plant", "material"]} plants={live?.plantOptions} />
       </ToolbarRow>
 
@@ -274,7 +274,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
         subtitle="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="usage" />
+        <WatchTabs active="usage" />
         <I13UrlFilters className="flex-1" fields={["plant", "material", "agingBand"]} plants={live?.plantOptions} />
       </ToolbarRow>
 

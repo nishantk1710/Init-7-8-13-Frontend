@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Save, Search, Sparkles, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
 import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
+import { deleteDraft, getDraft, saveDraft, type RequestDraft } from "@/components/assistant/request/request-drafts"
 import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,37 @@ const REQUEST_PLANTS = ["1300", "1500"] as const
 /** A material as picked: from search, or a number typed with a plant. */
 type Picked = { materialId: string; plant: string; description: string | null }
 
+type RecheckedDraft = {
+  rows: DraftLine[]
+  maxLines: number | null
+  reasons: readonly ApiReasonCategory[] | null
+  /** The backend did not answer: `rows` are as saved. */
+  stale: boolean
+  notEnabled: boolean
+}
+
+/**
+ * A saved draft's lines with today's stock figures and suggestion, keeping what
+ * was typed into each (`lineFromPreview`'s `previous`). Never a line still
+ * being checked: one saved mid-check has no answers to keep.
+ */
+async function recheckDraft(rows: DraftLine[]): Promise<RecheckedDraft> {
+  const saved = rows.filter((row) => row.kind !== "pending")
+  const unchanged = { rows: saved, maxLines: null, reasons: null, stale: false, notEnabled: false }
+  if (saved.length === 0) return unchanged
+  try {
+    const response = await previewRequest(saved.map((row) => ({ materialId: row.materialId, plant: row.plant })))
+    return {
+      ...unchanged,
+      rows: saved.map((row, index) => lineFromPreview(response.lines[index], row.key, row)),
+      maxLines: response.maxLines,
+      reasons: response.reasonCategories ?? null,
+    }
+  } catch (error) {
+    return isNotEnabled(error) ? { ...unchanged, notEnabled: true } : { ...unchanged, stale: true }
+  }
+}
+
 function newDraftKey(): string {
   try {
     return crypto.randomUUID()
@@ -79,10 +111,21 @@ function newDraftKey(): string {
  * the requester and department pre-filled from the link. A request opened from
  * SAP (`origin` BADI) may have neither, as the backend allows: the pop-up
  * cannot always supply them.
+ *
+ * Save as draft (UAT, 27 Oct) keeps the request in this browser without
+ * recording anything (see `request-drafts.ts`); `draftId` resumes one, and a
+ * draft wins over `entry` when a link carries both.
  */
-export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }) {
+export function RequestBuilder({
+  entry = null,
+  draftId = null,
+}: {
+  entry?: RequestEntry | null
+  draftId?: string | null
+}) {
   const router = useRouter()
-  const fromSap = entry?.origin === "BADI"
+  const [origin, setOrigin] = useState<"BADI" | "PLATFORM">(entry?.origin === "BADI" ? "BADI" : "PLATFORM")
+  const fromSap = origin === "BADI"
   const [requester, setRequester] = useState(entry?.requestedFor ?? "")
   /** Picked for one plant; a different plant (or an emptied request) clears it. */
   const [picked, setPicked] = useState<{ plant: string | null; code: string }>({
@@ -100,6 +143,9 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
   const [notEnabled, setNotEnabled] = useState(false)
   /** One per draft: a resubmitted draft is the same request, never a second one. */
   const draftKey = useRef(newDraftKey())
+  /** The saved draft this builder writes to: set by resuming one, or by the first save. */
+  const savedDraftId = useRef<string | null>(null)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
 
   const oarRows = rows.filter((r): r is OarLine => r.kind === "i13")
   const repairableRows = rows.filter((r): r is RepairableLine => r.kind === "i08")
@@ -165,14 +211,79 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
     }
   }
 
-  /** The link's material is line 1. Once: a ref survives Strict Mode's re-run. */
+  /** Fill the screen from a re-checked draft, header and lines together. */
+  function applyDraft(draft: RequestDraft, result: RecheckedDraft) {
+    if (result.notEnabled) {
+      setNotEnabled(true)
+      return
+    }
+    if (result.maxLines !== null) setMaxLines(result.maxLines)
+    if (result.reasons?.length) setReasons(result.reasons)
+    if (result.stale) {
+      // Kept what was typed: the submit re-checks anyway and reports what moved.
+      toast.warning("Could not re-check the draft's materials", {
+        description: "The figures shown are from when it was saved. Submitting checks them again.",
+      })
+    }
+    savedDraftId.current = draft.id
+    setSavedAt(draft.savedAt)
+    setOrigin(draft.origin)
+    setRequester(draft.requester)
+    setPicked({ plant: draft.departmentPlant, code: draft.department })
+    setDepartmentNote(draft.departmentNote)
+    setRows(result.rows)
+  }
+
+  /** The link's material is line 1 -- unless a draft is being resumed. Once: a ref survives Strict Mode's re-run. */
   const started = useRef(false)
   useEffect(() => {
-    if (!entry || started.current) return
+    if (!entry || draftId || started.current) return
     started.current = true
     void add({ materialId: entry.materialId, plant: entry.plant, description: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's link
   }, [])
+
+  /** The draft named by the link, re-checked, then shown. Once, like the link's material. */
+  const resumed = useRef(false)
+  useEffect(() => {
+    if (!draftId || resumed.current) return
+    resumed.current = true
+    const draft = getDraft(draftId)
+    if (!draft) {
+      toast.error("That draft is not in this browser", {
+        description: "Drafts are kept only in the browser they were saved in. Start a new request instead.",
+      })
+      return
+    }
+    void recheckDraft(draft.rows).then((result) => applyDraft(draft, result))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's draft
+  }, [])
+
+  function saveAsDraft() {
+    const id = savedDraftId.current ?? newDraftKey()
+    const now = new Date().toISOString()
+    const stored = saveDraft({
+      id,
+      savedAt: now,
+      requester: requester.trim(),
+      departmentPlant: picked.plant,
+      department: picked.code,
+      departmentNote,
+      origin,
+      rows: rows.filter((row) => row.kind !== "pending"),
+    })
+    if (!stored) {
+      toast.error("Could not save the draft", {
+        description: "This browser would not store it (storage blocked or full). Nothing was lost from the screen.",
+      })
+      return
+    }
+    savedDraftId.current = id
+    setSavedAt(now)
+    toast.success("Draft saved in this browser", {
+      description: "Nothing is recorded and no reference is given until you submit. Find it under Requests → Drafts.",
+    })
+  }
 
   function update(next: DraftLine) {
     if (next.key === refusedKey) setRefusedKey(null)
@@ -230,9 +341,10 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
         requestedFor: requester.trim() || null,
         department,
         departmentNote: departmentNote.trim() || null,
-        origin: fromSap ? "BADI" : "PLATFORM",
+        origin,
         lines: submitted.map(answersOf),
       })
+      if (savedDraftId.current) deleteDraft(savedDraftId.current)
       router.push(`/assistant/requests/${request.requestId}`)
       return
     } catch (error) {
@@ -442,7 +554,27 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
             Submitting records every line, or nothing, and gives one request reference. Type it once into the SAP
             reservation&rsquo;s header text; lines are shown here as reference/1, /2 …
           </span>
+          {savedAt && (
+            <span className="text-[11px] text-muted-foreground">
+              Draft saved {new Date(savedAt).toLocaleString("en-GB")} in this browser only.
+            </span>
+          )}
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={saveAsDraft}
+          disabled={submitting || pendingCount > 0 || (rows.length === 0 && !requester.trim())}
+          title={
+            pendingCount > 0
+              ? "Wait for every material to finish checking"
+              : "Keep this request in this browser and finish it later. Nothing is recorded until you submit."
+          }
+          className="h-9 gap-1.5 px-4"
+        >
+          <Save className="size-4" />
+          Save as draft
+        </Button>
         <Button type="button" onClick={submit} disabled={submitting} className={cn(AI_BUTTON, "h-9 gap-1.5 px-4")}>
           {submitting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           {submitting ? "Submitting…" : "Submit request"}
