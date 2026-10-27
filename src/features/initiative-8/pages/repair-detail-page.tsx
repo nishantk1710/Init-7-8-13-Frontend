@@ -2,7 +2,19 @@
 
 import Link from "next/link"
 import { useSyncExternalStore, type ReactNode } from "react"
-import { Calendar, Check, Clock, Cog, Copy, SquarePen, TriangleAlert, Truck, Warehouse } from "lucide-react"
+import {
+  Calendar,
+  Check,
+  ClipboardList,
+  Clock,
+  Cog,
+  Copy,
+  FileClock,
+  SquarePen,
+  TriangleAlert,
+  Truck,
+  Warehouse,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import type { TimelineEvent } from "@/components/shared/timeline"
@@ -14,13 +26,16 @@ import { Actor, StatusDot } from "@/features/initiative-8/components/kit/status"
 import { REGISTER_RETURN_KEY } from "@/features/initiative-8/components/repair-register-table"
 import { exceptionsHref } from "@/features/initiative-8/data/live-exceptions"
 import { REGISTER_PATH } from "@/features/initiative-8/data/live-register"
+import { isRepairRequestId } from "@/features/initiative-8/data/live-repair-detail"
 import type { ExceptionQueueRow, RepairChain } from "@/features/initiative-8/types/repair"
 import { conditionLabel, humanize, isUnsigned, plural, stageLabel } from "@/features/initiative-8/utils/format"
+import { NO_PO_YET, repairRequestBanner, requesterText } from "@/features/initiative-8/utils/repair-request"
 import {
   JUSTIFICATION_CELL_NOTE,
   exceptionTypeLabel,
   hasNoDueDate,
   isOpenRepair,
+  isPrOnly,
   isRepairOverdue,
   justificationCellOf,
   vendorLabel,
@@ -72,6 +87,12 @@ function useRegisterHref(): string {
  * record is hollow and grey, and red means late. The colours used to run the
  * other way, with the one real event in grey. The SAP evidence behind each
  * step -- which document, which movement -- is behind its ⓘ.
+ *
+ * A repair requested with no PO yet (a PR row, `PR-{BANFN}-{BNFPO}`, since
+ * 27-Oct-2026) has no vendor, no return date and no PO line to declare
+ * against: it says "No PO yet" in a banner, its timeline starts at "Repair
+ * requested", and Declare is not offered -- the backend refuses a declaration
+ * on it until phase 2.
  */
 export function RepairDetailPage({
   repairId,
@@ -105,13 +126,20 @@ export function RepairDetailPage({
   }
 
   if (!chain || !detail) {
+    // A repair request leaves the register when its PO is raised (the PO line
+    // takes its place) or when SAP closes it -- a different story from a PO
+    // line, so a different sentence.
+    const request = isRepairRequestId(repairId)
     return (
       <I08Page crumbs={crumbs} title="Repair not found">
         <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-card px-6 py-14 text-center">
-          <p className="text-[15px] font-semibold text-foreground">No open repair line &ldquo;{repairId}&rdquo;</p>
+          <p className="text-[15px] font-semibold text-foreground">
+            No open {request ? "repair request" : "repair line"} &ldquo;{repairId}&rdquo;
+          </p>
           <p className="max-w-md text-[13.5px] text-muted-foreground">
-            The register lists only the repair lines SAP still has open. This one may since have been marked
-            delivery completed, blocked or deleted in SAP.
+            {request
+              ? "This repair request now has a PO, or SAP has closed it. Search the register for its PR number to find the PO line."
+              : "The register lists only the repair lines SAP still has open. This one may since have been marked delivery completed, blocked or deleted in SAP."}
           </p>
           <Link href={registerHref} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-1 px-3.5")}>
             Back to the register
@@ -123,6 +151,9 @@ export function RepairDetailPage({
 
   const late = chain.daysRemainingInRepair !== undefined && chain.daysRemainingInRepair < 0 ? -chain.daysRemainingInRepair : 0
   const overdue = isRepairOverdue(chain)
+  // No PO yet: nothing to declare against, no vendor to chase, no date agreed.
+  const requested = isPrOnly(chain)
+  const banner = requested ? repairRequestBanner(chain) : null
 
   return (
     <I08Page
@@ -140,34 +171,41 @@ export function RepairDetailPage({
             {chain.plant.plantId !== "—" ? ` (${chain.plant.plantId})` : ""}
           </span>
           <Dot />
-          <span>{vendorLabel(chain)}</span>
+          <span>{requested ? NO_PO_YET : vendorLabel(chain)}</span>
         </>
       }
       actions={
-        <>
-          {chain.declarationId ? (
-            // An attestation is never edited: an amendment is a new row
-            // pointing at the old one, which stays readable.
-            <DeclareConditionButton
-              chain={chain}
-              faultCategories={faultCategories}
-              label="Amend declaration"
-              size="lg"
-              supersedes={chain.declarationId}
-            />
-          ) : (
-            <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
-          )}
-        </>
+        requested ? undefined : (
+          <>
+            {chain.declarationId ? (
+              // An attestation is never edited: an amendment is a new row
+              // pointing at the old one, which stays readable.
+              <DeclareConditionButton
+                chain={chain}
+                faultCategories={faultCategories}
+                label="Amend declaration"
+                size="lg"
+                supersedes={chain.declarationId}
+              />
+            ) : (
+              <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
+            )}
+          </>
+        )
       }
     >
+      {banner && (
+        <Banner tone="info" icon={<FileClock className="mt-0.5 size-[18px] shrink-0" />}>
+          <b className="font-semibold">{banner.lead}</b> {banner.rest}
+        </Banner>
+      )}
       {overdue && (
         <Banner tone="crit" icon={<Clock className="mt-0.5 size-[18px] shrink-0" />}>
           <b className="font-semibold">{late ? `${plural(late, "day")} late.` : "Late."}</b> Expected back{" "}
           {chain.expectedReturn ?? "on an unrecorded date"}. Follow up with {vendorLabel(chain)}.
         </Banner>
       )}
-      {!overdue && hasNoDueDate(chain) && isOpenRepair(chain) && (
+      {!overdue && !requested && hasNoDueDate(chain) && isOpenRepair(chain) && (
         // Its own state, not "on time": nobody agreed a return date, so there
         // is nothing to be late against and nothing will chase it.
         <Banner tone="warn" icon={<Calendar className="mt-0.5 size-[18px] shrink-0" />}>
@@ -191,15 +229,19 @@ export function RepairDetailPage({
         <span>Open {plural(chain.daysOpen, "day")}</span>
         <span className="inline-flex items-center gap-1.5">
           Declaration
-          <StatusDot
-            tone={chain.declarationStatus === "Completed" ? "good" : chain.declarationStatus === "Flagged" ? "crit" : "warn"}
-          >
-            {chain.declarationStatus === "Completed"
-              ? "Declared"
-              : chain.declarationStatus === "Flagged"
-                ? "Against assessment"
-                : "Required"}
-          </StatusDot>
+          {requested && chain.declarationStatus === "Required" ? (
+            <StatusDot tone="muted">Not yet, no PO</StatusDot>
+          ) : (
+            <StatusDot
+              tone={chain.declarationStatus === "Completed" ? "good" : chain.declarationStatus === "Flagged" ? "crit" : "warn"}
+            >
+              {chain.declarationStatus === "Completed"
+                ? "Declared"
+                : chain.declarationStatus === "Flagged"
+                  ? "Against assessment"
+                  : "Required"}
+            </StatusDot>
+          )}
         </span>
       </div>
 
@@ -219,7 +261,11 @@ export function RepairDetailPage({
               <Fact label="Under repair">{chain.qtyUnderRepair}</Fact>
               {/* Unknown when the PO line has no net price: R 0.00 would read as a free repair. */}
               <Fact label="Repair cost">
-                {chain.repairCost === undefined ? <Faint>No price on the PO</Faint> : formatZAR(chain.repairCost)}
+                {chain.repairCost !== undefined ? (
+                  formatZAR(chain.repairCost)
+                ) : (
+                  <Faint>{requested ? NO_PO_YET : "No price on the PO"}</Faint>
+                )}
               </Fact>
               <Fact label="New-unit lead time">
                 {chain.newUnitLeadTimeDays === undefined ? <Faint>Not recorded</Faint> : plural(chain.newUnitLeadTimeDays, "day")}
@@ -231,9 +277,19 @@ export function RepairDetailPage({
               <Fact label="Repair PO">
                 {chain.repairPO ? <span className="font-mono text-[13.5px]">{docRef(chain.repairPO)}</span> : <Faint>Not yet raised</Faint>}
               </Fact>
-              {/* A requisitioner CODE: no person directory was delivered. */}
-              <Fact label="Requester">{chain.requester ? <span className="font-mono text-[13.5px]">{chain.requester}</span> : <Faint>Not recorded</Faint>}</Fact>
-              <Fact label="Open since">{chain.poIssuedAt ?? chain.raisedAt}</Fact>
+              {/* A requisitioner CODE (a department on a repair PR), with the
+                  department's name only when the department list knows it. */}
+              <Fact label="Requester">
+                {chain.requester ? (
+                  <span title={requesterText(chain)}>
+                    <span className="font-mono text-[13.5px]">{chain.requester}</span>
+                    {chain.requesterName && ` · ${chain.requesterName}`}
+                  </span>
+                ) : (
+                  <Faint>Not recorded</Faint>
+                )}
+              </Fact>
+              <Fact label={requested ? "Requested on" : "Open since"}>{chain.poIssuedAt ?? chain.raisedAt}</Fact>
             </dl>
           </Card>
 
@@ -262,15 +318,16 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function Banner({ tone, icon, children }: { tone: "crit" | "warn"; icon: ReactNode; children: ReactNode }) {
+/** `info` is a fact with nothing late or missing in it: muted, not a warning. */
+function Banner({ tone, icon, children }: { tone: "crit" | "warn" | "info"; icon: ReactNode; children: ReactNode }) {
   return (
     <div
       role="status"
       className={cn(
         "mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm",
-        tone === "crit"
-          ? "border-i08-crit-border bg-i08-crit-tint text-i08-crit-ink"
-          : "border-i08-warn-border bg-i08-warn-tint text-i08-warn-ink",
+        tone === "crit" && "border-i08-crit-border bg-i08-crit-tint text-i08-crit-ink",
+        tone === "warn" && "border-i08-warn-border bg-i08-warn-tint text-i08-warn-ink",
+        tone === "info" && "border-border bg-muted/50 text-foreground",
       )}
     >
       {icon}
@@ -299,6 +356,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 }
 
 const STAGE_TITLE: Record<string, string> = {
+  pr_raised: "Repair requested",
   removed: "Removed from machine",
   attested: "Condition declared",
   po_raised: "Repair PO raised",
@@ -307,6 +365,7 @@ const STAGE_TITLE: Record<string, string> = {
 }
 
 const STAGE_ICON: Record<string, typeof Check> = {
+  pr_raised: ClipboardList,
   removed: Cog,
   attested: SquarePen,
   po_raised: Check,
@@ -334,11 +393,19 @@ function RepairTimeline({
   stages: TimelineEvent[]
   faultCategories: string[]
 }) {
+  const requested = isPrOnly(chain)
   const steps: Step[] = stages.map((stage) => {
     const happened = stage.timestamp !== "Not recorded"
     const title = STAGE_TITLE[stage.id] ?? stage.label
     const base = { key: stage.id, title, evidence: stage.description, icon: STAGE_ICON[stage.id] ?? Check }
     switch (stage.id) {
+      case "pr_raised": {
+        const by = requesterText(chain)
+        const note = `PR ${docRef(chain.repairPR)}${by ? ` · department ${by}` : ""}`
+        return happened
+          ? { ...base, icon: Check, state: "done", when: stage.timestamp, note }
+          : { ...base, state: "missing", note }
+      }
       case "removed":
         return { ...base, state: "missing", note: "Not tracked for this line" }
       case "attested":
@@ -364,10 +431,14 @@ function RepairTimeline({
             ),
           }
         }
+        // No Declare on a repair request: there is no PO line to declare
+        // against yet, and the backend refuses one.
         return {
           ...base,
           state: "todo",
-          note: (
+          note: requested ? (
+            "Not declared yet"
+          ) : (
             <span className="inline-flex flex-wrap items-center gap-x-1.5">
               Not yet.
               <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="link" label="Declare condition" />
@@ -375,6 +446,13 @@ function RepairTimeline({
           ),
         }
       case "po_raised":
+        // Done when the PO exists. Not always "done" any more: a repair
+        // request's timeline carries this step with no date and no PO. A PO
+        // line whose date SAP did not record is still raised -- the PO is
+        // there -- so it stays done, undated, as before.
+        if (!happened && requested) {
+          return { ...base, state: "todo", note: `${NO_PO_YET} · from PR ${docRef(chain.repairPR)}` }
+        }
         return {
           ...base,
           icon: Check,
@@ -417,7 +495,9 @@ function RepairTimeline({
         : "Late"
       : chain.expectedReturn
         ? "From the PO delivery schedule"
-        : "No date agreed",
+        : requested
+          ? `${NO_PO_YET}, so no date`
+          : "No date agreed",
   })
 
   return (

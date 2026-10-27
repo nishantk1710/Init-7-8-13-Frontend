@@ -562,13 +562,30 @@ export const REGISTER_VIEWS = [
  * unknown to a backend older than 27-Oct-2026, which would ignore `view` and
  * show every line under a selected pill. Every other count has been sent with
  * `viewCounts` since the quick views arrived.
+ *
+ * With `screen` given (the register does), "No PO yet" is also left out while
+ * the backend's PR-rows switch is off: it then counts 0 on every page, and a
+ * pill that can only ever find nothing is noise. It stays when it has a
+ * count anyway (the switch could not be read) and while it is the selected
+ * view, so the selection never vanishes from under the reader.
  */
 export function registerViewChoices(
   viewCounts: ApiRegisterViewCounts,
+  screen?: { repairRequestsEnabled: boolean; selected?: string },
 ): { value: string; label: string; count: number }[] {
   return REGISTER_VIEWS.flatMap((view) => {
     const count = viewCounts[view.value === "" ? "all" : view.value]
-    return count === undefined ? [] : [{ value: view.value, label: view.label, count }]
+    if (count === undefined) return []
+    if (
+      screen &&
+      view.value === "notOrdered" &&
+      !screen.repairRequestsEnabled &&
+      count === 0 &&
+      screen.selected !== view.value
+    ) {
+      return []
+    }
+    return [{ value: view.value, label: view.label, count }]
   })
 }
 

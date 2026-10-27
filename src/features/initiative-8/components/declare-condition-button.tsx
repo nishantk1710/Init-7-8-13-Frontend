@@ -10,6 +10,7 @@ import {
 } from "@/features/initiative-8/components/declaration-form-dialog"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { defaultAttestationQuantity } from "@/features/initiative-8/utils/attestation"
+import { isPrOnly } from "@/features/initiative-8/utils/status"
 
 /**
  * "Declare condition" for one repair line.
@@ -18,6 +19,9 @@ import { defaultAttestationQuantity } from "@/features/initiative-8/utils/attest
  * It was all one component until 12-Oct-2026, when the declarations queue
  * needed the same form per row and the part-first entry point needed it with
  * no repair line at all.
+ *
+ * Renders nothing on a repair requested with no PO yet (`targetOf` refuses
+ * it): the screens already hide it there, and this is the backstop.
  */
 export function DeclareConditionButton({
   chain,
@@ -42,6 +46,8 @@ export function DeclareConditionButton({
   // A fresh form every time it is opened: a half-typed description from a
   // line somebody backed out of must not reappear against a different part.
   const [formKey, setFormKey] = useState(0)
+  const target = targetOf(chain, supersedes)
+  if (target === null) return null
 
   return (
     <>
@@ -62,7 +68,7 @@ export function DeclareConditionButton({
           key={formKey}
           open
           onClose={() => setOpen(false)}
-          target={targetOf(chain, supersedes)}
+          target={target}
           faultCategories={faultCategories}
         />
       )}
@@ -70,8 +76,18 @@ export function DeclareConditionButton({
   )
 }
 
-/** One repair line as a declaration target. */
-export function targetOf(chain: RepairChain, supersedes?: string): DeclarationTarget {
+/**
+ * One repair line as a declaration target, or null for a repair requested
+ * with no PO yet.
+ *
+ * Refused rather than sent without a line: a declaration from a repair line
+ * that names no PO would land as a part-level one, matched on material, plant
+ * and a date window, and read as if it were this line's. The backend refuses a
+ * declaration on a repair request too (since 27-Oct-2026), until declaring on
+ * the PR is built.
+ */
+export function targetOf(chain: RepairChain, supersedes?: string): DeclarationTarget | null {
+  if (isPrOnly(chain)) return null
   return {
     materialId: chain.material.materialId,
     // The live adapter spells a line with no plant as "—". An attestation is

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { toUniverseRows } from "@/features/initiative-8/data/live-overview"
-import type { ApiUniverseItem } from "@/lib/api/i8"
+import { toUniverseRows, withoutRepairRequests } from "@/features/initiative-8/data/live-overview"
+import { buildRegisterOptions, type LiveRegister } from "@/features/initiative-8/data/live-register"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
+import { stageAging, summariseOverview, vendorRows } from "@/features/initiative-8/utils/overview-view"
+import type { ApiRegisterMeta, ApiUniverseItem } from "@/lib/api/i8"
 
 /**
  * What this module still owns after the dashboard's filters landed: adapting
@@ -56,5 +59,105 @@ describe("toUniverseRows", () => {
       plantId: "",
       plantName: "Unknown plant",
     })
+  })
+})
+
+describe("withoutRepairRequests", () => {
+  /** A repair PO line: out at a vendor, late, undeclared. */
+  function poLine(overrides: Partial<RepairChain> = {}): RepairChain {
+    return {
+      id: "4500001052-1310",
+      lineKind: "PO",
+      material: { materialId: "8000004665", materialCode: "8000004665", description: "Cylinder" },
+      plant: { plantId: "1300", name: "Black Mountain Mining" },
+      qtyUnderRepair: 1,
+      repairPR: { type: "PR", documentNumber: "2000028376", line: "10" },
+      repairPO: { type: "PO", documentNumber: "4500001052", line: "1310" },
+      repairStatus: "PO Issued",
+      declarationStatus: "Required",
+      overdueStatus: "OVERDUE",
+      daysOpen: 535,
+      daysInCurrentStage: 535,
+      agingBucket: "60+",
+      raisedAt: "2025-04-07",
+      vendor: "400709",
+      vendorName: "Pump Repairs",
+      criticality: "CRITICAL",
+      ...overrides,
+    }
+  }
+
+  /** A repair requested with no PO yet, at a plant and criticality no PO line has. */
+  function prLine(overrides: Partial<RepairChain> = {}): RepairChain {
+    return poLine({
+      id: "PR-2000029113-10",
+      lineKind: "PR",
+      plant: { plantId: "1400", name: "Gamsberg" },
+      qtyUnderRepair: 3,
+      repairPR: { type: "PR", documentNumber: "2000029113", line: "10" },
+      repairPO: undefined,
+      repairStatus: "PR Raised",
+      overdueStatus: "NOT_ORDERED",
+      daysOpen: 12,
+      daysInCurrentStage: 12,
+      agingBucket: "0-15",
+      vendor: undefined,
+      vendorName: undefined,
+      criticality: "IMPACT",
+      ...overrides,
+    })
+  }
+
+  function register(chains: RepairChain[]): LiveRegister {
+    return {
+      chains,
+      ...buildRegisterOptions(chains),
+      agingBands: ["0-15", "16-30", "31-45", "46-60", "60+"],
+      meta: { openLines: 2, totalLines: 2, openRepairRequests: 1 } as ApiRegisterMeta,
+      referenceDate: "2026-06-09",
+      sourceLoadedAt: null,
+      repairRequestsEnabled: true,
+    }
+  }
+
+  it("leaves PR rows out of every Overview figure", () => {
+    const live = withoutRepairRequests(
+      register([poLine(), poLine({ id: "4500001052-1320", overdueStatus: "ON_TIME" }), prLine()]),
+    )
+    expect(live.chains.map((c) => c.id)).toEqual(["4500001052-1310", "4500001052-1320"])
+
+    const metrics = summariseOverview({ chains: live.chains, universe: [] })
+    expect(metrics.openLines).toBe(2)
+    expect(metrics.totalLines).toBe(2)
+    expect(metrics.qtyUnderRepair).toBe(2)
+    expect(metrics.overdueLines).toBe(1)
+    expect(live.chains.filter((c) => c.declarationStatus !== "Completed")).toHaveLength(2)
+    expect(vendorRows(live.chains).map((row) => row.code)).toEqual(["400709"])
+    expect(stageAging(live.chains, live.agingBands).rows.map((row) => row.stage)).toEqual(["PO Issued"])
+  })
+
+  it("rebuilds the filter choices from the PO lines alone", () => {
+    const live = withoutRepairRequests(register([poLine(), prLine()]))
+    expect(live.plantOptions.map((p) => p.plantId)).toEqual(["1300"])
+    expect(live.vendorOptions).toEqual(["Pump Repairs"])
+    expect(live.criticalityOptions).toEqual(["CRITICAL"])
+    expect(live.repairStatusOptions).toEqual(["PO Issued"])
+  })
+
+  it("takes out a row with no PO even when an older backend did not mark it", () => {
+    const live = withoutRepairRequests(register([poLine(), prLine({ lineKind: "PO" })]))
+    expect(live.chains).toHaveLength(1)
+  })
+
+  it("keeps meta and the switch for the page's note", () => {
+    const before = register([poLine(), prLine()])
+    const live = withoutRepairRequests(before)
+    expect(live.meta).toBe(before.meta)
+    expect(live.repairRequestsEnabled).toBe(true)
+  })
+
+  it("hands a register with no PR rows back untouched", () => {
+    const before = register([poLine()])
+    expect(withoutRepairRequests(before)).toBe(before)
   })
 })

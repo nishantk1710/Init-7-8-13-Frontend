@@ -148,6 +148,56 @@ describe("loadLiveRepairDetail", () => {
     )
   })
 
+  it("asks for a repair request (PR row) by PR-{BANFN} and its item", async () => {
+    // Section 2.2: the PR prefix stays with the document, so the backend can
+    // tell a requisition from a PO.
+    const seen: string[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        seen.push(String(input))
+        return { ok: true, status: 200, json: async () => mockDetail() }
+      }),
+    )
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await mod.loadLiveRepairDetail("PR-2000029113-10")
+
+    expect(seen[0]).toContain("/i8/register/PR-2000029113/10")
+  })
+
+  it("returns null for a repair request that has since got a PO", async () => {
+    // The backend answers 404 once the PR has a PO or SAP closed it: an
+    // answer, which the page words for a request.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    )
+    const mod = await import("@/features/initiative-8/data/live-repair-detail")
+    await expect(mod.loadLiveRepairDetail("PR-2000029113-10")).resolves.toBeNull()
+  })
+
+  it("carries a repair request's stages through, Repair requested first", async () => {
+    const { timeline } = await load(
+      "PR-2000029113-10",
+      mockDetail([
+        {
+          stage: "pr_raised",
+          label: "Repair requested",
+          occurredAt: "2026-05-28",
+          evidence: "Repair PR 2000029113/10, requested by department 10305 (Engineering).",
+          daysSince: 12,
+        },
+        { stage: "attested", label: "Condition declared", occurredAt: null, evidence: "Not declared yet.", daysSince: null },
+        { stage: "po_raised", label: "Repair PO raised", occurredAt: null, evidence: "No PO yet.", daysSince: null },
+      ]),
+    )
+    expect(timeline.map((e: { id: string }) => e.id)).toEqual(["pr_raised", "attested", "po_raised"])
+    expect(timeline[0].timestamp).toBe("28 May 2026")
+    expect(timeline[0].description).toContain("department 10305")
+    // No PO yet: the PO step is not recorded, never dated.
+    expect(timeline[2].timestamp).toBe("Not recorded")
+  })
+
   it("rejects an id that is not a repair line", async () => {
     const mod = await import("@/features/initiative-8/data/live-repair-detail")
     await expect(mod.loadLiveRepairDetail("nonsense")).rejects.toThrow(
@@ -204,5 +254,27 @@ describe("loadLiveRepairDetail", () => {
     expect(chain.repairPR.documentNumber).toBe("2000028376")
     expect(chain.reorderPoint).toBeUndefined()
     expect(chain.newUnitLeadTimeDays).toBeUndefined()
+  })
+})
+
+describe("repairLineKey and isRepairRequestId", () => {
+  it("splits a PO line id on the last hyphen", async () => {
+    const { repairLineKey } = await import("@/features/initiative-8/data/live-repair-detail")
+    expect(repairLineKey("4500001052-1310")).toEqual({ document: "4500001052", item: "1310" })
+  })
+
+  it("keeps the PR prefix with the requisition", async () => {
+    const { repairLineKey, isRepairRequestId } = await import("@/features/initiative-8/data/live-repair-detail")
+    expect(repairLineKey("PR-2000029113-10")).toEqual({ document: "PR-2000029113", item: "10" })
+    expect(isRepairRequestId("PR-2000029113-10")).toBe(true)
+    expect(isRepairRequestId("4500001052-1310")).toBe(false)
+  })
+
+  it("names no line for an id with no document or no item", async () => {
+    const { repairLineKey } = await import("@/features/initiative-8/data/live-repair-detail")
+    expect(repairLineKey("nonsense")).toBeNull()
+    expect(repairLineKey("PR-10")).toBeNull()
+    expect(repairLineKey("4500001052-")).toBeNull()
+    expect(repairLineKey("-1310")).toBeNull()
   })
 })

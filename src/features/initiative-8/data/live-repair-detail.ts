@@ -36,8 +36,10 @@ export type LiveRepairDetail = {
 }
 
 /** Stages that mean something happened, so a date makes them a success. No
- *  "received" stage since 19-Oct-2026: every line served is open in SAP. */
+ *  "received" stage since 19-Oct-2026: every line served is open in SAP.
+ *  `pr_raised` ("Repair requested") arrived on 27-Oct-2026, on PR rows. */
 const COMPLETED_TONE: Record<string, TimelineEvent["tone"]> = {
+  pr_raised: "default",
   attested: "success",
   po_raised: "default",
   dispatched: "default",
@@ -58,8 +60,36 @@ function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {
   }
 }
 
+/** How a register id names a repair requested with no PO yet:
+ *  `PR-{BANFN}-{BNFPO}`. */
+const REPAIR_REQUEST_PREFIX = "PR-"
+
+/** Is this register id a repair requested on a PR with no PO yet? */
+export function isRepairRequestId(repairId: string): boolean {
+  return repairId.startsWith(REPAIR_REQUEST_PREFIX)
+}
+
 /**
- * Fetch one repair line by the register's `{EBELN}-{EBELP}` id.
+ * The two path segments `GET /api/i8/register/{document}/{item}` takes for a
+ * register id, or null when the id is not one.
+ *
+ * `4500001052-1310` -> `4500001052` / `1310`; a PR row's `PR-2000029113-10`
+ * -> `PR-2000029113` / `10`, which the backend reads as the PR (since
+ * 27-Oct-2026). Both split on the LAST hyphen, so the PR prefix stays with the
+ * document.
+ */
+export function repairLineKey(repairId: string): { document: string; item: string } | null {
+  const separator = repairId.lastIndexOf("-")
+  if (separator <= 0 || separator === repairId.length - 1) return null
+  const document = repairId.slice(0, separator)
+  // "PR-" alone names no requisition.
+  if (document === REPAIR_REQUEST_PREFIX.slice(0, -1)) return null
+  return { document, item: repairId.slice(separator + 1) }
+}
+
+/**
+ * Fetch one repair line by the register's `{EBELN}-{EBELP}` id, or a repair
+ * requested with no PO yet by its `PR-{BANFN}-{BNFPO}` id.
  *
  * The id is split on the LAST hyphen. Purchasing documents in this extract
  * carry none, but splitting on the first would quietly send the wrong item
@@ -91,15 +121,13 @@ function isNotFound(error: unknown): boolean {
 export async function loadLiveRepairDetail(
   repairId: string,
 ): Promise<LiveRepairDetail | null> {
-  const separator = repairId.lastIndexOf("-")
-  if (separator <= 0) {
+  const key = repairLineKey(repairId)
+  if (key === null) {
     throw new Error(
-      `"${repairId}" is not a repair line id. Expected {purchasingDocument}-{item}.`,
+      `"${repairId}" is not a repair line id. Expected {purchasingDocument}-{item} or PR-{requisition}-{item}.`,
     )
   }
-
-  const document = repairId.slice(0, separator)
-  const item = repairId.slice(separator + 1)
+  const { document, item } = key
 
   let detail
   try {

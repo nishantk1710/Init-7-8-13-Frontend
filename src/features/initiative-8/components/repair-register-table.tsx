@@ -33,10 +33,12 @@ import {
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08DateTime, plantShort, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { REGISTER_CSV_HEADERS, registerRowsToCsv } from "@/features/initiative-8/utils/register-view"
+import { NO_PO_YET, repairRequestsNote, requestedAgo } from "@/features/initiative-8/utils/repair-request"
 import {
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
   exceptionTypeLabel,
+  isPrOnly,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -60,6 +62,9 @@ export type RepairRegisterTableProps = {
   filters: RegisterFilters
   viewCounts: ApiRegisterViewCounts | null
   sourceLoadedAt: string | null
+  /** The backend serves repairs requested with no PO yet as rows. False on an
+   *  older backend, or when its settings could not be read. */
+  repairRequestsEnabled?: boolean
 }
 
 /** The repair detail page for one register line. */
@@ -109,6 +114,12 @@ const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging", "e
  * scrollbar and the frozen Material column (`StickyScrollTable`). The Excel
  * export stays wide whatever is on screen.
  *
+ * A repair requested on a purchase requisition with no PO yet (a PR row,
+ * served since 27-Oct-2026 when the backend switches them on) is listed after
+ * the PO lines. It reads "Repair requested", with "No PO yet" where the
+ * expected date would be, no vendor, and no declaration: there is no PO line
+ * to declare against yet, and the backend refuses one.
+ *
  * The filters, the view and the columns live in the URL, so a filtered
  * register is a link somebody can send, and back and forward work. The server
  * searches, filters, counts and pages (`loadRegisterPage`).
@@ -124,6 +135,7 @@ export function RepairRegisterTable({
   filters,
   viewCounts,
   sourceLoadedAt,
+  repairRequestsEnabled = false,
 }: RepairRegisterTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -255,6 +267,7 @@ export function RepairRegisterTable({
     [meta.excludedDeletedLines, "deleted"],
     [meta.excludedRfqLines, "on a request for quotation"],
   ].filter((entry): entry is [number, string] => Boolean(entry[0]))
+  const requestsNote = repairRequestsNote(repairRequestsEnabled, meta.openRepairRequests)
 
   return (
     <I08Page
@@ -263,6 +276,7 @@ export function RepairRegisterTable({
       summary={
         <>
           <span>{plural(meta.openLines, "open repair line")}</span>
+          {requestsNote && <span className="text-muted-foreground">{requestsNote}</span>}
           <Dot />
           <span>{plural(meta.distinctMaterials, "material")}</span>
           {sourceLoadedAt && (
@@ -276,6 +290,12 @@ export function RepairRegisterTable({
               Every repair PO line SAP still has open, for 80-series materials. A line leaves the list when SAP
               marks it delivery completed.
             </p>
+            {repairRequestsEnabled && (
+              <p>
+                After them, the repairs requested on a purchase requisition that has no PO yet. They have no
+                vendor or return date until the PO is raised, and are not counted in the open repair lines.
+              </p>
+            )}
             {notShown.length > 0 && (
               <p>Not shown: {notShown.map(([count, what]) => `${formatCount(count)} ${what}`).join(", ")}.</p>
             )}
@@ -315,7 +335,7 @@ export function RepairRegisterTable({
     >
       {viewsWork && (
         <QuickViews
-          choices={registerViewChoices(viewCounts)}
+          choices={registerViewChoices(viewCounts, { repairRequestsEnabled, selected: filters.view })}
           value={filters.view ?? ""}
           onSelect={(value) => push({ view: value || undefined })}
         />
@@ -445,6 +465,9 @@ export function RepairRegisterTable({
                   const overdue = overdueStatusOf(c)
                   const late = c.daysRemainingInRepair !== undefined && c.daysRemainingInRepair < 0 ? -c.daysRemainingInRepair : 0
                   const declaration = DECLARATION[c.declarationStatus] ?? { tone: "warn" as const, label: c.declarationStatus }
+                  // A repair requested with no PO yet: no vendor, no date, and
+                  // nothing to declare against until the PO is raised.
+                  const requested = isPrOnly(c)
                   return (
                     <TableRow
                       key={c.id}
@@ -474,40 +497,61 @@ export function RepairRegisterTable({
                         <span title={c.plant.name}>{plantShort(c.plant.name)}</span>
                       </Cell>
                       <Cell>
-                        <span className="block truncate" title={c.vendor ? `${vendorLabel(c)} (vendor ${c.vendor})` : vendorLabel(c)}>
-                          {vendorLabel(c)}
-                        </span>
+                        {requested ? (
+                          <span className="text-muted-foreground" title="No PO yet, so no vendor">
+                            —
+                          </span>
+                        ) : (
+                          <span className="block truncate" title={c.vendor ? `${vendorLabel(c)} (vendor ${c.vendor})` : vendorLabel(c)}>
+                            {vendorLabel(c)}
+                          </span>
+                        )}
                       </Cell>
                       <Cell>{stageLabel(c.repairStatus)}</Cell>
                       <Cell>
-                        <div className="flex flex-col gap-0.5 leading-snug">
-                          <span>{c.expectedReturn ?? <span className="text-muted-foreground">No date</span>}</span>
-                          {overdue === "OVERDUE" ? (
-                            <StatusDot tone="crit" strong small>
-                              {late ? `${plural(late, "day")} late` : "Late"}
-                            </StatusDot>
-                          ) : overdue === "NO_DUE_DATE" ? (
-                            <StatusDot tone="warn" small>
-                              No date agreed
-                            </StatusDot>
-                          ) : c.daysRemainingInRepair !== undefined && c.daysRemainingInRepair >= 0 ? (
+                        {requested ? (
+                          <div className="flex flex-col gap-0.5 leading-snug">
+                            <span className="text-muted-foreground">{NO_PO_YET}</span>
                             <StatusDot tone="muted" small>
-                              due in {plural(c.daysRemainingInRepair, "day")}
+                              {requestedAgo(c.daysOpen)}
                             </StatusDot>
-                          ) : null}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-0.5 leading-snug">
+                            <span>{c.expectedReturn ?? <span className="text-muted-foreground">No date</span>}</span>
+                            {overdue === "OVERDUE" ? (
+                              <StatusDot tone="crit" strong small>
+                                {late ? `${plural(late, "day")} late` : "Late"}
+                              </StatusDot>
+                            ) : overdue === "NO_DUE_DATE" ? (
+                              <StatusDot tone="warn" small>
+                                No date agreed
+                              </StatusDot>
+                            ) : c.daysRemainingInRepair !== undefined && c.daysRemainingInRepair >= 0 ? (
+                              <StatusDot tone="muted" small>
+                                due in {plural(c.daysRemainingInRepair, "day")}
+                              </StatusDot>
+                            ) : null}
+                          </div>
+                        )}
                       </Cell>
                       <Cell right>{formatCount(c.daysOpen)}</Cell>
                       <Cell>
-                        <span
-                          title={
-                            c.declaredAt
-                              ? `Declared ${c.declaredAt}${c.condition ? `: ${c.condition}` : ""}`
-                              : undefined
-                          }
-                        >
-                          <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>
-                        </span>
+                        {requested ? (
+                          <span className="text-muted-foreground" title="Nothing to declare against until the repair has a PO">
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            title={
+                              c.declaredAt
+                                ? `Declared ${c.declaredAt}${c.condition ? `: ${c.condition}` : ""}`
+                                : undefined
+                            }
+                          >
+                            <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>
+                          </span>
+                        )}
                       </Cell>
                       <Cell>
                         {c.exceptions === undefined ? (

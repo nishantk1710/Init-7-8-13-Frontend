@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { Printer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
 import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
-import type { RegisterFilters } from "@/features/initiative-8/data/live-register"
+import { registerHref, type RegisterFilters } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import {
@@ -50,6 +51,10 @@ export type OverviewDashboardProps = {
   criticalityOptions: string[]
   referenceDate: string
   sourceLoadedAt: string | null
+  /** "+3 repairs requested, no PO yet", or undefined when the backend does not
+   *  serve them or has none. Never part of any figure: `chains` holds PO lines
+   *  only (see `withoutRepairRequests`). */
+  repairRequestsNote?: string
 }
 
 /**
@@ -82,6 +87,7 @@ export function OverviewDashboard({
   criticalityOptions,
   referenceDate,
   sourceLoadedAt,
+  repairRequestsNote,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
   const [printedAt, setPrintedAt] = useState<string | null>(null)
@@ -179,6 +185,17 @@ export function OverviewDashboard({
           <span>
             {formatCount(chains.length)} open repair lines at {plants} {plants === 1 ? "plant" : "plants"}
           </span>
+          {repairRequestsNote && (
+            // Not narrowed by the filters below: the backend counts them over
+            // the whole register, and the register lists them.
+            <Link
+              href={registerHref({ view: "notOrdered" })}
+              title="Repairs requested on a purchase requisition with no PO yet. Not counted in any figure on this page."
+              className="text-muted-foreground hover:text-i08-link hover:underline"
+            >
+              {repairRequestsNote}
+            </Link>
+          )}
           {loaded && (
             <>
               <Dot />

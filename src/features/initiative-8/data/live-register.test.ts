@@ -875,6 +875,32 @@ describe("repair PRs with no PO yet (27-Oct-2026)", () => {
   it("believes the backend's PO marking", () => {
     expect(toRepairChain(apiRow({ lineKind: "PO" })).lineKind).toBe("PO")
   })
+
+  it("exports a PR row as No PO yet, not as an unknown vendor or a missing date", () => {
+    const [pr, po] = registerRowsToCsv([toRepairChain(prRow()), toRepairChain(apiRow())])
+    const cell = (row: (string | number)[], header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+
+    expect(pr).toHaveLength(REGISTER_CSV_HEADERS.length)
+    expect(cell(pr, "Line")).toBe("PR-2000029113-10")
+    expect(cell(pr, "Vendor")).toBe("No PO yet")
+    expect(cell(pr, "Repair status")).toBe("Repair requested")
+    expect(cell(pr, "Overdue status")).toBe("No PO yet")
+    expect(cell(pr, "Expected return")).toBe("")
+    expect(cell(pr, "Repair PR")).toBe("2000029113/10")
+    expect(cell(pr, "Repair PO")).toBe("")
+    expect(cell(pr, "Raised")).toBe("28 May 2026")
+
+    // A PO line reads exactly as it did.
+    expect(cell(po, "Vendor")).toBe("0001000123")
+    expect(cell(po, "Repair status")).toBe("PO Issued")
+    expect(cell(po, "Overdue status")).toBe("Overdue")
+  })
+
+  it("exports a row with no PO as a PR row even from an older backend", () => {
+    const [row] = registerRowsToCsv([toRepairChain(prRow({ lineKind: undefined, overdueStatus: "NO_DUE_DATE" }))])
+    expect(row[REGISTER_CSV_HEADERS.indexOf("Vendor")]).toBe("No PO yet")
+    expect(row[REGISTER_CSV_HEADERS.indexOf("Overdue status")]).toBe("No PO yet")
+  })
 })
 
 describe("registerViewChoices", () => {
@@ -894,6 +920,41 @@ describe("registerViewChoices", () => {
     const choices = registerViewChoices({ ...counts, notOrdered: 16 })
     expect(choices.at(-1)).toEqual({ value: "notOrdered", label: "No PO yet", count: 16 })
     expect(choices[0]).toEqual({ value: "", label: "All", count: 120 })
+  })
+
+  describe("on the register screen", () => {
+    const values = (choices: { value: string }[]) => choices.map((c) => c.value)
+
+    it("hides the No PO yet pill while the backend's switch is off and it counts 0", () => {
+      // The switch-off backend sends notOrdered: 0 on every page; a pill that
+      // can only find nothing is noise.
+      const choices = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: false })
+      expect(values(choices)).not.toContain("notOrdered")
+      expect(values(choices)).toHaveLength(5)
+    })
+
+    it("shows it while the switch is on, even at 0 under a filter", () => {
+      const choices = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true })
+      expect(choices.at(-1)).toEqual({ value: "notOrdered", label: "No PO yet", count: 0 })
+    })
+
+    it("shows it when it counts rows, even if the switch could not be read", () => {
+      const choices = registerViewChoices({ ...counts, notOrdered: 4 }, { repairRequestsEnabled: false })
+      expect(values(choices)).toContain("notOrdered")
+    })
+
+    it("keeps it while it is the selected view, so the selection does not vanish", () => {
+      const choices = registerViewChoices(
+        { ...counts, notOrdered: 0 },
+        { repairRequestsEnabled: false, selected: "notOrdered" },
+      )
+      expect(values(choices)).toContain("notOrdered")
+    })
+
+    it("still leaves it out when an older backend sends no count", () => {
+      const choices = registerViewChoices(counts, { repairRequestsEnabled: true, selected: "notOrdered" })
+      expect(values(choices)).not.toContain("notOrdered")
+    })
   })
 })
 

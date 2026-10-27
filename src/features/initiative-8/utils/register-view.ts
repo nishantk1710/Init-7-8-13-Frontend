@@ -3,10 +3,12 @@ import {
   JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
   OVERDUE_STATUS_LABEL,
+  isPrOnly,
   justificationCellOf,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
+import { NO_PO_YET, REPAIR_REQUESTED } from "@/features/initiative-8/utils/repair-request"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /**
@@ -73,21 +75,27 @@ export const REGISTER_CSV_HEADERS = [
  * Unknown values are empty cells, never 0: a CSV cell is read without the
  * column's caveats beside it, and an exported 0 asserts "none" where the
  * source only said "not recorded".
+ *
+ * A repair requested with no PO yet (a PR row, since 27-Oct-2026) reads "No PO
+ * yet" in the vendor and overdue columns and "Repair requested" as its status,
+ * as on screen: "Unknown vendor" would say a PO exists whose vendor is
+ * missing, and nothing has been ordered from anybody.
  */
 export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] {
   return chains.map((c) => {
     const justification = justificationCellOf(c)
+    const requested = isPrOnly(c)
     return [
       c.id,
       c.material.materialCode,
       c.material.description,
       `${c.plant.plantId} ${c.plant.name}`,
-      vendorLabel(c),
+      requested ? NO_PO_YET : vendorLabel(c),
       c.qtyUnderRepair,
-      c.repairStatus,
+      requested ? REPAIR_REQUESTED : c.repairStatus,
       c.daysInCurrentStage ?? "",
       c.expectedReturn ?? "",
-      OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
+      requested ? NO_PO_YET : OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
       c.daysOpen,
       c.daysElapsed ?? "",
       c.agingBucket,
