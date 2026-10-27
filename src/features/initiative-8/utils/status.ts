@@ -84,11 +84,14 @@ export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
 ]
 
 /** What the register's due-date filter offers. No RECEIVED: every line the
- *  register serves is open in SAP, so it could only ever find nothing. */
+ *  register serves is open in SAP, so it could only ever find nothing.
+ *  NOT_ORDERED finds the repair PRs with no PO yet; on a backend that does
+ *  not serve them it finds nothing, the same as any filter with no match. */
 export const OVERDUE_STATUSES: readonly OverdueStatus[] = [
   "OVERDUE",
   "ON_TIME",
   "NO_DUE_DATE",
+  "NOT_ORDERED",
 ]
 
 export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
@@ -96,17 +99,32 @@ export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
   ON_TIME: "On time",
   NO_DUE_DATE: "No due date",
   RECEIVED: "Received",
+  NOT_ORDERED: "No PO yet",
 }
 
 /**
  * NO_DUE_DATE is a warning, not a neutral: nobody agreed a return date, and
- * those are exactly the lines nobody is chasing.
+ * those are exactly the lines nobody is chasing. NOT_ORDERED is muted: with
+ * no PO there is no date anybody could have agreed, so it is not a finding.
  */
 export const OVERDUE_STATUS_TONE: Record<OverdueStatus, Tone> = {
   OVERDUE: "danger",
   ON_TIME: "default",
   NO_DUE_DATE: "warning",
   RECEIVED: "success",
+  NOT_ORDERED: "default",
+}
+
+/**
+ * Is this register row a repair requested on a PR with no PO yet?
+ *
+ * Fails closed: a row the backend marked `PR`, OR any row with no PO
+ * reference, counts as one -- so a screen that must not offer a PO-only action
+ * (declare, chase the vendor) never offers it on a row it cannot place on a
+ * PO. On an older backend every row has a PO, so nothing changes there.
+ */
+export function isPrOnly(chain: Pick<RepairChain, "lineKind" | "repairPO">): boolean {
+  return chain.lineKind === "PR" || chain.repairPO === undefined
 }
 
 /**

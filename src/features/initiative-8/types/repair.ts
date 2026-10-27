@@ -11,13 +11,14 @@ import type { MaterialReference, PlantReference, SAPDocumentReference } from "@/
  * Where a repair chain sits in its lifecycle.
  *
  * No "In Transit Return": it is not an FRS stage, and nothing in MSEG or EKBE
- * tells "shipped back" apart from "still at the vendor". "PR Raised" is not
- * emitted today -- the register is built from PO lines -- but FRS acceptance
- * criterion 3 counts open repair PR lines too, so the stage stays.
+ * tells "shipped back" apart from "still at the vendor". "PR Raised" is a
+ * repair requested on a PR with no PO yet (`lineKind: "PR"`): served since
+ * 27-Oct-2026 when the backend switches PR rows on, because FRS acceptance
+ * criterion 3 counts open repair PR lines too.
  *
- * The live register emits "PO Issued" and "At Vendor" only: since 19-Oct-2026
- * it serves the lines SAP still has open, and none other. "Received" and
- * "Closed" remain for the scenario fixtures in `data/repair-chains.ts`.
+ * The live register's PO lines are "PO Issued" or "At Vendor": since
+ * 19-Oct-2026 it serves the lines SAP still has open, and none other.
+ * "Received" and "Closed" remain for the scenario fixtures.
  */
 export type RepairStatus =
   | "PR Raised"
@@ -65,8 +66,19 @@ export type AgingBucket = string
  * The backend never sends "RECEIVED" since 19-Oct-2026 -- every line it serves
  * is open in SAP. It stays here for the scenario fixtures, whose closed rows
  * `overdueStatusOf()` reads as received.
+ *
+ * "NOT_ORDERED" (since 27-Oct-2026) is a repair requested on a PR with no PO
+ * yet: nothing is ordered, so no date can have been promised. Only PR rows
+ * carry it.
  */
-export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED" | "NOT_ORDERED"
+
+/**
+ * What a register row is: a repair PO line, or an open repair PR with no PO
+ * yet. Test it through `isPrOnly()` in `utils/status.ts`, which also treats a
+ * row with no PO reference as a PR row.
+ */
+export type RegisterLineKind = "PO" | "PR"
 
 /**
  * Where a repair line stands against the material's planned delivery time.
@@ -95,10 +107,14 @@ export type LeadTimeStatus =
 /**
  * A single repairable material's repair chain — the core entity behind the
  * Repair Register and Repair Detail pages. Live, every one is a repair PO line
- * SAP still has open (not "Delivery completed", deleted or blocked).
+ * SAP still has open (not "Delivery completed", deleted or blocked) -- or,
+ * since 27-Oct-2026, an open repair PR with no PO yet (`lineKind: "PR"`).
  */
 export interface RepairChain {
+  /** `{EBELN}-{EBELP}` on a PO row; `PR-{BANFN}-{BNFPO}` on a PR row. */
   id: string
+  /** `PO` for a repair PO line, `PR` for a repair requested with no PO yet. */
+  lineKind: RegisterLineKind
   material: MaterialReference
   plant: PlantReference
 
@@ -169,7 +185,9 @@ export interface RepairChain {
   /**
    * How long this repair has been out: whole days from the repair PO line's
    * creation date (`EKPO.ERDAT`, falling back to the PO header's `EKKO.AEDAT`)
-   * to the reference date. Not measured from the PR, despite the column's name.
+   * to the reference date. Not measured from the PR, despite the column's name
+   * -- except on a PR row (no PO yet), where it runs from the PR date
+   * (`EBAN.BADAT`).
    *
    * It keeps counting until SAP closes the line ("Delivery completed"), and the
    * line then leaves the register. The backend serves the same number as
@@ -274,8 +292,12 @@ export interface RepairChain {
   condition?: DeclarationCondition
   /** What a person should do about this line's declaration, in a sentence. */
   declarationNextAction?: string
-  /** EKPO.AFNAM — a requisitioner CODE, not a name. */
+  /** The requisitioner — a CODE, not a name. On a repair PR it is a 5-digit
+   *  department code. */
   requester?: string
+  /** The department's name for `requester`, when the department list knows
+   *  it. Undefined otherwise: the code is shown, never an invented name. */
+  requesterName?: string
 
   /**
    * FR-7 on this line. Undefined when no reason was recorded while it was out

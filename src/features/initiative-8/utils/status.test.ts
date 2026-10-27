@@ -5,8 +5,12 @@ import {
   UNKNOWN,
   formatDaysRemaining,
   hasNoDueDate,
+  OVERDUE_STATUSES,
+  OVERDUE_STATUS_LABEL,
+  OVERDUE_STATUS_TONE,
   hasNoLeadTime,
   isBeyondLeadTime,
+  isPrOnly,
   isRepairOverdue,
   orUnknown,
   vendorLabel,
@@ -21,6 +25,7 @@ import {
 function chain(overrides: Partial<RepairChain> = {}): RepairChain {
   return {
     id: "RC-TEST",
+    lineKind: "PO",
     material: { materialId: "8000005632", materialCode: "8000005632", description: "Motor" },
     plant: { plantId: "1300", name: "Black Mountain" },
     qtyUnderRepair: 1,
@@ -167,5 +172,38 @@ describe("lead time, as a signal of its own", () => {
     const chain = base({ leadTimeStatus: "WITHIN_LEAD_TIME" })
     expect(isBeyondLeadTime(chain)).toBe(false)
     expect(hasNoLeadTime(chain)).toBe(false)
+  })
+})
+
+describe("isPrOnly", () => {
+  const po = { type: "PO" as const, documentNumber: "4500001052", line: "1310" }
+
+  it("is false for a PO line", () => {
+    expect(isPrOnly(chain({ repairPO: po }))).toBe(false)
+  })
+
+  it("is true for a row the backend marked PR", () => {
+    expect(isPrOnly(chain({ lineKind: "PR", repairPO: po }))).toBe(true)
+  })
+
+  it("fails closed: a row with no PO is a PR row whatever it is marked", () => {
+    expect(isPrOnly(chain({ lineKind: "PO", repairPO: undefined }))).toBe(true)
+  })
+})
+
+describe("NOT_ORDERED", () => {
+  it("reads No PO yet, in the muted tone", () => {
+    expect(OVERDUE_STATUS_LABEL.NOT_ORDERED).toBe("No PO yet")
+    expect(OVERDUE_STATUS_TONE.NOT_ORDERED).toBe("default")
+  })
+
+  it("is offered by the due-date filter", () => {
+    expect(OVERDUE_STATUSES).toContain("NOT_ORDERED")
+  })
+
+  it("is neither overdue nor undated", () => {
+    const requested = chain({ overdueStatus: "NOT_ORDERED", expectedReturn: undefined })
+    expect(isRepairOverdue(requested)).toBe(false)
+    expect(hasNoDueDate(requested)).toBe(false)
   })
 })

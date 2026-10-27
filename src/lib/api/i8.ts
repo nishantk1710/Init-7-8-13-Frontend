@@ -61,8 +61,16 @@ export type ApiSAPDocumentReference = {
 }
 
 /** Where a repair line stands against its promised date. Never "received":
- *  every line the register serves is open in SAP. */
-export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE"
+ *  every line the register serves is open in SAP.
+ *
+ *  `NOT_ORDERED` (since 27-Oct-2026) is a repair requested on a PR with no PO
+ *  yet: there is no promised date because nothing has been ordered. Only PR
+ *  rows carry it; an older backend never sends it. */
+export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "NOT_ORDERED"
+
+/** What a register row is keyed on: a repair PO line, or (since 27-Oct-2026)
+ *  an open repair PR with no PO yet. */
+export type ApiRegisterLineKind = "PO" | "PR"
 
 /**
  * Where a repair line stands against the material's planned delivery time.
@@ -86,10 +94,18 @@ export type ApiLeadTimeStatus =
  * SAP still has open: since 19-Oct-2026 a line marked "Delivery completed",
  * deleted or blocked is not served, and goods receipts are not read -- so no
  * row carries a receipt status, a receipt date or a turnaround.
+ *
+ * Since 27-Oct-2026 a row can instead be an open repair PR with no PO yet
+ * (`lineKind: "PR"`), listed after every PO row when the backend's
+ * `repairRequestsEnabled` rule is on. Such a row has no PO, vendor or due
+ * date; it is dated from the PR (EBAN.BADAT).
  */
 export type ApiRepairChain = {
-  /** `{EBELN}-{EBELP}`. The register key as one string. */
+  /** `{EBELN}-{EBELP}` on a PO row; `PR-{BANFN}-{BNFPO}` on a PR row. The
+   *  register key as one string. */
   id: string
+  /** `PO` or `PR`. Absent on an older backend, whose rows are all PO lines. */
+  lineKind?: ApiRegisterLineKind
   material: ApiMaterialReference
   plant: ApiPlantReference | null
 
@@ -107,7 +123,8 @@ export type ApiRepairChain = {
   /** Null unless the vendor master knows this vendor — it usually does not. */
   vendorName: string | null
 
-  /** "PO Issued", or "At Vendor" once a dispatch (the 541) is attributable. */
+  /** "PO Issued", or "At Vendor" once a dispatch (the 541) is attributable;
+   *  "PR Raised" on a PR row (no PO yet). */
   repairStatus: string
   overdueStatus: ApiOverdueStatus
   leadTimeStatus: ApiLeadTimeStatus
@@ -178,8 +195,13 @@ export type ApiRepairChain = {
   condition?: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
   /** What a person should do about this line's declaration, as a sentence. */
   nextAction?: string | null
-  /** EKPO.AFNAM — a CODE, not a name. No person directory was delivered. */
+  /** The requisitioner field (AFNAM) — a CODE, not a name. On repair PRs it is
+   *  a 5-digit department code (all 2,418 undeleted repair PRs carry one,
+   *  measured 26-Oct-2026). */
   requester?: string | null
+  /** The department's name for `requester`, when the department list knows
+   *  the code. Null when it does not. Absent on an older backend. */
+  requesterName?: string | null
   /** Null when no reason was recorded while the line was out AND no new
    *  purchase overlapped it without one. */
   justification?: ApiRepairJustification | null
@@ -264,6 +286,19 @@ export type ApiRegisterMeta = {
    *  which orders nothing. Left out since 21-Oct-2026; optional until every
    *  backend in use serves it. */
   excludedRfqLines?: number
+
+  // Open repair PRs with no PO yet (since 27-Oct-2026). `totalLines` and
+  // `openLines` above stay PO lines only. All absent on an older backend.
+
+  /** Open repair PR items with no PO, found whether or not the backend serves
+   *  them as rows (its `repairRequestsEnabled` rule). */
+  openRepairRequests?: number
+  /** Repair PR items deleted in SAP, left out. */
+  requisitionsExcludedDeleted?: number
+  /** Repair PR items that already have a live PO line -- that line is the row. */
+  requisitionsExcludedLivePo?: number
+  /** Repair PR items whose repair order SAP has closed, left out. */
+  requisitionsExcludedReservationClosed?: number
 }
 
 /**
@@ -295,6 +330,9 @@ export type ApiRegisterViewCounts = {
   undeclared: number
   atVendor: number
   withExceptions: number
+  /** PR rows (repair requested, no PO yet) among the filtered lines; 0 while
+   *  the backend does not serve them. Absent on an older backend. */
+  notOrdered?: number
 }
 
 export type ApiUniverseItem = {
@@ -387,7 +425,28 @@ export type ApiSnapshot = {
   universe: ApiUniverseMeta
   /** The configuration actually in force, echoed back so a surprising number
    *  can be traced to a setting without reading the deployment. */
-  rules: Record<string, string | number>
+  rules: ApiSnapshotRules
+}
+
+/**
+ * `GET /api/i8/snapshot`'s `rules`: an open map of settings, plus the ones the
+ * screens act on. Each named key is absent on an older backend.
+ *
+ * The two switches are typed loosely on purpose: the backend's rules map is
+ * declared as strings and integers, so a Python `True` may arrive as `1`.
+ * Read them through `ruleIsOn` in `data/live-register.ts`, never by `=== true`.
+ */
+export type ApiSnapshotRules = Record<string, string | number | boolean> & {
+  /** Whether open repair PRs with no PO yet are served as register rows. */
+  repairRequestsEnabled?: boolean | number | string
+  /** Whether the assistant shows its need-date line. */
+  needDateAdviceEnabled?: boolean | number | string
+  /** Where usable vs damaged stock comes from: `MCHB` or `MBEW`. */
+  stockConditionSource?: string
+  /** Conditions counted as usable, comma-separated (e.g. `NEW,REFURBISHD`). */
+  usableStockConditions?: string
+  /** Conditions counted as damaged, comma-separated (e.g. `DAMAGED`). */
+  damagedStockConditions?: string
 }
 
 // --- W5.3: attestations, declarations and exceptions ----------------------
@@ -691,7 +750,8 @@ export type RegisterQuery = {
   material?: string
   status?: string
   overdueOnly?: boolean
-  /** OVERDUE, ON_TIME or NO_DUE_DATE. */
+  /** OVERDUE, ON_TIME or NO_DUE_DATE; NOT_ORDERED for repair PRs with no PO
+   *  yet (a backend from 27-Oct-2026). */
   overdueStatus?: string
   /** The rating the line shows, or the literal `none` for unrated lines. */
   criticality?: string
@@ -706,8 +766,9 @@ export type RegisterQuery = {
   /** Comma-separated exception types left out of each line's `exceptions`
    *  and of `withExceptions`. */
   excludeExceptionType?: string
-  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`
-   *  or `withExceptions`. `viewCounts` counts each before it applies. */
+  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`,
+   *  `withExceptions` or (a backend from 27-Oct-2026) `notOrdered`.
+   *  `viewCounts` counts each before it applies. */
   view?: string
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
@@ -747,7 +808,8 @@ export function getUniverseMaterial(materialId: string): Promise<ApiUniverseDeta
   return apiFetch(`/i8/universe/${encodeURIComponent(materialId)}`)
 }
 
-/** `GET /api/i8/register` — repair lines at material + repair-PO-line grain. */
+/** `GET /api/i8/register` — repair lines at material + repair-PO-line grain,
+ *  then (when switched on) open repair PRs with no PO yet. */
 export function getRegister(query: RegisterQuery = {}): Promise<ApiRegisterPage> {
   return apiFetch(`/i8/register${queryString(query)}`)
 }

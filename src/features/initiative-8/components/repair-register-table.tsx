@@ -24,9 +24,9 @@ import { UrlSearchInput, UrlSelect, useUrlFilters, withSelected } from "@/featur
 import { DEFAULT_EXCEPTION_STATUS, exceptionsHref } from "@/features/initiative-8/data/live-exceptions"
 import {
   REGISTER_PATH,
-  REGISTER_VIEWS,
   fetchAllRegisterLines,
   registerHref,
+  registerViewChoices,
   type RegisterFacets,
   type RegisterFilters,
 } from "@/features/initiative-8/data/live-register"
@@ -315,11 +315,7 @@ export function RepairRegisterTable({
     >
       {viewsWork && (
         <QuickViews
-          choices={REGISTER_VIEWS.map((view) => ({
-            value: view.value,
-            label: view.label,
-            count: viewCounts[view.value === "" ? "all" : view.value],
-          }))}
+          choices={registerViewChoices(viewCounts)}
           value={filters.view ?? ""}
           onSelect={(value) => push({ view: value || undefined })}
         />
