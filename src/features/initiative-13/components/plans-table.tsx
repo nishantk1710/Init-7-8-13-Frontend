@@ -30,11 +30,11 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * ## Why the session column is the important one
  *
  * FR-4 asks for traceability from a plan back to the advice that shaped it. The
- * session identifier is that link, and it is the only one that exists: the
- * reservation cannot carry it yet, because the field that would
- * (`RESB.BEDNR`) is not exposed on the SAP entity set. So a plan links forward
- * to its conversation and not yet to its reservation, and the empty
- * reservation column is the honest picture of that.
+ * session identifier is that link. The reservation carries it back through its
+ * item text (`RESB.SGTXT`, see the backend's `session_link`), which only arrives
+ * with the next SAP extract, so a newly captured plan links forward to its
+ * conversation first and to its reservation later. An empty reservation column
+ * means that extract has not arrived yet.
  */
 export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
   if (plans.length === 0) {
@@ -100,7 +100,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                 ) : (
                   <span
                     className="text-muted-foreground"
-                    title="The reservation does not exist yet when the plan is captured, and the field that would carry the session identifier back (RESB.BEDNR) is not exposed on the SAP entity set."
+                    title="Not linked yet: no SAP reservation carrying this plan's reference has been loaded. It appears after the next SAP data load."
                   >
                     Not linked
                   </span>

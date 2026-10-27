@@ -355,9 +355,9 @@ export interface ConsumptionPlan {
   /**
    * The assistant session this plan was captured in.
    *
-   * FR-4 stores a plan *against* a session identifier, and with the reservation
-   * link blocked on `RESB.BEDNR` this is currently the only link a plan has to
-   * anything else.
+   * FR-4 stores a plan *against* a session identifier. The reservation links
+   * back to it through its item text (`RESB.SGTXT`) once a SAP extract carrying
+   * that text is loaded; until then this is the only link a plan has.
    */
   sessionId: string
   material: string

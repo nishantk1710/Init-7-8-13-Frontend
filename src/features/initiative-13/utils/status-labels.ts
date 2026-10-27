@@ -62,11 +62,13 @@ export const EXCEPTION_STATUS_LABEL: Record<ActExceptionStatus, string> = {
 
 /** One-line explanation of each status, for tooltips. */
 export const EXCEPTION_STATUS_HINT: Record<ActExceptionStatus, string> = {
-  OPEN: "We can't tell who raised it, so nobody is assigned",
-  AWAITING_REQUESTER: "We know who raised it and are waiting for their reason",
-  ESCALATED: "No reason given in 5 days, so it goes to the HOD",
+  OPEN: "No requester could be identified, so nobody is assigned and it cannot escalate",
+  AWAITING_REQUESTER:
+    "A requester was identified (the assistant user, or else the SAP goods recipient) and we are waiting for their reason",
+  ESCALATED:
+    "No reason given within 5 days, so it moved to the plant's HOD; routing stays pending until an HOD is set up for the plant",
   CONFIRMED: "The requester gave a reason",
-  RESOLVED: "Closed: the material was issued",
+  RESOLVED: "Closed: the condition that raised it no longer holds",
 }
 
 export const EXCEPTION_STATUS_TONE: Record<ActExceptionStatus, Tone> = {
@@ -86,9 +88,10 @@ export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
 
 /** One-line explanation of each exception type, for tooltips. */
 export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
-  PLAN_BREACH: "A plan exists but the material wasn't used within 14 days of the planned date",
-  NO_PLAN: "Reserved without using the assistant, so there is no consumption plan",
-  NO_PLAN_GRNI: "Reserved without the assistant, and received but not issued for 30+ days",
+  PLAN_BREACH: "A plan exists but nothing was issued within 14 days after the planned usage window ended",
+  NO_PLAN: "No consumption plan from the assistant is linked to this reservation",
+  NO_PLAN_GRNI:
+    "No consumption plan from the assistant, and this material at this plant has stock received 30+ days ago and not issued",
   QUANTITY_OVERRIDE: "The requester asked for a different quantity than the assistant suggested",
 }
 

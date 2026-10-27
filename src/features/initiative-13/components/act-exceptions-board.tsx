@@ -165,12 +165,11 @@ export function ActExceptionsBoard({
           <TableBody>
             {exceptions.map((exception) => {
               const isExpanded = expandedId === exception.exceptionId
-              // The state machine allows a confirmation only from a state that
-              // was routed to somebody. Mirrored here so the button explains
-              // itself rather than producing a 422 on click.
-              const canConfirm =
-                exception.status === "AWAITING_REQUESTER" ||
-                exception.status === "ESCALATED"
+              // The state machine allows a confirmation only from
+              // AWAITING_REQUESTER: ESCALATED goes on to RESOLVED and nothing
+              // else. Mirrored here so the button explains itself rather than
+              // producing a 422 on click.
+              const canConfirm = exception.status === "AWAITING_REQUESTER"
               return (
                 <Fragment key={exception.exceptionId}>
                   <TableRow
@@ -268,7 +267,7 @@ export function ActExceptionsBoard({
                         title={
                           canConfirm
                             ? "Record a structured confirmation against this exception"
-                            : "Only an exception that was routed to somebody can be confirmed — this one has no owner, so nobody was asked."
+                            : CONFIRM_BLOCKED_HINT[exception.status]
                         }
                       >
                         Confirm
@@ -328,7 +327,9 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
             {exception.exceptionType}
           </code>
         </div>
-        <h3 className="text-base font-bold whitespace-normal text-ink">{exception.reason}</h3>
+        <h3 className="text-base font-bold whitespace-normal text-ink">{EXCEPTION_HEADING[exception.exceptionType]}</h3>
+        {/* Detection's own wording, kept for whoever traces a row back to the run. */}
+        <p className="text-xs whitespace-normal text-ink-muted">Detection note: {exception.reason}</p>
       </div>
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -394,6 +395,44 @@ function Tile({ label, children }: { label: string; children: React.ReactNode })
   )
 }
 
+/** The expanded row's heading: what the exception is, in words, not detection's own text. */
+const EXCEPTION_HEADING: Record<ActException["exceptionType"], string> = {
+  PLAN_BREACH: "The planned use has passed and nothing was issued",
+  NO_PLAN: "OAR reservation with no consumption plan from the assistant",
+  NO_PLAN_GRNI: "OAR reservation with no plan, and stock received 30+ days ago is not issued",
+  QUANTITY_OVERRIDE: "The requested quantity differs from the assistant's suggestion",
+}
+
+/** Why Confirm is disabled, for every status but AWAITING_REQUESTER (the one it is enabled for). */
+const CONFIRM_BLOCKED_HINT: Record<ActException["status"], string> = {
+  OPEN: "Only an exception that was routed to somebody can be confirmed — this one has no owner, so nobody was asked.",
+  AWAITING_REQUESTER: "",
+  ESCALATED:
+    "The requester's 5-day window has passed and it has moved to the HOD, so a requester reason can no longer be recorded.",
+  CONFIRMED: "A reason has already been recorded for this exception.",
+  RESOLVED: "This exception is closed.",
+}
+
+/** What the no-plan reason means, for a NO_PLAN or NO_PLAN_GRNI exception. */
+const NO_PLAN_REASON_TEXT: Record<string, string> = {
+  MISSING_SESSION:
+    "The reservation's item text carries no assistant session or request reference, so it was made without the assistant and has no consumption plan.",
+  INVALID_SESSION:
+    "The reservation's item text names an assistant session or request reference that does not match this material. Check the reference typed into SAP.",
+  SESSION_WITHOUT_PLAN:
+    "The reservation is linked to an assistant session, but that session recorded no consumption plan (for example, a line marked not needed).",
+}
+
+/** What closes each type of exception. Detection closes it on its next run once this holds. */
+const CLEARS_WHEN: Record<ActException["exceptionType"], string> = {
+  PLAN_BREACH: "It closes when a goods issue is recorded for the planned reservation, or the plan is closed.",
+  NO_PLAN:
+    "It closes when the reservation is linked to an assistant session with a plan, or is deleted in SAP. Issuing the material does not close it.",
+  NO_PLAN_GRNI:
+    "It closes when the reservation is linked to an assistant session with a plan, is deleted in SAP, or this material at this plant no longer has stock received 30+ days ago and not issued.",
+  QUANTITY_OVERRIDE: "It does not close by itself: the requester records why they chose a different quantity.",
+}
+
 /** What is holding the exception open, from the text the board already carried. */
 function whyCannotClear(exception: ActException): React.ReactNode[] {
   const reasons: React.ReactNode[] = []
@@ -401,23 +440,20 @@ function whyCannotClear(exception: ActException): React.ReactNode[] {
     reasons.push(
       <p key="open">
         <strong>Requester not identified.</strong> No requester could be resolved for it, so nobody has been asked to
-        confirm and the escalation clock has not started. Detection resolves an owner from the consumption plan first
-        and from the reservation&rsquo;s goods recipient second — where neither is available, or where the two
-        disagree, the exception is deliberately left unowned rather than assigned to a guess.
+        confirm and the escalation clock has not started. Detection takes the owner from the assistant session first
+        and from the SAP reservation&rsquo;s goods recipient second — where neither names anyone, or SAP names more
+        than one goods recipient for the line, the exception is deliberately left unowned rather than assigned to a
+        guess.
       </p>
     )
   } else if (exception.status !== "RESOLVED") {
     reasons.push(<p key="status">{EXCEPTION_STATUS_HINT[exception.status]}.</p>)
   }
-  if (exception.exceptionType === "NO_PLAN") {
-    reasons.push(
-      <p key="no-plan">
-        A consumption plan captured through the assistant cannot clear this exception yet: the reservation field
-        carrying the session identifier (<code className="font-mono">RESB.BEDNR</code>) is not exposed on the SAP
-        entity set, so a captured plan has no reservation to attach to. The backend has a test asserting this, which
-        will fail the day the field lands — that is the signal to finish the link.
-      </p>
-    )
+  if (exception.status === "CONFIRMED" || exception.status === "RESOLVED") return reasons
+  const noPlanReason = exception.evidence.no_plan_reason
+  if (noPlanReason && NO_PLAN_REASON_TEXT[noPlanReason]) {
+    reasons.push(<p key="no-plan">{NO_PLAN_REASON_TEXT[noPlanReason]}</p>)
   }
+  reasons.push(<p key="clears">{CLEARS_WHEN[exception.exceptionType]}</p>)
   return reasons
 }
