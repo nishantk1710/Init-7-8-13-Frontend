@@ -1,7 +1,7 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
 
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
@@ -24,7 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
-import { valueChangeView } from "@/features/initiative-7/utils/value-change"
+import { sortByValueChange, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
@@ -210,6 +210,20 @@ export function RecommendationReviewTable({
   const showCircuit = hasRealCircuit(recommendations)
   const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
+  // Clicking the Value change header cycles: backend order -> released first -> tied up first -> backend order.
+  // The backend pages the list and cannot order by this figure, so it reorders the rows on this page only.
+  const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
+  const rows = useMemo(() => sortByValueChange(recommendations, valueSort), [recommendations, valueSort])
+  const cycleValueSort = () =>
+    setValueSort((current) => (current === null ? "released-first" : current === "released-first" ? "tied-up-first" : null))
+  const SortIcon = valueSort === "released-first" ? ArrowDown : valueSort === "tied-up-first" ? ArrowUp : ArrowUpDown
+  const sortHint =
+    valueSort === null
+      ? "Sort by value change: released first"
+      : valueSort === "released-first"
+        ? "Sorted: most released first. Click for most tied up first"
+        : "Sorted: most tied up first. Click to clear"
+
   if (recommendations.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -230,14 +244,31 @@ export function RecommendationReviewTable({
               <TableHead>Criticality - Demand pattern</TableHead>
               {showCircuit && <TableHead>Circuit</TableHead>}
               <TableHead>Stockout risk</TableHead>
-              <TableHead className="text-right">Value change</TableHead>
+              <TableHead
+                className="text-right"
+                aria-sort={valueSort === "released-first" ? "descending" : valueSort === "tied-up-first" ? "ascending" : "none"}
+              >
+                <button
+                  type="button"
+                  onClick={cycleValueSort}
+                  title={sortHint}
+                  aria-label={sortHint}
+                  className="inline-flex items-center justify-end gap-1 hover:text-foreground"
+                >
+                  Value change
+                  <SortIcon
+                    className={cn("size-3.5 shrink-0", valueSort === null && "text-muted-foreground")}
+                    aria-hidden="true"
+                  />
+                </button>
+              </TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
               {showMinMaxConversion && <TableHead>Min-Max conversion</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recommendations.map((rec) => {
+            {rows.map((rec) => {
               const isExpanded = expandedId === rec.id
               const atRisk = rec.risk === "critical" || rec.risk === "high"
               return (
@@ -325,6 +356,7 @@ export function RecommendationReviewTable({
       <p className="text-xs text-muted-foreground">
         Showing {recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"} · open a row for the
         forecast, rationale and submit action.
+        {valueSort !== null && " Value change is sorted within this page."}
       </p>
     </div>
   )
