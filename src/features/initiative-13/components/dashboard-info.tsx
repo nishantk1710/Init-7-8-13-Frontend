@@ -1,3 +1,5 @@
+"use client"
+
 import type { ReactNode } from "react"
 
 import { INFO_TONE, InfoPopup, riseIn, slideIn, type InfoTone } from "@/components/shared/info-popup"
