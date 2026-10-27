@@ -128,7 +128,9 @@ export type ApiRepairChain = {
   repairStatus: string
   overdueStatus: ApiOverdueStatus
   leadTimeStatus: ApiLeadTimeStatus
-  declarationStatus: "Required" | "Completed" | "Flagged"
+  /** `Historical`: raised before declarations began (the attestation
+   *  cutover), so never required. Absent on an older backend. */
+  declarationStatus: "Required" | "Completed" | "Flagged" | "Historical"
 
   /** Raised to today — the same number as `daysElapsed`. */
   daysOpen: number | null
@@ -465,6 +467,12 @@ export type ApiDeclarationItem = {
    * was delivered. Populated on all 1,225 repair lines, 27 distinct values.
    */
   requester: string | null
+  /** The department's name for `requester`, when the department list knows
+   *  it. Absent on an older backend. */
+  requesterName?: string | null
+  /** Which kind of repair document the row is: a repair PO line or an open
+   *  repair PR line. Absent on an older backend (PO). */
+  repairDocumentType?: "PO" | "PR" | null
   relatedRepairId: string
   /** The same repair line, unjoined — so the declaration form can send FR-4's
    *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
@@ -480,7 +488,7 @@ export type ApiDeclarationItem = {
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
    * has no approval step — an attestation is recorded or it is not.
    */
-  status: "Required" | "Completed" | "Flagged"
+  status: "Required" | "Completed" | "Flagged" | "Historical"
   /** The attestation covering this line, when one does. */
   declarationId?: string | null
   declaredBy: string | null
@@ -674,6 +682,15 @@ export type ApiAttestation = {
    *  was declared from one; null for "Declare a part". */
   repairDocument?: string | null
   repairItem?: string | null
+  /** The name the declarer typed (not a sign-in). Absent on an older backend
+   *  and on declarations recorded before it was asked for. */
+  attestorName?: string | null
+  /** Why this amendment was made. Absent on an older backend; null on an
+   *  original declaration. */
+  amendmentReason?: string | null
+  /** Whether `repairDocument` names a repair PO or a repair PR. Absent on an
+   *  older backend. */
+  repairDocumentType?: "PO" | "PR" | null
 
   /**
    * Register line ids this attestation covers. **Present on POST only**, null
@@ -733,6 +750,13 @@ export type AttestationRequest = {
    */
   repairDocument?: string
   repairItem?: string
+  /** `PR` binds to an open repair PR (`repairDocument` = the PR, `repairItem`
+   *  = its item); default PO. */
+  repairDocumentType?: "PO" | "PR"
+  /** The declarer's typed name -- not a sign-in, and said so on the form. */
+  attestorName?: string
+  /** Required by the backend whenever `supersedes` is set. */
+  amendmentReason?: string
 }
 
 // --- Query parameters -----------------------------------------------------

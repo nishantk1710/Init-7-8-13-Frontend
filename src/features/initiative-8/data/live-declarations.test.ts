@@ -6,7 +6,9 @@ import {
   isDeclarationFiltered,
   loadDeclarationsPage,
   parseDeclarationParams,
+  toLogRow,
 } from "@/features/initiative-8/data/live-declarations"
+import type { ApiAttestation } from "@/lib/api/i8"
 
 /**
  * The declaration queue pages on the server. What these pin: the counts above
@@ -225,5 +227,81 @@ describe("fetchAllDeclarations", () => {
 
     expect(await fetchAllDeclarations({}, fetchPage)).toHaveLength(3)
     expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("queue rows carry the declaration and the requester's name", () => {
+  it("a covered row keeps its declaration id, so it offers Amend", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue(
+        response([item(1, { status: "Flagged", declarationId: "ATT-7", requesterName: "Engineering" })]),
+      )
+    const page = await loadDeclarationsPage({}, 1, { fetchPage })
+    expect(page.rows[0].declarationId).toBe("ATT-7")
+    expect(page.rows[0].requester).toBe("10316")
+    expect(page.rows[0].requesterName).toBe("Engineering")
+  })
+
+  it("an older backend: no declaration id, no name", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(response([item(1)]))
+    const page = await loadDeclarationsPage({}, 1, { fetchPage })
+    expect(page.rows[0].declarationId).toBeUndefined()
+    expect(page.rows[0].requesterName).toBeUndefined()
+  })
+})
+
+describe("toLogRow", () => {
+  const base: ApiAttestation = {
+    id: "ATT-2",
+    material: { materialId: "8000000001", materialCode: "8000000001", description: "Pump seal" },
+    plant: { plantId: "1300", name: "Black Mountain Mining" },
+    quantity: "1",
+    conditionDescription: "Seal weeping",
+    faultCategory: "SEAL_FAILURE",
+    recommendation: "REPAIRABLE",
+    condition: "Repairable",
+    serialNumber: null,
+    evidenceReference: null,
+    attestor: "unauthenticated",
+    attestedAt: "2026-10-27T09:00:00Z",
+    sessionId: null,
+    supersedes: null,
+    supersededBy: null,
+    coversRepairLines: null,
+    coverageNote: null,
+  }
+
+  it("shows the typed name, the evidence reference and the amendment reason", () => {
+    const row = toLogRow({
+      ...base,
+      attestorName: "T. Mokoena",
+      evidenceReference: "Photo 4411",
+      supersedes: "ATT-1",
+      amendmentReason: "Wrong fault chosen",
+      repairDocument: "4500000001",
+      repairItem: "10",
+    })
+    expect(row.attestor).toBe("T. Mokoena")
+    expect(row.evidenceReference).toBe("Photo 4411")
+    expect(row.amendmentReason).toBe("Wrong fault chosen")
+    expect(row.isAmendment).toBe(true)
+    expect(row.repairId).toBe("4500000001-10")
+    expect(row.repairDocument).toBe("4500000001")
+    expect(row.repairItem).toBe("10")
+  })
+
+  it("falls back to the stamped attestor on an older record", () => {
+    const row = toLogRow(base)
+    expect(row.attestor).toBe("unauthenticated")
+    expect(row.evidenceReference).toBeUndefined()
+    expect(row.amendmentReason).toBeUndefined()
+    expect(row.repairId).toBeUndefined()
+  })
+
+  it("a declaration bound to a repair PR keys the register's PR row", () => {
+    const row = toLogRow({ ...base, repairDocument: "1000001", repairItem: "10", repairDocumentType: "PR" })
+    expect(row.repairId).toBe("PR-1000001-10")
+    expect(row.repairDocumentType).toBe("PR")
   })
 })

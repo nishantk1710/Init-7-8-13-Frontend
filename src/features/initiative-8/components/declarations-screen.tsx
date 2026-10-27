@@ -14,6 +14,7 @@ import {
   type DeclarationLogRow,
 } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationQueueRow, DeclarationQueueSummary } from "@/features/initiative-8/types/repair"
+import { waitingCount } from "@/features/initiative-8/utils/declaration"
 import { plural } from "@/features/initiative-8/utils/format"
 import { formatCount } from "@/lib/utils"
 
@@ -62,7 +63,7 @@ export function DeclarationsScreen({
       title="Repair Declarations"
       summary={
         <>
-          <span>{plural(summary.outstanding, "repair line")} waiting for a condition declaration</span>
+          <span>{plural(waitingCount(summary), "repair line")} waiting for a condition declaration</span>
           {recorded && (
             <>
               <Dot />
@@ -118,7 +119,7 @@ export function DeclarationsScreen({
           <p className="mt-1 text-[13px] text-muted-foreground">This is not &ldquo;nothing recorded&rdquo;. Try again in a minute.</p>
         </div>
       ) : (
-        <DeclarationLogTable rows={log} />
+        <DeclarationLogTable rows={log} faultCategories={faultCategories} />
       )}
     </I08Page>
   )

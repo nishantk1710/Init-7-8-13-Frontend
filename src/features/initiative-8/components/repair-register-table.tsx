@@ -33,6 +33,7 @@ import {
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08DateTime, plantShort, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { REGISTER_CSV_HEADERS, registerRowsToCsv } from "@/features/initiative-8/utils/register-view"
+import { DECLARATION_DISPLAY } from "@/features/initiative-8/utils/declaration"
 import { NO_PO_YET, repairRequestsNote, requestedAgo } from "@/features/initiative-8/utils/repair-request"
 import {
   OVERDUE_STATUSES,
@@ -88,11 +89,9 @@ type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number]["value"]
 const DEFAULT_WIDTHS = [22, 11, 15, 9, 13, 9, 12, 9]
 const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 7, crit: 9, pr: 11, po: 11 }
 
-const DECLARATION: Record<string, { tone: "warn" | "good" | "crit"; label: string }> = {
-  Required: { tone: "warn", label: "Required" },
-  Completed: { tone: "good", label: "Declared" },
-  Flagged: { tone: "crit", label: "Against assessment" },
-}
+/** Shared with the queue and the repair page; Historical reads muted. */
+const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; label: string; hint?: string }> =
+  DECLARATION_DISPLAY
 
 /** The filters that live behind "More filters". */
 const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging", "exceptions"] as const
@@ -546,7 +545,7 @@ export function RepairRegisterTable({
                             title={
                               c.declaredAt
                                 ? `Declared ${c.declaredAt}${c.condition ? `: ${c.condition}` : ""}`
-                                : undefined
+                                : declaration.hint
                             }
                           >
                             <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>

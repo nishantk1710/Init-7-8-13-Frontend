@@ -34,7 +34,7 @@ export type RepairStatus =
  * repairable, and it went for repair anyway. There is no "Pending": the FRS
  * has no approval step, so an attestation is recorded or it is not.
  */
-export type DeclarationStatus = "Required" | "Completed" | "Flagged"
+export type DeclarationStatus = "Required" | "Completed" | "Flagged" | "Historical"
 
 export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "Scrap"
 
@@ -621,6 +621,11 @@ export interface DeclarationQueueRow {
   /** EKPO's requisitioner, a CODE rather than a name — no person directory
    *  was delivered, so it is served as what it is. */
   requester?: string
+  /** The department's name for `requester`, when the department list knows it. */
+  requesterName?: string
+  /** The declaration covering this line, when one does: the row then offers
+   *  Amend (a new record superseding it), never a second Declare. */
+  declarationId?: string
   /** Absent where the repair line carries no requisition number. */
   purchaseRequisition?: string
   /** The repair line this declaration belongs to, as `{document}-{item}`. */

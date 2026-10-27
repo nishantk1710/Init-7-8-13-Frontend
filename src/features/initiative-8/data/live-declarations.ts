@@ -55,6 +55,9 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
     // requisitioner is served as what it is. An invented name would read as
     // provenance this record does not have.
     requester: orUndefined(row.requester),
+    requesterName: orUndefined(row.requesterName),
+    // Carried so the row offers Amend (superseding it) rather than Declare.
+    declarationId: orUndefined(row.declarationId),
     purchaseRequisition: row.pr ? row.pr.documentNumber : undefined,
     relatedRepairId: row.relatedRepairId,
     repairPO: row.repairPo
@@ -104,9 +107,13 @@ export type DeclarationLogRow = {
   faultCategory: string
   conditionDescription: string
   serialNumber?: string
-  /** Always empty today: there is no sign-in, so the server stamps a
-   *  placeholder. Shown as recorded rather than prettied up. */
+  /** The name the declarer typed when there is one, else what the server
+   *  stamped (a placeholder: there is no sign-in). Shown as recorded. */
   attestor: string
+  /** A reference someone can follow (a photo or report number). */
+  evidenceReference?: string
+  /** Why the amendment was made, on an amendment. */
+  amendmentReason?: string
   attestedAt?: string
   /** Set when a later amendment replaced this one. The original is never
    *  edited or removed, so a reader needs this to know it is not current. */
@@ -116,9 +123,13 @@ export type DeclarationLogRow = {
   /** The repair line it was declared against, as the register keys it --
    *  absent for a part declared with no repair line. */
   repairId?: string
+  /** The same line, unjoined, so Amend can name it again. */
+  repairDocument?: string
+  repairItem?: string
+  repairDocumentType?: "PO" | "PR"
 }
 
-function toLogRow(row: ApiAttestation): DeclarationLogRow {
+export function toLogRow(row: ApiAttestation): DeclarationLogRow {
   return {
     id: row.id,
     material: {
@@ -134,7 +145,9 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
     faultCategory: row.faultCategory,
     conditionDescription: row.conditionDescription,
     serialNumber: row.serialNumber ?? undefined,
-    attestor: row.attestor,
+    attestor: row.attestorName || row.attestor,
+    evidenceReference: orUndefined(row.evidenceReference),
+    amendmentReason: orUndefined(row.amendmentReason),
     // A full timestamp, so the date AND the time: the shared formatApiDate
     // turned a timestamp into an invalid date, and this column read "—" on
     // every row (I08_Live_UI_Redesign_Plan.md, Q11).
@@ -142,7 +155,12 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
     supersededBy: row.supersededBy ?? undefined,
     isAmendment: Boolean(row.supersedes),
     repairId:
-      row.repairDocument && row.repairItem ? `${row.repairDocument}-${row.repairItem}` : undefined,
+      row.repairDocument && row.repairItem
+        ? `${row.repairDocumentType === "PR" ? "PR-" : ""}${row.repairDocument}-${row.repairItem}`
+        : undefined,
+    repairDocument: orUndefined(row.repairDocument),
+    repairItem: orUndefined(row.repairItem),
+    repairDocumentType: orUndefined(row.repairDocumentType),
   }
 }
 

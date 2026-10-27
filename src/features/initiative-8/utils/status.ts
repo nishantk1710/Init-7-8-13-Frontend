@@ -23,6 +23,7 @@ export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Required: "warning",
   Completed: "success",
   Flagged: "danger",
+  Historical: "default",
 }
 
 /** The declaration statuses, in the order the filters offer them. */
@@ -30,6 +31,7 @@ export const DECLARATION_STATUSES: readonly DeclarationStatus[] = [
   "Required",
   "Completed",
   "Flagged",
+  "Historical",
 ]
 
 /**

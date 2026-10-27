@@ -29,6 +29,7 @@ import { isRepairRequestId } from "@/features/initiative-8/data/live-repair-deta
 import type { ExceptionQueueRow, RepairChain } from "@/features/initiative-8/types/repair"
 import { conditionLabel, humanize, isUnsigned, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { NO_PO_YET, repairRequestBanner, requesterText } from "@/features/initiative-8/utils/repair-request"
+import { declarationAction, declarationDisplay } from "@/features/initiative-8/utils/declaration"
 import {
   JUSTIFICATION_CELL_NOTE,
   exceptionTypeLabel,
@@ -177,7 +178,7 @@ export function RepairDetailPage({
       actions={
         requested ? undefined : (
           <>
-            {chain.declarationId ? (
+            {declarationAction(chain.declarationStatus, chain.declarationId) === null ? undefined : chain.declarationId ? (
               // An attestation is never edited: an amendment is a new row
               // pointing at the old one, which stays readable.
               <DeclareConditionButton
@@ -232,14 +233,10 @@ export function RepairDetailPage({
           {requested && chain.declarationStatus === "Required" ? (
             <StatusDot tone="muted">Not yet, no PO</StatusDot>
           ) : (
-            <StatusDot
-              tone={chain.declarationStatus === "Completed" ? "good" : chain.declarationStatus === "Flagged" ? "crit" : "warn"}
-            >
-              {chain.declarationStatus === "Completed"
-                ? "Declared"
-                : chain.declarationStatus === "Flagged"
-                  ? "Against assessment"
-                  : "Required"}
+            <StatusDot tone={declarationDisplay(chain.declarationStatus).tone}>
+              <span title={declarationDisplay(chain.declarationStatus).hint}>
+                {declarationDisplay(chain.declarationStatus).label}
+              </span>
             </StatusDot>
           )}
         </span>
