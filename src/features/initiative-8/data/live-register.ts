@@ -52,7 +52,6 @@
  * goods receipts are not read. The register `meta` counts what was left out.
  */
 
-import { DROPPED_TYPES } from "@/features/initiative-8/data/live-exceptions"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
 import type {
   DeclarationCondition,
@@ -153,10 +152,20 @@ export function toRepairJustification(
   }
 }
 
+/**
+ * What a row is: a repair PO line, or a repair requested on a PR with no PO
+ * yet. An older backend sends no `lineKind` and only PO rows; a row with no PO
+ * reference is a PR row whatever it says, so nothing PO-only is offered on it.
+ */
+function lineKindOf(row: ApiRepairChain): RepairChain["lineKind"] {
+  return row.lineKind ?? (row.repairPo ? "PO" : "PR")
+}
+
 /** One API row as the `RepairChain` every Initiative 8 component already takes. */
 export function toRepairChain(row: ApiRepairChain): RepairChain {
   return {
     id: row.id,
+    lineKind: lineKindOf(row),
     material: {
       materialId: row.material.materialId,
       materialCode: row.material.materialCode,
@@ -187,7 +196,11 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     vendor: orUndefined(row.vendor),
     vendorName: orUndefined(row.vendorName),
 
-    repairStatus: oneOf(row.repairStatus, REPAIR_STATUS_ORDER, "PR Raised"),
+    // An unrecognised status falls back on what the row's documents prove: a
+    // PO exists, so at least "PO Issued"; no PO, so the repair is only
+    // requested. Before 27-Oct-2026 every fallback read "PR Raised", which
+    // put a PO line in a stage it had left.
+    repairStatus: oneOf(row.repairStatus, REPAIR_STATUS_ORDER, row.repairPo ? "PO Issued" : "PR Raised"),
     declarationStatus: oneOf(row.declarationStatus, DECLARATION_STATUSES, "Required"),
     overdueStatus: row.overdueStatus,
     // A second signal beside overdueStatus, never a replacement for it: this
@@ -237,6 +250,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // What the Declaration Queue used to show per row. The attestation is a
     // full timestamp; the register shows its date, the way the queue did.
     declarationId: orUndefined(row.declarationId),
+    declarationLink: orUndefined(row.declarationLink),
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --
@@ -246,6 +260,8 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
       : undefined,
     declarationNextAction: orUndefined(row.nextAction),
     requester: orUndefined(row.requester),
+    // Only when the department list knows the code -- never a guessed name.
+    requesterName: orUndefined(row.requesterName),
     justification: row.justification ? toRepairJustification(row.justification) : undefined,
   }
 }
@@ -382,14 +398,39 @@ function listed(parts: string[]): string {
 }
 
 /**
- * The aging bands and the source's load time, from `GET /api/i8/snapshot`.
+ * Is a switch in the snapshot's rules on?
+ *
+ * The backend's rules map is typed as strings and integers, so a Python
+ * `True` can arrive as `true`, `1` or `"True"`. Anything else -- absent
+ * included -- is off: an older backend has no switch, and so nothing switched
+ * on.
+ */
+export function ruleIsOn(value: string | number | boolean | undefined | null): boolean {
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase())
+  return false
+}
+
+type RegisterSettings = {
+  agingBands: string[]
+  sourceLoadedAt: string | null
+  /** The backend serves repair PRs with no PO yet as rows (its
+   *  `repairRequestsEnabled` rule). False when it does not, when it is older
+   *  than that rule, or when the snapshot could not be read. */
+  repairRequestsEnabled: boolean
+}
+
+/**
+ * The aging bands, the source's load time and the PR-rows switch, from
+ * `GET /api/i8/snapshot`.
  *
  * Best-effort: the register itself is the primary fetch, and a snapshot
  * failure should not take the whole page down over a chart's axis labels.
  */
 async function loadRegisterSettings(
   fetchSnapshot: typeof getSnapshot = getSnapshot,
-): Promise<{ agingBands: string[]; sourceLoadedAt: string | null }> {
+): Promise<RegisterSettings> {
   try {
     const snapshot = await fetchSnapshot()
     const parsed = String(snapshot.rules.agingBands ?? "")
@@ -399,11 +440,12 @@ async function loadRegisterSettings(
     return {
       agingBands: parsed.length > 0 ? parsed : DEFAULT_AGING_BUCKETS,
       sourceLoadedAt: snapshot.sourceLoadedAt ?? null,
+      repairRequestsEnabled: ruleIsOn(snapshot.rules.repairRequestsEnabled),
     }
   } catch {
     // Keep the defaults silently -- this is presentation, not data integrity.
     // The caption drops its freshness clause rather than guessing at one.
-    return { agingBands: DEFAULT_AGING_BUCKETS, sourceLoadedAt: null }
+    return { agingBands: DEFAULT_AGING_BUCKETS, sourceLoadedAt: null, repairRequestsEnabled: false }
   }
 }
 
@@ -422,6 +464,9 @@ export type LiveRegister = RegisterOptions & {
    *  or the backend does not serve it — the caption then says nothing about
    *  freshness rather than inventing a source. */
   sourceLoadedAt: string | null
+  /** The backend serves repair PRs with no PO yet as rows. False on an older
+   *  backend or when the snapshot could not be read. */
+  repairRequestsEnabled: boolean
 }
 
 /**
@@ -449,7 +494,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     page += 1
   }
 
-  const { agingBands, sourceLoadedAt } = await loadRegisterSettings()
+  const { agingBands, sourceLoadedAt, repairRequestsEnabled } = await loadRegisterSettings()
 
   return {
     chains,
@@ -458,6 +503,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     meta: meta!,
     referenceDate,
     sourceLoadedAt,
+    repairRequestsEnabled,
   }
 }
 
@@ -492,18 +538,56 @@ export type RegisterFilters = {
   stageAging?: string
   /** `?exceptions=1`: only lines a check has raised something against. */
   exceptions?: boolean
-  /** A quick view: `overdue`, `undeclared`, `atVendor` or `withExceptions`. */
+  /** A quick view: `overdue`, `undeclared`, `atVendor`, `withExceptions` or
+   *  `notOrdered`. */
   view?: string
 }
 
-/** The register's quick views, in the order the screen shows them. */
+/** The register's quick views, in the order the screen shows them.
+ *  `notOrdered` (repair requested, no PO yet) is offered only when the backend
+ *  counts it -- see `registerViewChoices`. */
 export const REGISTER_VIEWS = [
   { value: "", label: "All" },
   { value: "overdue", label: "Overdue" },
   { value: "undeclared", label: "Not declared" },
   { value: "atVendor", label: "At vendor" },
   { value: "withExceptions", label: "With exceptions" },
+  { value: "notOrdered", label: "No PO yet" },
 ] as const
+
+/**
+ * The quick-view pills with their counts.
+ *
+ * A view whose count the backend did not send is left out: `notOrdered` is
+ * unknown to a backend older than 27-Oct-2026, which would ignore `view` and
+ * show every line under a selected pill. Every other count has been sent with
+ * `viewCounts` since the quick views arrived.
+ *
+ * With `screen` given (the register does), "No PO yet" is also left out while
+ * the backend's PR-rows switch is off: it then counts 0 on every page, and a
+ * pill that can only ever find nothing is noise. It stays when it has a
+ * count anyway (the switch could not be read) and while it is the selected
+ * view, so the selection never vanishes from under the reader.
+ */
+export function registerViewChoices(
+  viewCounts: ApiRegisterViewCounts,
+  screen?: { repairRequestsEnabled: boolean; selected?: string },
+): { value: string; label: string; count: number }[] {
+  return REGISTER_VIEWS.flatMap((view) => {
+    const count = viewCounts[view.value === "" ? "all" : view.value]
+    if (count === undefined) return []
+    if (
+      screen &&
+      view.value === "notOrdered" &&
+      !screen.repairRequestsEnabled &&
+      count === 0 &&
+      screen.selected !== view.value
+    ) {
+      return []
+    }
+    return [{ value: view.value, label: view.label, count }]
+  })
+}
 
 /** The dropdowns' choices: the server's, over the whole listed register. */
 export type RegisterFacets = {
@@ -526,6 +610,8 @@ export type RegisterPage = {
   referenceDate: string
   agingBands: string[]
   sourceLoadedAt: string | null
+  /** The backend serves repair PRs with no PO yet as rows. */
+  repairRequestsEnabled: boolean
   /** Each quick view's count over the filtered lines; null from a backend
    *  older than the quick views, when the buttons show no numbers. */
   viewCounts: ApiRegisterViewCounts | null
@@ -579,11 +665,10 @@ export function registerHref(filters: RegisterFilters, page = 1): string {
 /**
  * The request for what the screen shows.
  *
- * One parameter is always on, because it says what this listing is rather
- * than narrows it: `excludeExceptionType` keeps the Exceptions column to the
- * checks the exception queue carries (`DROPPED_TYPES`). Nothing is held back
- * from the listing itself any more -- every line the backend serves is open
- * in SAP.
+ * Nothing is held back: every line the backend serves is open in SAP, and
+ * the Exceptions column carries every check the exception queue does. It
+ * sent `excludeExceptionType=UNJUSTIFIED_ACQUISITION` from 14-Oct until
+ * 27-Oct-2026, while the queue left that check out (see `live-exceptions.ts`).
  */
 function registerQuery(filters: RegisterFilters): RegisterQuery {
   return {
@@ -598,7 +683,6 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     stageAgingBucket: filters.stageAging,
     withExceptions: filters.exceptions || undefined,
     view: filters.view,
-    excludeExceptionType: [...DROPPED_TYPES].join(","),
   }
 }
 

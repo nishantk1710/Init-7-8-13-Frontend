@@ -26,6 +26,7 @@ import {
 function chain(overrides: Partial<RepairChain> = {}): RepairChain {
   return {
     id: "4500001052-1310",
+    lineKind: "PO",
     material: { materialId: "8000004665", materialCode: "8000004665", description: "Cylinder" },
     plant: { plantId: "1300", name: "Black Mountain Mining" },
     qtyUnderRepair: 1,

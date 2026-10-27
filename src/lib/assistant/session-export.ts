@@ -10,6 +10,16 @@ import type { SessionTraceResponse } from "@/lib/api/assistant"
 import { factsCaveats, factsHeadline, isI08Facts, isI13Facts } from "@/lib/api/assistant-facts"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import {
+  dueBackNullNote,
+  needDateAdviceOf,
+  openRepairsSuffix,
+  repairRequestsOf,
+  requestAgePhrase,
+  requestDepartmentText,
+  requestReference,
+  stockFigure,
+} from "@/lib/assistant/i08-facts-format"
+import {
   BAND_LABEL,
   coverReasonText,
   formatInstant,
@@ -77,12 +87,14 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
       })
     }
   } else if (isI08Facts(facts)) {
+    // The same formatter as the card, so a record from before the 27-Oct
+    // usable/damaged split and repair requests downloads as it did then.
     const dueBack =
       facts.soonestDueDate === null
-        ? facts.openRepairLines > 0
-          ? "no date promised"
-          : "no open repair PO"
+        ? dueBackNullNote(facts)
         : `${facts.soonestDueDate}${facts.repairDueDateIsReliable === false ? " (no longer a forecast)" : ""}`
+    const stock = stockFigure(facts)
+    const requestsSuffix = openRepairsSuffix(facts)
     blocks.push({
       kind: "fields",
       rows: [
@@ -90,8 +102,8 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
           "Material (as assessed)",
           [facts.materialId, facts.description, `plant ${facts.plant}`, facts.criticality].filter(Boolean).join(" · "),
         ],
-        ["Stock available", facts.stockIsUnknown ? "no stock record" : orNote(facts.stockOnHand, "—")],
-        ["Open repairs", String(facts.openRepairLines)],
+        [stock.label, `${orNote(stock.value, stock.nullNote)}${stock.suffix ? ` (${stock.suffix})` : ""}`],
+        ["Open repairs", `${facts.openRepairLines}${requestsSuffix ? ` (${requestsSuffix})` : ""}`],
         ["Units in repair", orNote(facts.quantityUnderRepair, "—")],
         ["Earliest due back", dueBack],
       ],
@@ -104,6 +116,8 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
         } already past the promised return date.`,
       })
     }
+    const needDateAdvice = needDateAdviceOf(facts)
+    if (needDateAdvice) blocks.push({ kind: "paragraph", text: needDateAdvice })
     if (facts.openRepairs.length > 0) {
       blocks.push({
         kind: "table",
@@ -114,6 +128,19 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
           [r.vendorName ?? r.vendor ?? "vendor not named"],
           [r.status, ...(r.dispatched ? [] : ["no dispatch movement recorded"])],
           [r.daysOverdue !== null && r.daysOverdue > 0 ? `${r.daysOverdue} days` : "—"],
+        ]),
+      })
+    }
+    const requests = repairRequestsOf(facts)
+    if (requests.length > 0) {
+      blocks.push({
+        kind: "table",
+        columns: ["Requested, not yet ordered", "Quantity", "Requested", "Department"],
+        rows: requests.map((r) => [
+          [requestReference(r)],
+          [r.quantity],
+          [requestAgePhrase(r.daysSinceRequested)],
+          [requestDepartmentText(r) ?? "not stated"],
         ]),
       })
     }

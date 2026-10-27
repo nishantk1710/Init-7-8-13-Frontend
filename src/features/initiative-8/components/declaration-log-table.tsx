@@ -9,6 +9,7 @@ import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
+import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
 import { FilterChips, MaterialCell, ResultsCard } from "@/features/initiative-8/components/kit/list"
 import { Actor, StatusDot } from "@/features/initiative-8/components/kit/status"
 import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
@@ -30,7 +31,18 @@ import { downloadExcel } from "@/lib/utils"
  * the one it replaced, and both stay listed -- which is why a superseded row is
  * marked rather than removed.
  */
-export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow[] }) {
+export function DeclarationLogTable({
+  rows: allRows,
+  faultCategories = [],
+}: {
+  rows: DeclarationLogRow[]
+  /** For Amend's form. Empty when that fetch failed: the form says so. */
+  faultCategories?: string[]
+}) {
+  // The declaration being amended. Only one in force is offered Amend: a
+  // superseded record is history, and amending it would fork the chain.
+  const [amending, setAmending] = useState<DeclarationLogRow | null>(null)
+  const [formKey, setFormKey] = useState(0)
   const [search, setSearch] = useState("")
   const [condition, setCondition] = useState("")
   const [plant, setPlant] = useState("")
@@ -51,7 +63,7 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
       if (inForceOnly && r.supersededBy) return false
       if (
         needle &&
-        ![r.id, r.material.materialCode, r.material.description, r.conditionDescription, r.serialNumber, humanize(r.faultCategory), r.repairId]
+        ![r.id, r.material.materialCode, r.material.description, r.conditionDescription, r.serialNumber, r.evidenceReference, humanize(r.faultCategory), r.repairId]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(needle))
       ) {
@@ -148,9 +160,9 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[1000px]">
+            <StickyScrollTable tableClassName="table-fixed min-w-[1080px]">
               <colgroup>
-                {[17, 21, 12, 16, 12, 11, 11].map((width, index) => (
+                {[16, 20, 11, 15, 11, 11, 10, 6].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -163,6 +175,9 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
                   <Head>Fault</Head>
                   <Head>Notes</Head>
                   <Head>By</Head>
+                  <Head>
+                    <span className="sr-only">Action</span>
+                  </Head>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -218,7 +233,11 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
                           </StatusDot>
                         )}
                         {r.supersededBy && <span className="text-[12px] text-muted-foreground">Superseded by {r.supersededBy}</span>}
-                        {r.isAmendment && <span className="text-[12px] text-muted-foreground">Amendment</span>}
+                        {r.isAmendment && (
+                          <span className="text-[12px] text-muted-foreground" title={r.amendmentReason}>
+                            Amendment{r.amendmentReason ? `: ${r.amendmentReason}` : ""}
+                          </span>
+                        )}
                       </div>
                     </Cell>
                     <Cell wrap>{humanize(r.faultCategory)}</Cell>
@@ -226,9 +245,28 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
                       <span className="block truncate" title={r.conditionDescription}>
                         {r.conditionDescription || "—"}
                       </span>
+                      {r.evidenceReference && (
+                        <span className="block truncate text-[12px] text-muted-foreground" title={r.evidenceReference}>
+                          Evidence: {r.evidenceReference}
+                        </span>
+                      )}
                     </Cell>
                     <Cell wrap>
                       <Actor actor={r.attestor} />
+                    </Cell>
+                    <Cell right>
+                      {!r.supersededBy && r.plant && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setFormKey((k) => k + 1)
+                            setAmending(r)
+                          }}
+                        >
+                          Amend
+                        </Button>
+                      )}
                     </Cell>
                   </TableRow>
                 ))}
@@ -240,6 +278,26 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
           </>
         )}
       </ResultsCard>
+
+      {amending && (
+        <DeclarationFormDialog
+          key={formKey}
+          open
+          onClose={() => setAmending(null)}
+          target={{
+            materialId: amending.material.materialId,
+            plantId: amending.plant?.plantId,
+            label: `${amending.material.materialCode} · ${amending.material.description} · ${amending.plant?.name ?? "an unknown plant"}${amending.repairId ? ` · repair line ${amending.repairId}` : ""}`,
+            defaultQuantity: amending.quantity,
+            supersedes: amending.id,
+            // The amendment names the same line the original did, if any.
+            repairDocument: amending.repairDocument,
+            repairItem: amending.repairItem,
+            repairDocumentType: amending.repairDocumentType,
+          }}
+          faultCategories={faultCategories}
+        />
+      )}
     </>
   )
 }
@@ -256,11 +314,13 @@ export function declarationLogRowsForExcel(rows: DeclarationLogRow[]): (string |
     humanize(r.faultCategory),
     r.conditionDescription,
     r.serialNumber ?? "",
+    r.evidenceReference ?? "",
     actorLabel(r.attestor),
     r.id,
     r.repairId ?? "",
     r.isAmendment ? "Yes" : "No",
     r.supersededBy ?? "",
+    r.amendmentReason ?? "",
   ])
 }
 
@@ -274,9 +334,11 @@ export const DECLARATION_LOG_HEADERS = [
   "Fault Category",
   "Condition Description",
   "Serial",
+  "Evidence Reference",
   "Declared By",
   "Declaration",
   "Repair Line",
   "Amendment",
   "Superseded By",
+  "Amendment Reason",
 ]

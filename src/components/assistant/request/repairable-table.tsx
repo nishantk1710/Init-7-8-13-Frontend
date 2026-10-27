@@ -2,11 +2,23 @@
 
 import { Check, Trash2 } from "lucide-react"
 
+import { DeclarationFields } from "@/components/assistant/request/declaration-fields"
 import { RowStatus, figure } from "@/components/assistant/request/oar-table"
 import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import {
+  I08_WANT_NEW_NOTE,
+  isPositiveQuantity,
+  noUsableUnitText,
+  repairRequestsOf,
+  requestAgePhrase,
+  requestReference,
+  stockView,
+  type I08StockView,
+} from "@/lib/assistant/i08-facts-format"
+import {
+  EMPTY_DECLARATION,
   lineIssues,
   repairableNeedsJustification,
   toNumber,
@@ -18,13 +30,16 @@ import { cn } from "@/lib/utils"
  * The repairable (I08) rows of a request.
  *
  * A row asks one question -- use the unit that exists, or proceed with a new
- * one -- and only when a unit exists at all. With nothing in stock and nothing
- * on repair there is nothing to decide, and the row is ready as added. The
- * figures are the backend's I08 assessment record, as a conversation shows it.
+ * one -- and only when a unit exists at all. With nothing usable in stock and
+ * nothing on repair or requested there is nothing to decide, and the row is
+ * ready as added. The figures are the backend's I08 assessment record, read
+ * through the same formatter as the conversation's card, so a record from
+ * before the 27-Oct usable/damaged split and repair requests shows as before.
  */
 
 type OpenRepair = {
   purchasingDocument: string
+  item?: string
   quantity: string
   dueDate: string | null
   daysOverdue: number | null
@@ -36,6 +51,8 @@ export function RepairableTable({
   lineNumbers,
   showErrors,
   reasons,
+  faultCategories = [],
+  recommendations = [],
   refusedKey,
   onChange,
   onRemove,
@@ -44,6 +61,9 @@ export function RepairableTable({
   lineNumbers: Map<string, number>
   showErrors: boolean
   reasons: readonly ApiReasonCategory[]
+  /** From the preview; none (an older backend) hides the declaration section. */
+  faultCategories?: readonly string[]
+  recommendations?: readonly ApiReasonCategory[]
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -57,6 +77,8 @@ export function RepairableTable({
             lineNo={lineNumbers.get(row.key) ?? 0}
             showErrors={showErrors}
             reasons={reasons}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -73,6 +95,8 @@ function RepairableCard({
   lineNo,
   showErrors,
   reasons,
+  faultCategories,
+  recommendations,
   refused,
   onChange,
   onRemove,
@@ -81,6 +105,8 @@ function RepairableCard({
   lineNo: number
   showErrors: boolean
   reasons: readonly ApiReasonCategory[]
+  faultCategories: readonly string[]
+  recommendations: readonly ApiReasonCategory[]
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -158,7 +184,7 @@ function RepairableCard({
             </>
           ) : (
             <span className="text-sm text-muted-foreground">
-              Nothing to decide -- no unit in stock or on repair. Proceed with a new one.
+              Nothing to decide -- no usable unit in stock or on repair. Proceed with a new one.
             </span>
           )}
         </div>
@@ -170,6 +196,7 @@ function RepairableCard({
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
+              note={I08_WANT_NEW_NOTE}
               value={row.justification}
               showErrors={showErrors}
               reasons={reasons}
@@ -182,6 +209,18 @@ function RepairableCard({
           )}
         </div>
       </div>
+      {faultCategories.length > 0 && (
+        <div className="border-t border-line px-4 py-3">
+          <DeclarationFields
+            idPrefix={row.key}
+            value={row.declaration ?? EMPTY_DECLARATION}
+            showErrors={showErrors}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
+            onChange={(declaration) => onChange({ ...row, declaration })}
+          />
+        </div>
+      )}
     </article>
   )
 }
@@ -213,30 +252,26 @@ function Segment({
 
 function ExistingUnits({ row }: { row: RepairableLine }) {
   const f = row.preview.facts ?? {}
-  const stock = toNumber(f.stockOnHand) ?? 0
+  const view = stockView(f)
   const repairs = Array.isArray(f.openRepairs) ? (f.openRepairs as OpenRepair[]) : []
+  const requests = repairRequestsOf(f)
   const leadTime = typeof f.newUnitLeadTimeDays === "number" ? f.newUnitLeadTimeDays : null
   const lead = leadTime !== null ? `A new unit takes about ${leadTime} days.` : ""
   if (!row.unitExists) {
-    return <span className="text-sm text-muted-foreground">None in stock, none on repair. {lead}</span>
+    return (
+      <span className="text-sm text-muted-foreground">
+        {noUsableUnitText(f)} {lead}
+      </span>
+    )
   }
   return (
     <ul className="flex flex-col gap-2 text-sm">
-      {stock > 0 && (
-        <li className="flex items-center gap-3 rounded-lg bg-success/10 p-3">
-          <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-success/15 text-success">
-            <Check className="size-4" strokeWidth={3} />
-          </span>
-          <span className="flex flex-col">
-            <span className="font-bold text-foreground">{stock} in stock</span>
-            <span className="text-xs text-muted-foreground">Repaired, ready to issue.</span>
-          </span>
-        </li>
-      )}
+      <StockItems view={view} legacyStock={toNumber(f.stockOnHand) ?? 0} />
       {repairs.map((r) => {
         const overdue = (r.daysOverdue ?? 0) > 0
         return (
-          <li key={`${r.purchasingDocument}`} className="flex flex-wrap items-center gap-1.5">
+          // Keyed by PO and item: two items of one repair PO are two rows.
+          <li key={`po-${r.purchasingDocument}-${r.item ?? ""}`} className="flex flex-wrap items-center gap-1.5">
             <Chip tone={overdue ? "warn" : "muted"}>{figure(r.quantity)} on repair</Chip>
             <span className="text-muted-foreground">
               {r.vendorName ?? r.vendor ?? "vendor"}, due {formatDate(r.dueDate)}
@@ -245,7 +280,60 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
           </li>
         )
       })}
+      {requests.map((r) => (
+        // A repair request has no PO yet, so no vendor and no date to show.
+        <li key={`pr-${r.purchaseRequisition}-${r.item}`} className="flex flex-wrap items-center gap-1.5">
+          <Chip tone="muted">{figure(r.quantity)} requested</Chip>
+          <span className="text-muted-foreground">
+            {requestReference(r)} · {requestAgePhrase(r.daysSinceRequested)}, not yet ordered
+          </span>
+        </li>
+      ))}
       {lead && <li className="text-xs text-muted-foreground">{lead}</li>}
     </ul>
   )
+}
+
+/** The highlighted "ready to issue" block, in the card style. */
+function ReadyStock({ figureText, note }: { figureText: string; note: string }) {
+  return (
+    <li className="flex items-center gap-3 rounded-lg bg-success/10 p-3">
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-success/15 text-success">
+        <Check className="size-4" strokeWidth={3} />
+      </span>
+      <span className="flex flex-col">
+        <span className="font-bold text-foreground">{figureText}</span>
+        <span className="text-xs text-muted-foreground">{note}</span>
+      </span>
+    </li>
+  )
+}
+
+/**
+ * Stock as the record splits it. Only usable units can be issued; damaged ones
+ * are shown so the planner knows why they are not offered. An older record
+ * keeps the single block it always had.
+ */
+function StockItems({ view, legacyStock }: { view: I08StockView; legacyStock: number }) {
+  if (view.state === "known") {
+    return (
+      <>
+        {isPositiveQuantity(view.usable) && (
+          <ReadyStock figureText={`${figure(view.usable)} usable`} note="New or refurbished, ready to issue." />
+        )}
+        {isPositiveQuantity(view.damaged) && (
+          <li className="flex items-center gap-1.5">
+            <Chip tone="muted">{figure(view.damaged)} damaged</Chip>
+            <span className="text-muted-foreground">not usable</span>
+          </li>
+        )}
+      </>
+    )
+  }
+  if (view.state === "condition-unknown") {
+    if (!isPositiveQuantity(view.total)) return null
+    return <ReadyStock figureText={`${figure(view.total)} in stock`} note="Condition unknown." />
+  }
+  if (legacyStock <= 0) return null
+  return <ReadyStock figureText={`${legacyStock} in stock`} note="Repaired, ready to issue." />
 }

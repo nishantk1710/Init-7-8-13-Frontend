@@ -98,6 +98,7 @@ export async function RepairRegisterPage({
       filters={filters}
       viewCounts={data.viewCounts}
       sourceLoadedAt={data.sourceLoadedAt}
+      repairRequestsEnabled={data.repairRequestsEnabled}
     />
   )
 }

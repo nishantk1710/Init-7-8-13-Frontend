@@ -22,6 +22,8 @@ import {
 } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationQueueRow, RepairStatus } from "@/features/initiative-8/types/repair"
 import { plantShort, stageLabel } from "@/features/initiative-8/utils/format"
+import { declarationAction, declarationDisplay, queueRowLine } from "@/features/initiative-8/utils/declaration"
+import { requesterText } from "@/features/initiative-8/utils/repair-request"
 import { REPAIR_STATUS_TONE } from "@/features/initiative-8/utils/status"
 import { downloadExcel } from "@/lib/utils"
 
@@ -89,7 +91,7 @@ export function DeclarationsTable({
       const all = await fetchAllDeclarations(filters)
       const built = await downloadExcel(
         "i08-declaration-queue.xlsx",
-        ["Material", "Description", "Plant", "Vendor", "Repair Status", "Repair Line", "Requisition", "Requester Code", "Declaration Status", "Raised"],
+        ["Material", "Description", "Plant", "Vendor", "Repair Status", "Repair Line", "Requisition", "Requester", "Declaration Status", "Raised"],
         all
           .filter((row) => row.status !== "Completed")
           .map((row) => [
@@ -100,8 +102,8 @@ export function DeclarationsTable({
             row.repairStatus ?? "",
             row.relatedRepairId,
             row.purchaseRequisition ?? "",
-            row.requester ?? "",
-            row.status,
+            requesterText(row) ?? "",
+            declarationDisplay(row.status).label,
             row.createdAt ?? "",
           ]),
       )
@@ -214,9 +216,9 @@ export function DeclarationsTable({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[900px]">
+            <StickyScrollTable tableClassName="table-fixed min-w-[1000px]">
               <colgroup>
-                {[26, 12, 21, 9, 10.5, 11.5, 10].map((width, index) => (
+                {[22, 10, 17, 9, 9, 12, 11, 10].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -227,6 +229,7 @@ export function DeclarationsTable({
                   <Head>Vendor</Head>
                   <Head>Stage</Head>
                   <Head>PO raised</Head>
+                  <Head>Requester</Head>
                   <Head>Status</Head>
                   <Head>
                     <span className="sr-only">Action</span>
@@ -236,6 +239,8 @@ export function DeclarationsTable({
               <TableBody>
                 {visible.map((row) => {
                   const href = repairHref({ id: row.relatedRepairId })
+                  const display = declarationDisplay(row.status)
+                  const action = declarationAction(row.status, row.declarationId)
                   return (
                     <TableRow
                       key={row.id}
@@ -260,27 +265,32 @@ export function DeclarationsTable({
                       </Cell>
                       <Cell>{stageLabel(row.repairStatus)}</Cell>
                       <Cell>{row.createdAt ?? "—"}</Cell>
+                      <Cell>
+                        {/* A department code, with its name when the list knows it. */}
+                        <span className="block truncate" title={requesterText(row)}>
+                          {requesterText(row) ?? <span className="text-muted-foreground">Not recorded</span>}
+                        </span>
+                      </Cell>
                       <Cell wrap>
-                        {/* Flagged: declared NOT repairable and sent anyway -- still wants somebody. */}
-                        {row.status === "Flagged" ? (
-                          <StatusDot tone="crit" wrap>
-                            Against assessment
-                          </StatusDot>
-                        ) : (
-                          <StatusDot tone="warn">Required</StatusDot>
-                        )}
+                        {/* Flagged: declared NOT repairable and sent anyway. Historical:
+                            raised before declarations began, so never required. */}
+                        <StatusDot tone={display.tone} wrap>
+                          <span title={display.hint}>{display.label}</span>
+                        </StatusDot>
                       </Cell>
                       <Cell right>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setFormKey((k) => k + 1)
-                            setDeclaring(row)
-                          }}
-                        >
-                          Declare
-                        </Button>
+                        {action && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setFormKey((k) => k + 1)
+                              setDeclaring(row)
+                            }}
+                          >
+                            {action === "amend" ? "Amend" : "Declare"}
+                          </Button>
+                        )}
                       </Cell>
                     </TableRow>
                   )
@@ -311,9 +321,11 @@ export function DeclarationsTable({
             plantId: declaring.plant?.plantId,
             label: `${declaring.material.materialCode} · ${declaring.material.description} · ${declaring.plant?.name ?? "an unknown plant"} · repair line ${declaring.relatedRepairId}`,
             defaultQuantity: "1",
-            // FR-4's link to the repair PO: working a queue row declares THAT line.
-            repairDocument: declaring.repairPO?.documentNumber,
-            repairItem: declaring.repairPO?.line,
+            // A covered row amends its declaration rather than adding a second one.
+            supersedes: declaring.declarationId,
+            // FR-4's link to the repair line: working a queue row declares THAT
+            // line -- its repair PO, or the open repair PR on a PR row.
+            ...queueRowLine(declaring),
           }}
           faultCategories={faultCategories}
         />
