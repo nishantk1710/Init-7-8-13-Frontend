@@ -4,6 +4,7 @@ import { ExceptionsTable } from "@/features/initiative-8/components/exceptions-t
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
 import { Segmented, Tabs } from "@/features/initiative-8/components/kit/list"
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
+import { NotificationLogLink } from "@/features/initiative-8/components/notification-log"
 import { useUrlFilters } from "@/features/initiative-8/components/url-filters"
 import {
   ALL_STATUSES,
@@ -112,6 +113,8 @@ export function ExceptionsScreen({
     <I08Page
       crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Exceptions" }]}
       title="Repair Exceptions"
+      // FR-11's notification log, 27-Oct-2026: what email will send.
+      actions={<NotificationLogLink />}
       summary={
         <>
           <span>{plural(summary.total, "item")} found by the checks</span>

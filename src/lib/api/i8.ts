@@ -949,6 +949,54 @@ export function getException(exceptionId: string): Promise<ApiExceptionItem> {
 }
 
 /**
+ * One entry of FR-11's notification log: an exception the checks found
+ * actionable for the first time, logged once per exception id, for the types
+ * the backend's `I8_NOTIFICATION_TYPES` names.
+ *
+ * Email is not sent yet (27-Oct-2026): `channel` names where it will go and
+ * `emailed` is always false. The log is the list email will send.
+ */
+export type ApiNotification = {
+  id: string
+  exceptionId: string
+  type: string
+  severity: string
+  title: string
+  materialId: string
+  plant: string | null
+  /** ISO date-time the exception was first logged. */
+  loggedAt: string
+  channel: "EMAIL"
+  emailed: boolean
+}
+
+export type ApiNotificationsResponse = {
+  items: ApiNotification[]
+  total: number
+  page: number
+  pageSize: number
+  /** The types the log carries. */
+  types: string[]
+}
+
+export type NotificationQuery = {
+  page?: number
+  /** Default 25, at most 500. */
+  pageSize?: number
+  type?: string
+}
+
+/**
+ * `GET /api/i8/notifications` — the notification log, newest first.
+ *
+ * Optional: absent on an older backend, which answers 404. A 404 here means
+ * "this backend has no log", never "nothing was logged".
+ */
+export function getNotifications(query: NotificationQuery = {}): Promise<ApiNotificationsResponse> {
+  return apiFetch(`/i8/notifications${queryString(query)}`)
+}
+
+/**
  * `POST /api/i8/exceptions/{id}/events` — append one entry to the history.
  *
  * Writes the HISTORY, never the finding: the exception itself is recomputed
