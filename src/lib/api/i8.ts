@@ -1011,6 +1011,53 @@ export function createAttestation(body: AttestationRequest): Promise<ApiAttestat
   })
 }
 
+/** One goods movement against a job's reservation line. Quantity as a string. */
+export interface ApiJobMovement {
+  postedOn: string
+  quantity: string
+}
+
+/** A reservation line whose item text carries the session's R-reference. */
+export interface ApiJobReservation {
+  reservation: string
+  item: string
+  order: string | null
+  material: string
+  plant: string
+  quantity: string
+  requirementDate: string | null
+  /** 261: issued to the job. */
+  issued: ApiJobMovement[]
+  /** 262: returned to stock -- posted on the day the repaired unit came back. */
+  returned: ApiJobMovement[]
+}
+
+/** A repair PR or PO whose repair-order line carries the same R-reference. */
+export interface ApiJobRepair {
+  /** The register row id: `{PO}-{item}` or `PR-{BANFN}-{BNFPO}`. */
+  rowId: string
+  type: "PR" | "PO"
+  document: string
+  item: string
+  status: string
+}
+
+export interface ApiSessionJob {
+  sessionId: string
+  reservations: ApiJobReservation[]
+  repairs: ApiJobRepair[]
+}
+
+/**
+ * `GET /api/i8/sessions/{sessionId}/job` -- the job behind an assistant
+ * session: its reservation lines, their 261/262 movements, and the repair
+ * rows linked by the same R-reference. 404 for an unknown session (or an
+ * older backend without the route); empty lists when nothing is linked yet.
+ */
+export function getSessionJob(sessionId: string): Promise<ApiSessionJob> {
+  return apiFetch(`/i8/sessions/${encodeURIComponent(sessionId)}/job`)
+}
+
 // --- W5.5: coding candidates ------------------------------------------------
 //
 // Advisory only (FR-2): materials whose PO free text talks about repair but

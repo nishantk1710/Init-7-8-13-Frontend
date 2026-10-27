@@ -15,6 +15,9 @@ const FLOWS: { prefix: string; stages: { label: string; ids: string[] }[] }[] = 
     stages: [
       { label: "Assess", ids: ["i08_assessment"] },
       { label: "Justify", ids: ["i08_justification"] },
+      // Option B (27-Oct): the faulty unit coming out is declared in the same
+      // visit. A visit with no unit to decide on skips straight to this stage.
+      { label: "Declare", ids: ["i08_declare_choice", "i08_declaration"] },
       { label: "Done", ids: ["i08_done"] },
     ],
   },

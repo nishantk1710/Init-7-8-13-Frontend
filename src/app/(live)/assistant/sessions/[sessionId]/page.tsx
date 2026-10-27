@@ -7,8 +7,11 @@ import {
   SessionTrace,
 } from "@/components/assistant/session-trace"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
+import { SessionJob } from "@/components/assistant/session-job"
 import { getSession } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
+import { getSessionJob, type ApiSessionJob } from "@/lib/api/i8"
+import { sessionJobView, type SessionJobView } from "@/lib/assistant/session-job"
 
 /** No ID in the tab title: a request line's internal session ID is not
  *  something the requester ever sees or types. */
@@ -54,6 +57,20 @@ export default async function AssistantSessionPage({
     }
   }
 
+  // Repairable sessions only: the job behind the session, read from the
+  // reservation text. A 404 (or any failure) reads as "not linked yet" --
+  // the session page must not fail because the job cannot be read.
+  let jobView: SessionJobView | null = null
+  if (trace?.flow === "i08") {
+    let job: ApiSessionJob | null = null
+    try {
+      job = await getSessionJob(trace.sessionId)
+    } catch {
+      job = null
+    }
+    jobView = sessionJobView(job)
+  }
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="flex flex-col gap-5">
@@ -77,6 +94,8 @@ export default async function AssistantSessionPage({
         )}
 
         {trace !== null && <SessionTrace trace={trace} />}
+
+        {jobView !== null && <SessionJob view={jobView} />}
       </div>
     </div>
   )

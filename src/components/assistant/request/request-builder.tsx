@@ -28,6 +28,7 @@ import {
   DEFAULT_MAX_LINES,
   EMPTY_JUSTIFICATION,
   FALLBACK_REASONS,
+  FALLBACK_RECOMMENDATIONS,
   answersOf,
   isDuplicate,
   isReady,
@@ -138,6 +139,11 @@ export function RequestBuilder({
   const [submitting, setSubmitting] = useState(false)
   const [maxLines, setMaxLines] = useState(DEFAULT_MAX_LINES)
   const [reasons, setReasons] = useState<readonly ApiReasonCategory[]>(FALLBACK_REASONS)
+  // Empty until a preview names them: an older backend sends none and cannot
+  // take a declaration with the request, so the section is not offered.
+  const [faultCategories, setFaultCategories] = useState<readonly string[]>([])
+  const [recommendations, setRecommendations] =
+    useState<readonly ApiReasonCategory[]>(FALLBACK_RECOMMENDATIONS)
   const [refusedKey, setRefusedKey] = useState<string | null>(null)
   const [notEnabled, setNotEnabled] = useState(false)
   /** One per draft: a resubmitted draft is the same request, never a second one. */
@@ -190,6 +196,8 @@ export function RequestBuilder({
       const response = await previewRequest([{ materialId: picked.materialId, plant: picked.plant }])
       setMaxLines(response.maxLines)
       if (response.reasonCategories?.length) setReasons(response.reasonCategories)
+      if (response.faultCategories?.length) setFaultCategories(response.faultCategories)
+      if (response.recommendations?.length) setRecommendations(response.recommendations)
       const [preview] = response.lines
       setRows((current) =>
         current.map((row) =>
@@ -503,6 +511,8 @@ export function RequestBuilder({
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}

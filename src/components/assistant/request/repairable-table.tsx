@@ -2,6 +2,7 @@
 
 import { Check, Trash2 } from "lucide-react"
 
+import { DeclarationFields } from "@/components/assistant/request/declaration-fields"
 import { RowStatus, figure } from "@/components/assistant/request/oar-table"
 import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,8 @@ export function RepairableTable({
   lineNumbers,
   showErrors,
   reasons,
+  faultCategories = [],
+  recommendations = [],
   refusedKey,
   onChange,
   onRemove,
@@ -57,6 +60,9 @@ export function RepairableTable({
   lineNumbers: Map<string, number>
   showErrors: boolean
   reasons: readonly ApiReasonCategory[]
+  /** From the preview; none (an older backend) hides the declaration section. */
+  faultCategories?: readonly string[]
+  recommendations?: readonly ApiReasonCategory[]
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -70,6 +76,8 @@ export function RepairableTable({
             lineNo={lineNumbers.get(row.key) ?? 0}
             showErrors={showErrors}
             reasons={reasons}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -86,6 +94,8 @@ function RepairableCard({
   lineNo,
   showErrors,
   reasons,
+  faultCategories,
+  recommendations,
   refused,
   onChange,
   onRemove,
@@ -94,6 +104,8 @@ function RepairableCard({
   lineNo: number
   showErrors: boolean
   reasons: readonly ApiReasonCategory[]
+  faultCategories: readonly string[]
+  recommendations: readonly ApiReasonCategory[]
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -196,6 +208,18 @@ function RepairableCard({
           )}
         </div>
       </div>
+      {faultCategories.length > 0 && (
+        <div className="border-t border-line px-4 py-3">
+          <DeclarationFields
+            idPrefix={row.key}
+            value={row.declaration}
+            showErrors={showErrors}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
+            onChange={(declaration) => onChange({ ...row, declaration })}
+          />
+        </div>
+      )}
     </article>
   )
 }
