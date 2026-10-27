@@ -142,6 +142,97 @@ export function needDateAdviceOf(facts: unknown): string | null {
   return typeof advice === "string" && advice.trim() !== "" ? advice : null
 }
 
+// --- shared wording -----------------------------------------------------------
+//
+// The card, the request builder and the session download say the same things
+// in the same words. The strings below are the ones more than one of them
+// shows; each screen still lays them out its own way.
+
+/**
+ * What a reason for wanting a new unit actually does, said under the
+ * request builder's justification prompt. The backend's chat says the same
+ * sentence pair word for word (design 2.5, 27-Oct-2026): a reason is a record,
+ * not an order -- MRP or an inventory controller raises the purchase request,
+ * and they never see it.
+ */
+export const I08_WANT_NEW_NOTE =
+  "Your reason is kept on the platform. It doesn't buy anything: the reservation takes whatever usable stock the plant has, and a new unit is bought only when MRP or an inventory controller raises a purchase request. The desk that raises it won't see your reason."
+
+/**
+ * The stock figure as one labelled value.
+ *
+ * - `known`: the usable units, with the damaged ones named as not counted --
+ *   the verdict ignores them, so the figure must too.
+ * - `condition-unknown`: the plant total, marked as unsplit. A zero shelf has
+ *   no condition to be unsure about, so it carries no mark.
+ * - `legacy` / `no-record`: exactly what the screens showed before the split.
+ *
+ * `value` null means "show `nullNote`", never zero.
+ */
+export type I08StockFigure = {
+  label: string
+  value: string | null
+  nullNote: string
+  suffix: string | null
+}
+
+export function stockFigure(facts: unknown): I08StockFigure {
+  const view = stockView(facts)
+  switch (view.state) {
+    case "known":
+      return {
+        label: "Usable stock",
+        value: view.usable,
+        nullNote: "—",
+        suffix: isPositiveQuantity(view.damaged) ? `${view.damaged} damaged, not counted` : null,
+      }
+    case "condition-unknown":
+      return {
+        label: "Stock available",
+        value: view.total,
+        nullNote: "—",
+        suffix: isPositiveQuantity(view.total) ? "condition unknown" : null,
+      }
+    case "no-record":
+      return { label: "Stock available", value: null, nullNote: "no stock record", suffix: null }
+    case "legacy":
+      // The backend sends a null total only when the plant has no stock row,
+      // and the card has always said so.
+      return { label: "Stock available", value: view.total, nullNote: "no stock record", suffix: null }
+  }
+}
+
+/** `+N requested, not ordered` beside the open repair PO count; null when none are counted. */
+export function openRepairsSuffix(facts: unknown): string | null {
+  const count = repairRequestCountOf(facts)
+  return count > 0 ? `+${count} requested, not ordered` : null
+}
+
+/** `1 unit` / `2 units`, the quantity as sent. */
+export function unitsText(quantity: string): string {
+  return `${quantity} unit${quantity === "1" ? "" : "s"}`
+}
+
+/**
+ * The request builder's "what already exists" text when the verdict found no
+ * usable unit. Older records say what they said before ("None in stock, none
+ * on repair."); a newer one names damaged units and requested repairs instead
+ * of calling the shelf empty.
+ */
+export function noUsableUnitText(facts: unknown): string {
+  const view = stockView(facts)
+  const stock =
+    view.state === "known" && isPositiveQuantity(view.damaged)
+      ? `Nothing usable in stock (${view.damaged} damaged, not usable)`
+      : "None in stock"
+  const requests = repairRequestCountOf(facts)
+  const repair =
+    requests > 0
+      ? `${requests} ${requests === 1 ? "repair" : "repairs"} requested, not yet ordered`
+      : "none on repair"
+  return `${stock}, ${repair}.`
+}
+
 // --- internals ----------------------------------------------------------------
 
 function stringOrNull(value: unknown): string | null {

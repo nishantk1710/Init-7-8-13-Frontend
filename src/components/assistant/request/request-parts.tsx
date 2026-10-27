@@ -63,6 +63,7 @@ export function Chip({
 export function JustificationFields({
   idPrefix,
   prompt,
+  note,
   value,
   onChange,
   showErrors,
@@ -70,6 +71,8 @@ export function JustificationFields({
 }: {
   idPrefix: string
   prompt: string
+  /** Said under the prompt, e.g. what the reason does and does not do. */
+  note?: string
   value: Justification
   onChange: (next: Justification) => void
   showErrors: boolean
@@ -79,6 +82,7 @@ export function JustificationFields({
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
       <span className="text-xs font-medium text-foreground">{prompt}</span>
+      {note && <span className="text-[11px] text-muted-foreground">{note}</span>}
       <div className="grid gap-2 sm:grid-cols-[14rem_1fr]">
         <label htmlFor={`${idPrefix}-reason`} className="text-[11px] font-medium text-muted-foreground">
           Reason <RequiredMark />

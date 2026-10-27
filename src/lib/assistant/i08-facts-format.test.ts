@@ -2,14 +2,19 @@ import { describe, expect, it } from "vitest"
 
 import {
   dueBackNullNote,
+  I08_WANT_NEW_NOTE,
   isPositiveQuantity,
   needDateAdviceOf,
+  noUsableUnitText,
+  openRepairsSuffix,
   repairRequestCountOf,
   repairRequestsOf,
   requestAgePhrase,
   requestDepartmentText,
   requestReference,
+  stockFigure,
   stockView,
+  unitsText,
 } from "./i08-facts-format"
 
 /** The I08 keys a record from before 27-Oct-2026 carries (none of the new ones). */
@@ -190,5 +195,72 @@ describe("needDateAdviceOf", () => {
     expect(needDateAdviceOf({ ...legacy, needDateAdvice: null })).toBeNull()
     expect(needDateAdviceOf({ ...legacy, needDateAdvice: "  " })).toBeNull()
     expect(needDateAdviceOf(undefined)).toBeNull()
+  })
+})
+
+describe("stockFigure", () => {
+  const split = { ...legacy, stockOnHand: "3", usableStock: "2", damagedStock: "1", stockConditionKnown: true, stockSource: "MCHB" }
+
+  it("shows an older record exactly as before", () => {
+    expect(stockFigure(legacy)).toEqual({ label: "Stock available", value: "1", nullNote: "no stock record", suffix: null })
+    expect(stockFigure({ ...legacy, stockOnHand: "0", stockIsUnknown: true })).toEqual({
+      label: "Stock available",
+      value: null,
+      nullNote: "no stock record",
+      suffix: null,
+    })
+  })
+
+  it("shows usable stock and names the damaged units as not counted", () => {
+    expect(stockFigure(split)).toEqual({
+      label: "Usable stock",
+      value: "2",
+      nullNote: "—",
+      suffix: "1 damaged, not counted",
+    })
+    expect(stockFigure({ ...split, damagedStock: "0" }).suffix).toBeNull()
+  })
+
+  it("shows a damaged-only part as zero usable, not as an empty shelf", () => {
+    const f = stockFigure({ ...split, stockOnHand: "1", usableStock: "0", damagedStock: "1" })
+    expect(f.value).toBe("0")
+    expect(f.suffix).toBe("1 damaged, not counted")
+  })
+
+  it("marks the total as condition unknown on the fallback, but not an empty shelf", () => {
+    const fallback = { ...legacy, stockOnHand: "4", stockConditionKnown: false, stockSource: "MARD" }
+    expect(stockFigure(fallback)).toEqual({ label: "Stock available", value: "4", nullNote: "—", suffix: "condition unknown" })
+    expect(stockFigure({ ...fallback, stockOnHand: "0" }).suffix).toBeNull()
+  })
+})
+
+describe("repair request wording", () => {
+  it("adds the requested count beside the open repair POs", () => {
+    expect(openRepairsSuffix(legacy)).toBeNull()
+    expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 0 })).toBeNull()
+    expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 2 })).toBe("+2 requested, not ordered")
+  })
+
+  it("words a quantity as units", () => {
+    expect(unitsText("1")).toBe("1 unit")
+    expect(unitsText("2")).toBe("2 units")
+  })
+
+  it("keeps the old 'nothing exists' text on an older record", () => {
+    expect(noUsableUnitText({ ...legacy, stockOnHand: "0" })).toBe("None in stock, none on repair.")
+  })
+
+  it("names damaged units and requested repairs instead of an empty shelf", () => {
+    const damagedOnly = { ...legacy, stockOnHand: "1", usableStock: "0", damagedStock: "1", stockConditionKnown: true }
+    expect(noUsableUnitText(damagedOnly)).toBe("Nothing usable in stock (1 damaged, not usable), none on repair.")
+    expect(noUsableUnitText({ ...legacy, stockOnHand: "0", openRepairRequestLines: 2 })).toBe(
+      "None in stock, 2 repairs requested, not yet ordered."
+    )
+  })
+
+  it("carries the 'I want new' note word for word", () => {
+    expect(I08_WANT_NEW_NOTE).toBe(
+      "Your reason is kept on the platform. It doesn't buy anything: the reservation takes whatever usable stock the plant has, and a new unit is bought only when MRP or an inventory controller raises a purchase request. The desk that raises it won't see your reason."
+    )
   })
 })
