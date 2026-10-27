@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
 
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
@@ -210,23 +210,17 @@ export function RecommendationReviewTable({
   const showCircuit = hasRealCircuit(recommendations)
   const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
-  // Clicking the Value change header cycles: all rows -> released only (largest first) -> tied up only (largest
-  // first) -> all rows. The backend pages the list and has no filter or sort for this figure, so this narrows and
-  // reorders the rows on this page only.
+  // The Value change header has two arrows: down shows only released rows, up shows only increased (tied-up)
+  // rows, each largest first; neither active shows all. The backend pages the list and has no filter or sort for
+  // this figure, so this narrows and reorders the rows on this page only.
   const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
   const rows = useMemo(
     () => sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
     [recommendations, valueSort],
   )
-  const cycleValueSort = () =>
-    setValueSort((current) => (current === null ? "released-first" : current === "released-first" ? "tied-up-first" : null))
-  const SortIcon = valueSort === "released-first" ? ArrowDown : valueSort === "tied-up-first" ? ArrowUp : ArrowUpDown
-  const sortHint =
-    valueSort === null
-      ? "Show only released value change (down arrows)"
-      : valueSort === "released-first"
-        ? "Showing only released, largest first. Click to show only tied up"
-        : "Showing only tied up, largest first. Click to show all"
+  // Clicking the active arrow again turns the filter off.
+  const toggleValueSort = (next: Exclude<ValueChangeSort, null>) =>
+    setValueSort((current) => (current === next ? null : next))
 
   if (recommendations.length === 0) {
     return (
@@ -252,25 +246,43 @@ export function RecommendationReviewTable({
                 className="text-right"
                 aria-sort={valueSort === "released-first" ? "descending" : valueSort === "tied-up-first" ? "ascending" : "none"}
               >
-                <button
-                  type="button"
-                  onClick={cycleValueSort}
-                  title={sortHint}
-                  aria-label={sortHint}
-                  className={cn(
-                    "inline-flex items-center justify-end gap-1 hover:text-foreground",
-                    valueSort !== null && "rounded-md bg-primary/10 px-1.5 py-0.5 text-foreground",
-                  )}
-                >
+                <div className="inline-flex items-center justify-end gap-1">
                   Value change
-                  <SortIcon
+                  <button
+                    type="button"
+                    onClick={() => toggleValueSort("released-first")}
+                    title={
+                      valueSort === "released-first"
+                        ? "Showing only released value change. Click to show all"
+                        : "Show only released value change"
+                    }
+                    aria-label="Show only released value change"
+                    aria-pressed={valueSort === "released-first"}
                     className={cn(
-                      "size-3.5 shrink-0",
-                      valueSort === null ? "text-muted-foreground" : valueSort === "released-first" ? "text-success" : "text-warning",
+                      "rounded-md p-0.5 hover:bg-muted",
+                      valueSort === "released-first" ? "bg-success/15 text-success" : "text-muted-foreground",
                     )}
-                    aria-hidden="true"
-                  />
-                </button>
+                  >
+                    <ArrowDown className="size-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleValueSort("tied-up-first")}
+                    title={
+                      valueSort === "tied-up-first"
+                        ? "Showing only increased value change. Click to show all"
+                        : "Show only increased value change"
+                    }
+                    aria-label="Show only increased value change"
+                    aria-pressed={valueSort === "tied-up-first"}
+                    className={cn(
+                      "rounded-md p-0.5 hover:bg-muted",
+                      valueSort === "tied-up-first" ? "bg-warning/15 text-warning" : "text-muted-foreground",
+                    )}
+                  >
+                    <ArrowUp className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
               </TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
