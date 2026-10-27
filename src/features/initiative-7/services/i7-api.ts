@@ -58,7 +58,7 @@ export { ApiError }
  * -- confirmed against the live API. Every ApiDecimal field passes through
  * this before use; `null`/undefined/an unparsable string all become `null`
  * rather than 0, so a genuinely-absent value is never displayed as zero. */
-function toNumber(value: ApiDecimal): number | null {
+function toNumber(value: ApiDecimal | undefined): number | null {
   if (value === null || value === undefined) return null
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
@@ -291,13 +291,9 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     unitPrice: toNumber(row.unit_price) ?? 0,
     currency: row.currency ?? null,
     annualConsumption: 0,
-    // Same formula as the detail mapper's own workingCapitalImpact -- unit_price
-    // is now carried on the list endpoint too (Part 34), so this no longer has
-    // to wait for a row to be expanded.
-    workingCapitalImpact:
-      row.impact.status === "AVAILABLE"
-        ? -(toNumber(row.impact.safety_stock_delta) ?? 0) * (toNumber(row.unit_price) ?? 0)
-        : 0,
+    // Worked out by the backend (unit_price x ROP change), so the row and the Working Capital Impact
+    // card share one rule. Null stays null: it was not calculable, which is not "no change".
+    workingCapitalImpact: toNumber(row.working_capital_impact),
     consumptionHistory: [],
     factors,
     championChallenger: {
@@ -365,10 +361,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     unitPrice: toNumber(detail.unit_price) ?? 0,
     currency: detail.currency ?? null,
     annualConsumption: lastTwelveMonthsUsage,
-    workingCapitalImpact:
-      detail.impact.status === "AVAILABLE"
-        ? -(toNumber(detail.impact.safety_stock_delta) ?? 0) * (toNumber(detail.unit_price) ?? 0)
-        : 0,
+    workingCapitalImpact: toNumber(detail.working_capital_impact),
     consumptionHistory: detail.demand.consumption_history.map((point) => ({
       period: formatConsumptionPeriod(point.period),
       qty: toNumber(point.quantity) ?? 0,

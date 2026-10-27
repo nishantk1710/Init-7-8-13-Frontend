@@ -157,6 +157,12 @@ describe("cold-start (OAR) recommendations show what the backend did not send as
   it("flags nothing when a standard recommendation carries every value", () => {
     expect(mapDetailToRecommendation(detailFixture()).unavailable).toEqual([])
   })
+
+  it("takes the Value change from the backend's working_capital_impact, and keeps a missing one null", () => {
+    expect(mapDetailToRecommendation(detailFixture({ working_capital_impact: "-627.5" })).workingCapitalImpact).toBe(-627.5)
+    expect(mapDetailToRecommendation(detailFixture({ working_capital_impact: null })).workingCapitalImpact).toBeNull()
+    expect(mapDetailToRecommendation(detailFixture()).workingCapitalImpact).toBeNull()
+  })
 })
 
 describe("adoption tracking rows", () => {
@@ -278,6 +284,21 @@ describe("mapSummaryToRecommendation", () => {
     const rec = mapSummaryToRecommendation(summaryFixture())
     expect(rec.current).toEqual({ rop: 10, safetyStock: 5, maxStock: 0 })
     expect(rec.recommended).toEqual({ rop: 15, safetyStock: 8, maxStock: 0 })
+  })
+
+  it("takes the Value change from the backend's working_capital_impact, not from the safety stock", () => {
+    // Safety stock 5 -> 8 (delta 3) would have priced to 3 x 125.5; the figure is the ROP-based one.
+    const rec = mapSummaryToRecommendation(summaryFixture({ working_capital_impact: "-627.5" }))
+    expect(rec.workingCapitalImpact).toBe(-627.5)
+  })
+
+  it("keeps a missing working_capital_impact as null, never 0", () => {
+    expect(mapSummaryToRecommendation(summaryFixture({ working_capital_impact: null })).workingCapitalImpact).toBeNull()
+    expect(mapSummaryToRecommendation(summaryFixture()).workingCapitalImpact).toBeNull()
+  })
+
+  it("keeps a real zero as 0", () => {
+    expect(mapSummaryToRecommendation(summaryFixture({ working_capital_impact: 0 })).workingCapitalImpact).toBe(0)
   })
 
   it("falls back to null-safe zero when the summary endpoint's stock fields are absent", () => {
