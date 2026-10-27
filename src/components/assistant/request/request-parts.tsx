@@ -129,18 +129,9 @@ export function reasonLabel(value: string): string {
     .join(" ")
 }
 
-/** A reference with a copy button: the bare `R…` the requester types into SAP. */
-export function CopyReference({
-  value,
-  size = "md",
-  hint = "Type it into the reservation's header text in SAP.",
-}: {
-  value: string
-  size?: "md" | "lg"
-  hint?: string
-}) {
+/** Copy `value` to the clipboard, with a toast; `copied` is true for a moment after. */
+function useCopy(value: string, hint: string) {
   const [copied, setCopied] = useState(false)
-
   async function copy() {
     try {
       await navigator.clipboard.writeText(value)
@@ -151,6 +142,37 @@ export function CopyReference({
       toast.error("Could not copy", { description: "Select the reference and copy it by hand." })
     }
   }
+  return { copied, copy }
+}
+
+/** A labelled primary button that copies the reference -- the request page's main action. */
+export function CopyReferenceButton({
+  value,
+  hint = "Type it into the reservation's header text in SAP.",
+}: {
+  value: string
+  hint?: string
+}) {
+  const { copied, copy } = useCopy(value, hint)
+  return (
+    <Button type="button" size="lg" onClick={copy} className="min-h-11 shrink-0 px-5 text-base font-semibold">
+      {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+      {copied ? "Copied" : "Copy reference"}
+    </Button>
+  )
+}
+
+/** A reference with a copy button: the bare `R…` the requester types into SAP. */
+export function CopyReference({
+  value,
+  size = "md",
+  hint = "Type it into the reservation's header text in SAP.",
+}: {
+  value: string
+  size?: "md" | "lg"
+  hint?: string
+}) {
+  const { copied, copy } = useCopy(value, hint)
 
   return (
     <span className="inline-flex items-center gap-1">

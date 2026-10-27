@@ -1,7 +1,6 @@
 "use client"
 
-import { Fragment } from "react"
-import { Trash2 } from "lucide-react"
+import { Check, Trash2 } from "lucide-react"
 
 import { RowStatus, figure } from "@/components/assistant/request/oar-table"
 import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
@@ -50,38 +49,26 @@ export function RepairableTable({
   onRemove: (key: string) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[920px] text-sm">
-        <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
-          <tr>
-            <th className="w-10 px-3 py-2 font-medium">#</th>
-            <th className="px-3 py-2 font-medium">Material</th>
-            <th className="px-3 py-2 font-medium">What already exists</th>
-            <th className="w-[18rem] px-3 py-2 font-medium">Decision</th>
-            <th className="w-36 px-3 py-2 font-medium">Status</th>
-            <th className="w-12 px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <RepairableRow
-              key={row.key}
-              row={row}
-              lineNo={lineNumbers.get(row.key) ?? 0}
-              showErrors={showErrors}
-              reasons={reasons}
-              refused={row.key === refusedKey}
-              onChange={onChange}
-              onRemove={onRemove}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ul className="flex flex-col gap-3">
+      {rows.map((row) => (
+        <li key={row.key}>
+          <RepairableCard
+            row={row}
+            lineNo={lineNumbers.get(row.key) ?? 0}
+            showErrors={showErrors}
+            reasons={reasons}
+            refused={row.key === refusedKey}
+            onChange={onChange}
+            onRemove={onRemove}
+          />
+        </li>
+      ))}
+    </ul>
   )
 }
 
-function RepairableRow({
+/** One repairable material as a card: what it is, what exists, the decision, and the reason when one is needed. */
+function RepairableCard({
   row,
   lineNo,
   showErrors,
@@ -101,90 +88,85 @@ function RepairableRow({
   const exists = row.unitExists
   const issues = lineIssues(row)
   const declined = row.decision === "use_existing"
+  const needsReason = repairableNeedsJustification(row)
 
   return (
-    <Fragment>
-      <tr
-        className={cn(
-          "border-t border-border align-top",
-          declined && "bg-muted/30",
-          refused && "outline-2 -outline-offset-2 outline-destructive"
+    <article
+      aria-label={`Line ${lineNo}: ${row.materialId}`}
+      className={cn(
+        "overflow-hidden rounded-card border border-line bg-card",
+        refused && "outline-2 -outline-offset-2 outline-destructive"
+      )}
+    >
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3">
+        <span className="font-mono text-xs text-muted-foreground">/{lineNo}</span>
+        <span className="font-mono text-sm font-bold text-foreground">{row.materialId}</span>
+        <span className="min-w-0 text-sm text-foreground">
+          {row.description ?? <span className="text-muted-foreground italic">No description</span>}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Plant <span className="font-mono">{row.plant}</span>
+        </span>
+        {row.preview.alsoMatched && (
+          <Chip tone="muted" title="80-series and OAR: the repairable check runs, as the router decides.">
+            Also OAR · checked as repairable
+          </Chip>
         )}
-      >
-        <td className="px-3 py-3 font-mono text-xs text-muted-foreground">/{lineNo}</td>
-        <td className="px-3 py-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-xs font-semibold text-foreground">{row.materialId}</span>
-            <span className="text-sm text-foreground">
-              {row.description ?? <span className="text-muted-foreground italic">No description</span>}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              Plant <span className="font-mono">{row.plant}</span>
-            </span>
-            {row.preview.alsoMatched && (
-              <Chip tone="muted" className="mt-1" title="80-series and OAR: the repairable check runs, as the router decides.">
-                Also OAR · checked as repairable
-              </Chip>
-            )}
-          </div>
-        </td>
-        <td className="px-3 py-3 text-xs">
-          <ExistingUnits row={row} />
-        </td>
-        <td className="px-3 py-3">
-          {exists ? (
-            <div className="flex flex-col gap-1">
-              <div
-                role="radiogroup"
-                aria-label={`Decision for ${row.materialId}`}
-                className={cn(
-                  "inline-flex w-fit rounded-lg border border-border p-0.5",
-                  showErrors && row.decision === null && "border-destructive"
-                )}
-              >
-                <Segment
-                  active={row.decision === "use_existing"}
-                  onClick={() => onChange({ ...row, decision: "use_existing" })}
-                >
-                  Use existing
-                </Segment>
-                <Segment
-                  active={row.decision === "proceed_new"}
-                  onClick={() => onChange({ ...row, decision: "proceed_new" })}
-                >
-                  Proceed with new
-                </Segment>
-              </div>
-              {row.decision === "use_existing" && (
-                <span className="text-[11px] text-muted-foreground">No new unit will be reserved.</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              Nothing to decide -- no unit in stock or on repair. Proceed with a new one.
-            </span>
-          )}
-        </td>
-        <td className="px-3 py-3">
+        <span className="ml-auto flex items-center gap-2">
+          <Chip tone="warn">Repairable</Chip>
           <RowStatus declined={declined} issues={issues} declinedLabel="Use existing" />
-        </td>
-        <td className="px-3 py-3">
           <Button
             type="button"
-            variant="ghost"
-            size="icon-sm"
+            variant="outline"
+            size="icon-lg"
+            className="size-11"
             title="Remove from request"
             aria-label={`Remove ${row.materialId}`}
             onClick={() => onRemove(row.key)}
           >
-            <Trash2 className="text-destructive/80" />
+            <Trash2 className="text-destructive/80" aria-hidden />
           </Button>
-        </td>
-      </tr>
-      {repairableNeedsJustification(row) && (
-        <tr className="align-top">
-          <td />
-          <td colSpan={5} className="px-3 pb-3">
+        </span>
+      </header>
+      <div className="grid gap-5 p-4 md:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">What already exists</span>
+          <ExistingUnits row={row} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">Your decision</span>
+          {exists ? (
+            <>
+              <div
+                role="radiogroup"
+                aria-label={`Decision for ${row.materialId}`}
+                className={cn(
+                  "grid grid-cols-2 gap-1 rounded-lg border border-line bg-muted/50 p-1",
+                  showErrors && row.decision === null && "border-destructive"
+                )}
+              >
+                <Segment active={row.decision === "use_existing"} onClick={() => onChange({ ...row, decision: "use_existing" })}>
+                  Use existing
+                </Segment>
+                <Segment active={row.decision === "proceed_new"} onClick={() => onChange({ ...row, decision: "proceed_new" })}>
+                  Proceed with new
+                </Segment>
+              </div>
+              {row.decision === "use_existing" && (
+                <span className="text-xs text-muted-foreground">No new unit will be reserved.</span>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              Nothing to decide -- no unit in stock or on repair. Proceed with a new one.
+            </span>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className={cn("text-xs font-semibold", needsReason ? "text-muted-foreground" : "text-muted-foreground/60")}>
+            Why a new one?
+          </span>
+          {needsReason ? (
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
@@ -193,10 +175,14 @@ function RepairableRow({
               reasons={reasons}
               onChange={(justification) => onChange({ ...row, justification })}
             />
-          </td>
-        </tr>
-      )}
-    </Fragment>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              {declined ? "Not needed: the existing unit is used." : "Asked only when you proceed with a new unit."}
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
   )
 }
 
@@ -216,8 +202,8 @@ function Segment({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-        active ? "ai-gradient text-white shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        "min-h-10 rounded-md px-3 text-sm font-semibold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        active ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted-foreground hover:text-foreground"
       )}
     >
       {children}
@@ -232,14 +218,19 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
   const leadTime = typeof f.newUnitLeadTimeDays === "number" ? f.newUnitLeadTimeDays : null
   const lead = leadTime !== null ? `A new unit takes about ${leadTime} days.` : ""
   if (!row.unitExists) {
-    return <span className="text-muted-foreground">None in stock, none on repair. {lead}</span>
+    return <span className="text-sm text-muted-foreground">None in stock, none on repair. {lead}</span>
   }
   return (
-    <ul className="flex flex-col gap-1">
+    <ul className="flex flex-col gap-2 text-sm">
       {stock > 0 && (
-        <li className="flex items-center gap-1.5">
-          <Chip tone="ready">{stock} in stock</Chip>
-          <span className="text-muted-foreground">repaired, ready to issue</span>
+        <li className="flex items-center gap-3 rounded-lg bg-success/10 p-3">
+          <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-success/15 text-success">
+            <Check className="size-4" strokeWidth={3} />
+          </span>
+          <span className="flex flex-col">
+            <span className="font-bold text-foreground">{stock} in stock</span>
+            <span className="text-xs text-muted-foreground">Repaired, ready to issue.</span>
+          </span>
         </li>
       )}
       {repairs.map((r) => {
@@ -254,7 +245,7 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
           </li>
         )
       })}
-      {lead && <li className="text-[11px] text-muted-foreground">{lead}</li>}
+      {lead && <li className="text-xs text-muted-foreground">{lead}</li>}
     </ul>
   )
 }

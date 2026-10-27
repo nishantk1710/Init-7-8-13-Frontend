@@ -145,7 +145,7 @@ export function UtilizationLedgerTable({
               <TableHead className="text-right">Received</TableHead>
               <TableHead>Delivered on</TableHead>
               <TableHead className="text-right">Issued</TableHead>
-              <TableHead className="text-right">Open</TableHead>
+              <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead>Procurement</TableHead>
               <TableHead>Utilization</TableHead>
             </TableRow>
