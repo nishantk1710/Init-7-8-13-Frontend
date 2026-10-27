@@ -85,6 +85,34 @@ export type I08OpenRepair = {
   dispatched: boolean
 }
 
+/**
+ * One open repair request (a repair PR with no PO yet) behind an I08
+ * assessment. Counted in the verdict only when the backend's
+ * `I8_REPAIR_REQUESTS_ENABLED` switch is on.
+ *
+ * Ages are computed against the record's `referenceDate` and stored with it,
+ * so a replayed session shows the age it showed then. Never recompute them
+ * here.
+ */
+export type I08OpenRepairRequest = {
+  purchaseRequisition: string
+  item: string
+  /** Decimal-as-string. */
+  quantity: string
+  requestedAt: string | null
+  /** Days from `requestedAt` to `referenceDate`; null when the date is missing. */
+  daysSinceRequested: number | null
+  /** The requesting department's code (five digits), or null. */
+  department: string | null
+  /** Null when the department list does not name the code. Show the code. */
+  departmentName: string | null
+  /** The repair order (reservation) the PR was raised from, when known. */
+  repairOrder: string | null
+}
+
+/** Where an I08 stock figure came from. `MARD` is the condition-unknown fallback. */
+export type I08StockSource = "MCHB" | "MBEW" | "MARD"
+
 export type I08Facts = FactsCommon & {
   flow: "i08"
   materialId: string
@@ -119,7 +147,46 @@ export type I08Facts = FactsCommon & {
   newUnitLeadTimeDays: number | null
   /** Three-state. `null` is "cannot say" — see the module note. */
   waitingBeatsBuying: boolean | null
+  /** Repair POs only. Open repair requests are in `openRepairRequests`. */
   openRepairs: I08OpenRepair[]
+
+  // The keys below were added on 27-Oct-2026 (repair requests and the
+  // usable/damaged stock split). Records are stored word for word and
+  // replayed, so read them through `lib/assistant/i08-facts-format.ts`,
+  // which gives an old record the screen it had before.
+
+  /**
+   * Open repair requests counted in the verdict; 0 when the backend's switch
+   * is off. Absent on an older backend or an older stored session.
+   */
+  openRepairRequestLines?: number
+  /** Absent on an older backend or an older stored session. */
+  openRepairRequests?: I08OpenRepairRequest[]
+  /**
+   * New plus refurbished units. Decimal-as-string; null when the stock record
+   * does not say which units are which. Absent on an older backend or an older
+   * stored session.
+   */
+  usableStock?: string | null
+  /** Damaged units, never counted as usable. Absent on an older backend or an older stored session. */
+  damagedStock?: string | null
+  /**
+   * True when the part has condition rows, so `usableStock` and
+   * `damagedStock` can be trusted. `stockOnHand` stays the plant total either
+   * way. Absent on an older backend or an older stored session.
+   */
+  stockConditionKnown?: boolean
+  /**
+   * Where the stock figure came from; null when there is no stock record at
+   * all. Absent on an older backend or an older stored session.
+   */
+  stockSource?: I08StockSource | null
+  /**
+   * The need-date sentence, composed by the backend (shown only when its
+   * setting is on). Show it as sent; never compose it here. Absent on an older
+   * backend or an older stored session.
+   */
+  needDateAdvice?: string | null
 }
 
 // --- Initiative 13 ----------------------------------------------------------
