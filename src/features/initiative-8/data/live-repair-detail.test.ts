@@ -45,14 +45,6 @@ const REGISTER_LINE = {
 
 const STAGES: ApiLifecycleStage[] = [
   {
-    stage: "removed",
-    label: "Removed from machine",
-    occurredAt: null,
-    evidence:
-      "MSEG 261/201 carries no PO reference at all, so removal cannot be tied to this line.",
-    daysSince: null,
-  },
-  {
     stage: "attested",
     label: "Condition attested",
     occurredAt: null,
@@ -66,6 +58,13 @@ const STAGES: ApiLifecycleStage[] = [
     occurredAt: "2025-04-07",
     evidence: "EKPO line 4500001052/1310, item category 3",
     daysSince: 526,
+  },
+  {
+    stage: "dispatched",
+    label: "Sent to vendor",
+    occurredAt: null,
+    evidence: "No 541 movement attributable to this line.",
+    daysSince: null,
   },
 ]
 
@@ -210,8 +209,28 @@ describe("loadLiveRepairDetail", () => {
     // one. A stage rendered blank looks like a forgotten field; a stage that
     // explains itself is the deliverable.
     const { timeline } = await load("4500001052-1310")
-    const removed = timeline.find((e: { id: string }) => e.id === "removed")
-    expect(removed?.description).toContain("carries no PO reference")
+    const dispatched = timeline.find((e: { id: string }) => e.id === "dispatched")
+    expect(dispatched?.description).toContain("No 541 movement attributable")
+  })
+
+  it("drops the Removed from machine stage an older backend still sends", async () => {
+    // Ruled 26-Oct-2026: SAP has no record of removal, so the stage was empty
+    // on every line. The backend stopped sending it on 27-Oct-2026; an older
+    // one still does, and the timeline must not show it.
+    const { timeline } = await load(
+      "4500001052-1310",
+      mockDetail([
+        {
+          stage: "removed",
+          label: "Removed from machine",
+          occurredAt: null,
+          evidence: "MSEG 261/201 carries no PO reference at all, so removal cannot be tied to this line.",
+          daysSince: null,
+        },
+        ...STAGES,
+      ]),
+    )
+    expect(timeline.map((e: { id: string }) => e.id)).toEqual(["attested", "po_raised", "dispatched"])
   })
 
   it("marks a stage that never happened as 'Not recorded', not as a date", async () => {

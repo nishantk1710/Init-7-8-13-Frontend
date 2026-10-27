@@ -10,9 +10,6 @@
  * backend builds one **with the evidence for every stage, including the stages
  * it cannot prove** — and those are the interesting ones:
  *
- *   removed     "MSEG 261/201 carries no PO reference at all, so removal cannot
- *                be tied to this line. Modelled at material+plant level or left
- *                out — never linked by a guess."
  *   dispatched  "No 541 movement attributable to this line."
  *   at vendor   "No dispatch movement attributable to this line, so time at the
  *                vendor cannot be measured. Stores post most 541s on the day
@@ -21,6 +18,15 @@
  * A stage rendered as blank looks like a field somebody forgot. A stage that
  * says why it is blank is the product. So the adapter carries `evidence`
  * through as the step's description rather than dropping it.
+ *
+ * ## No "Removed from machine" stage
+ *
+ * Ruled 26-Oct-2026: SAP has no record of a unit coming off the machine (the
+ * issue to the maintenance order carries no PO reference, so it cannot be tied
+ * to a repair line), and the stage was empty on every line. "Condition
+ * declared" and the replacement issue tell that part of the story. The backend
+ * stopped sending the stage on 27-Oct-2026; an older backend still does, so
+ * the adapter drops it here.
  */
 
 import type { TimelineEvent } from "@/components/shared/timeline"
@@ -45,6 +51,10 @@ const COMPLETED_TONE: Record<string, TimelineEvent["tone"]> = {
   dispatched: "default",
   at_vendor: "warning",
 }
+
+/** Stages an older backend may still send but the timeline no longer shows.
+ *  `removed` ("Removed from machine"): dropped 27-Oct-2026, see above. */
+const DROPPED_STAGES: ReadonlySet<string> = new Set(["removed"])
 
 function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {
   const happened = stage.occurredAt !== null
@@ -139,6 +149,8 @@ export async function loadLiveRepairDetail(
 
   return {
     chain: toRepairChain(detail.line),
-    timeline: detail.timeline.map(toTimelineEvent),
+    timeline: detail.timeline
+      .filter((stage) => !DROPPED_STAGES.has(stage.stage))
+      .map(toTimelineEvent),
   }
 }

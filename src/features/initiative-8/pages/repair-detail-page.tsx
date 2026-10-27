@@ -7,7 +7,6 @@ import {
   Check,
   ClipboardList,
   Clock,
-  Cog,
   Copy,
   FileClock,
   SquarePen,
@@ -357,7 +356,6 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 const STAGE_TITLE: Record<string, string> = {
   pr_raised: "Repair requested",
-  removed: "Removed from machine",
   attested: "Condition declared",
   po_raised: "Repair PO raised",
   dispatched: "Sent to vendor",
@@ -366,7 +364,6 @@ const STAGE_TITLE: Record<string, string> = {
 
 const STAGE_ICON: Record<string, typeof Check> = {
   pr_raised: ClipboardList,
-  removed: Cog,
   attested: SquarePen,
   po_raised: Check,
   dispatched: Truck,
@@ -406,8 +403,6 @@ function RepairTimeline({
           ? { ...base, icon: Check, state: "done", when: stage.timestamp, note }
           : { ...base, state: "missing", note }
       }
-      case "removed":
-        return { ...base, state: "missing", note: "Not tracked for this line" }
       case "attested":
         if (chain.declarationStatus === "Flagged") {
           return {
