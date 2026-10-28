@@ -231,7 +231,9 @@ export function DeclarationsTable({
           <>
             <StickyScrollTable tableClassName="table-fixed min-w-[1000px]">
               <colgroup>
-                {[22, 10, 17, 9, 9, 12, 11, 10].map((width, index) => (
+                {/* PO raised wide enough for "30 Apr 2026": the Historical tab
+                    filled this table and showed the date cut off. */}
+                {[20, 10, 16, 9, 11, 13, 11, 10].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>

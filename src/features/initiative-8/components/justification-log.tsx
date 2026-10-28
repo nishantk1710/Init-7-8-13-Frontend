@@ -214,7 +214,7 @@ export function I08JustificationLog({
           <>
             <StickyScrollTable tableClassName="table-fixed min-w-[1040px]">
               <colgroup>
-                {[13, 19, 10, 12, 14, 10, 12, 10].map((width, index) => (
+                {[14, 19, 10, 12, 13, 10, 12, 10].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
