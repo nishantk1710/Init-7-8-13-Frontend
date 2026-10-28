@@ -196,7 +196,10 @@ describe("sessionDocument", () => {
     expect(txt).toContain("Held at other plants: 3 at 1400.")
     expect(txt).toContain("Consumption is from the last 12 months only.")
     expect(txt).toContain("The requester kept their own quantity.")
-    expect(txt).toContain("quantity override")
+    // The reason in words, never its code.
+    expect(txt).toContain("Why this quantity")
+    expect(txt).toContain("Urgent breakdown")
+    expect(txt).not.toContain("URGENT_BREAKDOWN")
   })
 
   it("names the request for a line of a multi-material request", () => {
@@ -206,12 +209,16 @@ describe("sessionDocument", () => {
     expect(rows).toMatchObject({
       "Request line": "R5B61EQBGQ/2",
       "Type in SAP": "R5B61EQBGQ",
+      // The one instruction the page and the closing message give.
+      "How to type it":
+        "Type the request reference R5B61EQBGQ once into the reservation's header text in SAP; SAP copies it to every item.",
     })
     expect(rows).not.toHaveProperty("Session reference")
     expect(text(doc.blocks)).not.toContain("S8K2M4P6Q9")
     expect(exportId({ ...i13, requestId: "R5B61EQBGQ", lineNo: 2 })).toBe("R5B61EQBGQ-2")
     expect(exportId(i13)).toBe("S8K2M4P6Q9")
-    expect(text(doc.blocks)).toContain("request R5B61EQBGQ for this material")
+    expect(text(doc.blocks)).toContain("Not linked yet. The link appears once a SAP reservation carrying R5B61EQBGQ")
+    expect(text(doc.blocks)).not.toContain("SGTXT")
   })
 
   it("leaves the conversation turns out", () => {
@@ -224,7 +231,7 @@ describe("sessionDocument", () => {
       Requester: "not stated",
       Department: "not stated",
       "Stock available": "no stock record",
-      "Earliest due back": "2026-05-01 (no longer a forecast)",
+      "Earliest due back": "01 May 2026 (no longer a forecast)",
     })
     const txt = text(doc.blocks)
     expect(txt).toContain("4500000001/10")
