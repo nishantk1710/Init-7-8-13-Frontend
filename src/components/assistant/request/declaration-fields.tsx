@@ -5,12 +5,15 @@ import { RequiredMark } from "@/components/assistant/step-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
-import { parseQuantity, type DeclarationDraft } from "@/lib/assistant/request/lines"
+import { parseQuantity, withDeclarationOpen, type DeclarationDraft } from "@/lib/assistant/request/lines"
+import { faultCategoryLabel } from "@/lib/assistant/session-view"
+import { cn } from "@/lib/utils"
 
 /**
  * Option B (27-Oct): the faulty unit coming out is declared with the request,
  * so nobody has to come back to the Declarations screen for it. Optional:
- * left closed, the line sends nothing. The name is typed, not a sign-in.
+ * left closed, the line sends nothing. The name is typed, not a sign-in; on
+ * opening it is filled from the request's Requester and stays editable.
  * Options come from the preview, never a list of our own.
  */
 export function DeclarationFields({
@@ -19,10 +22,13 @@ export function DeclarationFields({
   showErrors,
   faultCategories,
   recommendations,
+  requester = "",
   onChange,
 }: {
   idPrefix: string
   value: DeclarationDraft
+  /** The request's Requester, filled into "Your name" when the section opens. */
+  requester?: string
   showErrors: boolean
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
@@ -31,13 +37,17 @@ export function DeclarationFields({
   const set = (patch: Partial<DeclarationDraft>) => onChange({ ...value, ...patch })
   const missing = (empty: boolean) => showErrors && empty
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3">
+    <div className="@container flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3">
       <label className="flex w-fit items-center gap-2 text-xs font-medium text-foreground">
-        <input type="checkbox" checked={value.open} onChange={(e) => set({ open: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={value.open}
+          onChange={(e) => onChange(withDeclarationOpen(value, e.target.checked, requester))}
+        />
         Taking out a faulty unit? Declare it
       </label>
       {value.open && (
-        <div className="grid gap-2 sm:grid-cols-[7rem_1fr_1fr]">
+        <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2 @xl:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)]">
           <Field id={`${idPrefix}-dq`} label="Quantity" required>
             <Input
               id={`${idPrefix}-dq`}
@@ -59,12 +69,12 @@ export function DeclarationFields({
               <option value="">Choose a category…</option>
               {faultCategories.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {faultCategoryLabel(c)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field id={`${idPrefix}-drec`} label="Recommendation" required>
+          <Field id={`${idPrefix}-drec`} label="Recommendation" required className="col-span-2 @xl:col-span-1">
             <select
               id={`${idPrefix}-drec`}
               className={SELECT_CLASS}
@@ -80,7 +90,7 @@ export function DeclarationFields({
               ))}
             </select>
           </Field>
-          <div className="sm:col-span-3">
+          <div className="col-span-2 @xl:col-span-3">
             <Field id={`${idPrefix}-dcond`} label="Condition of the unit" required>
               <Textarea
                 id={`${idPrefix}-dcond`}
@@ -92,7 +102,7 @@ export function DeclarationFields({
               />
             </Field>
           </div>
-          <div className="sm:col-span-2">
+          <div className="col-span-2">
             <Field id={`${idPrefix}-dname`} label="Your name (typed, not a sign-in)" required>
               <Input
                 id={`${idPrefix}-dname`}
@@ -104,7 +114,7 @@ export function DeclarationFields({
               />
             </Field>
           </div>
-          <Field id={`${idPrefix}-dev`} label="Evidence reference (optional)">
+          <Field id={`${idPrefix}-dev`} label="Evidence reference (optional)" className="col-span-2 @xl:col-span-1">
             <Input
               id={`${idPrefix}-dev`}
               value={value.evidenceReference}
@@ -122,15 +132,18 @@ function Field({
   id,
   label,
   required,
+  className,
   children,
 }: {
   id: string
   label: string
   required?: boolean
+  /** Grid placement, e.g. how many columns it spans. */
+  className?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <label htmlFor={id} className="text-[11px] font-medium text-muted-foreground">
         {label} {required && <RequiredMark />}
       </label>

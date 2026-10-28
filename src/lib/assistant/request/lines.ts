@@ -70,6 +70,17 @@ export const EMPTY_DECLARATION: DeclarationDraft = {
 }
 
 /**
+ * Open or close the declaration. Opening it with no name typed yet fills in the
+ * request's Requester, which is usually the person standing at the machine;
+ * it stays editable, and a name already typed is never replaced.
+ */
+export function withDeclarationOpen(d: DeclarationDraft, open: boolean, requester: string): DeclarationDraft {
+  const name = requester.trim()
+  if (!open || d.attestorName.trim() || !name) return { ...d, open }
+  return { ...d, open, attestorName: name }
+}
+
+/**
  * What is still missing on an open declaration, in the order the form asks.
  * A line from a draft saved before 27-Oct-2026 has no declaration at all: none made.
  */

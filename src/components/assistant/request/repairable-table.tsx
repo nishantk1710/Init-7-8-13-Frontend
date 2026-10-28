@@ -15,6 +15,7 @@ import {
   requestAgePhrase,
   requestReference,
   stockView,
+  usableBreakdownText,
   type I08StockView,
 } from "@/lib/assistant/i08-facts-format"
 import {
@@ -53,6 +54,7 @@ export function RepairableTable({
   reasons,
   faultCategories = [],
   recommendations = [],
+  requester = "",
   refusedKey,
   onChange,
   onRemove,
@@ -64,6 +66,8 @@ export function RepairableTable({
   /** From the preview; none (an older backend) hides the declaration section. */
   faultCategories?: readonly string[]
   recommendations?: readonly ApiReasonCategory[]
+  /** The request's Requester: the declaration's typed name starts from it. */
+  requester?: string
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -79,6 +83,7 @@ export function RepairableTable({
             reasons={reasons}
             faultCategories={faultCategories}
             recommendations={recommendations}
+            requester={requester}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -97,6 +102,7 @@ function RepairableCard({
   reasons,
   faultCategories,
   recommendations,
+  requester,
   refused,
   onChange,
   onRemove,
@@ -107,6 +113,7 @@ function RepairableCard({
   reasons: readonly ApiReasonCategory[]
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
+  requester: string
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -184,8 +191,21 @@ function RepairableCard({
             </>
           ) : (
             <span className="text-sm text-muted-foreground">
-              Nothing to decide -- no usable unit in stock or on repair. Proceed with a new one.
+              Nothing to decide: no usable unit in stock or on repair. Proceed with a new one.
             </span>
+          )}
+          {/* Right under the decision, as part of the line: the unit coming out
+              is declared with the one going in, not in a footer. */}
+          {faultCategories.length > 0 && (
+            <DeclarationFields
+              idPrefix={row.key}
+              value={row.declaration ?? EMPTY_DECLARATION}
+              showErrors={showErrors}
+              faultCategories={faultCategories}
+              recommendations={recommendations}
+              requester={requester}
+              onChange={(declaration) => onChange({ ...row, declaration })}
+            />
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-2">
@@ -209,18 +229,6 @@ function RepairableCard({
           )}
         </div>
       </div>
-      {faultCategories.length > 0 && (
-        <div className="border-t border-border px-4 py-3">
-          <DeclarationFields
-            idPrefix={row.key}
-            value={row.declaration ?? EMPTY_DECLARATION}
-            showErrors={showErrors}
-            faultCategories={faultCategories}
-            recommendations={recommendations}
-            onChange={(declaration) => onChange({ ...row, declaration })}
-          />
-        </div>
-      )}
     </article>
   )
 }
@@ -266,7 +274,7 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
   }
   return (
     <ul className="flex flex-col gap-2 text-sm">
-      <StockItems view={view} legacyStock={toNumber(f.stockOnHand) ?? 0} />
+      <StockItems view={view} breakdown={usableBreakdownText(f)} legacyStock={toNumber(f.stockOnHand) ?? 0} />
       {repairs.map((r) => {
         const overdue = (r.daysOverdue ?? 0) > 0
         return (
@@ -314,13 +322,25 @@ function ReadyStock({ figureText, note }: { figureText: string; note: string }) 
  * are shown so the planner knows why they are not offered. An older record
  * keeps the single block it always had.
  */
-function StockItems({ view, legacyStock }: { view: I08StockView; legacyStock: number }) {
+function StockItems({
+  view,
+  breakdown,
+  legacyStock,
+}: {
+  view: I08StockView
+  /** "1 refurbished", "2 new · 1 refurbished"; null when the record does not say. */
+  breakdown: string | null
+  legacyStock: number
+}) {
   if (view.state === "known") {
     return (
       <>
-        {isPositiveQuantity(view.usable) && (
-          <ReadyStock figureText={`${figure(view.usable)} usable`} note="New or refurbished, ready to issue." />
-        )}
+        {isPositiveQuantity(view.usable) &&
+          (breakdown ? (
+            <ReadyStock figureText={breakdown} note="Usable, ready to issue." />
+          ) : (
+            <ReadyStock figureText={`${figure(view.usable)} usable`} note="New or refurbished, ready to issue." />
+          ))}
         {isPositiveQuantity(view.damaged) && (
           <li className="flex items-center gap-1.5">
             <Chip tone="muted">{figure(view.damaged)} damaged</Chip>
