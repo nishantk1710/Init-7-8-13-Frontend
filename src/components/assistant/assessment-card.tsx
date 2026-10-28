@@ -34,8 +34,10 @@ import {
   requestReference,
   stockFigure,
   unitsText,
+  usableBreakdownText,
 } from "@/lib/assistant/i08-facts-format"
-import { BAND_LABEL, coverReasonText } from "@/lib/assistant/trace-format"
+import { formatQuantity, readableText } from "@/lib/assistant/session-view"
+import { BAND_LABEL, coverReasonText, formatDay } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -60,7 +62,9 @@ import { cn } from "@/lib/utils"
  * instructions and they are displayed differently throughout.
  */
 export function AssessmentCard({ facts }: { facts: unknown }) {
-  const headline = factsHeadline(facts)
+  // Readable: a stored headline can carry "--" and ISO dates.
+  const raw = factsHeadline(facts)
+  const headline = raw === null ? null : readableText(raw)
 
   if (isI08Facts(facts)) return <I08Card facts={facts} headline={headline} />
   if (isI13Facts(facts)) return <I13Card facts={facts} headline={headline} />
@@ -86,6 +90,8 @@ function I08Card({
   // Read through the shared formatter: a replayed record from before 27-Oct
   // lacks the request and stock-split keys and must look as it did then.
   const stock = stockFigure(facts)
+  // "1 refurbished" where the record names the conditions (since 28-Oct).
+  const stockSuffix = [usableBreakdownText(facts), stock.suffix].filter(Boolean).join(" · ")
   const requests = repairRequestsOf(facts)
   const needDateAdvice = needDateAdviceOf(facts)
   return (
@@ -107,9 +113,9 @@ function I08Card({
           // units; the verdict counts only the usable ones, so the figure does
           // too. `stockFigure` gives an older record the tile it had before.
           label={stock.label}
-          value={stock.value}
+          value={quantityOrNull(stock.value)}
           nullNote={stock.nullNote}
-          suffix={stock.suffix ?? undefined}
+          suffix={stockSuffix || undefined}
         />
         <Stat
           icon={<Wrench />}
@@ -119,11 +125,11 @@ function I08Card({
           // not in the figure, because only a PO has a vendor and a date.
           suffix={openRepairsSuffix(facts) ?? undefined}
         />
-        <Stat icon={<Package />} label="Units in repair" value={facts.quantityUnderRepair} />
+        <Stat icon={<Package />} label="Units in repair" value={quantityOrNull(facts.quantityUnderRepair)} />
         <Stat
           icon={<CalendarClock />}
           label="Earliest due back"
-          value={facts.soonestDueDate}
+          value={facts.soonestDueDate === null ? null : formatDay(facts.soonestDueDate)}
           // Once every open line is past its date, the date is a plan that has
           // been missed rather than a forecast, and showing it plainly invites
           // a planner to rely on it.
@@ -152,7 +158,7 @@ function I08Card({
 
       {/* Composed by the backend, and only while its setting is on; shown as
           sent, never built here. */}
-      {needDateAdvice && <Flag tone="info">{needDateAdvice}</Flag>}
+      {needDateAdvice && <Flag tone="info">{readableText(needDateAdvice)}</Flag>}
 
       {facts.openRepairs.length > 0 && <RepairLines repairs={facts.openRepairs} />}
       {requests.length > 0 && <RequestLines requests={requests} />}
@@ -206,9 +212,7 @@ function RepairLines({ repairs }: { repairs: I08Facts["openRepairs"] }) {
             <span className="font-medium text-foreground">
               {repair.purchasingDocument}/{repair.item}
             </span>
-            <span className="text-muted-foreground">
-              {repair.quantity} unit{repair.quantity === "1" ? "" : "s"}
-            </span>
+            <span className="text-muted-foreground">{unitsText(repair.quantity)}</span>
             <span className="text-muted-foreground">
               {/* The supplier master covers 106 of 454 service suppliers, so a
                   missing name is expected. Show the code rather than a blank,
@@ -255,12 +259,12 @@ function I13Card({
       {headline && <p className="text-sm text-foreground">{headline}</p>}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat icon={<PackageCheck />} label="Stock available" value={facts.stockOnHand} />
-        <Stat icon={<ArrowDownToLine />} label="Open PO" value={facts.openPoQuantity} />
+        <Stat icon={<PackageCheck />} label="Stock available" value={quantityOrNull(facts.stockOnHand)} />
+        <Stat icon={<ArrowDownToLine />} label="Open PO" value={quantityOrNull(facts.openPoQuantity)} />
         <Stat
           icon={<Gauge />}
           label="Months of cover"
-          value={facts.monthsOfCover}
+          value={quantityOrNull(facts.monthsOfCover)}
           // When the figure could not be computed the reason is the useful
           // thing, not a dash on its own.
           nullNote={facts.monthsOfCoverReason ? coverReasonText(facts.monthsOfCoverReason) : "cannot be computed"}
@@ -295,7 +299,7 @@ function I13Card({
                 className="animate-ai-pop inline-flex items-center gap-1 rounded-full border border-ai-2/25 bg-ai-2/5 px-2.5 py-1 text-xs text-foreground"
               >
                 <MapPin className="size-3 text-ai-2" aria-hidden />
-                {stock.stockOnHand} at {stock.plant}
+                {formatQuantity(stock.stockOnHand)} at {stock.plant}
               </li>
             ))}
           </ul>
@@ -313,6 +317,11 @@ function I13Card({
 }
 
 // --- pieces -----------------------------------------------------------------
+
+/** A quantity without SAP's padding (`1.000000` -> `1`); null stays null, so its note shows. */
+function quantityOrNull(value: string | null | undefined): string | null {
+  return value === null || value === undefined || value === "" ? null : formatQuantity(value)
+}
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
@@ -542,7 +551,7 @@ export function AssessmentCaveats({ facts }: { facts: unknown }) {
     <ul className="flex flex-col gap-1">
       {caveats.map((caveat) => (
         <li key={caveat} className="text-xs text-muted-foreground">
-          {caveat}
+          {readableText(caveat)}
         </li>
       ))}
     </ul>

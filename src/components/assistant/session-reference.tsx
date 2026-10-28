@@ -6,6 +6,8 @@ import { toast } from "sonner"
 
 import { AiIconBadge } from "@/components/assistant/ai-visuals"
 import { Button } from "@/components/ui/button"
+import { referenceInstruction } from "@/lib/assistant/session-view"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -21,9 +23,10 @@ import { cn } from "@/lib/utils"
  * end, an abandoned session would be unreferencable — the record exists and
  * nobody can link a reservation to it.
  *
- * So it is shown from the start and stays put. The terminal step repeats it in
- * the server's own wording, because that sentence is the compliance
- * instruction and belongs where the backend put it.
+ * So it is shown from the start and stays put. Its instruction is the one
+ * `referenceInstruction` words (a request: the header text, once; a session:
+ * the item text), the same words as the backend's closing message, so the
+ * person typing into SAP is told one thing.
  *
  * ## Ten characters, and why they are these ten
  *
@@ -68,14 +71,18 @@ export function SessionReference({
   const [copied, setCopied] = useState(false)
   const shown = request?.label ?? sessionId
   const sapText = request?.sapText ?? sessionId
+  const { instruction } = referenceInstruction({
+    label: shown,
+    sapText,
+    requestId: request ? request.sapText : null,
+    lineNo: null,
+  })
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(sapText)
       setCopied(true)
-      toast.success("Reference copied", {
-        description: "Type it into the reservation's item text (SGTXT) in SAP.",
-      })
+      toast.success("Reference copied", { description: instruction })
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
       // Clipboard access is refused in some browsers without a secure context.
@@ -108,18 +115,7 @@ export function SessionReference({
                 {shown}
               </span>
             </span>
-            {request ? (
-              <span className="text-xs text-muted-foreground">
-                Part of a multi-material request. Type{" "}
-                <span className="font-mono font-semibold text-foreground">{sapText}</span>
-                {" "}into the reservation&rsquo;s header text in SAP; SAP copies it to every item.
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
-                what you actually reserve.
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground">{instruction}</span>
             {(issuedAt || (expiresAt && !expired)) && (
               <span className="text-[11px] text-muted-foreground">
                 {issuedAt && <>Recorded {formatExpiry(issuedAt)}</>}
@@ -135,7 +131,7 @@ export function SessionReference({
                  planner will assume they have to start again. */
               <span className="text-[11px] text-muted-foreground">
                 Past its {formatExpiry(expiresAt)} validity window. Still worth
-                quoting on the reservation — the advice is recorded either way, and
+                quoting on the reservation: the advice is recorded either way, and
                 nothing is invalidated by the clock.
               </span>
             )}
@@ -171,13 +167,5 @@ export function SessionReference({
  * consequence, and there is no consequence — see the note above.
  */
 function formatExpiry(iso: string | null | undefined): string {
-  if (!iso) return "unknown"
-  const parsed = new Date(iso)
-  if (Number.isNaN(parsed.getTime())) return iso
-  return parsed.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  return formatInstant(iso, "unknown")
 }
