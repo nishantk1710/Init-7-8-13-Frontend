@@ -101,6 +101,10 @@ const entry: UtilisationLedgerEntry = {
   dataSource: "SAP",
   attributionStatus: null,
   attributionEvidence: null,
+  issueMatch: null,
+  deliveryCount: 1,
+  nextPlannedIssueDate: null,
+  nextPlannedIssueQuantity: null,
 }
 
 describe("journeySteps", () => {
