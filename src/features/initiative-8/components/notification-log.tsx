@@ -7,9 +7,10 @@ import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { buttonVariants } from "@/components/ui/button"
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
-import { ResultsCard, Tabs } from "@/features/initiative-8/components/kit/list"
+import { MaterialCell, ResultsCard, Tabs } from "@/features/initiative-8/components/kit/list"
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
+import { repairHref } from "@/features/initiative-8/components/repair-register-table"
 import { useUrlFilters } from "@/features/initiative-8/components/url-filters"
 import { EXCEPTIONS_PATH } from "@/features/initiative-8/data/live-exceptions"
 import {
@@ -21,7 +22,7 @@ import {
   type NotificationFilters,
   type NotificationsPage,
 } from "@/features/initiative-8/data/live-notifications"
-import { i08DateTime, plural } from "@/features/initiative-8/utils/format"
+import { i08DateTime, plantShort, plural } from "@/features/initiative-8/utils/format"
 import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 
 const CRUMBS = [
@@ -44,6 +45,10 @@ export function NotificationLogLink() {
  * FR-11's notification log (27-Oct-2026): the exceptions logged for email,
  * one per exception, the first time the checks found it actionable. Paged on
  * the server, 25 a page, `?view=log&type=&page=` in the URL like the queue.
+ *
+ * Columns (28-Oct-2026): Logged, Type (opening the exception), Repair line
+ * (opening the repair), Material with its description, Plant by name. The
+ * Title column said the same as Type on every row and is gone.
  *
  * Email is not sent yet, and the screen says so above the list. When the
  * backend has no log (a 404 from an older one) the screen says that instead
@@ -125,19 +130,19 @@ export function NotificationLogScreen({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[820px]">
+            <StickyScrollTable tableClassName="table-fixed min-w-[900px]">
               <colgroup>
                 <col style={{ width: "15%" }} />
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "39%" }} />
+                <col style={{ width: "19%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "36%" }} />
                 <col style={{ width: "14%" }} />
-                <col style={{ width: "12%" }} />
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <Head>Logged</Head>
                   <Head>Type</Head>
-                  <Head>Title</Head>
+                  <Head>Repair line</Head>
                   <Head>Material</Head>
                   <Head>Plant</Head>
                 </TableRow>
@@ -146,20 +151,34 @@ export function NotificationLogScreen({
                 {rows.map((row) => (
                   <TableRow key={row.id} data-i08-row>
                     <Cell>{i08DateTime(row.loggedAt)}</Cell>
-                    <Cell wrap>{row.typeLabel}</Cell>
                     <Cell wrap>
                       <Link
                         href={exceptionItemHref(row.exceptionId)}
                         className="text-i08-link hover:underline"
                         title="Open this exception"
                       >
-                        {row.title}
+                        {row.typeLabel}
                       </Link>
                     </Cell>
                     <Cell>
-                      <span className="font-mono text-[13.5px]">{row.material}</span>
+                      {row.repairId && row.repairLine ? (
+                        <Link
+                          href={repairHref({ id: row.repairId })}
+                          className="font-mono text-[13px] text-i08-link hover:underline"
+                          title="Open this repair line"
+                        >
+                          {row.repairLine}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </Cell>
-                    <Cell>{row.plant ?? "—"}</Cell>
+                    <Cell>
+                      <MaterialCell code={row.material} description={row.description} />
+                    </Cell>
+                    <Cell wrap>
+                      {row.plantName ? <span title={row.plantName}>{plantShort(row.plantName)}</span> : "—"}
+                    </Cell>
                   </TableRow>
                 ))}
               </TableBody>

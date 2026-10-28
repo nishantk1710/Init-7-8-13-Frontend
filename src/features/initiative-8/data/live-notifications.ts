@@ -12,20 +12,29 @@
  * an empty log and a missing one mean different things.
  *
  * The only place the wire shape is read.
+ *
+ * Since 28-Oct-2026 a row names its repair line, the material's description
+ * and the plant's name, so rows can be told apart: the Title column repeated
+ * the Type ("Repair overdue" twice) and is gone. On a backend that does not
+ * send them yet, the repair line is read off the exception id where the
+ * checks write it there (overdue and missing-declaration items), and the
+ * plant's name off its code.
  */
 
 import { EXCEPTIONS_PATH } from "@/features/initiative-8/data/live-exceptions"
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
+import { repairLineFromId } from "@/features/initiative-8/utils/repair-line"
 import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
 import { getNotifications, type ApiNotification } from "@/lib/api/i8"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 /** `?view=` value that opens the log instead of the queue. */
 export const NOTIFICATION_VIEW = "log"
 
 /** Shown above the log, while email is not wired. */
-export const NOTIFICATION_EMAIL_NOTE = "Email is not sent yet -- this is the list it will send."
+export const NOTIFICATION_EMAIL_NOTE = "Email is not sent yet. This is the list it will send."
 
 /** Shown in place of the log when the backend has none. */
 export const NOTIFICATION_UNAVAILABLE = "The notification log is not available on this backend."
@@ -37,14 +46,36 @@ export type NotificationRow = {
   typeLabel: string
   title: string
   material: string
+  /** The material's description, when the backend sends it. */
+  description?: string
+  /** The repair line as the register keys it (`4500001719-10`), for its
+   *  link, and as people write it (`4500001719/10`). Undefined when the item
+   *  names none. */
+  repairId?: string
+  repairLine?: string
   /** Null when the exception has no plant -- shown as a dash, not guessed. */
   plant: string | null
+  /** The plant's name: the backend's, else the documented name for its code,
+   *  else the code. Null with `plant`. */
+  plantName: string | null
   /** ISO date-time. */
   loggedAt: string
   emailed: boolean
 }
 
+/** Exception ids that carry their repair line: `EX-{TYPE}-{EBELN}-{EBELP}`,
+ *  as the backend writes them for these two checks. */
+const LINE_IN_ID = /^EX-(?:OVERDUE_REPAIR|MISSING_ATTESTATION)-(\d+-\d+)$/
+
+/** The repair line a notification names, as the register keys it. */
+function repairIdOf(item: ApiNotification): string | undefined {
+  if (item.repairLine !== undefined) return item.repairLine ?? undefined
+  return LINE_IN_ID.exec(item.exceptionId)?.[1]
+}
+
 export function toNotificationRow(item: ApiNotification): NotificationRow {
+  const repairId = repairIdOf(item)
+  const plant = item.plant ?? null
   return {
     id: item.id,
     exceptionId: item.exceptionId,
@@ -52,7 +83,11 @@ export function toNotificationRow(item: ApiNotification): NotificationRow {
     typeLabel: exceptionTypeLabel(item.type),
     title: item.title,
     material: item.materialId,
-    plant: item.plant ?? null,
+    description: item.description ?? undefined,
+    repairId,
+    repairLine: repairLineFromId(repairId),
+    plant,
+    plantName: plant === null ? null : (item.plantName ?? sapPlantName(plant)),
     loggedAt: item.loggedAt,
     emailed: item.emailed === true,
   }
