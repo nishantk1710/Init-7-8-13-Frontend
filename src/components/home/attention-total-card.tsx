@@ -25,7 +25,7 @@ export function AttentionTotalCard({
   const total = areas.reduce((sum, a) => sum + a.count, 0)
   const summary = areas.map((a) => `${INITIATIVE_NAME[a.id]}: ${formatCount(a.count)}`).join(", ")
   return (
-    <section className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5 lg:flex-row lg:items-center lg:gap-8">
+    <section className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-center lg:gap-8">
       <div className="shrink-0">
         <p className="text-[30px] leading-none font-semibold tracking-tight text-foreground tabular-nums">
           {formatCount(total)}

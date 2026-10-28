@@ -21,7 +21,8 @@ function stats(overrides: Record<string, unknown> = {}) {
     stockoutRiskAsOf: "2026-05-31",
     excessInventoryCandidatesCount: 3,
     awaitingApprovalCount: 7,
-    netSafetyStockValueImpact: -1_048_500,
+    // Different on purpose: Home must show the reorder-point one, as the Overview does.
+    netSafetyStockValueImpact: -111_111,
     netRopValueImpact: -1_048_500,
     currency: "ZAR",
     ...overrides,
@@ -60,22 +61,36 @@ describe("getInitiative7LiveSummary", () => {
       ["Materials at stockout risk", 5],
       ["Excess inventory candidates", 3],
       ["Awaiting approval", 7],
-      ["Net working-capital impact", expect.stringContaining("1")],
+      // The fixture's -1,048,500 is the backend's "ties up more cash", which Home states as +.
+      ["Working capital tied up", expect.stringMatching(/^\+.*1,048,500/)],
     ])
     expect(api.fetchRecommendationSummary).toHaveBeenCalledTimes(1)
   })
 
   it("says the impact is not available when the backend has none, never zero", async () => {
-    api.fetchRecommendationSummary.mockResolvedValue(stats({ netSafetyStockValueImpact: null }))
+    api.fetchRecommendationSummary.mockResolvedValue(stats({ netRopValueImpact: null }))
     const impact = (await getInitiative7LiveSummary()).metrics[3]
     expect(impact.value).toBe("Not available")
   })
 
-  it("marks the sign of the impact", async () => {
-    api.fetchRecommendationSummary.mockResolvedValue(stats({ netSafetyStockValueImpact: 5000 }))
-    expect(String((await getInitiative7LiveSummary()).metrics[3].value)).toMatch(/^\+/)
-    api.fetchRecommendationSummary.mockResolvedValue(stats({ netSafetyStockValueImpact: -5000 }))
-    expect(String((await getInitiative7LiveSummary()).metrics[3].value)).toMatch(/^−/)
+  it("reads the sign like the Recommendations page: + ties more up, − releases", async () => {
+    // Backend: positive = cash released.
+    api.fetchRecommendationSummary.mockResolvedValue(stats({ netRopValueImpact: 5000 }))
+    let impact = (await getInitiative7LiveSummary()).metrics[3]
+    expect(impact.label).toBe("Working capital released")
+    expect(String(impact.value)).toMatch(/^−/)
+
+    api.fetchRecommendationSummary.mockResolvedValue(stats({ netRopValueImpact: -5000 }))
+    impact = (await getInitiative7LiveSummary()).metrics[3]
+    expect(impact.label).toBe("Working capital tied up")
+    expect(String(impact.value)).toMatch(/^\+/)
+  })
+
+  it("states a real zero without a sign or a direction", async () => {
+    api.fetchRecommendationSummary.mockResolvedValue(stats({ netRopValueImpact: 0 }))
+    const impact = (await getInitiative7LiveSummary()).metrics[3]
+    expect(impact.label).toBe("Net working-capital impact")
+    expect(String(impact.value)).not.toMatch(/^[+−]/)
   })
 
   it("derives health from the counts: critical, then attention, then healthy", async () => {

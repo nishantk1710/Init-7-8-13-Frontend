@@ -1,10 +1,11 @@
 import { connection } from "next/server"
+import { ClipboardCheck } from "lucide-react"
 
 import { AttentionTotalCard, type AreaCount } from "@/components/home/attention-total-card"
-import { APPROVALS_BORDER } from "@/components/home/home-areas"
+import { APPROVALS_ACCENT } from "@/components/home/home-areas"
 import { HomeGreeting } from "@/components/home/home-greeting"
-import { AreaCard, InitiativeSummaryCard, SummaryCardFailure } from "@/components/home/initiative-summary-card"
-import { MaterialRiskLandscape } from "@/components/home/material-risk-landscape"
+import type { ActionFilter } from "@/components/home/attention-required-panel"
+import { AreaCard, InitiativeSummaryCard, MetricTile, SummaryCardFailure } from "@/components/home/initiative-summary-card"
 import { PriorityActions } from "@/components/home/priority-actions"
 import { RecentEventsFeed } from "@/components/home/recent-events-feed"
 import { FailureNotice, INITIATIVE_NAME } from "@/components/shared/load-status"
@@ -58,17 +59,27 @@ export async function SparesHome() {
     return own.status === "ready" ? [{ id, count: own.data.total }] : []
   })
 
+  // The real open-item count behind each Priority actions tab. A module that did
+  // not answer has no entry, so its tab shows no count rather than a 0, and with
+  // nothing answering there is no total either.
+  const filterCounts: Partial<Record<ActionFilter, number>> = {
+    ...Object.fromEntries(areaCounts.map((a) => [a.id, a.count])),
+    ...(noneAnswered ? {} : { all: actions.total, approvals: actions.decisionTotal }),
+  }
+
   return (
-    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+    // `oar-scope` (globals.css) is the blue page theme the OAR screens use: page
+    // background, slate ink and borders, the sidebar's blue as the primary.
+    <div className="oar-scope min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="min-w-0">
             <HomeGreeting />
-            <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-foreground">
+            <h1 className="mt-0.5 text-xl font-semibold text-foreground">
               Here&rsquo;s what needs your attention today
             </h1>
           </div>
-          <div className="shrink-0">
+          <div className="ml-auto shrink-0">
             <ProfileMenu />
           </div>
         </header>
@@ -83,7 +94,7 @@ export async function SparesHome() {
           />
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {INITIATIVE_IDS.map((id) => {
             const section = summaries[id]
             if (section.status !== "ready") {
@@ -110,7 +121,8 @@ export async function SparesHome() {
           <AreaCard
             href="/approvals"
             label="Pending Approvals"
-            edge={APPROVALS_BORDER}
+            accent={APPROVALS_ACCENT}
+            icon={<ClipboardCheck className="size-3.5" />}
             status={
               <StatusPill tone={noneAnswered ? "urgent" : actions.decisionTotal === 0 ? "healthy" : "primary"}>
                 {noneAnswered
@@ -129,30 +141,34 @@ export async function SparesHome() {
               ) : null
             }
           >
-            <div>
-              <div className="text-xs text-muted-foreground">Waiting for a decision</div>
+            <dl className="grid grid-cols-1 gap-2.5">
               {/* With no module answering there is no count to give; "0" would
                   read as "nothing is waiting". */}
-              <div className="text-[30px] leading-tight font-semibold tracking-tight text-action tabular-nums">
-                {noneAnswered ? NOT_LOADED : actions.decisionTotal.toLocaleString()}
-              </div>
-            </div>
+              <MetricTile
+                label="Waiting for a decision"
+                value={noneAnswered ? NOT_LOADED : actions.decisionTotal.toLocaleString()}
+                valueClassName="text-action"
+              />
+            </dl>
           </AreaCard>
         </div>
 
-        <PriorityActions
-          actions={actions.actions}
-          decisionIds={actions.decisions.map((d) => d.id)}
-          total={actions.total}
-          failedModules={actions.failures.length}
-        />
-
-        <MaterialRiskLandscape
-          initiative8={summaries["initiative-8"]}
-          initiative13={summaries["initiative-13"]}
-        />
-
-        <RecentEventsFeed events={audit.events} failedModules={audit.failures.length} />
+        {/* The work list takes two thirds, the activity feed the third beside it;
+            `h-full` on the child makes both panels the height of the taller. */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="min-w-0 xl:col-span-2 [&>*]:h-full">
+            <PriorityActions
+              actions={actions.actions}
+              decisionIds={actions.decisions.map((d) => d.id)}
+              total={actions.total}
+              failedModules={actions.failures.length}
+              counts={filterCounts}
+            />
+          </div>
+          <div className="min-w-0 [&>*]:h-full">
+            <RecentEventsFeed events={audit.events} failedModules={audit.failures.length} />
+          </div>
+        </div>
       </div>
     </div>
   )
