@@ -85,6 +85,10 @@ export type I08Justification = ApiJustification & {
   requesterName?: string | null
   /** Null: no purchase matched yet. Absent: not known on this backend. */
   purchase?: JustificationPurchase | null
+  /** Set false by the export on a row read while the backend could not
+   *  match purchases (`purchasesChecked`), so its file says "Not checked
+   *  yet" rather than "No purchase yet". Never sent by the backend. */
+  purchasesChecked?: boolean
 }
 
 /**
@@ -104,16 +108,26 @@ export function justificationAuthorText(entry: Pick<I08Justification, "author" |
 
 /**
  * The Purchase cell: "PR 1000201234/10, 14 Mar 2026"; "No purchase yet" when
- * the backend found none; undefined when it does not say (older backend).
+ * the backend looked and found none; "Not checked yet" when it could not look
+ * (`purchasesChecked` false: its I08 data is still loading after a restart,
+ * so every purchase is null for that reason alone); undefined when it does
+ * not say (an older backend).
  */
-export function purchaseLabel(purchase: JustificationPurchase | null | undefined): string | undefined {
+export function purchaseLabel(
+  purchase: JustificationPurchase | null | undefined,
+  checked = true,
+): string | undefined {
   if (purchase === undefined) return undefined
-  if (purchase === null) return "No purchase yet"
+  if (purchase === null) return checked ? "No purchase yet" : "Not checked yet"
   const document = purchase.line ? `${purchase.documentNumber}/${purchase.line}` : purchase.documentNumber
   return `${purchase.type} ${document}${purchase.raisedAt ? `, ${i08Date(purchase.raisedAt)}` : ""}`
 }
 
 export type JustificationsPage = {
+  /** False when the backend could not match purchases for this page (see
+   *  `purchaseLabel`). True when it did, and on an older backend, whose rows
+   *  carry no purchase at all. */
+  purchasesChecked: boolean
   items: I08Justification[]
   /** Matching the filters. */
   total: number
@@ -175,6 +189,15 @@ function facetsOf(body: JustificationListResponse): JustificationFacets {
   }
 }
 
+/**
+ * Whether the backend matched purchases for the rows it sent: its
+ * `purchasesChecked` (28-Oct-2026), typed here rather than on the assistant's
+ * wire type. Only an explicit false is "not checked".
+ */
+export function purchasesCheckedOf(body: JustificationListResponse): boolean {
+  return (body as JustificationListResponse & { purchasesChecked?: boolean }).purchasesChecked !== false
+}
+
 export async function loadJustificationsPage(
   filters: JustificationFilters,
   page: number,
@@ -187,7 +210,13 @@ export async function loadJustificationsPage(
 
   if (!isFiltered(filters)) {
     const body = await fetchPage({ kind: I08_JUSTIFICATION_KIND, limit: pageSize, offset })
-    return { items: body.items, total: body.total, overall: body.total, facets: facetsOf(body) }
+    return {
+      items: body.items,
+      total: body.total,
+      overall: body.total,
+      facets: facetsOf(body),
+      purchasesChecked: purchasesCheckedOf(body),
+    }
   }
 
   const [unfiltered, matching] = await Promise.all([
@@ -199,6 +228,7 @@ export async function loadJustificationsPage(
     total: matching.total,
     overall: unfiltered.total,
     facets: facetsOf(unfiltered),
+    purchasesChecked: purchasesCheckedOf(matching),
   }
 }
 
@@ -282,7 +312,10 @@ export async function fetchAllJustifications(
   let offset = 0
   for (let batch = 0; batch < MAX_EXPORT_BATCHES; batch++) {
     const body = await fetchPage({ ...filterParams(filters), limit: EXPORT_BATCH_SIZE, offset })
-    for (const item of body.items) if (!byId.has(item.id)) byId.set(item.id, item)
+    const checked = purchasesCheckedOf(body)
+    for (const item of body.items) {
+      if (!byId.has(item.id)) byId.set(item.id, checked ? item : { ...item, purchasesChecked: false })
+    }
     offset += body.items.length
     if (body.items.length < EXPORT_BATCH_SIZE || offset >= body.total) break
   }

@@ -8,6 +8,7 @@ import {
   justificationAuthorText,
   justificationsHref,
   purchaseLabel,
+  purchasesCheckedOf,
   loadJustificationsPage,
   loadMaterialDescriptions,
   parseJustificationParams,
@@ -231,5 +232,36 @@ describe("purchaseLabel", () => {
   it("says No purchase yet when none matched, and nothing when the backend does not say", () => {
     expect(purchaseLabel(null)).toBe("No purchase yet")
     expect(purchaseLabel(undefined)).toBeUndefined()
+  })
+
+  it("says Not checked yet when the backend could not look", () => {
+    // purchasesChecked false: the I08 data is still loading after a restart,
+    // and every purchase is null for that reason alone.
+    expect(purchaseLabel(null, false)).toBe("Not checked yet")
+  })
+})
+
+describe("the export when purchases were not checked", () => {
+  it("marks the rows of a batch the backend could not check, and leaves the rest alone", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ ...response([justification(1)], 1), purchasesChecked: false } as never)
+
+    const [row] = await fetchAllJustifications({}, fetchPage)
+
+    expect(row.purchasesChecked).toBe(false)
+    expect(purchaseLabel(null, row.purchasesChecked !== false)).toBe("Not checked yet")
+
+    const [plain] = await fetchAllJustifications({}, vi.fn().mockResolvedValueOnce(response([justification(2)], 1)))
+    expect(plain).not.toHaveProperty("purchasesChecked")
+  })
+})
+
+describe("purchasesCheckedOf", () => {
+  it("is false only when the backend says so", () => {
+    expect(purchasesCheckedOf({ ...response([], 0), purchasesChecked: false } as never)).toBe(false)
+    expect(purchasesCheckedOf({ ...response([], 0), purchasesChecked: true } as never)).toBe(true)
+    // An older backend sends nothing, and no purchases either.
+    expect(purchasesCheckedOf(response([], 0))).toBe(true)
   })
 })

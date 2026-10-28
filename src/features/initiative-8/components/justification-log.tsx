@@ -62,6 +62,7 @@ export function I08JustificationLog({
   filters,
   facets,
   descriptions = {},
+  purchasesChecked = true,
 }: {
   items: I08Justification[]
   /** Matching the filters. */
@@ -74,6 +75,9 @@ export function I08JustificationLog({
   facets: JustificationFacets
   /** Material descriptions for the page, by material number. */
   descriptions?: Record<string, string>
+  /** False when the backend could not match purchases yet: the column then
+   *  says "Not checked yet", not "No purchase yet". */
+  purchasesChecked?: boolean
 }) {
   const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
@@ -95,7 +99,7 @@ export function I08JustificationLog({
           reasonLabel(entry.reasonCategory),
           entry.freeText,
           justificationAuthorText(entry),
-          purchaseLabel(entry.purchase) ?? "",
+          purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? "",
           entry.sessionId ?? "",
           entry.exceptionId ?? "",
         ]),
@@ -229,7 +233,7 @@ export function I08JustificationLog({
               <TableBody>
                 {items.map((entry) => {
                   const by = justificationAuthor(entry)
-                  const purchase = purchaseLabel(entry.purchase)
+                  const purchase = purchaseLabel(entry.purchase, purchasesChecked)
                   return (
                     <TableRow key={entry.id} data-i08-row className="align-top">
                       <Cell className="tabular-nums">{i08DateTime(entry.recordedAt)}</Cell>
