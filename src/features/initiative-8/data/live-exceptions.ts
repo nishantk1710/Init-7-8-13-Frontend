@@ -70,7 +70,7 @@ import type {
   ExceptionQuery,
 } from "@/lib/api/i8"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
-import { formatApiDate, getExceptions } from "@/lib/api/i8"
+import { getExceptions } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -204,7 +204,7 @@ export async function loadLiveExceptions(
     const body = await getExceptions({ ...query, page, pageSize: PAGE_SIZE })
     summary ??= toSummary(body.meta)
     referenceDate ??= body.referenceDate
-      ? formatApiDate(body.referenceDate)
+      ? i08Date(body.referenceDate)
       : undefined
     total = body.total
 
