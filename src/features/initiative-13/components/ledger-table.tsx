@@ -26,7 +26,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
 const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
-  OPEN: "neutral",
+  OPEN: "primary",
   PARTIALLY_RECEIVED: "caution",
   RECEIVED: "healthy",
   CLOSED: "neutral",
@@ -34,7 +34,7 @@ const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
 }
 
 const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
-  NOT_ISSUED: "neutral",
+  NOT_ISSUED: "urgent",
   PARTIALLY_ISSUED: "caution",
   FULLY_ISSUED: "healthy",
 }
@@ -86,17 +86,17 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
     <div className="flex flex-col gap-4">
       <Stepper steps={steps} />
       {stop && (
-        <p className="flex items-start gap-2 rounded-lg bg-caution-tint px-3 py-2 text-sm text-caution-ink">
+        <p className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             {stop.after ? (
               <>
-                Stops at <span className="font-bold">{stop.after.label}</span>
+                Stops at <span className="font-semibold">{stop.after.label}</span>
               </>
             ) : (
               <>Nothing linked yet</>
             )}{" "}
-            — next is <span className="font-bold">{stop.next.label}</span>: {stop.next.detail.toLowerCase()}.
+            — next is <span className="font-semibold">{stop.next.label}</span>: {stop.next.detail.toLowerCase()}.
           </span>
         </p>
       )}
@@ -145,7 +145,7 @@ export function UtilizationLedgerTable({
               <TableHead className="text-right">Received</TableHead>
               <TableHead>Delivered on</TableHead>
               <TableHead className="text-right">Issued</TableHead>
-              <TableHead className="text-right">Open</TableHead>
+              <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead>Procurement</TableHead>
               <TableHead>Utilization</TableHead>
             </TableRow>
@@ -235,7 +235,7 @@ export function UtilizationLedgerTable({
                         )}
                       >
                         <div className="min-h-0 overflow-hidden">
-                          <div className="bg-page px-4 py-5">
+                          <div className="bg-muted/40 px-4 py-5">
                             {/* Rendered from the row we already have.
                                 This used to call GET /i13/ledger/{id} on
                                 every expansion -- which returns the SAME

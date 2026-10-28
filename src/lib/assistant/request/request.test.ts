@@ -11,6 +11,7 @@ import {
   lineIssues,
   oarNeedsJustification,
   pendingLine,
+  withDeclarationOpen,
   withSuggestedWindow,
   type OarLine,
   type RepairableLine,
@@ -200,6 +201,76 @@ describe("what submit sends", () => {
   })
 })
 
+describe("declaring the faulty unit with the request", () => {
+  const declared = (overrides: Partial<RepairableLine["declaration"]> = {}): RepairableLine => ({
+    ...repair(false),
+    declaration: {
+      open: true,
+      quantity: "2",
+      conditionDescription: "  Seized bearing ",
+      faultCategory: "Mechanical",
+      recommendation: "REPAIRABLE",
+      attestorName: " A. Planner ",
+      evidenceReference: "",
+      ...overrides,
+    },
+  })
+
+  it("is closed by default and sends nothing", () => {
+    const line = repair(false)
+    expect(line.declaration.open).toBe(false)
+    expect(isReady(line)).toBe(true)
+    expect(answersOf(line)).not.toHaveProperty("declaration")
+  })
+
+  it("treats a line from an older saved draft, with no declaration, as none made", () => {
+    const { declaration: _dropped, ...rest } = repair(false)
+    const old = rest as unknown as RepairableLine
+    expect(lineIssues(old)).toEqual([])
+    expect(answersOf(old)).not.toHaveProperty("declaration")
+  })
+
+  it("asks for every required field once opened", () => {
+    const line = repair(false)
+    expect(lineIssues({ ...line, declaration: { ...line.declaration, open: true, quantity: "0" } })).toEqual([
+      "declared quantity",
+      "condition",
+      "fault category",
+      "recommendation",
+      "your name",
+    ])
+    expect(isReady(declared())).toBe(true)
+  })
+
+  it("sends the declaration trimmed, evidence only when typed", () => {
+    expect(answersOf(declared()).declaration).toEqual({
+      quantity: 2,
+      conditionDescription: "Seized bearing",
+      faultCategory: "Mechanical",
+      recommendation: "REPAIRABLE",
+      attestorName: "A. Planner",
+    })
+    expect(answersOf(declared({ evidenceReference: " Photo 12 " })).declaration?.evidenceReference).toBe("Photo 12")
+  })
+
+  it("fills the typed name from the Requester when opened, and never replaces one", () => {
+    const closed = repair(false).declaration
+    expect(withDeclarationOpen(closed, true, " SSJ ")).toMatchObject({ open: true, attestorName: "SSJ" })
+    expect(withDeclarationOpen({ ...closed, attestorName: "Lynn" }, true, "SSJ").attestorName).toBe("Lynn")
+    expect(withDeclarationOpen(closed, true, "  ").attestorName).toBe("")
+    expect(withDeclarationOpen({ ...closed, open: true, attestorName: "SSJ" }, false, "SSJ")).toMatchObject({
+      open: false,
+      attestorName: "SSJ",
+    })
+  })
+
+  it("survives a re-check of the row", () => {
+    const typed = declared()
+    const rechecked = lineFromPreview(repairPreview(false), typed.key, typed) as RepairableLine
+    expect(rechecked.declaration).toEqual(typed.declaration)
+  })
+})
+
 describe("submit's refusals", () => {
   it("names the refused line from a 422", () => {
     const error = new ApiError("422", 422, undefined, "A reason is needed", { message: "A reason is needed", line: 2 })
@@ -275,7 +346,7 @@ function sampleRequest(): ApiRequest {
 describe("a recorded request", () => {
   it("says what each line decided", () => {
     const [oarLine, pump, motor] = sampleRequest().lines
-    expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
+    expect(outcomeSentence(oarLine)).toBe("Procure 4: the suggested quantity.")
     expect(outcomeSentence(pump)).toMatch(/justified/)
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)

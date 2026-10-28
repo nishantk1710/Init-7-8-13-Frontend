@@ -10,7 +10,12 @@
  * nothing is asked of them. Routing decides which, never the requester.
  */
 
-import type { ApiLineAnswers, ApiPreviewLine, ApiReasonCategory } from "@/lib/api/assistant-requests"
+import type {
+  ApiLineAnswers,
+  ApiLineDeclaration,
+  ApiPreviewLine,
+  ApiReasonCategory,
+} from "@/lib/api/assistant-requests"
 import { needsJustification, suggestWindow } from "@/lib/assistant/request/suggest"
 
 /** Used until the backend's own cap arrives with the first preview. */
@@ -29,6 +34,80 @@ export const FALLBACK_REASONS: readonly ApiReasonCategory[] = [
 export type Justification = { reasonCategory: string; freeText: string }
 
 export const EMPTY_JUSTIFICATION: Justification = { reasonCategory: "", freeText: "" }
+
+/**
+ * Used only until the first preview answers with the backend's own list: the
+ * three recommendations the declaration form has always offered.
+ */
+export const FALLBACK_RECOMMENDATIONS: readonly ApiReasonCategory[] = [
+  { value: "REPAIRABLE", label: "Repairable" },
+  { value: "BEYOND_ECONOMICAL_REPAIR", label: "Beyond economical repair" },
+  { value: "SCRAP", label: "Scrap" },
+]
+
+/**
+ * The faulty unit coming out, declared in the same request (option B, 27-Oct).
+ * Optional: `open` false sends nothing. Quantity is kept as typed.
+ */
+export type DeclarationDraft = {
+  open: boolean
+  quantity: string
+  conditionDescription: string
+  faultCategory: string
+  recommendation: string
+  attestorName: string
+  evidenceReference: string
+}
+
+export const EMPTY_DECLARATION: DeclarationDraft = {
+  open: false,
+  quantity: "1",
+  conditionDescription: "",
+  faultCategory: "",
+  recommendation: "",
+  attestorName: "",
+  evidenceReference: "",
+}
+
+/**
+ * Open or close the declaration. Opening it with no name typed yet fills in the
+ * request's Requester, which is usually the person standing at the machine;
+ * it stays editable, and a name already typed is never replaced.
+ */
+export function withDeclarationOpen(d: DeclarationDraft, open: boolean, requester: string): DeclarationDraft {
+  const name = requester.trim()
+  if (!open || d.attestorName.trim() || !name) return { ...d, open }
+  return { ...d, open, attestorName: name }
+}
+
+/**
+ * What is still missing on an open declaration, in the order the form asks.
+ * A line from a draft saved before 27-Oct-2026 has no declaration at all: none made.
+ */
+export function declarationIssues(d: DeclarationDraft | undefined): string[] {
+  if (!d?.open) return []
+  const issues: string[] = []
+  if (parseQuantity(d.quantity) === null) issues.push("declared quantity")
+  if (!d.conditionDescription.trim()) issues.push("condition")
+  if (!d.faultCategory) issues.push("fault category")
+  if (!d.recommendation) issues.push("recommendation")
+  if (!d.attestorName.trim()) issues.push("your name")
+  return issues
+}
+
+/** The wire form of an open declaration; undefined when none is made (or the line predates them). */
+export function declarationOf(d: DeclarationDraft | undefined): ApiLineDeclaration | undefined {
+  if (!d?.open) return undefined
+  const evidence = d.evidenceReference.trim()
+  return {
+    quantity: parseQuantity(d.quantity) ?? 0,
+    conditionDescription: d.conditionDescription.trim(),
+    faultCategory: d.faultCategory,
+    recommendation: d.recommendation,
+    attestorName: d.attestorName.trim(),
+    ...(evidence ? { evidenceReference: evidence } : {}),
+  }
+}
 
 type Common = {
   key: string
@@ -64,6 +143,8 @@ export type RepairableLine = Common & {
   /** Null until chosen. Fixed to `proceed_new` when no unit exists anywhere. */
   decision: "use_existing" | "proceed_new" | null
   justification: Justification
+  /** The faulty unit coming out; optional, closed by default. */
+  declaration: DeclarationDraft
 }
 
 export type NoSessionLine = Common & {
@@ -163,6 +244,8 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
         decision:
           previous?.kind === "i08" ? previous.decision : preview.unitExists === true ? null : "proceed_new",
         justification: previous?.kind === "i08" ? previous.justification : EMPTY_JUSTIFICATION,
+        // `?? EMPTY_DECLARATION`: a draft saved before declarations existed has none.
+        declaration: (previous?.kind === "i08" ? previous.declaration : undefined) ?? EMPTY_DECLARATION,
       }
     default:
       return { ...common, kind: preview.kind, reason: preview.reason }
@@ -212,6 +295,7 @@ export function lineIssues(line: DraftLine): string[] {
       const issues: string[] = []
       if (line.decision === null) issues.push("decision")
       else if (repairableNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
+      issues.push(...declarationIssues(line.declaration))
       return issues
     }
     case "pending":
@@ -245,11 +329,13 @@ export function answersOf(line: DraftLine): ApiLineAnswers {
   }
   if (line.kind === "i08") {
     const reason = repairableNeedsJustification(line)
+    const declaration = declarationOf(line.declaration)
     return {
       ...base,
       decision: line.decision,
       reasonCategory: reason ? line.justification.reasonCategory : null,
       freeText: reason ? line.justification.freeText.trim() : null,
+      ...(declaration ? { declaration } : {}),
     }
   }
   return base

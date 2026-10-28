@@ -8,6 +8,8 @@ import {
   parseRegisterParams,
   registerDescription,
   registerHref,
+  registerViewChoices,
+  ruleIsOn,
   toRegisterLine,
   toRepairChain,
 } from "@/features/initiative-8/data/live-register"
@@ -18,6 +20,7 @@ import {
 import {
   NO_CRITICALITY,
   isOpenRepair,
+  isPrOnly,
   isRepairOverdue,
   justificationCellOf,
   overdueStatusOf,
@@ -110,10 +113,35 @@ describe("toRepairChain", () => {
   })
 
   it("does not accept In Transit Return, which is not an FRS stage", () => {
+    // Since 27-Oct-2026 the fallback is what the row's documents prove: this
+    // line has a PO, so it is at least "PO Issued" -- not "PR Raised".
     const chain = toRepairChain(
       apiRow({ repairStatus: "In Transit Return" } as Partial<ApiRepairChain>),
     )
-    expect(chain.repairStatus).toBe("PR Raised")
+    expect(chain.repairStatus).toBe("PO Issued")
+  })
+
+  it("carries the stock's condition split and the declaration's session when sent", () => {
+    const chain = toRepairChain(
+      apiRow({
+        usableStock: "1.000000",
+        damagedStock: "2.000000",
+        stockConditionKnown: true,
+        declarationSessionId: "SJWYMF3H1H",
+      }),
+    )
+    expect(chain.usableStock).toBe(1)
+    expect(chain.damagedStock).toBe(2)
+    expect(chain.stockConditionKnown).toBe(true)
+    expect(chain.declarationSessionId).toBe("SJWYMF3H1H")
+  })
+
+  it("leaves the split unknown on an older backend, never 0", () => {
+    const chain = toRepairChain(apiRow({ usableStock: null }))
+    expect(chain.usableStock).toBeUndefined()
+    expect(chain.damagedStock).toBeUndefined()
+    expect(chain.stockConditionKnown).toBeUndefined()
+    expect(chain.declarationSessionId).toBeUndefined()
   })
 
   it("keeps unknown stock as undefined, never as zero", () => {
@@ -200,7 +228,13 @@ describe("toRepairChain", () => {
     const chain = toRepairChain(
       apiRow({ repairStatus: "Teleported" } as Partial<ApiRepairChain>),
     )
-    expect(chain.repairStatus).toBe("PR Raised")
+    expect(chain.repairStatus).toBe("PO Issued")
+    // With no PO behind it the same unknown status reads as only requested.
+    expect(
+      toRepairChain(
+        apiRow({ repairStatus: "Teleported", repairPo: null } as Partial<ApiRepairChain>),
+      ).repairStatus,
+    ).toBe("PR Raised")
   })
 
   it("shows the material number when no description exists anywhere", () => {
@@ -378,13 +412,14 @@ describe("loadRegisterPage", () => {
     })
 
     // No excludeHeld since 19-Oct-2026: every line the backend serves is open
-    // in SAP, so there is nothing to hold back from the listing.
+    // in SAP, so there is nothing to hold back from the listing. No
+    // excludeExceptionType since 27-Oct-2026: the Exceptions column carries
+    // "bought new while a repair was open" again, as the queue does.
     expect(fetchPage).toHaveBeenCalledTimes(1)
     expect(fetchPage).toHaveBeenCalledWith({
       q: "pump",
       plant: "1300",
       withExceptions: true,
-      excludeExceptionType: "UNJUSTIFIED_ACQUISITION",
       page: 3,
       pageSize: 25,
     })
@@ -472,10 +507,31 @@ describe("loadRegisterPage", () => {
     const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
 
     expect(chains.map((c) => c.exceptions)).toEqual([
-      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning" }],
+      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning", preAutomation: false }],
       [],
       undefined,
     ])
+  })
+
+  it("reads an item raised before go-live off its severity, or its own flag when sent", async () => {
+    // The checks raise an item `info` only when it predates the control; the
+    // register's badge leaves those out of its count.
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([
+        apiRow({
+          id: "historical",
+          exceptions: [
+            { id: "EX-1", type: "MISSING_ATTESTATION", severity: "info" },
+            { id: "EX-2", type: "OVERDUE_REPAIR", severity: "warning" },
+            { id: "EX-3", type: "SOMETHING_NEW", severity: "warning", preAutomation: true },
+          ],
+        }),
+      ]),
+    )
+
+    const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(chains[0].exceptions?.map((e) => e.preAutomation)).toEqual([true, false, true])
   })
 })
 
@@ -486,7 +542,7 @@ describe("toRegisterLine", () => {
     })
 
     expect(toRegisterLine(row).exceptions).toEqual([
-      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical" },
+      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical", preAutomation: false },
     ])
     // Its charts never read them, and every line it loads would carry them.
     expect(toRepairChain(row).exceptions).toBeUndefined()
@@ -642,6 +698,27 @@ describe("registerRowsToCsv", () => {
     expect(cell("Repair PO")).toBe("4500001052/1310")
   })
 
+  it("carries the repair line and the department, as the screen shows them", () => {
+    const [po, pr] = registerRowsToCsv([
+      toRepairChain(apiRow({ requester: "10303", requesterName: "ENGG-PLANT MAINT" })),
+      toRepairChain(
+        apiRow({
+          id: "PR-2000028756-10",
+          lineKind: "PR",
+          repairPo: null,
+          repairPr: { type: "PR", documentNumber: "2000028756", line: "10" },
+          requester: "40200",
+          requesterName: null,
+        }),
+      ),
+    ])
+    const cell = (row: (string | number)[], header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+    expect(cell(po, "Repair line")).toBe("4500001052/1310")
+    expect(cell(po, "Department")).toBe("10303 · ENGG-PLANT MAINT")
+    expect(cell(pr, "Repair line")).toBe("PR 2000028756/10")
+    expect(cell(pr, "Department")).toBe("40200")
+  })
+
   it("exports no lead-time verdict where there is no benchmark", () => {
     // An empty cell, never "NO_LEAD_TIME": a spreadsheet filter would otherwise
     // group every unmaintained material in with the real verdicts, and every
@@ -785,5 +862,197 @@ describe("registerDescription", () => {
     for (const absent of [undefined, null, ""]) {
       expect(registerDescription(meta, "2026-09-24", absent)).not.toContain("loaded")
     }
+  })
+})
+
+describe("repair PRs with no PO yet (27-Oct-2026)", () => {
+  /** A PR-only row as section 2.1 of the phase-1 design has the backend send it. */
+  function prRow(overrides: Partial<ApiRepairChain> = {}): ApiRepairChain {
+    return apiRow({
+      id: "PR-2000029113-10",
+      lineKind: "PR",
+      repairPr: { type: "PR", documentNumber: "2000029113", line: "10" },
+      repairPo: null,
+      vendor: null,
+      vendorName: null,
+      repairStatus: "PR Raised",
+      overdueStatus: "NOT_ORDERED",
+      leadTimeStatus: "NO_LEAD_TIME",
+      daysOpen: 12,
+      daysElapsed: 12,
+      daysInCurrentStage: 12,
+      agingBucket: "0-15",
+      daysRemainingInRepair: null,
+      daysOverLeadTime: null,
+      raisedAt: "2026-05-28",
+      poIssuedAt: null,
+      expectedReturn: null,
+      requester: "10305",
+      requesterName: "Engineering",
+      ...overrides,
+    })
+  }
+
+  it("reads a PR row as one, with no PO, vendor or due date invented", () => {
+    const chain = toRepairChain(prRow())
+    expect(chain.lineKind).toBe("PR")
+    expect(chain.id).toBe("PR-2000029113-10")
+    expect(chain.repairPR).toEqual({ type: "PR", documentNumber: "2000029113", line: "10" })
+    expect(chain.repairPO).toBeUndefined()
+    expect(chain.vendor).toBeUndefined()
+    expect(chain.expectedReturn).toBeUndefined()
+    expect(chain.repairStatus).toBe("PR Raised")
+    expect(chain.daysOpen).toBe(12)
+    expect(isPrOnly(chain)).toBe(true)
+  })
+
+  it("carries NOT_ORDERED through, and never reads it as late", () => {
+    const chain = toRepairChain(prRow())
+    expect(chain.overdueStatus).toBe("NOT_ORDERED")
+    expect(overdueStatusOf(chain)).toBe("NOT_ORDERED")
+    expect(isRepairOverdue(chain)).toBe(false)
+    expect(isOpenRepair(chain)).toBe(true)
+  })
+
+  it("carries the department name when the backend knows it, and only then", () => {
+    expect(toRepairChain(prRow()).requesterName).toBe("Engineering")
+    const unnamed = toRepairChain(prRow({ requesterName: null }))
+    expect(unnamed.requester).toBe("10305")
+    expect(unnamed.requesterName).toBeUndefined()
+  })
+
+  it("reads a row from an older backend, which sends no lineKind, as a PO line", () => {
+    const old = apiRow()
+    delete old.lineKind
+    delete old.requesterName
+    const chain = toRepairChain(old)
+    expect(chain.lineKind).toBe("PO")
+    expect(chain.requesterName).toBeUndefined()
+    expect(isPrOnly(chain)).toBe(false)
+  })
+
+  it("reads a row with no PO as a PR row even when lineKind is missing", () => {
+    // Fail closed: nothing PO-only may be offered on a row with no PO.
+    const chain = toRepairChain(prRow({ lineKind: undefined }))
+    expect(chain.lineKind).toBe("PR")
+    expect(isPrOnly(chain)).toBe(true)
+  })
+
+  it("believes the backend's PO marking", () => {
+    expect(toRepairChain(apiRow({ lineKind: "PO" })).lineKind).toBe("PO")
+  })
+
+  it("exports a PR row as No PO yet, not as an unknown vendor or a missing date", () => {
+    const [pr, po] = registerRowsToCsv([toRepairChain(prRow()), toRepairChain(apiRow())])
+    const cell = (row: (string | number)[], header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+
+    expect(pr).toHaveLength(REGISTER_CSV_HEADERS.length)
+    expect(cell(pr, "Line")).toBe("PR-2000029113-10")
+    expect(cell(pr, "Vendor")).toBe("No PO yet")
+    expect(cell(pr, "Repair status")).toBe("Repair requested")
+    expect(cell(pr, "Overdue status")).toBe("No PO yet")
+    expect(cell(pr, "Expected return")).toBe("")
+    expect(cell(pr, "Repair PR")).toBe("2000029113/10")
+    expect(cell(pr, "Repair PO")).toBe("")
+    expect(cell(pr, "Raised")).toBe("28 May 2026")
+
+    // A PO line reads exactly as it did.
+    expect(cell(po, "Vendor")).toBe("0001000123")
+    expect(cell(po, "Repair status")).toBe("PO Issued")
+    expect(cell(po, "Overdue status")).toBe("Overdue")
+  })
+
+  it("exports a row with no PO as a PR row even from an older backend", () => {
+    const [row] = registerRowsToCsv([toRepairChain(prRow({ lineKind: undefined, overdueStatus: "NO_DUE_DATE" }))])
+    expect(row[REGISTER_CSV_HEADERS.indexOf("Vendor")]).toBe("No PO yet")
+    expect(row[REGISTER_CSV_HEADERS.indexOf("Overdue status")]).toBe("No PO yet")
+  })
+})
+
+describe("registerViewChoices", () => {
+  const counts = { all: 120, overdue: 40, undeclared: 104, atVendor: 3, withExceptions: 90 }
+
+  it("leaves out the No PO yet pill when an older backend sends no count for it", () => {
+    expect(registerViewChoices(counts).map((c) => c.value)).toEqual([
+      "",
+      "overdue",
+      "undeclared",
+      "atVendor",
+      "withExceptions",
+    ])
+  })
+
+  it("offers it, with its count, when the backend sends one", () => {
+    const choices = registerViewChoices({ ...counts, notOrdered: 16 })
+    expect(choices.at(-1)).toEqual({ value: "notOrdered", label: "No PO yet", count: 16 })
+    expect(choices[0]).toEqual({ value: "", label: "All", count: 120 })
+  })
+
+  describe("on the register screen", () => {
+    const values = (choices: { value: string }[]) => choices.map((c) => c.value)
+
+    it("hides the No PO yet pill while the backend's switch is off and it counts 0", () => {
+      // The switch-off backend sends notOrdered: 0 on every page; a pill that
+      // can only find nothing is noise.
+      const choices = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: false })
+      expect(values(choices)).not.toContain("notOrdered")
+      expect(values(choices)).toHaveLength(5)
+    })
+
+    it("shows it while the switch is on, even at 0 under a filter", () => {
+      const choices = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true })
+      expect(choices.at(-1)).toEqual({ value: "notOrdered", label: "No PO yet", count: 0 })
+    })
+
+    it("shows it when it counts rows, even if the switch could not be read", () => {
+      const choices = registerViewChoices({ ...counts, notOrdered: 4 }, { repairRequestsEnabled: false })
+      expect(values(choices)).toContain("notOrdered")
+    })
+
+    it("keeps it while it is the selected view, so the selection does not vanish", () => {
+      const choices = registerViewChoices(
+        { ...counts, notOrdered: 0 },
+        { repairRequestsEnabled: false, selected: "notOrdered" },
+      )
+      expect(values(choices)).toContain("notOrdered")
+    })
+
+    it("still leaves it out when an older backend sends no count", () => {
+      const choices = registerViewChoices(counts, { repairRequestsEnabled: true, selected: "notOrdered" })
+      expect(values(choices)).not.toContain("notOrdered")
+    })
+  })
+})
+
+describe("ruleIsOn", () => {
+  it("reads every way the backend can say true", () => {
+    for (const value of [true, 1, "true", "True", "1"]) expect(ruleIsOn(value)).toBe(true)
+  })
+
+  it("reads absent, false and zero as off", () => {
+    for (const value of [undefined, null, false, 0, "false", "False", "0", ""]) {
+      expect(ruleIsOn(value)).toBe(false)
+    }
+  })
+
+  it("is read by the register page from the snapshot, and off when that fails", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
+    const on = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { repairRequestsEnabled: 1 } }),
+    })
+    expect(on.repairRequestsEnabled).toBe(true)
+
+    const older = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { agingBands: "0-15" } }),
+    })
+    expect(older.repairRequestsEnabled).toBe(false)
+
+    const failed = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockRejectedValue(new Error("down")),
+    })
+    expect(failed.repairRequestsEnabled).toBe(false)
   })
 })

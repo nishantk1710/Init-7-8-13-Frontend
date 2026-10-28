@@ -31,9 +31,16 @@ function qty(value: number | null) {
 
 /** The lifecycle view's own tones, in the pills' vocabulary. */
 const LIFECYCLE_TONE: Record<"default" | "success" | "warning", DisplayTone> = {
-  default: "neutral",
+  default: "primary",
   success: "healthy",
   warning: "caution",
+}
+
+/** The row's left edge, in its lifecycle pill's colour. */
+const LIFECYCLE_EDGE: Record<"default" | "success" | "warning", string> = {
+  default: "shadow-[inset_4px_0_0_var(--action)]",
+  success: "shadow-[inset_4px_0_0_var(--healthy)]",
+  warning: "shadow-[inset_4px_0_0_var(--caution)]",
 }
 
 /**
@@ -76,13 +83,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
-              <TableCell>
+              <TableCell className={LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone]}>
                 <DocNo number={row.reservationNumber} item={row.reservationItem} />
               </TableCell>
               <TableCell className="text-foreground">
                 {row.materialDescription ? (
                   <div className="flex max-w-[200px] flex-col gap-0.5">
-                    <span className="truncate font-medium" title={row.materialDescription}>
+                    <span className="truncate font-semibold" title={row.materialDescription}>
                       {row.materialDescription}
                     </span>
                     <span className="text-[11px] text-muted-foreground">{row.material}</span>
@@ -93,7 +100,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
               </TableCell>
               <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
-              <TableCell className="text-right text-foreground">{qty(row.reservationQuantity)}</TableCell>
+              <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
               <TableCell>
                 <div className="flex flex-col items-start gap-1">
                   {row.prNumber && <DocNo number={row.prNumber} />}
@@ -153,7 +160,7 @@ function IssuedCell({ row }: { row: ReservationLedgerRow }) {
       </TableCell>
     )
   }
-  return <TableCell className="text-right text-foreground">{qty(row.issuedQuantity)}</TableCell>
+  return <TableCell className="text-right font-semibold text-foreground">{qty(row.issuedQuantity)}</TableCell>
 }
 
 /** The lifecycle as a label that never claims more than the data shows, explained on hover. */

@@ -5,14 +5,19 @@ import { connection } from "next/server"
 import { DeclarationsScreen } from "@/features/initiative-8/components/declarations-screen"
 import { I08Page } from "@/features/initiative-8/components/kit/page"
 import {
+  cutoverFromRules,
+  declarablePlants,
   declarationsHref,
   loadDeclarationLog,
   loadDeclarationsPage,
+  loadHistoricalLines,
   parseDeclarationParams,
+  parseDeclarationTab,
+  registerPlants,
   type DeclarationsPage,
 } from "@/features/initiative-8/data/live-declarations"
-import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
-import { getAttestations } from "@/lib/api/i8"
+import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
+import { getAttestations, getSnapshot } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
@@ -62,11 +67,14 @@ export const metadata: Metadata = {
  * ten seconds to arrive. See `loadDeclarationsPage`. The declaration log is
  * still loaded whole -- it holds six rows.
  *
- * ## Two tabs
+ * ## Three tabs
  *
- * `?tab=log` shows the log; anything else, the queue. The log used to sit four
- * screens down, under the queue and its pager (I08_Live_UI_Redesign_Plan.md,
- * L4). Both are loaded either way: the tab strip shows both counts.
+ * `?tab=log` shows the log, `?tab=historical` the open lines raised before
+ * declarations began (28-Oct-2026); anything else, the queue. The log used to
+ * sit four screens down, under the queue and its pager
+ * (I08_Live_UI_Redesign_Plan.md, L4). The counts of all three are loaded
+ * either way: the tab strip shows them, and the queue's empty state says how
+ * many lines are Historical and since when (the snapshot's cutover date).
  */
 export default async function I08DeclarationsPage({
   searchParams,
@@ -79,6 +87,7 @@ export default async function I08DeclarationsPage({
 
   const raw = await searchParams
   const { filters, page } = parseDeclarationParams(raw)
+  const tab = parseDeclarationTab(raw)
 
   let data: DeclarationsPage | null = null
   let loadError: string | null = null
@@ -89,20 +98,28 @@ export default async function I08DeclarationsPage({
     .catch(() => [] as string[])
   // Null on failure, which the log section reports as such.
   const declarationLog = loadDeclarationLog()
+  // Best-effort, both: the Historical tab's count, and the day declarations
+  // began, for the queue's empty state. Without them it says less.
+  const historicalLines = loadHistoricalLines()
+  const cutoverDate = getSnapshot()
+    .then((snapshot) => cutoverFromRules(snapshot.rules))
+    .catch(() => undefined)
   try {
-    data = await loadDeclarationsPage(filters, page)
+    data = await loadDeclarationsPage(filters, page, { list: tab === "historical" ? "historical" : "queue" })
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
   const categories = await faultCategories
   const log = await declarationLog
+  const historical = await historicalLines
+  const cutover = await cutoverDate
 
   // Past the end -- a stale link, or a filter that now matches fewer: go to
   // the last page there is rather than show an empty one. Outside the try:
   // `redirect` throws, and the catch would swallow it as a load error.
   if (data) {
     const lastPage = pageCountOf(data.total, DEFAULT_PAGE_SIZE)
-    if (page > lastPage) redirect(declarationsHref(filters, lastPage))
+    if (page > lastPage) redirect(declarationsHref(filters, lastPage, tab))
   }
 
   if (data === null) {
@@ -122,9 +139,17 @@ export default async function I08DeclarationsPage({
     )
   }
 
+  // "Declare a part" needs plants even when both lists are empty: the
+  // register's, then the two the backend accepts.
+  const listed = [data.facets.plants, historical?.plants ?? []]
+  const plants = declarablePlants(listed.some((p) => p.length > 0) ? listed : [await registerPlants()])
+
   return (
     <DeclarationsScreen
-      tab={single(raw.tab) === "log" ? "log" : "queue"}
+      tab={tab}
+      historical={historical?.total}
+      cutoverDate={cutover}
+      declarablePlants={plants}
       rows={data.rows}
       total={data.total}
       page={page}

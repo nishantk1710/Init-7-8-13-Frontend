@@ -6,6 +6,7 @@ import type {
   OverdueStatus,
   RepairChain,
   RepairStatus,
+  UnjustifiedPurchase,
 } from "@/features/initiative-8/types/repair"
 
 type Tone = "default" | "success" | "warning" | "danger"
@@ -22,6 +23,7 @@ export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Required: "warning",
   Completed: "success",
   Flagged: "danger",
+  Historical: "default",
 }
 
 /** The declaration statuses, in the order the filters offer them. */
@@ -29,6 +31,7 @@ export const DECLARATION_STATUSES: readonly DeclarationStatus[] = [
   "Required",
   "Completed",
   "Flagged",
+  "Historical",
 ]
 
 /**
@@ -64,14 +67,38 @@ export const JUSTIFICATION_CELL_TONE: Record<Exclude<JustificationCell, "NONE">,
   NOT_ASKED: "default",
 }
 
-/** The hover text behind each cell — what it means, in a sentence. */
+/** The hover text behind each cell — what it means, in a sentence. Since
+ *  27-Oct-2026 the check looks at the request for a new unit (the new-buy PR)
+ *  as well as a PO ordered directly, so the notes say "requested or bought". */
 export const JUSTIFICATION_CELL_NOTE: Record<JustificationCell, string> = {
   RECORDED: "A reason for buying new was recorded while this repair was out.",
   MISSING:
-    "A new unit was bought while this repair was out, and no reason was recorded.",
+    "A new unit was requested or bought while this repair was out, and no reason was recorded.",
   NOT_ASKED:
-    "A new unit was bought while this repair was out, before the justification control existed — nobody was asked.",
-  NONE: "No new unit was bought, and no reason recorded, while this repair was out.",
+    "A new unit was requested or bought while this repair was out, before the justification control existed — nobody was asked.",
+  NONE: "No new unit was requested or bought, and no reason recorded, while this repair was out.",
+}
+
+/**
+ * One purchase made while a repair was out, as the repair detail page lists
+ * it. A new-buy PR is a request for a unit, not a purchase yet, so it reads
+ * "New unit requested {date} (PR {n}/{item})"; a PO ordered directly keeps
+ * "{n}/{item} bought {date}". `raisedAt` is already a display date.
+ */
+export function purchaseSummary(
+  purchase: Pick<UnjustifiedPurchase, "purchase" | "raisedAt">,
+): string {
+  const { documentNumber, line } = purchase.purchase
+  const document = line ? `${documentNumber}/${line}` : documentNumber
+  const when = purchase.raisedAt ?? "on an unknown date"
+  return purchase.purchase.type === "PR"
+    ? `New unit requested ${when} (PR ${document})`
+    : `${document} bought ${when}`
+}
+
+/** The exception drawer's name for the purchase an item is about. */
+export function purchaseFactLabel(type: string | undefined): string {
+  return type === "PR" ? "Purchase request" : "Purchase line"
 }
 
 /** The lifecycle order, for sorting status options that come from the data. */
@@ -84,11 +111,14 @@ export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
 ]
 
 /** What the register's due-date filter offers. No RECEIVED: every line the
- *  register serves is open in SAP, so it could only ever find nothing. */
+ *  register serves is open in SAP, so it could only ever find nothing.
+ *  NOT_ORDERED finds the repair PRs with no PO yet; on a backend that does
+ *  not serve them it finds nothing, the same as any filter with no match. */
 export const OVERDUE_STATUSES: readonly OverdueStatus[] = [
   "OVERDUE",
   "ON_TIME",
   "NO_DUE_DATE",
+  "NOT_ORDERED",
 ]
 
 export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
@@ -96,17 +126,32 @@ export const OVERDUE_STATUS_LABEL: Record<OverdueStatus, string> = {
   ON_TIME: "On time",
   NO_DUE_DATE: "No due date",
   RECEIVED: "Received",
+  NOT_ORDERED: "No PO yet",
 }
 
 /**
  * NO_DUE_DATE is a warning, not a neutral: nobody agreed a return date, and
- * those are exactly the lines nobody is chasing.
+ * those are exactly the lines nobody is chasing. NOT_ORDERED is muted: with
+ * no PO there is no date anybody could have agreed, so it is not a finding.
  */
 export const OVERDUE_STATUS_TONE: Record<OverdueStatus, Tone> = {
   OVERDUE: "danger",
   ON_TIME: "default",
   NO_DUE_DATE: "warning",
   RECEIVED: "success",
+  NOT_ORDERED: "default",
+}
+
+/**
+ * Is this register row a repair requested on a PR with no PO yet?
+ *
+ * Fails closed: a row the backend marked `PR`, OR any row with no PO
+ * reference, counts as one -- so a screen that must not offer a PO-only action
+ * (declare, chase the vendor) never offers it on a row it cannot place on a
+ * PO. On an older backend every row has a PO, so nothing changes there.
+ */
+export function isPrOnly(chain: Pick<RepairChain, "lineKind" | "repairPO">): boolean {
+  return chain.lineKind === "PR" || chain.repairPO === undefined
 }
 
 /**
@@ -318,9 +363,13 @@ export function orUnknown(value: number | string | undefined): string {
  */
 export const EXCEPTION_TYPE_LABEL: Record<string, string> = {
   MISSING_ATTESTATION: "No condition declaration",
-  UNJUSTIFIED_ACQUISITION: "Bought new, no justification",
-  MISSING_SESSION_ID: "No assistant session",
+  UNJUSTIFIED_ACQUISITION: "Bought new while a repair was open",
+  MISSING_SESSION_ID: "Reservation with no R-reference",
   OVERDUE_REPAIR: "Repair overdue",
+  // The declaration checks, 27-Oct-2026 (contract B4).
+  REPAIRED_AGAINST_ASSESSMENT: "Repaired against the assessment",
+  REPAIR_PR_NOT_DECLARED: "Repair PR not declared",
+  DECLARED_NO_REPAIR_PR: "Declared, no repair PR yet",
 }
 
 export const EXCEPTION_SEVERITY_TONE: Record<string, Tone> = {

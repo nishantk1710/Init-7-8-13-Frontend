@@ -63,6 +63,7 @@ export function Chip({
 export function JustificationFields({
   idPrefix,
   prompt,
+  note,
   value,
   onChange,
   showErrors,
@@ -70,6 +71,8 @@ export function JustificationFields({
 }: {
   idPrefix: string
   prompt: string
+  /** Said under the prompt, e.g. what the reason does and does not do. */
+  note?: string
   value: Justification
   onChange: (next: Justification) => void
   showErrors: boolean
@@ -77,13 +80,14 @@ export function JustificationFields({
   reasons: readonly ApiReasonCategory[]
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
+    <div className="@container flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
       <span className="text-xs font-medium text-foreground">{prompt}</span>
-      <div className="grid gap-2 sm:grid-cols-[14rem_1fr]">
+      {note && <span className="text-[11px] text-muted-foreground">{note}</span>}
+      <div className="grid gap-2 @xl:grid-cols-[14rem_minmax(0,1fr)]">
         <label htmlFor={`${idPrefix}-reason`} className="text-[11px] font-medium text-muted-foreground">
           Reason <RequiredMark />
         </label>
-        <label htmlFor={`${idPrefix}-text`} className="hidden text-[11px] font-medium text-muted-foreground sm:block">
+        <label htmlFor={`${idPrefix}-text`} className="hidden text-[11px] font-medium text-muted-foreground @xl:block">
           In your own words <RequiredMark />
         </label>
         <select
@@ -102,7 +106,7 @@ export function JustificationFields({
             </option>
           ))}
         </select>
-        <label htmlFor={`${idPrefix}-text`} className="text-[11px] font-medium text-muted-foreground sm:hidden">
+        <label htmlFor={`${idPrefix}-text`} className="text-[11px] font-medium text-muted-foreground @xl:hidden">
           In your own words <RequiredMark />
         </label>
         <Textarea
@@ -110,7 +114,7 @@ export function JustificationFields({
           aria-label="In your own words"
           aria-required
           rows={1}
-          placeholder="In your own words -- the part a reviewer actually reads"
+          placeholder="In your own words: the part a reviewer actually reads"
           value={value.freeText}
           aria-invalid={showErrors && !value.freeText.trim()}
           onChange={(e) => onChange({ ...value, freeText: e.target.value })}
@@ -129,18 +133,9 @@ export function reasonLabel(value: string): string {
     .join(" ")
 }
 
-/** A reference with a copy button: the bare `R…` the requester types into SAP. */
-export function CopyReference({
-  value,
-  size = "md",
-  hint = "Type it into the reservation's header text in SAP.",
-}: {
-  value: string
-  size?: "md" | "lg"
-  hint?: string
-}) {
+/** Copy `value` to the clipboard, with a toast; `copied` is true for a moment after. */
+function useCopy(value: string, hint: string) {
   const [copied, setCopied] = useState(false)
-
   async function copy() {
     try {
       await navigator.clipboard.writeText(value)
@@ -151,13 +146,44 @@ export function CopyReference({
       toast.error("Could not copy", { description: "Select the reference and copy it by hand." })
     }
   }
+  return { copied, copy }
+}
+
+/** A labelled primary button that copies the reference -- the request page's main action. */
+export function CopyReferenceButton({
+  value,
+  hint = "Type it into the reservation's header text in SAP.",
+}: {
+  value: string
+  hint?: string
+}) {
+  const { copied, copy } = useCopy(value, hint)
+  return (
+    <Button type="button" size="lg" onClick={copy} className="min-h-11 shrink-0 px-5 text-base font-semibold">
+      {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+      {copied ? "Copied" : "Copy reference"}
+    </Button>
+  )
+}
+
+/** A reference with a copy button: the bare `R…` the requester types into SAP. */
+export function CopyReference({
+  value,
+  size = "md",
+  hint = "Type it into the reservation's header text in SAP.",
+}: {
+  value: string
+  size?: "md" | "lg"
+  hint?: string
+}) {
+  const { copied, copy } = useCopy(value, hint)
 
   return (
     <span className="inline-flex items-center gap-1">
       <span
         className={cn(
           "font-mono font-semibold tracking-wider text-foreground select-all",
-          size === "lg" && "ai-gradient-text text-xl font-bold tracking-[0.18em]"
+          size === "lg" && "ai-gradient-text text-xl font-semibold tracking-[0.18em]"
         )}
       >
         {value}

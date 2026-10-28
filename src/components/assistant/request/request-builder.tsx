@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Save, Search, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
-import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
 import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
+import { deleteDraft, getDraft, saveDraft, type RequestDraft } from "@/components/assistant/request/request-drafts"
 import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,7 @@ import {
   DEFAULT_MAX_LINES,
   EMPTY_JUSTIFICATION,
   FALLBACK_REASONS,
+  FALLBACK_RECOMMENDATIONS,
   answersOf,
   isDuplicate,
   isReady,
@@ -45,12 +46,44 @@ import {
 } from "@/lib/assistant/request/lines"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
 const REQUEST_PLANTS = ["1300", "1500"] as const
 
 /** A material as picked: from search, or a number typed with a plant. */
 type Picked = { materialId: string; plant: string; description: string | null }
+
+type RecheckedDraft = {
+  rows: DraftLine[]
+  maxLines: number | null
+  reasons: readonly ApiReasonCategory[] | null
+  /** The backend did not answer: `rows` are as saved. */
+  stale: boolean
+  notEnabled: boolean
+}
+
+/**
+ * A saved draft's lines with today's stock figures and suggestion, keeping what
+ * was typed into each (`lineFromPreview`'s `previous`). Never a line still
+ * being checked: one saved mid-check has no answers to keep.
+ */
+async function recheckDraft(rows: DraftLine[]): Promise<RecheckedDraft> {
+  const saved = rows.filter((row) => row.kind !== "pending")
+  const unchanged = { rows: saved, maxLines: null, reasons: null, stale: false, notEnabled: false }
+  if (saved.length === 0) return unchanged
+  try {
+    const response = await previewRequest(saved.map((row) => ({ materialId: row.materialId, plant: row.plant })))
+    return {
+      ...unchanged,
+      rows: saved.map((row, index) => lineFromPreview(response.lines[index], row.key, row)),
+      maxLines: response.maxLines,
+      reasons: response.reasonCategories ?? null,
+    }
+  } catch (error) {
+    return isNotEnabled(error) ? { ...unchanged, notEnabled: true } : { ...unchanged, stale: true }
+  }
+}
 
 function newDraftKey(): string {
   try {
@@ -79,10 +112,21 @@ function newDraftKey(): string {
  * the requester and department pre-filled from the link. A request opened from
  * SAP (`origin` BADI) may have neither, as the backend allows: the pop-up
  * cannot always supply them.
+ *
+ * Save as draft (UAT, 27 Oct) keeps the request in this browser without
+ * recording anything (see `request-drafts.ts`); `draftId` resumes one, and a
+ * draft wins over `entry` when a link carries both.
  */
-export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }) {
+export function RequestBuilder({
+  entry = null,
+  draftId = null,
+}: {
+  entry?: RequestEntry | null
+  draftId?: string | null
+}) {
   const router = useRouter()
-  const fromSap = entry?.origin === "BADI"
+  const [origin, setOrigin] = useState<"BADI" | "PLATFORM">(entry?.origin === "BADI" ? "BADI" : "PLATFORM")
+  const fromSap = origin === "BADI"
   const [requester, setRequester] = useState(entry?.requestedFor ?? "")
   /** Picked for one plant; a different plant (or an emptied request) clears it. */
   const [picked, setPicked] = useState<{ plant: string | null; code: string }>({
@@ -96,10 +140,18 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
   const [submitting, setSubmitting] = useState(false)
   const [maxLines, setMaxLines] = useState(DEFAULT_MAX_LINES)
   const [reasons, setReasons] = useState<readonly ApiReasonCategory[]>(FALLBACK_REASONS)
+  // Empty until a preview names them: an older backend sends none and cannot
+  // take a declaration with the request, so the section is not offered.
+  const [faultCategories, setFaultCategories] = useState<readonly string[]>([])
+  const [recommendations, setRecommendations] =
+    useState<readonly ApiReasonCategory[]>(FALLBACK_RECOMMENDATIONS)
   const [refusedKey, setRefusedKey] = useState<string | null>(null)
   const [notEnabled, setNotEnabled] = useState(false)
   /** One per draft: a resubmitted draft is the same request, never a second one. */
   const draftKey = useRef(newDraftKey())
+  /** The saved draft this builder writes to: set by resuming one, or by the first save. */
+  const savedDraftId = useRef<string | null>(null)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
 
   const oarRows = rows.filter((r): r is OarLine => r.kind === "i13")
   const repairableRows = rows.filter((r): r is RepairableLine => r.kind === "i08")
@@ -123,7 +175,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
   async function add(picked: Picked) {
     if (requestPlant && picked.plant !== requestPlant) {
       toast.error(`This request is for plant ${requestPlant}`, {
-        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant -- start another for ${picked.plant}.`,
+        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant. Start another for ${picked.plant}.`,
       })
       return
     }
@@ -145,6 +197,8 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
       const response = await previewRequest([{ materialId: picked.materialId, plant: picked.plant }])
       setMaxLines(response.maxLines)
       if (response.reasonCategories?.length) setReasons(response.reasonCategories)
+      if (response.faultCategories?.length) setFaultCategories(response.faultCategories)
+      if (response.recommendations?.length) setRecommendations(response.recommendations)
       const [preview] = response.lines
       setRows((current) =>
         current.map((row) =>
@@ -165,14 +219,79 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
     }
   }
 
-  /** The link's material is line 1. Once: a ref survives Strict Mode's re-run. */
+  /** Fill the screen from a re-checked draft, header and lines together. */
+  function applyDraft(draft: RequestDraft, result: RecheckedDraft) {
+    if (result.notEnabled) {
+      setNotEnabled(true)
+      return
+    }
+    if (result.maxLines !== null) setMaxLines(result.maxLines)
+    if (result.reasons?.length) setReasons(result.reasons)
+    if (result.stale) {
+      // Kept what was typed: the submit re-checks anyway and reports what moved.
+      toast.warning("Could not re-check the draft's materials", {
+        description: "The figures shown are from when it was saved. Submitting checks them again.",
+      })
+    }
+    savedDraftId.current = draft.id
+    setSavedAt(draft.savedAt)
+    setOrigin(draft.origin)
+    setRequester(draft.requester)
+    setPicked({ plant: draft.departmentPlant, code: draft.department })
+    setDepartmentNote(draft.departmentNote)
+    setRows(result.rows)
+  }
+
+  /** The link's material is line 1 -- unless a draft is being resumed. Once: a ref survives Strict Mode's re-run. */
   const started = useRef(false)
   useEffect(() => {
-    if (!entry || started.current) return
+    if (!entry || draftId || started.current) return
     started.current = true
     void add({ materialId: entry.materialId, plant: entry.plant, description: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's link
   }, [])
+
+  /** The draft named by the link, re-checked, then shown. Once, like the link's material. */
+  const resumed = useRef(false)
+  useEffect(() => {
+    if (!draftId || resumed.current) return
+    resumed.current = true
+    const draft = getDraft(draftId)
+    if (!draft) {
+      toast.error("That draft is not in this browser", {
+        description: "Drafts are kept only in the browser they were saved in. Start a new request instead.",
+      })
+      return
+    }
+    void recheckDraft(draft.rows).then((result) => applyDraft(draft, result))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's draft
+  }, [])
+
+  function saveAsDraft() {
+    const id = savedDraftId.current ?? newDraftKey()
+    const now = new Date().toISOString()
+    const stored = saveDraft({
+      id,
+      savedAt: now,
+      requester: requester.trim(),
+      departmentPlant: picked.plant,
+      department: picked.code,
+      departmentNote,
+      origin,
+      rows: rows.filter((row) => row.kind !== "pending"),
+    })
+    if (!stored) {
+      toast.error("Could not save the draft", {
+        description: "This browser would not store it (storage blocked or full). Nothing was lost from the screen.",
+      })
+      return
+    }
+    savedDraftId.current = id
+    setSavedAt(now)
+    toast.success("Draft saved in this browser", {
+      description: "Nothing is recorded and no reference is given until you submit. Find it under Requests → Drafts.",
+    })
+  }
 
   function update(next: DraftLine) {
     if (next.key === refusedKey) setRefusedKey(null)
@@ -230,9 +349,10 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
         requestedFor: requester.trim() || null,
         department,
         departmentNote: departmentNote.trim() || null,
-        origin: fromSap ? "BADI" : "PLATFORM",
+        origin,
         lines: submitted.map(answersOf),
       })
+      if (savedDraftId.current) deleteDraft(savedDraftId.current)
       router.push(`/assistant/requests/${request.requestId}`)
       return
     } catch (error) {
@@ -263,9 +383,9 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
   if (notEnabled) return <NotEnabledNotice />
 
   return (
-    <div className="flex flex-col gap-5 pb-24">
-      <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
-        <AiEyebrow>1 · Who is it for</AiEyebrow>
+    <div className="flex flex-col gap-5 pb-28 [&_input]:min-h-11 [&_select]:min-h-11">
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <StepHeading n={1}>Who is it for</StepHeading>
         <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
             id="req-requester"
@@ -278,7 +398,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Plant</span>
             {requestPlant ? (
-              <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted/30 px-3 text-sm">
+              <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-action/10 px-3 text-sm">
                 <span className="font-mono font-semibold">{requestPlant}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{plantName}</span>
                 <Button type="button" variant="ghost" size="xs" onClick={changePlant}>
@@ -286,7 +406,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
                 </Button>
               </div>
             ) : (
-              <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Set by the first material you add
               </div>
             )}
@@ -307,7 +427,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
                 onChange={(code) => setPicked({ plant: requestPlant, code })}
               />
             ) : (
-              <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Pick once the plant is set
               </div>
             )}
@@ -335,7 +455,7 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
       <AddMaterials rows={rows} requestPlant={requestPlant} maxLines={maxLines} onAdd={add} />
 
       {rows.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Add materials above. Each one is checked and goes to the right table automatically.
         </div>
       )}
@@ -392,6 +512,9 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
+            requester={requester}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}
@@ -428,9 +551,9 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
         </section>
       )}
 
-      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-sm font-medium text-foreground">
+      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-sm font-semibold text-foreground">
             {sessionRows.length === 0
               ? "No materials that need the assistant yet"
               : `${readyCount} of ${sessionRows.length} line${sessionRows.length === 1 ? "" : "s"} ready`}
@@ -438,15 +561,61 @@ export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }
               {rows.length} / {maxLines} materials
             </span>
           </span>
+          {sessionRows.length > 0 && (
+            <div
+              role="progressbar"
+              aria-label="Lines ready"
+              aria-valuemin={0}
+              aria-valuemax={sessionRows.length}
+              aria-valuenow={readyCount}
+              className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${(readyCount / sessionRows.length) * 100}%` }}
+              />
+            </div>
+          )}
+          <span className="text-xs font-medium text-foreground">
+            {!headerReady
+              ? "Fill in the requester and pick the department."
+              : pendingCount > 0
+                ? "Wait for every material to finish checking."
+                : sessionRows.length > 0 && readyCount < sessionRows.length
+                  ? "Each line's status says what is missing."
+                  : rows.length > 0
+                    ? "Ready to submit."
+                    : "Add a material to start."}
+          </span>
           <span className="text-[11px] text-muted-foreground">
             Submitting records every line, or nothing, and gives one request reference. Type it once into the SAP
             reservation&rsquo;s header text; lines are shown here as reference/1, /2 …
           </span>
+          {savedAt && (
+            <span className="text-[11px] text-muted-foreground">
+              Draft saved {formatInstant(savedAt)} in this browser only.
+            </span>
+          )}
         </div>
-        <Button type="button" onClick={submit} disabled={submitting} className={cn(AI_BUTTON, "h-9 gap-1.5 px-4")}>
-          {submitting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={saveAsDraft}
+          disabled={submitting || pendingCount > 0 || (rows.length === 0 && !requester.trim())}
+          title={
+            pendingCount > 0
+              ? "Wait for every material to finish checking"
+              : "Keep this request in this browser and finish it later. Nothing is recorded until you submit."
+          }
+          className="min-h-11 gap-1.5 px-4 font-semibold"
+        >
+          <Save className="size-4" aria-hidden />
+          Save as draft
+        </Button>
+        <Button type="button" size="lg" onClick={submit} disabled={submitting} className="min-h-11 gap-1.5 px-5 text-base font-semibold">
+          {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {submitting ? "Submitting…" : "Submit request"}
-          {!submitting && <ArrowRight className="size-4" />}
+          {!submitting && <ArrowRight className="size-4" aria-hidden />}
         </Button>
       </footer>
     </div>
@@ -465,6 +634,21 @@ export function NotEnabledNotice() {
   )
 }
 
+/** A numbered step: the number in a filled circle, then the step's name. */
+function StepHeading({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+        {n}
+      </span>
+      <span>
+        <span className="sr-only">Step {n}: </span>
+        {children}
+      </span>
+    </h2>
+  )
+}
+
 function SectionTitle({
   icon,
   title,
@@ -478,12 +662,12 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 inline-flex size-7 items-center justify-center rounded-lg bg-ai-2/10 text-ai-2">{icon}</span>
+      <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-lg bg-action/10 text-action">{icon}</span>
       <div className="flex flex-col">
-        <h2 className="text-sm font-semibold text-foreground">
+        <h2 className="text-base font-semibold text-foreground">
           {title} <span className="font-normal text-muted-foreground">({count})</span>
         </h2>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
     </div>
   )
@@ -573,11 +757,11 @@ function AddMaterials({
   }
 
   return (
-    <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
-      <AiEyebrow>2 · Add materials</AiEyebrow>
-      <p className="-mt-2 text-[11px] text-muted-foreground">
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      <StepHeading n={2}>Add materials</StepHeading>
+      <p className="-mt-2 text-xs text-muted-foreground">
         {requestPlant
-          ? `Showing plant ${requestPlant} only -- this request is for ${requestPlant}.`
+          ? `Showing plant ${requestPlant} only: this request is for ${requestPlant}.`
           : "The first material you add sets the request's plant."}{" "}
         {full && <span className="text-warning">This request is full ({maxLines} materials).</span>}
       </p>
@@ -612,7 +796,7 @@ function AddMaterials({
                   </span>
                   <span className="text-xs text-muted-foreground">Plant {m.plant}</span>
                   <Chip tone="muted">{m.flowHint === "i13" ? "OAR" : m.flowHint === "i08" ? "Repairable" : "Neither"}</Chip>
-                  {added(m) ? <Chip tone="muted">Added</Chip> : <Plus className="size-4 text-ai-2" />}
+                  {added(m) ? <Chip tone="muted">Added</Chip> : <Plus className="size-4 text-action" aria-hidden />}
                 </button>
               </li>
             ))}
@@ -674,7 +858,7 @@ function OarApplyAll({
   const active = rows.filter((r) => r.decision === "proceed").length
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
         Apply to all {active} OAR line{active === 1 ? "" : "s"} being procured
       </span>
@@ -748,10 +932,10 @@ function JustificationApplyAll({
 }) {
   const [value, setValue] = useState<Justification>(EMPTY_JUSTIFICATION)
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", !embedded && "rounded-xl border border-border bg-muted/20 p-3")}>
-      <span className="text-xs text-muted-foreground">{label}:</span>
+    <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-xl border border-border bg-card p-4")}>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
       <select
-        aria-label={`${label} -- reason`}
+        aria-label={`${label}: reason`}
         className={cn(SELECT_CLASS, "w-48")}
         value={value.reasonCategory}
         disabled={disabled}
@@ -765,7 +949,7 @@ function JustificationApplyAll({
         ))}
       </select>
       <Input
-        aria-label={`${label} -- text`}
+        aria-label={`${label}: text`}
         value={value.freeText}
         disabled={disabled}
         onChange={(e) => setValue({ ...value, freeText: e.target.value })}

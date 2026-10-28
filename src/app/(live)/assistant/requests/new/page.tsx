@@ -14,21 +14,26 @@ export const metadata: Metadata = {
  * A link may name a material to start with (`?material=…&plant=…`, the same
  * parameters as the SAP BAdI link -- see `lib/assistant/request/entry.ts`):
  * it becomes line 1, and the requester can submit it alone or add more.
+ * `?draft=<id>` resumes a draft saved in this browser instead.
  */
 export default async function NewRequestPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const entry = entryFromParams(await searchParams)
+  const params = await searchParams
+  const entry = entryFromParams(params)
+  const draftId = typeof params.draft === "string" && params.draft ? params.draft : null
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-      <div className="flex flex-col gap-5">
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-5">
         <AssistantPageHeader
+          plain
           title="New request"
           description="Add the material you need, or several. Each one is checked as it is added, and you answer only what it needs."
         />
-        <RequestBuilder entry={entry} />
+        {/* Keyed by draft: opening another draft from this page starts a fresh builder. */}
+        <RequestBuilder key={draftId ?? "new"} entry={entry} draftId={draftId} />
       </div>
     </div>
   )

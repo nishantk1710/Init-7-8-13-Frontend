@@ -21,6 +21,15 @@
  * A plain module rather than part of the client component: the server page
  * reads these constants too, and anything exported from a "use client" file
  * reaches a server component as a client reference, not as its value.
+ *
+ * ## Who, and what it paid for (28-Oct-2026)
+ *
+ * "By" read "Not signed in" on nearly every row: the reason was recorded with
+ * nobody signed in. The backend now sends the requester typed on the session
+ * (`requesterName`), and the screen shows that name instead. It also sends
+ * the purchase each reason cleared in the bought-new check (`purchase`), so a
+ * reason that paid for nothing yet can be seen. Both are optional: an older
+ * backend sends neither, and the screen then says less, never a guess.
  */
 
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
@@ -30,6 +39,7 @@ import {
   type JustificationListResponse,
 } from "@/lib/api/assistant"
 import { getUniverse } from "@/lib/api/i8"
+import { actorLabel, i08Date, isUnsigned } from "@/features/initiative-8/utils/format"
 import { DEFAULT_PAGE_SIZE, pageOffset, parsePage } from "@/lib/pagination"
 
 export type { RawSearchParams }
@@ -55,8 +65,70 @@ export type JustificationFilters = {
 
 export type JustificationFacets = { plants: string[]; reasonCategories: string[] }
 
+/** The purchase a NEW_ACQUISITION reason cleared in the bought-new check. */
+export type JustificationPurchase = {
+  type: "PR" | "PO"
+  documentNumber: string
+  line: string | null
+  /** ISO date. Null when SAP does not date it. */
+  raisedAt: string | null
+}
+
+/**
+ * A justification as I08 reads it: the shared wire row, and the two fields
+ * the backend adds for this screen (28-Oct-2026). Declared here, not on the
+ * assistant's wire type, because only this screen reads them; both optional,
+ * so an older backend's row is one of these as it stands.
+ */
+export type I08Justification = ApiJustification & {
+  /** The requester typed on the session, when there was one. */
+  requesterName?: string | null
+  /** Null: no purchase matched yet. Absent: not known on this backend. */
+  purchase?: JustificationPurchase | null
+  /** Set false by the export on a row read while the backend could not
+   *  match purchases (`purchasesChecked`), so its file says "Not checked
+   *  yet" rather than "No purchase yet". Never sent by the backend. */
+  purchasesChecked?: boolean
+}
+
+/**
+ * Who recorded a reason, as the screen and its export name them: the person
+ * who signed in; else the requester typed on the session; else undefined,
+ * which reads "Not signed in". Never the `UNAUTHENTICATED-…` placeholder.
+ */
+export function justificationAuthor(entry: Pick<I08Justification, "author" | "requesterName">): string | undefined {
+  if (!isUnsigned(entry.author)) return entry.author
+  return entry.requesterName?.trim() || undefined
+}
+
+/** The author as plain text, for the export: "Not signed in" when unnamed. */
+export function justificationAuthorText(entry: Pick<I08Justification, "author" | "requesterName">): string {
+  return justificationAuthor(entry) ?? actorLabel(entry.author)
+}
+
+/**
+ * The Purchase cell: "PR 1000201234/10, 14 Mar 2026"; "No purchase yet" when
+ * the backend looked and found none; "Not checked yet" when it could not look
+ * (`purchasesChecked` false: its I08 data is still loading after a restart,
+ * so every purchase is null for that reason alone); undefined when it does
+ * not say (an older backend).
+ */
+export function purchaseLabel(
+  purchase: JustificationPurchase | null | undefined,
+  checked = true,
+): string | undefined {
+  if (purchase === undefined) return undefined
+  if (purchase === null) return checked ? "No purchase yet" : "Not checked yet"
+  const document = purchase.line ? `${purchase.documentNumber}/${purchase.line}` : purchase.documentNumber
+  return `${purchase.type} ${document}${purchase.raisedAt ? `, ${i08Date(purchase.raisedAt)}` : ""}`
+}
+
 export type JustificationsPage = {
-  items: ApiJustification[]
+  /** False when the backend could not match purchases for this page (see
+   *  `purchaseLabel`). True when it did, and on an older backend, whose rows
+   *  carry no purchase at all. */
+  purchasesChecked: boolean
+  items: I08Justification[]
   /** Matching the filters. */
   total: number
   /** Every I08 justification on record, whatever the filters. */
@@ -117,6 +189,15 @@ function facetsOf(body: JustificationListResponse): JustificationFacets {
   }
 }
 
+/**
+ * Whether the backend matched purchases for the rows it sent: its
+ * `purchasesChecked` (28-Oct-2026), typed here rather than on the assistant's
+ * wire type. Only an explicit false is "not checked".
+ */
+export function purchasesCheckedOf(body: JustificationListResponse): boolean {
+  return (body as JustificationListResponse & { purchasesChecked?: boolean }).purchasesChecked !== false
+}
+
 export async function loadJustificationsPage(
   filters: JustificationFilters,
   page: number,
@@ -129,7 +210,13 @@ export async function loadJustificationsPage(
 
   if (!isFiltered(filters)) {
     const body = await fetchPage({ kind: I08_JUSTIFICATION_KIND, limit: pageSize, offset })
-    return { items: body.items, total: body.total, overall: body.total, facets: facetsOf(body) }
+    return {
+      items: body.items,
+      total: body.total,
+      overall: body.total,
+      facets: facetsOf(body),
+      purchasesChecked: purchasesCheckedOf(body),
+    }
   }
 
   const [unfiltered, matching] = await Promise.all([
@@ -141,6 +228,7 @@ export async function loadJustificationsPage(
     total: matching.total,
     overall: unfiltered.total,
     facets: facetsOf(unfiltered),
+    purchasesChecked: purchasesCheckedOf(matching),
   }
 }
 
@@ -219,12 +307,15 @@ export async function loadMaterialDescriptions(
 export async function fetchAllJustifications(
   filters: JustificationFilters,
   fetchPage: FetchPage = listJustifications
-): Promise<ApiJustification[]> {
-  const byId = new Map<string, ApiJustification>()
+): Promise<I08Justification[]> {
+  const byId = new Map<string, I08Justification>()
   let offset = 0
   for (let batch = 0; batch < MAX_EXPORT_BATCHES; batch++) {
     const body = await fetchPage({ ...filterParams(filters), limit: EXPORT_BATCH_SIZE, offset })
-    for (const item of body.items) if (!byId.has(item.id)) byId.set(item.id, item)
+    const checked = purchasesCheckedOf(body)
+    for (const item of body.items) {
+      if (!byId.has(item.id)) byId.set(item.id, checked ? item : { ...item, purchasesChecked: false })
+    }
     offset += body.items.length
     if (body.items.length < EXPORT_BATCH_SIZE || offset >= body.total) break
   }

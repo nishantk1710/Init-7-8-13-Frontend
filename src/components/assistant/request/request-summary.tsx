@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Boxes, CircleSlash, FlaskConical, Loader2, Wrench } from "lucide-react"
+import { CircleSlash, FlaskConical, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { AiEyebrow } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
-import { Chip, CopyReference, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
+import { Chip, CopyReferenceButton, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import { useRequest } from "@/components/assistant/request/use-requests"
 import { DownloadMenu } from "@/components/shared/download-menu"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -22,6 +21,8 @@ import {
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import { formatInstant } from "@/lib/assistant/trace-format"
+import { cn } from "@/lib/utils"
 
 /**
  * A submitted request: the reference to type into SAP, every line's `R…/n`, and
@@ -48,63 +49,74 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
-        <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Type in SAP</span>
-        <CopyReference value={request.requestId} size="lg" />
-        <span className="text-xs text-muted-foreground">
-          Create one reservation for this request and type this reference into its header text. SAP copies it to
-          every item&rsquo;s text (SGTXT). Do not add /1, /2.
-        </span>
+      <section
+        aria-label="Request reference"
+        className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
+      >
+        <div className="flex flex-col justify-center gap-0.5 border-b border-dashed border-border px-5 py-4 sm:border-r sm:border-b-0">
+          <span className="text-sm text-muted-foreground">Request reference</span>
+          <span className="text-sm font-semibold text-foreground">Type this in SAP</span>
+        </div>
+        <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 flex-col gap-2">
+            <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-foreground select-all">
+              {request.requestId}
+            </span>
+            <span className="max-w-xl text-sm text-muted-foreground">
+              Create one reservation for this request and type this reference into its header text. SAP copies it to
+              every item&rsquo;s text (SGTXT). Do not add /1, /2.
+            </span>
+          </div>
+          <CopyReferenceButton value={request.requestId} />
+        </div>
       </section>
 
       <dl className="flex flex-wrap gap-x-6 gap-y-1 px-1 text-sm">
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Plant</dt>
-          <dd className="font-mono">{request.plant}</dd>
+          <dd className="font-mono font-semibold text-foreground">{request.plant}</dd>
         </div>
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Department</dt>
-          <dd>{departmentLabel(request)}</dd>
+          <dd className="font-semibold text-foreground">{departmentLabel(request)}</dd>
         </div>
         {request.departmentNote && (
           <div className="flex gap-1.5">
             <dt className="text-muted-foreground">Department note</dt>
-            <dd>{request.departmentNote}</dd>
+            <dd className="font-semibold text-foreground">{request.departmentNote}</dd>
           </div>
         )}
+        <div className="flex gap-1.5">
+          <dt className="text-muted-foreground">Requester</dt>
+          <dd className="font-semibold text-foreground">{request.requestedFor || request.requester}</dd>
+        </div>
+        <div className="flex gap-1.5">
+          <dt className="text-muted-foreground">Recorded</dt>
+          <dd className="font-semibold text-foreground">
+            {formatInstant(request.issuedAt)}
+          </dd>
+        </div>
       </dl>
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <AiEyebrow>Lines</AiEyebrow>
+          <h2 className="text-base font-semibold text-foreground">Lines</h2>
           <span className="text-xs text-muted-foreground">
             Each SAP item is matched to its line by material and plant.
           </span>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[1080px] text-sm">
-            <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
-              <tr>
-                <th className="px-3 py-2 font-medium">Reference</th>
-                <th className="px-3 py-2 font-medium">Material</th>
-                <th className="px-3 py-2 font-medium">Decision</th>
-                <th className="px-3 py-2 font-medium">Window · purpose</th>
-                <th className="px-3 py-2 font-medium">Reason given</th>
-                <th className="px-3 py-2 font-medium">SAP link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {request.lines.map((line) => (
-                <LineRow key={line.lineNo} line={line} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="flex flex-col gap-3">
+          {request.lines.map((line) => (
+            <li key={line.lineNo}>
+              <LineCard line={line} />
+            </li>
+          ))}
+        </ul>
       </section>
 
       {request.skipped.length > 0 && (
         <section className="flex flex-col gap-3">
-          <AiEyebrow>No session -- reserve as usual</AiEyebrow>
+          <h2 className="text-base font-semibold text-foreground">No session: reserve as usual</h2>
           <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
             {request.skipped.map((s) => (
               <li key={`${s.materialId}-${s.plant}`} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
@@ -122,12 +134,15 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
       <LiveLinks request={request} onSimulated={reload} />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:min-h-11">
         <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
-        <Link href="/assistant/requests/new" className={buttonVariants({ variant: "outline", size: "sm" })}>
+        <Link href="/assistant/requests/new" className={cn(buttonVariants({ size: "lg" }), "min-h-11 px-4 font-semibold")}>
           New request
         </Link>
-        <Link href="/assistant/requests" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+        <Link
+          href="/assistant/requests"
+          className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 px-4 font-semibold")}
+        >
           All requests
         </Link>
       </div>
@@ -163,7 +178,7 @@ function LiveLinks({ request, onSimulated }: { request: ApiRequest; onSimulated:
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-2xl border border-dashed border-border bg-card p-5 text-xs text-muted-foreground">
+    <section className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
       <span>
         {linked === 0
           ? "No SAP reservation item carries these references yet. Links appear here once a SAP extract with the item texts is loaded."
@@ -188,86 +203,136 @@ function plain(value: string | null): string {
   return Number.isFinite(n) ? String(n) : value
 }
 
-function LineRow({ line }: { line: ApiRequestLine }) {
-  const declined = isDeclined(line)
-  const procured = line.flow === "i13" && line.decision === "proceed"
+type Tone = "action" | "healthy" | "caution" | "muted"
+
+const EDGE: Record<Tone, string> = {
+  action: "before:bg-action",
+  healthy: "before:bg-success",
+  caution: "before:bg-warning",
+  muted: "before:bg-muted-foreground/40",
+}
+
+const PILL: Record<Tone, string> = {
+  action: "bg-action/10 text-action",
+  healthy: "bg-success/10 text-success",
+  caution: "bg-warning/15 text-warning",
+  muted: "bg-muted text-muted-foreground",
+}
+
+/**
+ * The decision in a few words, with a pill saying how it relates to the advice.
+ * Read only from the line's recorded fields -- the full sentence is underneath.
+ */
+function decisionOf(line: ApiRequestLine): { headline: string; pill: string; tone: Tone } {
+  if (line.flow === "i08") {
+    if (line.decision === "use_existing") return { headline: "Used the existing unit", pill: "No new unit needed", tone: "healthy" }
+    return line.justification
+      ? { headline: "New unit", pill: "Justified", tone: "caution" }
+      : { headline: "New unit", pill: "None in stock", tone: "action" }
+  }
+  if (line.decision === "not_needed") return { headline: "Not needed", pill: "Nothing reserved", tone: "muted" }
+  const headline = `Procure ${plain(line.plannedQuantity)}`
+  if (line.suggestedQuantity === null) return { headline, pill: "No suggestion possible", tone: "caution" }
+  const planned = Number(line.plannedQuantity)
+  const suggested = Number(line.suggestedQuantity)
+  if (planned === suggested) return { headline, pill: "Suggested quantity", tone: "action" }
+  return {
+    headline,
+    pill: planned < suggested ? `Below the suggested ${plain(line.suggestedQuantity)}` : `Above the suggested ${plain(line.suggestedQuantity)}`,
+    tone: "caution",
+  }
+}
+
+function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
   return (
-    <tr className="border-t border-border align-top">
-      <td className="px-3 py-3">
-        <span className="font-mono font-semibold tracking-wider text-foreground">{line.reference}</span>
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="flex items-center gap-1.5">
-            {line.flow === "i13" ? (
-              <Boxes className="size-3.5 text-ai-2" aria-label="OAR" />
-            ) : (
-              <Wrench className="size-3.5 text-ai-2" aria-label="Repairable" />
-            )}
-            <Link
-              href={`/assistant/sessions/${line.sessionId}`}
-              className="font-mono text-xs font-semibold hover:underline"
-              title="Open this line's full conversation record"
-            >
-              {line.materialId}
-            </Link>
-          </span>
-          <span>{line.materialDescription ?? <span className="text-muted-foreground italic">No description</span>}</span>
-          <span className="text-[11px] text-muted-foreground">Plant {line.plant}</span>
-        </div>
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex flex-col gap-1">
-          {procured && (
-            <span className="flex items-center gap-2">
-              <span className="font-mono text-base font-bold">{plain(line.plannedQuantity)}</span>
-              <span className="text-[11px] text-muted-foreground">suggested {plain(line.suggestedQuantity)}</span>
-            </span>
+    <span className={cn("inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold", PILL[tone])}>
+      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      {children}
+    </span>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+/** One line of the request as a card: what it is, what was decided, and whether SAP has linked it. */
+function LineCard({ line }: { line: ApiRequestLine }) {
+  const procured = line.flow === "i13" && line.decision === "proceed"
+  const decision = decisionOf(line)
+  return (
+    <article
+      className={cn(
+        "relative overflow-hidden rounded-xl border border-border bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
+        EDGE[decision.tone]
+      )}
+    >
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border py-3 pr-4 pl-5">
+        <Link
+          href={`/assistant/sessions/${line.sessionId}`}
+          className="font-mono text-sm font-semibold tracking-wider text-action hover:underline"
+          title="Open this line's full conversation record"
+        >
+          {line.reference}
+        </Link>
+        <span className="font-mono text-sm font-semibold text-foreground">{line.materialId}</span>
+        <span className="min-w-0 text-sm text-foreground">
+          {line.materialDescription ?? <span className="text-muted-foreground italic">No description</span>}
+        </span>
+        <span className="text-xs text-muted-foreground">Plant {line.plant}</span>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <Chip tone={line.flow === "i13" ? "muted" : "warn"}>{line.flow === "i13" ? "OAR" : "Repairable"}</Chip>
+          {line.linkedReservations.length === 0 ? (
+            <Chip tone="muted">Not linked yet</Chip>
+          ) : (
+            line.linkedReservations.map((link) => (
+              <Chip
+                key={`${link.reservationNumber}-${link.reservationItem}`}
+                tone={link.note ? "warn" : "ready"}
+                title={`SGTXT "${link.sgtxt}"${link.note ? ` · ${link.note}` : ""}`}
+              >
+                SAP {link.reservationNumber}/{link.reservationItem}
+              </Chip>
+            ))
           )}
-          <span className={declined ? "text-muted-foreground" : "text-foreground"}>{outcomeSentence(line)}</span>
-        </div>
-      </td>
-      <td className="px-3 py-3 text-xs">
-        {procured ? (
-          <div className="flex flex-col gap-0.5">
-            <span>
-              {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
-            </span>
-            <span className="text-muted-foreground">{line.purpose}</span>
-          </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-xs">
-        {line.justification ? (
-          <div className="flex flex-col gap-0.5">
-            <Chip tone="warn">{reasonLabel(line.justification.reasonCategory)}</Chip>
-            <span className="text-muted-foreground">{line.justification.freeText}</span>
-          </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-xs">
-        {line.linkedReservations.length === 0 ? (
-          <Chip tone="muted">Not linked yet</Chip>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {line.linkedReservations.map((link) => (
-              <li key={`${link.reservationNumber}-${link.reservationItem}`} className="flex flex-col gap-0.5">
-                <Chip tone={link.note ? "warn" : "ready"}>
-                  {link.reservationNumber}/{link.reservationItem}
-                </Chip>
-                <span className="text-[11px] text-muted-foreground">
-                  SGTXT &ldquo;<span className="font-mono">{link.sgtxt}</span>&rdquo;
-                  {link.note && <> · {link.note}</>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </td>
-    </tr>
+        </span>
+      </header>
+      <div className="grid gap-5 py-4 pr-4 pl-5 md:grid-cols-3">
+        <Field label="Decision">
+          <span className={cn("text-2xl font-semibold tracking-tight", isDeclined(line) && decision.tone === "muted" ? "text-muted-foreground" : "text-foreground")}>
+            {decision.headline}
+          </span>
+          <Pill tone={decision.tone}>{decision.pill}</Pill>
+          <span className="text-sm text-muted-foreground">{outcomeSentence(line)}</span>
+        </Field>
+        <Field label="Window and purpose">
+          {procured ? (
+            <>
+              <span className="text-sm font-semibold text-foreground">
+                {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
+              </span>
+              <span className="text-sm text-muted-foreground">{line.purpose}</span>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">Not asked for this line</span>
+          )}
+        </Field>
+        <Field label="Reason given">
+          {line.justification ? (
+            <>
+              <Chip tone="warn">{reasonLabel(line.justification.reasonCategory)}</Chip>
+              <span className="text-sm text-muted-foreground">{line.justification.freeText}</span>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">None given</span>
+          )}
+        </Field>
+      </div>
+    </article>
   )
 }

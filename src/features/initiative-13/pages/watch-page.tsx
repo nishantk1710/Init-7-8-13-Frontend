@@ -8,7 +8,7 @@ import { CalculatedAtNote, LoadFailure } from "@/features/initiative-13/componen
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
-import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
+import { UsagePatternView } from "@/features/initiative-13/components/usage-pattern-view"
 import { WatchTable } from "@/features/initiative-13/components/watch-table"
 import {
   loadLiveGrni,
@@ -108,13 +108,13 @@ export async function WatchPage({ searchParams }: { searchParams: I13SearchParam
   )
 }
 
-/** Metrics | 30-Day GR-Not-Issued | Usage Pattern, keeping the current filters. */
-function WatchTabs({ searchParams, active }: { searchParams: I13SearchParams; active: WatchView }) {
+/** Metrics | 30-Day GR-Not-Issued | Usage Pattern. A tab opens with its filters cleared. */
+function WatchTabs({ active }: { active: WatchView }) {
   return (
     <SegmentedTabs
       label="Consumption tracking view"
       tabs={WATCH_VIEWS.map((view) => ({
-        href: watchViewHref(view, searchParams),
+        href: watchViewHref(view),
         label: WATCH_VIEW_LABELS[view],
         active: view === active,
       }))}
@@ -164,7 +164,7 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
         meta={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="metrics" />
+        <WatchTabs active="metrics" />
         <I13UrlFilters
           className="flex-1"
           fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
@@ -217,7 +217,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         }
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="grni" />
+        <WatchTabs active="grni" />
         <I13UrlFilters className="flex-1" fields={["plant", "material"]} plants={live?.plantOptions} />
       </ToolbarRow>
 
@@ -227,9 +227,9 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         <>
           <GrniTable rows={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="reservation lines" />
-          <p className="text-sm text-ink-muted">
+          <p className="text-sm text-muted-foreground">
             Outstanding across the lines on this page:{" "}
-            <span className="font-bold text-ink">{formatCount(live.outstandingQuantity)} units</span>. The
+            <span className="font-semibold text-foreground">{formatCount(live.outstandingQuantity)} units</span>. The
             same rule marks a material &ldquo;GRNI&rdquo; on the Metrics tab.
           </p>
         </>
@@ -274,7 +274,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
         subtitle="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
       />
       <ToolbarRow>
-        <WatchTabs searchParams={searchParams} active="usage" />
+        <WatchTabs active="usage" />
         <I13UrlFilters className="flex-1" fields={["plant", "material", "agingBand"]} plants={live?.plantOptions} />
       </ToolbarRow>
 
@@ -289,7 +289,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
         <LoadFailure what="usage patterns" message={loadError} />
       ) : (
         <>
-          <UsagePatternTable rows={live.rows} />
+          <UsagePatternView rows={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="material-plants" />
         </>
       )}

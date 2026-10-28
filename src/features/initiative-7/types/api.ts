@@ -118,6 +118,9 @@ export interface ApiRecommendationSummary {
   recommended: ApiStockParameters
   impact: ApiImpactInfo
   unit_price: ApiDecimal
+  /** Value change: unit_price * (current_rop - recommended_rop), worked out by the backend. null: could not be
+   * calculated (blocked, no price, no reorder point); absent: a backend that predates the field. Never 0 for those. */
+  working_capital_impact?: ApiDecimal | null
   /** ISO code unit_price is in (SAP MBEW WAERS); null when SAP supplied none. */
   currency?: string | null
 }
@@ -194,6 +197,7 @@ export interface ApiRecommendationDetail {
   plant: string
   circuit: string | null
   unit_price: ApiDecimal
+  working_capital_impact?: ApiDecimal | null
   currency?: string | null
   current: ApiStockParameters
   recommended: ApiStockParameters

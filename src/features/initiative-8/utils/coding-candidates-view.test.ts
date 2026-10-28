@@ -7,6 +7,7 @@ import {
   newItemPriceSortValue,
   newItemPriceTitle,
   nextPriceSort,
+  screenedAgo,
   sortByNewItemPrice,
 } from "@/features/initiative-8/utils/coding-candidates-view"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
@@ -171,5 +172,27 @@ describe("matchesCandidateSearch", () => {
     expect(matchesCandidateSearch(kit, "   ")).toBe(true)
     expect(matchesCandidateSearch(kit, "gearbox")).toBe(false)
     expect(matchesCandidateSearch(kit, "4000002023")).toBe(false)
+  })
+})
+
+describe("screenedAgo", () => {
+  const now = Date.parse("2026-10-28T09:00:00+02:00")
+
+  it("says how long ago, in South African calendar days, and stale after a week", () => {
+    expect(screenedAgo("2026-10-13T18:41:00+02:00", now)).toEqual({ text: "Screened 15 days ago", days: 15, stale: true })
+    expect(screenedAgo("2026-10-21T08:00:00+02:00", now)).toEqual({ text: "Screened 7 days ago", days: 7, stale: false })
+  })
+
+  it("reads today and yesterday as words, even across midnight UTC", () => {
+    // 00:30 SA on the 28th is still the 27th in UTC: today in South Africa.
+    expect(screenedAgo("2026-10-28T00:30:00+02:00", now)?.text).toBe("Screened today")
+    // 21:30 UTC on the 27th is 23:30 SA: yesterday.
+    expect(screenedAgo("2026-10-27T21:30:00Z", now)?.text).toBe("Screened yesterday")
+    expect(screenedAgo("2026-10-27T12:00:00+02:00", now)?.text).toBe("Screened yesterday")
+  })
+
+  it("says nothing without a date it can read", () => {
+    expect(screenedAgo(undefined, now)).toBeUndefined()
+    expect(screenedAgo("not a date", now)).toBeUndefined()
   })
 })

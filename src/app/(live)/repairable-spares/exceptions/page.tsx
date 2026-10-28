@@ -4,6 +4,7 @@ import { connection } from "next/server"
 
 import { ExceptionsScreen } from "@/features/initiative-8/components/exceptions-screen"
 import { I08Page } from "@/features/initiative-8/components/kit/page"
+import { NotificationLogScreen } from "@/features/initiative-8/components/notification-log"
 import {
   exceptionsHref,
   loadExceptionsPage,
@@ -11,6 +12,13 @@ import {
   toExceptionRow,
   type ExceptionsPage,
 } from "@/features/initiative-8/data/live-exceptions"
+import {
+  isNotificationView,
+  loadNotificationsPage,
+  notificationsHref,
+  parseNotificationParams,
+  type NotificationsPage,
+} from "@/features/initiative-8/data/live-notifications"
 import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
 import { getAttestations, getException } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
@@ -61,8 +69,9 @@ export const metadata: Metadata = {
  * whoever owned it — it resolves itself, and its history says the data moved
  * rather than that a person closed it.
  *
- * Still missing from FR-11: email. There is no notification of any kind, so a
- * queue nobody opens is a queue nobody reads.
+ * Still missing from FR-11: email. Since 27-Oct-2026 the backend logs a
+ * notification once per exception, the first time it is found actionable, and
+ * `?view=log` shows that log (`NotificationLogScreen`); nothing is emailed yet.
  *
  * ## Paged on the server
  *
@@ -92,7 +101,10 @@ export default async function I08ExceptionsPage({
   // change under the page. A build-time snapshot would be wrong by lunchtime.
   await connection()
 
-  const { filters, page, id } = parseExceptionParams(await searchParams)
+  const raw = await searchParams
+  if (isNotificationView(raw)) return <NotificationLog raw={raw} />
+
+  const { filters, page, id } = parseExceptionParams(raw)
 
   // Best-effort and in parallel, for the drawer's Declare button: a failure
   // costs the form its category list (it then says so), never the queue.
@@ -157,6 +169,36 @@ export default async function I08ExceptionsPage({
       typeCounts={data.typeCounts}
       initialItem={initialItem}
       faultCategories={categories}
+    />
+  )
+}
+
+/**
+ * `?view=log`: FR-11's notification log, paged on the server like the queue.
+ * A backend without the log answers 404, which the screen names rather than
+ * showing a zero; any other failure is shown as a failure.
+ */
+async function NotificationLog({ raw }: { raw: RawSearchParams }) {
+  const { filters, page } = parseNotificationParams(raw)
+  let data: NotificationsPage | undefined
+  let loadError: string | undefined
+  try {
+    data = await loadNotificationsPage(filters, page)
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error)
+  }
+  // Past the end: the last page there is. Outside the try, as above.
+  if (data?.available) {
+    const lastPage = pageCountOf(data.total, DEFAULT_PAGE_SIZE)
+    if (page > lastPage) redirect(notificationsHref(filters, lastPage))
+  }
+  return (
+    <NotificationLogScreen
+      data={data}
+      error={loadError}
+      filters={filters}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
     />
   )
 }

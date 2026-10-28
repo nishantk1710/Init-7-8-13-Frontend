@@ -7,6 +7,8 @@ import { DataSourcePanel } from "@/features/initiative-13/components/data-source
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
+import { SegmentedBar, type BarSegment } from "@/features/initiative-13/components/ui/progress-bar"
+import { TONE_FILL } from "@/features/initiative-13/components/ui/tones"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
@@ -15,7 +17,39 @@ import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative
 import { percentLabel } from "@/features/initiative-13/utils/oar-display"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
-import { formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
+
+/**
+ * How the lines are stitched, over every matching line (from `/ledger/counts`).
+ * The issued / part-issued / not-issued split is not counted by the backend,
+ * so the bar shows what is: the linkage the ledger reached.
+ */
+const LINKAGE_SEGMENTS: { key: string; label: string; tone: BarSegment["tone"] }[] = [
+  { key: "FULL_CHAIN", label: "Full chain", tone: "healthy" },
+  { key: "RESERVATION_LINKED", label: "Reservation linked", tone: "primary" },
+  { key: "PR_ONLY", label: "PR only", tone: "neutral" },
+  { key: "UNMATCHED", label: "Unmatched", tone: "caution" },
+]
+
+function LinkageBreakdown({ counts, total }: { counts: Record<string, number>; total: number }) {
+  const segments = LINKAGE_SEGMENTS.map((s) => ({ ...s, count: counts[s.key] ?? 0 }))
+  return (
+    <div className="mt-2 flex flex-col gap-2.5">
+      <SegmentedBar segments={segments} label="Procurement lines by linkage" className="h-3" />
+      <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+        {segments.map((s) => (
+          <li key={s.key} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("size-2 rounded-full", TONE_FILL[s.tone])} />
+            <span className="text-foreground">{s.label}</span>
+            <span className="text-muted-foreground tabular-nums">
+              {formatCount(s.count)} · {percentLabel(s.count, total)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 const PATH = "/oar-utilization/ledger"
 
@@ -120,6 +154,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         {live && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <KpiCard
+              accent="primary"
               label="Total reservations"
               icon={<ListChecks className="size-3.5" aria-hidden />}
               value={formatCount(live.total ?? live.count)}
@@ -207,10 +242,11 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
         {live && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <KpiCard
+              accent="primary"
               label="Total procurement lines"
               icon={<Rows3 className="size-3.5" aria-hidden />}
               value={formatCount(totalLines)}
-              hint="Each anchored from purchase requisition through goods issue."
+              hint={<LinkageBreakdown counts={live.linkageCounts} total={totalLines} />}
             />
             <KpiCard
               accent="caution"
@@ -219,8 +255,8 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
               value={formatCount(unmatched)}
               hint={
                 <>
-                  <span className="font-bold text-caution-ink">{percentLabel(unmatched, totalLines)} of total</span> —
-                  could not be stitched, so shown as unmatched rather than inferred.
+                  <span className="font-semibold text-warning">{percentLabel(unmatched, totalLines)} of total</span> —
+                  these could not be stitched together, so they are shown as unmatched rather than inferred.
                 </>
               }
             />

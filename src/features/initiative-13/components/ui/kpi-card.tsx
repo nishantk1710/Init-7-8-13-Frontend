@@ -15,18 +15,22 @@ export function CardHeading({
   title,
   subtitle,
   actions,
+  info,
   id,
 }: {
   title: string
   subtitle?: ReactNode
   actions?: ReactNode
+  /** An (i) icon beside the title that explains the card. */
+  info?: ReactNode
   id?: string
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h2 id={id} className="text-[15.5px] font-semibold text-ink">
+        <h2 id={id} className="flex items-center gap-1.5 text-[15.5px] font-semibold text-ink">
           {title}
+          {info}
         </h2>
         {subtitle && <p className="mt-0.5 text-[13px] text-ink-muted">{subtitle}</p>}
       </div>
@@ -64,6 +68,7 @@ export function KpiCard({
   title,
   accent = "primary",
   icon,
+  info,
   className,
 }: {
   label: string
@@ -75,6 +80,8 @@ export function KpiCard({
   accent?: DisplayTone
   /** Drawn inside the badge, which supplies its colour: give it a size, not a colour. */
   icon?: ReactNode
+  /** An (i) icon at the end of the label row that explains the figure. */
+  info?: ReactNode
   className?: string
 }) {
   return (
@@ -91,11 +98,12 @@ export function KpiCard({
       <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-muted-foreground">
         {icon && <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-lg", BADGE[accent])}>{icon}</span>}
         <span className="truncate">{label}</span>
+        {info && <span className="ml-auto">{info}</span>}
       </span>
       <span className="mt-1.5 truncate text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
         {value}
       </span>
-      {hint && <p className="text-[13.5px] text-muted-foreground">{hint}</p>}
+      {hint && <div className="text-[13.5px] text-muted-foreground">{hint}</div>}
     </div>
   )
 }

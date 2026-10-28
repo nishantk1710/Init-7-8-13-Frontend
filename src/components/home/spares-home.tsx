@@ -1,15 +1,15 @@
-import Link from "next/link"
 import { connection } from "next/server"
-import { ArrowRight, ClipboardCheck } from "lucide-react"
 
+import { AttentionTotalCard, type AreaCount } from "@/components/home/attention-total-card"
+import { APPROVALS_BORDER } from "@/components/home/home-areas"
 import { HomeGreeting } from "@/components/home/home-greeting"
-import { InitiativeSummaryCard, SummaryCardFailure } from "@/components/home/initiative-summary-card"
+import { AreaCard, InitiativeSummaryCard, SummaryCardFailure } from "@/components/home/initiative-summary-card"
 import { MaterialRiskLandscape } from "@/components/home/material-risk-landscape"
 import { PriorityActions } from "@/components/home/priority-actions"
 import { RecentEventsFeed } from "@/components/home/recent-events-feed"
 import { FailureNotice, INITIATIVE_NAME } from "@/components/shared/load-status"
-import { PageHeader } from "@/components/shared/page-header"
 import { ProfileMenu } from "@/components/shared/profile-menu"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import {
   combineActions,
   combineAuditEvents,
@@ -53,18 +53,37 @@ export async function SparesHome() {
   const actions = combineActions(actionsPer)
   const audit = combineAuditEvents(auditPer)
   const noneAnswered = actions.failures.length === INITIATIVE_IDS.length
+  const areaCounts: AreaCount[] = INITIATIVE_IDS.flatMap((id) => {
+    const own = actionsPer[id]
+    return own.status === "ready" ? [{ id, count: own.data.total }] : []
+  })
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <HomeGreeting />
-          <PageHeader title="Here's what needs your attention today" actions={<ProfileMenu />} />
-        </div>
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <HomeGreeting />
+            <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-foreground">
+              Here&rsquo;s what needs your attention today
+            </h1>
+          </div>
+          <div className="shrink-0">
+            <ProfileMenu />
+          </div>
+        </header>
 
         <FailureNotice failures={actions.failures} />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {!noneAnswered && (
+          <AttentionTotalCard
+            areas={areaCounts}
+            decisionTotal={actions.decisionTotal}
+            failedModules={actions.failures.length}
+          />
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {INITIATIVE_IDS.map((id) => {
             const section = summaries[id]
             if (section.status !== "ready") {
@@ -88,41 +107,42 @@ export async function SparesHome() {
               />
             )
           })}
-          <Link
+          <AreaCard
             href="/approvals"
-            className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
+            label="Pending Approvals"
+            edge={APPROVALS_BORDER}
+            status={
+              <StatusPill tone={noneAnswered ? "urgent" : actions.decisionTotal === 0 ? "healthy" : "primary"}>
+                {noneAnswered
+                  ? "Could not be determined"
+                  : actions.decisionTotal === 0 && actions.failures.length === 0
+                    ? "Nothing waiting"
+                    : "Needs your decision"}
+              </StatusPill>
+            }
+            footer={
+              actions.failures.length > 0 && !noneAnswered ? (
+                <span className="text-destructive">
+                  Excludes {actions.failures.length} module{actions.failures.length === 1 ? "" : "s"} that could
+                  not be loaded
+                </span>
+              ) : null
+            }
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-foreground">Pending Approvals</span>
-              <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <ClipboardCheck className="size-3" />
-              {noneAnswered
-                ? "Could not be determined"
-                : actions.decisionTotal === 0 && actions.failures.length === 0
-                  ? "Nothing waiting"
-                  : "Needs your decision"}
-            </div>
             <div>
-              <div className="text-[11px] text-muted-foreground">Waiting for a decision</div>
+              <div className="text-xs text-muted-foreground">Waiting for a decision</div>
               {/* With no module answering there is no count to give; "0" would
                   read as "nothing is waiting". */}
-              <div className="text-sm font-medium text-foreground">
+              <div className="text-[30px] leading-tight font-semibold tracking-tight text-action tabular-nums">
                 {noneAnswered ? NOT_LOADED : actions.decisionTotal.toLocaleString()}
               </div>
-              {actions.failures.length > 0 && !noneAnswered && (
-                <div className="mt-1 text-[11px] text-destructive">
-                  Excludes {actions.failures.length} module{actions.failures.length === 1 ? "" : "s"} that
-                  could not be loaded
-                </div>
-              )}
             </div>
-          </Link>
+          </AreaCard>
         </div>
 
         <PriorityActions
           actions={actions.actions}
+          decisionIds={actions.decisions.map((d) => d.id)}
           total={actions.total}
           failedModules={actions.failures.length}
         />

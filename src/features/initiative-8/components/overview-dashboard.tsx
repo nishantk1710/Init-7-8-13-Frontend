@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { Printer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
 import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
-import type { RegisterFilters } from "@/features/initiative-8/data/live-register"
+import { registerHref, type RegisterFilters } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import {
@@ -25,6 +26,7 @@ import {
   openExceptionCounts,
   overviewPdfTitle,
   summariseOverview,
+  type OpenExceptionItem,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
@@ -39,17 +41,24 @@ const FILTER_NOTE =
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
+  /** Repairs requested with no PO yet (PR rows): counted on their own, never
+   *  in a figure about repairs that are out. Empty on an older backend. */
+  requests?: RepairChain[]
   agingBands: string[]
   /** Null when the universe fetch failed: its tile says so. */
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
   /** Every open exception item, by the line it is on; null when the queue
    *  could not be read. */
-  exceptions: { repairId?: string; type: string }[] | null
+  exceptions: OpenExceptionItem[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
   criticalityOptions: string[]
   referenceDate: string
   sourceLoadedAt: string | null
+  /** "+3 repairs requested, no PO yet", or undefined when the backend does not
+   *  serve them or has none. Never part of any figure: `chains` holds PO lines
+   *  only (see `withoutRepairRequests`). */
+  repairRequestsNote?: string
 }
 
 /**
@@ -74,6 +83,7 @@ export type OverviewDashboardProps = {
  */
 export function OverviewDashboard({
   chains,
+  requests = [],
   agingBands,
   universe,
   exceptions,
@@ -82,6 +92,7 @@ export function OverviewDashboard({
   criticalityOptions,
   referenceDate,
   sourceLoadedAt,
+  repairRequestsNote,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
   const [printedAt, setPrintedAt] = useState<string | null>(null)
@@ -92,10 +103,13 @@ export function OverviewDashboard({
     [chains, universe, filters],
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
-  const exceptionCounts = useMemo(
-    () => (exceptions === null ? null : openExceptionCounts(slice.chains, exceptions)),
-    [slice, exceptions],
-  )
+  // The repairs requested with no PO yet, under the same filters.
+  const requestSlice = useMemo(() => filterOverview(requests, [], filters).chains, [requests, filters])
+  const exceptionCounts = useMemo(() => {
+    if (exceptions === null) return null
+    const known = new Set([...chains, ...requests].map((c) => c.id))
+    return openExceptionCounts([...slice.chains, ...requestSlice], known, exceptions, filters)
+  }, [chains, requests, slice, requestSlice, exceptions, filters])
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
@@ -158,6 +172,9 @@ export function OverviewDashboard({
 
   const figures = {
     chains: slice.chains,
+    // Shown only when the backend serves PR rows: a count it never made is
+    // not zero.
+    repairRequests: repairRequestsNote ? requestSlice.length : undefined,
     agingBands,
     metrics,
     universeLoaded: universe !== null,
@@ -179,6 +196,17 @@ export function OverviewDashboard({
           <span>
             {formatCount(chains.length)} open repair lines at {plants} {plants === 1 ? "plant" : "plants"}
           </span>
+          {repairRequestsNote && (
+            // Not narrowed by the filters below: the backend counts them over
+            // the whole register, and the register lists them.
+            <Link
+              href={registerHref({ view: "notOrdered" })}
+              title="Open the repairs requested on a purchase requisition with no PO yet. They are counted apart from the open repair lines."
+              className="text-i08-link hover:underline"
+            >
+              {repairRequestsNote}
+            </Link>
+          )}
           {loaded && (
             <>
               <Dot />

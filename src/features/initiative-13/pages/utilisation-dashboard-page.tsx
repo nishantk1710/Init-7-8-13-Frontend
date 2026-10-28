@@ -6,6 +6,7 @@ import { ArrowRight, Clock3, FileText } from "lucide-react"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
+import { DashboardInfo } from "@/features/initiative-13/components/dashboard-info"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
 import { ExceptionPipeline } from "@/features/initiative-13/components/exception-pipeline"
 import { Card, CardHeading } from "@/features/initiative-13/components/ui/kpi-card"
@@ -21,6 +22,7 @@ import { NonMoverExport } from "@/features/initiative-13/components/non-mover-ex
 import { NonMoverTable } from "@/features/initiative-13/components/non-mover-table"
 import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
+import type { DashboardInfoId } from "@/features/initiative-13/data/dashboard-info"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
 import { attachCriticalImpactIndicator } from "@/features/initiative-13/utils/dashboard-transforms"
 import { resolveDetailTab, type DetailTabId } from "@/features/initiative-13/utils/detail-tabs"
@@ -238,6 +240,7 @@ export async function UtilisationDashboardPage({
         <CardHeading
           title="Exception follow-up pipeline"
           subtitle="Where each follow-up sits in the confirmation workflow"
+          info={<DashboardInfo id="exceptionPipeline" />}
           actions={
             <Link
               href="/oar-utilization/aging-exceptions"
@@ -268,9 +271,9 @@ export async function UtilisationDashboardPage({
       </Card>
 
 
-      <section aria-labelledby="oar-details-heading" className="rounded-card border border-line bg-card">
+      <section aria-labelledby="oar-details-heading" className="rounded-xl border border-border bg-card">
         <Tabs defaultValue={initialTab} className="gap-0">
-          <div className="flex flex-col gap-3 border-b border-line px-4 pt-5 sm:px-5">
+          <div className="flex flex-col gap-3 border-b border-border px-4 pt-5 sm:px-5">
             <CardHeading
               id="oar-details-heading"
               title="Details"
@@ -290,6 +293,9 @@ export async function UtilisationDashboardPage({
               <TabsContent value="non-movers">
                 {nonMovers ? (
                   <div className="flex flex-col gap-3">
+                    <TabIntro info="nonMoversTab">
+                      OAR positions not issued for more than 730 days, or never issued.
+                    </TabIntro>
                     {dashboard.reclassification.status === "unavailable" && (
                       <p className="text-xs text-muted-foreground">
                         Critical impact shows Unknown for every row — criticality (ZMM065) is not
@@ -319,21 +325,26 @@ export async function UtilisationDashboardPage({
 
               <TabsContent value="plan">
                 {watch ? (
-                  <AcquiredVsPlanPanel
-                    rows={watch.rows}
-                    total={watch.total}
-                    filters={filters}
-                    pagination={
-                      <TablePagination
-                        page={pageOf("plan")}
-                        pageSize={DEFAULT_PAGE_SIZE}
-                        total={watch.total}
-                        count={watch.count}
-                        noun="positions"
-                        hrefFor={hrefFor("plan")}
-                      />
-                    }
-                  />
+                  <div className="flex flex-col gap-3">
+                    <TabIntro info="acquiredVsPlanTab">
+                      Received quantity against the consumption plan, per material and plant.
+                    </TabIntro>
+                    <AcquiredVsPlanPanel
+                      rows={watch.rows}
+                      total={watch.total}
+                      filters={filters}
+                      pagination={
+                        <TablePagination
+                          page={pageOf("plan")}
+                          pageSize={DEFAULT_PAGE_SIZE}
+                          total={watch.total}
+                          count={watch.count}
+                          noun="positions"
+                          hrefFor={hrefFor("plan")}
+                        />
+                      }
+                    />
+                  </div>
                 ) : (
                   <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
                 )}
@@ -342,10 +353,10 @@ export async function UtilisationDashboardPage({
               <TabsContent value="plans">
                 {dashboard.plans.status === "ready" ? (
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs text-muted-foreground">
+                    <TabIntro info="capturedPlansTab">
                       Plans stated by requesters in the assistant, kept apart from generated
                       reference plans.
-                    </p>
+                    </TabIntro>
                     <PlansTable plans={dashboard.plans.data.rows} />
                     <TablePagination
                       page={pageOf("plans")}
@@ -364,10 +375,10 @@ export async function UtilisationDashboardPage({
               <TabsContent value="justifications">
                 {dashboard.justifications.status === "ready" ? (
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs text-muted-foreground">
+                    <TabIntro info="justificationsTab">
                       Reasons given when exceptions were confirmed and when reservations were
                       made in the assistant. Covers the most recent confirmations only.
-                    </p>
+                    </TabIntro>
                     <JustificationLog entries={dashboard.justifications.data} />
                   </div>
                 ) : (
@@ -398,11 +409,21 @@ function DetailTab({
     >
       {label}
       {count !== null && (
-        <span className="rounded-full bg-action/10 px-2 py-0.5 text-xs font-bold tabular-nums text-action">
+        <span className="rounded-full bg-action/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-action">
           {formatCount(count)}
         </span>
       )}
     </TabsTrigger>
+  )
+}
+
+/** A Details tab's one-line description, with the (i) that explains its rule. */
+function TabIntro({ info, children }: { info: DashboardInfoId; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span>{children}</span>
+      <DashboardInfo id={info} />
+    </div>
   )
 }
 
@@ -413,8 +434,8 @@ function sectionCount<T>(section: Section<T>, count: (data: T) => number): numbe
 /** A calm "nothing to do" — smaller than `EmptyState`, which is sized for a page. */
 function QuietState({ title, description }: { title: string; description?: ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-healthy-tint px-4 py-8 text-center text-healthy-ink">
-      <div className="text-sm font-bold">{title}</div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-success/10 px-4 py-8 text-center text-success">
+      <div className="text-sm font-semibold">{title}</div>
       {description && <p className="text-sm">{description}</p>}
     </div>
   )

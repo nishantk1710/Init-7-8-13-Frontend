@@ -1,7 +1,7 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, TriangleAlert } from "lucide-react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Minus, TriangleAlert } from "lucide-react"
 
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
@@ -24,6 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
+import { filterByValueChange, sortByValueChange, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
@@ -73,29 +74,28 @@ function isNotYetComputed(rec: Recommendation): boolean {
  * monetary delta. */
 function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?: Recommendation }) {
   const source = liveDetail ?? rec
-  if (isNotYetComputed(source)) {
+  const view = valueChangeView(source)
+  if (view.kind === "not-computed") {
     return <span className="text-muted-foreground">not yet computed</span>
   }
-
-  const delta = source.workingCapitalImpact
-  if (delta === 0) {
-    return <span className="text-muted-foreground">no change</span>
+  if (view.kind === "not-available") {
+    return <span className="text-muted-foreground">not available</span>
   }
 
-  const ropDelta = source.recommended.rop - source.current.rop
-  const pct = source.current.rop === 0 ? null : Math.round((ropDelta / source.current.rop) * 100)
-  // Positive workingCapitalImpact releases capital; negative ties more up.
-  const DeltaIcon = delta > 0 ? ArrowDown : ArrowUp
-  const tone = delta > 0 ? "text-success" : "text-warning"
+  // Released: reorder point down, green down arrow. Tied up: reorder point up, amber up arrow.
+  // Unchanged: a real 0, neutral. The arrow carries the direction, so the amount has no sign.
+  const DeltaIcon = view.kind === "released" ? ArrowDown : view.kind === "tied-up" ? ArrowUp : Minus
+  const tone =
+    view.kind === "released" ? "text-success" : view.kind === "tied-up" ? "text-warning" : "text-muted-foreground"
 
   return (
     <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
-      {formatMoney(Math.abs(delta), source.currency)}
-      {pct !== null && (
+      {formatMoney(view.amount, source.currency)}
+      {view.ropPercent !== null && (
         <span className="font-normal text-muted-foreground">
-          ({pct > 0 ? "+" : ""}
-          {pct}%)
+          ({view.ropPercent > 0 ? "+" : ""}
+          {view.ropPercent}%)
         </span>
       )}
     </div>
@@ -210,6 +210,18 @@ export function RecommendationReviewTable({
   const showCircuit = hasRealCircuit(recommendations)
   const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
+  // The Value change header has two arrows: down shows only released rows, up shows only increased (tied-up)
+  // rows, each largest first; neither active shows all. The backend pages the list and has no filter or sort for
+  // this figure, so this narrows and reorders the rows on this page only.
+  const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
+  const rows = useMemo(
+    () => sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
+    [recommendations, valueSort],
+  )
+  // Clicking the active arrow again turns the filter off.
+  const toggleValueSort = (next: Exclude<ValueChangeSort, null>) =>
+    setValueSort((current) => (current === next ? null : next))
+
   if (recommendations.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -230,14 +242,62 @@ export function RecommendationReviewTable({
               <TableHead>Criticality - Demand pattern</TableHead>
               {showCircuit && <TableHead>Circuit</TableHead>}
               <TableHead>Stockout risk</TableHead>
-              <TableHead className="text-right">Value change</TableHead>
+              <TableHead
+                className="text-right"
+                aria-sort={valueSort === "released-first" ? "descending" : valueSort === "tied-up-first" ? "ascending" : "none"}
+              >
+                <div className="inline-flex items-center justify-end gap-1">
+                  Value change
+                  <button
+                    type="button"
+                    onClick={() => toggleValueSort("released-first")}
+                    title={
+                      valueSort === "released-first"
+                        ? "Showing only released value change. Click to show all"
+                        : "Show only released value change"
+                    }
+                    aria-label="Show only released value change"
+                    aria-pressed={valueSort === "released-first"}
+                    className={cn(
+                      "rounded-md p-0.5 hover:bg-muted",
+                      valueSort === "released-first" ? "bg-success/15 text-success" : "text-muted-foreground",
+                    )}
+                  >
+                    <ArrowDown className="size-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleValueSort("tied-up-first")}
+                    title={
+                      valueSort === "tied-up-first"
+                        ? "Showing only increased value change. Click to show all"
+                        : "Show only increased value change"
+                    }
+                    aria-label="Show only increased value change"
+                    aria-pressed={valueSort === "tied-up-first"}
+                    className={cn(
+                      "rounded-md p-0.5 hover:bg-muted",
+                      valueSort === "tied-up-first" ? "bg-warning/15 text-warning" : "text-muted-foreground",
+                    )}
+                  >
+                    <ArrowUp className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              </TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
               {showMinMaxConversion && <TableHead>Min-Max conversion</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recommendations.map((rec) => {
+            {rows.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount} className="py-6 text-center text-muted-foreground">
+                  No {valueSort === "released-first" ? "released" : "tied-up"} value change on this page.
+                </TableCell>
+              </TableRow>
+            )}
+            {rows.map((rec) => {
               const isExpanded = expandedId === rec.id
               const atRisk = rec.risk === "critical" || rec.risk === "high"
               return (
@@ -303,6 +363,15 @@ export function RecommendationReviewTable({
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
                       <TableCell colSpan={columnCount - 1} className="bg-muted/30 py-4 whitespace-normal">
+                        {/* The row truncates a long description to fit its column; the open row shows all of it. */}
+                        <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="text-sm font-medium break-words text-foreground">
+                            {rec.material.description}
+                          </span>
+                          {rec.material.materialCode !== rec.material.description && (
+                            <span className="text-xs text-muted-foreground">{rec.material.materialCode}</span>
+                          )}
+                        </div>
                         <ExpandedRecommendationPanel rec={rec} onDetail={recordDetail} />
                       </TableCell>
                     </TableRow>
@@ -314,8 +383,10 @@ export function RecommendationReviewTable({
         </Table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Showing {recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"} · open a row for the
+        Showing {rows.length} recommendation{rows.length === 1 ? "" : "s"} · open a row for the
         forecast, rationale and submit action.
+        {valueSort !== null &&
+          ` Only ${valueSort === "released-first" ? "released" : "tied-up"} value change on this page is shown (${recommendations.length} on the page); other pages are not filtered.`}
       </p>
     </div>
   )
