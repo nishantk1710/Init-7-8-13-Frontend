@@ -111,6 +111,17 @@ export type ApiRepairChain = {
 
   /** Summed across storage locations. Null means no stock record, not zero. */
   stockOnHand: string | null
+  /**
+   * The stock at this plant in a usable condition (the backend's configured
+   * usable conditions, e.g. NEW and REFURBISHD), and in a damaged one.
+   * Decimal strings. Null when the condition split is not known for this
+   * material; absent on a backend older than 28-Oct-2026.
+   */
+  usableStock?: string | null
+  damagedStock?: string | null
+  /** Whether the stock's condition split is known for this material at this
+   *  plant. Null or absent when the backend does not say. */
+  stockConditionKnown?: boolean | null
   /** Null for every Gamsberg material — the planning extract omits that plant. */
   reorderPoint: string | null
   qtyUnderRepair: string
@@ -198,6 +209,9 @@ export type ApiRepairChain = {
    * Absent on an older backend.
    */
   declarationLink?: "BOUND" | "REFERENCE" | "WINDOW" | null
+  /** The assistant session behind the declaration that covers this line,
+   *  when there is one. Absent on a backend older than 28-Oct-2026. */
+  declarationSessionId?: string | null
   declaredBy?: string | null
   /** ISO timestamp of the attestation. */
   declaredAt?: string | null
@@ -227,7 +241,12 @@ export type ApiRepairChain = {
 export type ApiLineException = {
   id: string
   type: string
+  /** `info` only on an item raised before the control existed: the checks
+   *  raise every other item as a warning or worse. */
   severity: "info" | "warning" | "critical"
+  /** Raised before the control existed. Not sent today: read it through
+   *  `toRegisterLine`, which falls back on the severity. */
+  preAutomation?: boolean
 }
 
 /** One NEW_ACQUISITION justification recorded while a repair line was out. */
@@ -352,6 +371,10 @@ export type ApiUniverseItem = {
   plant: ApiPlantReference | null
   materialType: string | null
   stockOnHand: string | null
+  /** Usable and damaged stock, as on a register row. Null when the condition
+   *  split is not known; absent on a backend older than 28-Oct-2026. */
+  usableStock?: string | null
+  damagedStock?: string | null
   storageLocations: number
   reorderPoint: string | null
   mrpType: string | null
@@ -912,6 +935,9 @@ export type ExceptionQuery = {
   owner?: string
   /** Leave out items raised before the control existed (`preAutomation`). */
   actionableOnly?: boolean
+  /** Only the items raised before the control existed. A backend older than
+   *  28-Oct-2026 ignores it: the screen filters the rows again. */
+  preAutomationOnly?: boolean
   /**
    * Comma-separated types the queue does not carry. Unlike a filter, they come
    * off the meta counts and the facets as well as the items.
@@ -964,6 +990,13 @@ export type ApiNotification = {
   title: string
   materialId: string
   plant: string | null
+  /** The repair line as the register keys it: `4500001719-10`, or
+   *  `PR-2000028756-10` for a repair PR. Null when the item names none;
+   *  absent on a backend older than 28-Oct-2026. */
+  repairLine?: string | null
+  /** The material's description, and the plant's name. Same story. */
+  description?: string | null
+  plantName?: string | null
   /** ISO date-time the exception was first logged. */
   loggedAt: string
   channel: "EMAIL"

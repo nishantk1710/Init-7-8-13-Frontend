@@ -19,10 +19,20 @@ export const NO_PO_YET = OVERDUE_STATUS_LABEL.NOT_ORDERED
 /** The stage of a PR row, in words: "Repair requested". */
 export const REPAIR_REQUESTED = stageLabel("PR Raised")
 
+/** The stage of a PR row where a table column is narrow: "Requested". */
+export const REPAIR_REQUESTED_SHORT = "Requested"
+
 /** "requested today", "requested 1 day ago", "requested 12 days ago". */
 export function requestedAgo(days: number): string {
   if (days <= 0) return "requested today"
   return `requested ${days.toLocaleString("en-US")} ${days === 1 ? "day" : "days"} ago`
+}
+
+/** The same in a narrow column, where the long form was cut off: "today",
+ *  "456 d ago". The long form goes on hover. */
+export function requestedAgoShort(days: number): string {
+  if (days <= 0) return "today"
+  return `${days.toLocaleString("en-US")} d ago`
 }
 
 /**

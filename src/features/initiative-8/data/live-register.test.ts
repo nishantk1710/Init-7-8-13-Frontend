@@ -121,6 +121,29 @@ describe("toRepairChain", () => {
     expect(chain.repairStatus).toBe("PO Issued")
   })
 
+  it("carries the stock's condition split and the declaration's session when sent", () => {
+    const chain = toRepairChain(
+      apiRow({
+        usableStock: "1.000000",
+        damagedStock: "2.000000",
+        stockConditionKnown: true,
+        declarationSessionId: "SJWYMF3H1H",
+      }),
+    )
+    expect(chain.usableStock).toBe(1)
+    expect(chain.damagedStock).toBe(2)
+    expect(chain.stockConditionKnown).toBe(true)
+    expect(chain.declarationSessionId).toBe("SJWYMF3H1H")
+  })
+
+  it("leaves the split unknown on an older backend, never 0", () => {
+    const chain = toRepairChain(apiRow({ usableStock: null }))
+    expect(chain.usableStock).toBeUndefined()
+    expect(chain.damagedStock).toBeUndefined()
+    expect(chain.stockConditionKnown).toBeUndefined()
+    expect(chain.declarationSessionId).toBeUndefined()
+  })
+
   it("keeps unknown stock as undefined, never as zero", () => {
     // Zero stock is what triggers a duplicate purchase. "We do not know" and
     // "there is none" must not render the same.
@@ -484,10 +507,31 @@ describe("loadRegisterPage", () => {
     const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
 
     expect(chains.map((c) => c.exceptions)).toEqual([
-      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning" }],
+      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning", preAutomation: false }],
       [],
       undefined,
     ])
+  })
+
+  it("reads an item raised before go-live off its severity, or its own flag when sent", async () => {
+    // The checks raise an item `info` only when it predates the control; the
+    // register's badge leaves those out of its count.
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([
+        apiRow({
+          id: "historical",
+          exceptions: [
+            { id: "EX-1", type: "MISSING_ATTESTATION", severity: "info" },
+            { id: "EX-2", type: "OVERDUE_REPAIR", severity: "warning" },
+            { id: "EX-3", type: "SOMETHING_NEW", severity: "warning", preAutomation: true },
+          ],
+        }),
+      ]),
+    )
+
+    const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(chains[0].exceptions?.map((e) => e.preAutomation)).toEqual([true, false, true])
   })
 })
 
@@ -498,7 +542,7 @@ describe("toRegisterLine", () => {
     })
 
     expect(toRegisterLine(row).exceptions).toEqual([
-      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical" },
+      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical", preAutomation: false },
     ])
     // Its charts never read them, and every line it loads would carry them.
     expect(toRepairChain(row).exceptions).toBeUndefined()
@@ -652,6 +696,27 @@ describe("registerRowsToCsv", () => {
     // not the raw enum.
     expect(cell("Lead-time status")).toBe("Beyond")
     expect(cell("Repair PO")).toBe("4500001052/1310")
+  })
+
+  it("carries the repair line and the department, as the screen shows them", () => {
+    const [po, pr] = registerRowsToCsv([
+      toRepairChain(apiRow({ requester: "10303", requesterName: "ENGG-PLANT MAINT" })),
+      toRepairChain(
+        apiRow({
+          id: "PR-2000028756-10",
+          lineKind: "PR",
+          repairPo: null,
+          repairPr: { type: "PR", documentNumber: "2000028756", line: "10" },
+          requester: "40200",
+          requesterName: null,
+        }),
+      ),
+    ])
+    const cell = (row: (string | number)[], header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
+    expect(cell(po, "Repair line")).toBe("4500001052/1310")
+    expect(cell(po, "Department")).toBe("10303 · ENGG-PLANT MAINT")
+    expect(cell(pr, "Repair line")).toBe("PR 2000028756/10")
+    expect(cell(pr, "Department")).toBe("40200")
   })
 
   it("exports no lead-time verdict where there is no benchmark", () => {
