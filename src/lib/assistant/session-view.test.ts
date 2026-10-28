@@ -21,7 +21,7 @@ import {
   referenceInstruction,
   sessionDecision,
 } from "./session-view"
-import { formatDay, formatInstant, sessionIdentity } from "./trace-format"
+import { formatClock, formatDay, formatInstant, sessionIdentity } from "./trace-format"
 
 /** The turns of nonprod session SJWYMF3H1H (R3D2KEMVAR/1), as served on 28-Oct-2026. */
 const turns: ApiTurn[] = [
@@ -99,6 +99,8 @@ describe("dates and quantities", () => {
     expect(formatInstant("2026-10-27T11:04:29.620000Z")).toBe("27 Oct 2026, 13:04")
     expect(formatInstant("2026-10-27")).toBe("27 Oct 2026")
     expect(formatInstant(null)).toBe("—")
+    expect(formatClock("2026-10-27T11:04:29.620000Z")).toBe("13:04")
+    expect(formatClock("2026-10-27")).toBe("")
   })
 
   it("writes a bare date without moving it", () => {

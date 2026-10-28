@@ -105,6 +105,13 @@ export function formatDay(value: string | null | undefined, fallback = "—"): s
   return at ? `${pad(at.d)} ${MONTHS[at.m - 1]} ${at.y}` : value
 }
 
+/** The clock time of a timestamp, `13:04` South African time; empty for a bare date or anything unreadable. */
+export function formatClock(value: string | null | undefined): string {
+  if (!value || DATE_ONLY.test(value)) return ""
+  const at = local(value)
+  return at ? `${pad(at.hh)}:${pad(at.mm)}` : ""
+}
+
 /** A timestamp as `27 Oct 2026, 13:04`, South African time. A bare date stays a date. */
 export function formatInstant(value: string | null | undefined, fallback = "—"): string {
   if (!value) return fallback
