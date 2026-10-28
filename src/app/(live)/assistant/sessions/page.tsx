@@ -115,7 +115,7 @@ export default async function AssistantSessionsPage({
   ]
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
+    <div className="blue-scope min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <AssistantPageHeader
           plain
@@ -140,15 +140,15 @@ export default async function AssistantSessionsPage({
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
           </div>
         ) : (
-          <>
+          // The filter bar leads the page; the compliance cards follow it, above the table.
+          <SessionLogTable
+            sessions={sessions.items}
+            note={sessions.note}
+            total={sessions.total}
+            wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
+          >
             <CompliancePanel checks={checks} />
-            <SessionLogTable
-              sessions={sessions.items}
-              note={sessions.note}
-              total={sessions.total}
-              wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
-            />
-          </>
+          </SessionLogTable>
         )}
       </div>
     </div>

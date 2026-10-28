@@ -77,7 +77,7 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
           <p className="text-[30px] leading-tight font-extrabold tracking-tight text-foreground tabular-nums">
             {check.count.toLocaleString()}
           </p>
-          <p className="flex items-center gap-1.5 text-base font-bold text-foreground">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
             {clean ? (
               <CircleCheck className="size-4 text-success" aria-hidden />
             ) : (
@@ -92,7 +92,7 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
         <>
           {/* Deliberately not a number, not a dash in the same typeface as a
               figure, and not "—". A word, so it cannot be skimmed as a count. */}
-          <p className="flex items-center gap-1.5 text-base font-bold text-muted-foreground">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground">
             <CircleHelp className="size-4" aria-hidden />
             {check.label}: cannot be checked
           </p>

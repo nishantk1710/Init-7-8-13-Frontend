@@ -23,7 +23,10 @@ export default function RequestsPage() {
           actions={
             <Link
               href="/assistant/requests/new"
-              className={cn(buttonVariants({ size: "lg" }), "min-h-11 px-5 text-base font-semibold")}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "min-h-11 border-action bg-action/10 px-5 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+              )}
             >
               <Plus aria-hidden /> New request
             </Link>

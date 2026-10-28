@@ -79,7 +79,7 @@ export function RequestList() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search reference or requester"
-                className="h-11 bg-card"
+                className="h-11 border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30"
               />
             </label>
             <span className="text-sm text-muted-foreground">
@@ -96,7 +96,7 @@ export function RequestList() {
             groups.map((group) => (
               <section key={group.key} aria-labelledby={`day-${group.key}`} className="flex flex-col gap-2">
                 <h2 id={`day-${group.key}`} className="flex items-baseline gap-2">
-                  <span className="text-base font-bold text-foreground">{group.heading}</span>
+                  <span className="text-base font-semibold text-foreground">{group.heading}</span>
                   <span className="text-xs text-muted-foreground">
                     {group.date && `${group.date} · `}
                     {group.items.length} request{group.items.length === 1 ? "" : "s"}
@@ -166,7 +166,7 @@ function DraftList() {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <h2 className="text-base font-bold text-foreground">Drafts</h2>
+        <h2 className="text-base font-semibold text-foreground">Drafts</h2>
         <span className="text-xs text-muted-foreground">
           Saved in this browser only. Nothing is recorded and no reference is given until you submit.
         </span>

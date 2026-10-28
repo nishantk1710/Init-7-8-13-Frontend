@@ -119,7 +119,7 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
         <Button
           size="lg"
           variant="outline"
-          className="px-3.5 sm:ml-auto"
+          className="px-3.5 sm:ml-auto border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
           disabled={rows.length === 0}
           onClick={() => void downloadExcel("i08-declaration-log.xlsx", DECLARATION_LOG_HEADERS, declarationLogRowsForExcel(rows))}
         >

@@ -96,7 +96,7 @@ export function AssistantPageHeader({
     return (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[30px] leading-tight font-extrabold tracking-tight text-foreground">{title}</h1>
+          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

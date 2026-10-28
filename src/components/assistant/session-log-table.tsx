@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { Download } from "lucide-react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
@@ -9,6 +9,13 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -37,19 +44,12 @@ import {
   type SessionOutcome,
 } from "@/lib/assistant/session-outcome"
 
-/** Outcome pill and the row's left edge, one colour each. */
+/** Outcome pill, one colour each. */
 const OUTCOME_PILL: Record<SessionOutcome, string> = {
   followed: "bg-success/10 text-success",
   "went-ahead": "bg-warning/15 text-warning",
   "not-acted": "bg-destructive/10 text-destructive",
   open: "bg-muted text-muted-foreground",
-}
-
-const OUTCOME_EDGE: Record<SessionOutcome, string> = {
-  followed: "shadow-[inset_4px_0_0_var(--success)]",
-  "went-ahead": "shadow-[inset_4px_0_0_var(--warning)]",
-  "not-acted": "shadow-[inset_4px_0_0_var(--destructive)]",
-  open: "shadow-[inset_4px_0_0_var(--line)]",
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -81,12 +81,15 @@ export function SessionLogTable({
   note,
   total,
   wentAheadIds = [],
+  children,
 }: {
   sessions: ApiSessionSummary[]
   note: string
   total: number
   /** Sessions with a "went ahead anyway" justification (`wentAheadSessionIds`). */
   wentAheadIds?: string[]
+  /** Shown between the filter bar and the table (the page's compliance cards). */
+  children?: ReactNode
 }) {
   const [flow, setFlow] = useState<string>("all")
   const [outcome, setOutcome] = useState<string>("all")
@@ -189,27 +192,21 @@ export function SessionLogTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, request, material, requester…"
-          aria-label="Search sessions"
-          className="h-11 w-full bg-card sm:w-80"
-        />
-        <Button
-          variant="outline"
-          size="lg"
-          className="min-h-11 px-4 font-semibold"
-          onClick={exportExcel}
-          disabled={filtered.length === 0}
-        >
-          <Download className="size-4" aria-hidden />
-          Export Excel
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <FilterGroup
+      {/* One bar for the search, every filter and Export: the same bold bordered, shadowed track as the
+          Recommendations page, the audit trail and the other pages. It sits above `children` (the compliance
+          cards), so the filters lead the page. */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 bg-card p-4 shadow-lg">
+        <div className="flex w-full flex-col gap-1 sm:w-72">
+          <span className="text-[11px] font-bold tracking-[0.5px] text-foreground uppercase">Search</span>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Reference, request, material, requester…"
+            aria-label="Search sessions"
+            className="h-8 w-full bg-background focus-visible:border-action focus-visible:ring-action/30"
+          />
+        </div>
+        <FilterSelect
           label="Flow"
           value={flow}
           onChange={setFlow}
@@ -219,7 +216,7 @@ export function SessionLogTable({
             { value: "i13", label: FLOW_LABEL.i13 },
           ]}
         />
-        <FilterGroup
+        <FilterSelect
           label="AI session status"
           value={outcome}
           onChange={setOutcome}
@@ -230,7 +227,7 @@ export function SessionLogTable({
             { value: "ABANDONED", label: "Abandoned" },
           ]}
         />
-        <FilterGroup
+        <FilterSelect
           label="Outcome"
           value={result}
           onChange={setResult}
@@ -242,7 +239,7 @@ export function SessionLogTable({
             { value: "open", label: SESSION_OUTCOME_LABEL.open },
           ]}
         />
-        <FilterGroup
+        <FilterSelect
           label="Reservation"
           value={reservation}
           onChange={setReservation}
@@ -253,17 +250,33 @@ export function SessionLogTable({
           ]}
         />
 
-        <ClearFiltersButton
-          activeCount={activeFilters}
-          onClear={() => {
-            setFlow("all")
-            setOutcome("all")
-            setResult("all")
-            setReservation("all")
-            setSearch("")
-          }}
-        />
+        {/* Clear filters sits just before Export, together at the right. */}
+        <div className="ml-auto flex items-center gap-2">
+          <ClearFiltersButton
+            activeCount={activeFilters}
+            className="h-8 border border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+            onClear={() => {
+              setFlow("all")
+              setOutcome("all")
+              setResult("all")
+              setReservation("all")
+              setSearch("")
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+            onClick={exportExcel}
+            disabled={filtered.length === 0}
+          >
+            <Download className="size-3.5" aria-hidden />
+            Export Excel
+          </Button>
+        </div>
       </div>
+
+      {children}
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -310,7 +323,7 @@ export function SessionLogTable({
                 const result = sessionOutcome(session, wentAhead)
                 return (
                 <TableRow key={session.sessionId}>
-                  <TableCell className={OUTCOME_EDGE[result]}>
+                  <TableCell>
                     {/* What the requester typed into SAP: R…/n for a line of a
                         multi-material request, the session ID otherwise. */}
                     <Link
@@ -496,7 +509,11 @@ function ReservationCell({ session }: { session: ApiSessionSummary }) {
   )
 }
 
-function FilterGroup({
+/**
+ * One filter as a labelled dropdown, in the Recommendations bar's pattern: the field name above, the choice
+ * below. A chosen value is tinted so a narrowed list is never mistaken for the whole one.
+ */
+function FilterSelect({
   label,
   value,
   onChange,
@@ -507,30 +524,29 @@ function FilterGroup({
   onChange: (value: string) => void
   options: { value: string; label: string }[]
 }) {
+  const labels = Object.fromEntries(options.map((o) => [o.value, o.label]))
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-semibold text-muted-foreground" id={`filter-${label.replaceAll(" ", "-")}`}>
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`filter-${label.replaceAll(" ", "-")}`}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            aria-pressed={value === option.value}
-            className={cn(
-              "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors",
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              value === option.value
-                ? "border-foreground bg-foreground text-background"
-                : "border-line bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+    <div className="flex min-w-[150px] flex-col gap-1">
+      <span className="text-[11px] font-bold tracking-[0.5px] text-foreground uppercase">{label}</span>
+      <Select value={value} onValueChange={(v) => onChange(v ?? "all")}>
+        <SelectTrigger
+          aria-label={label}
+          className={cn(
+            "h-8 w-full font-semibold",
+            value !== "all" && "border-primary/60 bg-accent text-accent-foreground"
+          )}
+        >
+          <SelectValue>{(selected: string) => labels[selected] ?? selected}</SelectValue>
+        </SelectTrigger>
+        {/* Portalled out of the page, so it carries the blue itself. */}
+        <SelectContent className="blue-scope">
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

@@ -105,7 +105,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-foreground">Lines</h2>
+          <h2 className="text-base font-semibold text-foreground">Lines</h2>
           <span className="text-xs text-muted-foreground">
             Each SAP item is matched to its line by material and plant.
           </span>
@@ -121,7 +121,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
       {request.skipped.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-base font-bold text-foreground">No session — reserve as usual</h2>
+          <h2 className="text-base font-semibold text-foreground">No session — reserve as usual</h2>
           <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-card">
             {request.skipped.map((s) => (
               <li key={`${s.materialId}-${s.plant}`} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
