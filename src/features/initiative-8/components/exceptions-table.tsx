@@ -169,7 +169,7 @@ export function ExceptionsTable({
               Export failed: {exportError}
             </span>
           )}
-          <Button size="lg" variant="outline" className="px-3.5" onClick={() => void exportExcel()} disabled={exporting || total === 0}>
+          <Button size="lg" variant="outline" className="px-3.5 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action" onClick={() => void exportExcel()} disabled={exporting || total === 0}>
             {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             Export Excel
           </Button>

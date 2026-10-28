@@ -45,7 +45,7 @@ export function QuickViews({
             className={cn(
               "inline-flex h-[34px] items-center gap-2 rounded-full border px-3 text-[13.5px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               active
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-action bg-action/10 font-semibold text-action"
                 : "border-border bg-card text-muted-foreground hover:border-foreground/25 hover:text-foreground",
             )}
           >
@@ -164,7 +164,7 @@ function Count({ value, inverted = false, accent = false }: { value: number; inv
     <span
       className={cn(
         "rounded-full px-1.5 text-[12.5px] tabular-nums",
-        inverted ? "bg-white/20 text-primary-foreground" : accent ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground",
+        inverted ? "bg-action/15 text-action" : accent ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground",
       )}
     >
       {formatCount(value)}

@@ -80,7 +80,7 @@ export function RequestList() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search reference or requester"
-                className="h-11 bg-card"
+                className="h-11 border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30"
               />
             </label>
             <span className="text-sm text-muted-foreground">

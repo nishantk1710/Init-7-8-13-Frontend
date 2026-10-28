@@ -213,14 +213,14 @@ export function SessionLogTable({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search reference, material, requester…"
           aria-label="Search sessions"
-          className="h-11 w-full bg-card sm:w-80"
+          className="h-11 w-full border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30 sm:w-80"
         />
         <div className="flex flex-wrap items-center gap-2">
           <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
           <Button
             variant="outline"
             size="lg"
-            className="min-h-11 px-4 font-semibold"
+            className="min-h-11 border-action bg-action/10 px-4 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
             onClick={exportExcel}
             disabled={filtered.length === 0}
           >
@@ -560,10 +560,10 @@ function FilterGroup({
             aria-pressed={value === option.value}
             className={cn(
               "min-h-9 rounded-full border px-3 text-[13px] font-semibold whitespace-nowrap transition-colors",
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              "focus-visible:ring-3 focus-visible:ring-action/40 focus-visible:outline-none",
               value === option.value
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                ? "border-action bg-action/10 text-action"
+                : "border-border bg-card text-muted-foreground hover:border-action/50 hover:text-action"
             )}
           >
             {option.label}

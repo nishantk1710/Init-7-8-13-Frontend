@@ -38,7 +38,7 @@ export default async function AssistantPage({
             <AiOrb size="lg" thinking />
             <div className="flex flex-col gap-2">
               <AiEyebrow>Reservation assistant</AiEyebrow>
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              <h1 className="text-xl font-semibold text-foreground">
                 What are you <span className="ai-gradient-text">reserving</span> today?
               </h1>
               <p className="max-w-2xl text-sm text-muted-foreground">

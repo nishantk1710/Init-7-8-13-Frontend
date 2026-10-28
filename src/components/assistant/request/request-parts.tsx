@@ -159,7 +159,7 @@ export function CopyReferenceButton({
 }) {
   const { copied, copy } = useCopy(value, hint)
   return (
-    <Button type="button" size="lg" onClick={copy} className="min-h-11 shrink-0 px-5 text-base font-semibold">
+    <Button type="button" size="lg" onClick={copy} className="min-h-11 shrink-0 px-5 font-semibold">
       {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
       {copied ? "Copied" : "Copy reference"}
     </Button>
