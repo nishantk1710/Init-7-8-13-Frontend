@@ -35,19 +35,32 @@ import { formatMoney } from "@/lib/utils"
  * which already computes them in SQL — one call, never one per metric.
  *
  * The stockout and excess counts are I07-derived proxies, not Vedanta-confirmed
- * KPIs (the endpoint's own schema says so). The working-capital impact is
- * `null` on the current extract because prices and computed safety stock rarely
- * land on the same row; that must read as unavailable, never as "R0", which
- * would claim there is no impact.
+ * KPIs (the endpoint's own schema says so). The working-capital impact is the
+ * Overview's own figure (`netRopValueImpact`, the reorder-point version), so the
+ * two pages never show different numbers under one name. It is `null` when no
+ * row has a price and both reorder points; that must read as unavailable, never
+ * as "R0", which would claim there is no impact.
  */
 export const getInitiative7LiveSummary = cache(async (): Promise<InitiativeSummary> => {
   const s = await fetchRecommendationSummary()
 
-  const impact = s.netSafetyStockValueImpact
+  // The backend's figure is price x (current ROP - recommended ROP): positive
+  // releases cash. Home states it the way the Recommendations page reads a stock
+  // change -- "+" is more money tied up, "−" is money released, because the aim
+  // is to bring cost down -- so the sign is flipped here, and the label says
+  // which way it went rather than leaving it to the sign.
+  const impact = s.netRopValueImpact
+  const tiedUp = impact === null || impact === undefined ? null : -impact
   const impactLabel =
-    impact === null || impact === undefined
+    tiedUp === null
       ? NOT_AVAILABLE
-      : `${impact > 0 ? "+" : impact < 0 ? "−" : ""}${formatMoney(Math.abs(impact), s.currency)}`
+      : `${tiedUp > 0 ? "+" : tiedUp < 0 ? "−" : ""}${formatMoney(Math.abs(tiedUp), s.currency)}`
+  const impactName =
+    tiedUp === null || tiedUp === 0
+      ? "Net working-capital impact"
+      : tiedUp > 0
+        ? "Working capital tied up"
+        : "Working capital released"
 
   const health: InitiativeHealth =
     s.criticalStockoutRiskCount > 0
@@ -65,7 +78,7 @@ export const getInitiative7LiveSummary = cache(async (): Promise<InitiativeSumma
       { label: "Materials at stockout risk", value: s.criticalStockoutRiskCount },
       { label: "Excess inventory candidates", value: s.excessInventoryCandidatesCount },
       { label: "Awaiting approval", value: s.awaitingApprovalCount },
-      { label: "Net working-capital impact", value: impactLabel },
+      { label: impactName, value: impactLabel },
     ],
     // The card's "N items need attention" comes from `getInitiative7LiveActions`
     // — a capped array's length would understate it.

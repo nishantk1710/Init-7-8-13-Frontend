@@ -25,7 +25,10 @@ export function PriorityActions({
   decisionIds,
   total,
   failedModules,
+  counts,
 }: {
+  /** Open items per filter, from the modules that answered; a filter left out shows no count. */
+  counts?: Partial<Record<ActionFilter, number>>
   actions: GlobalAction[]
   decisionIds: string[]
   total: number
@@ -55,6 +58,7 @@ export function PriorityActions({
       // The real population only means something for the unfiltered list.
       total={filter === "all" ? total : shown.length}
       failedModules={failedModules}
+      counts={counts}
       filter={filter}
       onFilterChange={setFilter}
       sort={sort}
