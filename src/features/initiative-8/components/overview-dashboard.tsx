@@ -1,12 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Download } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Printer } from "lucide-react"
 
-import { ChartCard } from "@/components/shared/chart-card"
-import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
-import { FilterBar } from "@/components/shared/filter-bar"
-import { KPIStatCard } from "@/components/shared/kpi-stat-card"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -15,242 +11,277 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RepairAgingChart } from "@/features/initiative-8/components/repair-aging-chart"
-import { RepairableStockByPlantChart } from "@/features/initiative-8/components/repairable-stock-by-plant-chart"
-import { RepairsByVendorChart } from "@/features/initiative-8/components/repairs-by-vendor-chart"
-import { RepairStatusChart } from "@/features/initiative-8/components/repair-status-chart"
-import { StageAgingChart } from "@/features/initiative-8/components/stage-aging-chart"
+import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
+import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
+import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
+import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
+import type { RegisterFilters } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
+import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import {
   ALL,
   NO_OVERVIEW_FILTERS,
-  OVERVIEW_SUMMARY_HEADERS,
   filterOverview,
-  openLinesByVendor,
-  overviewSummaryRows,
+  openExceptionCounts,
+  overviewPdfTitle,
   summariseOverview,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import { NO_CRITICALITY, UNKNOWN } from "@/features/initiative-8/utils/status"
+import { NO_CRITICALITY, vendorLabel } from "@/features/initiative-8/utils/status"
 import type { ApiUniverseMeta } from "@/lib/api/i8"
-import { cn, downloadExcel, formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
+
+/** What each filter narrows: behind the ⓘ beside Vendor, and in the PDF's header. */
+const FILTER_NOTE =
+  "Plant and criticality narrow every figure. Vendor narrows the repair-line figures only. " +
+  "Materials monitored and stock on hand have no vendor, so they stay as they are."
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
   agingBands: string[]
-  /** Null when the universe fetch failed: its tiles show a dash, its chart says so. */
+  /** Null when the universe fetch failed: its tile says so. */
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
-  /** Outstanding declarations over the whole register. Not filterable. */
-  pendingDeclarations?: number
+  /** Every open exception item, by the line it is on; null when the queue
+   *  could not be read. */
+  exceptions: { repairId?: string; type: string }[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
   criticalityOptions: string[]
   referenceDate: string
+  sourceLoadedAt: string | null
 }
 
 /**
- * The Initiative 8 dashboard (FR-10), live.
+ * The Initiative 8 Overview (FR-10), Live -- I08_Live_UI_Redesign_Plan.md, L1.
  *
- * A client component so the filters can work without a round trip: the page
- * fetches every register and universe row on the server and hands them over,
- * which is the same split the register table has always used.
+ * A client component so the filters work without a round trip: the page
+ * fetches every register and universe row on the server and hands them over.
  *
  * ## What the filters narrow
  *
  * Plant and criticality narrow the register rows AND the universe rows, so
- * every tile and chart moves together. Vendor narrows the repair lines only —
- * the universe has no vendor, and emptying it to zero under a vendor filter
- * would answer a question the data cannot answer. The strip under the filters
- * says so on screen rather than leaving someone to infer it.
+ * every figure moves together. Vendor narrows the repair lines only -- the
+ * universe has no vendor -- and the universe tile says so when one is chosen;
+ * the full rule is behind the ⓘ beside the Vendor filter. "Not declared" is now
+ * counted from the lines, so it narrows with them like everything else.
  *
- * Two tiles cannot be filtered at all: pending declarations and unjustified
- * new purchases come from a `meta` the backend computes over everything. The
- * strip under the filters and the export say so rather than silently narrowing.
+ * ## Download PDF
  *
- * Every line is open in SAP: since 19-Oct-2026 the register serves no line SAP
- * has marked "Delivery completed", so there is no vendor turnaround here either
- * -- it was dispatch to goods receipt over closed repairs.
+ * The PDF is this page as filtered, printed by the browser: the same
+ * `OverviewFigures` the screen draws, under a header naming the filters. See
+ * `overview-print.tsx` for why it is a copy and not the page itself.
  */
 export function OverviewDashboard({
   chains,
   agingBands,
   universe,
-  pendingDeclarations,
+  exceptions,
   plantOptions,
   vendorOptions,
   criticalityOptions,
   referenceDate,
+  sourceLoadedAt,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
+  const [printedAt, setPrintedAt] = useState<string | null>(null)
+  const printing = printedAt !== null
 
   const slice = useMemo(
     () => filterOverview(chains, universe?.rows ?? [], filters),
     [chains, universe, filters],
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
-  const vendors = useMemo(() => openLinesByVendor(slice.chains), [slice])
+  const exceptionCounts = useMemo(
+    () => (exceptions === null ? null : openExceptionCounts(slice.chains, exceptions)),
+    [slice, exceptions],
+  )
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
   const vendorChoices = vendorOptions.map((v) => ({ value: v, label: v }))
   const criticalityChoices = criticalityOptions.map((c) => ({
     value: c,
-    label: c === NO_CRITICALITY ? "No criticality" : c,
+    label: c === NO_CRITICALITY ? "Not rated" : c.charAt(0) + c.slice(1).toLowerCase(),
   }))
+
+  // The register's filters for the same slice, so a link into the register
+  // opens what the figure counted. The register filters a vendor by code, the
+  // Overview by name. The declaration and exception queues cannot narrow by all
+  // of it: their cards say so (`queueNote`).
+  const linkFilters: RegisterFilters = {
+    plant: filters.plant === ALL ? undefined : filters.plant,
+    vendor:
+      filters.vendor === ALL
+        ? undefined
+        : (chains.find((c) => vendorLabel(c) === filters.vendor)?.vendor ?? "none"),
+    criticality:
+      filters.criticality === ALL
+        ? undefined
+        : filters.criticality === NO_CRITICALITY
+          ? "none"
+          : filters.criticality,
+  }
 
   function setFilter(key: keyof OverviewFilters) {
     return (value: string) => setFilters((current) => ({ ...current, [key]: value }))
   }
 
-  function exportSummary() {
-    downloadExcel(
-      "i08-overview-summary.xlsx",
-      OVERVIEW_SUMMARY_HEADERS,
-      overviewSummaryRows(
-        metrics,
-        {
-          plant: labelOf(filters.plant, plantChoices, "All plants"),
-          vendor: labelOf(filters.vendor, vendorChoices, "All vendors"),
-          criticality: labelOf(filters.criticality, criticalityChoices, "All criticalities"),
-        },
-        {
-          referenceDate,
-          pendingDeclarations,
-        },
-      ),
-    )
+  // Download PDF: mount the print copy, wait for it to lay out, then print. The
+  // copy comes down on `afterprint`, so a cancelled dialog leaves nothing behind.
+  useEffect(() => {
+    if (!printing) return
+    let cancelled = false
+    const pageTitle = document.title
+    const finish = () => setPrintedAt(null)
+    window.addEventListener("afterprint", finish)
+
+    document.fonts.ready
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          }),
+      )
+      .then(() => {
+        if (cancelled) return
+        document.title = overviewPdfTitle(referenceDate)
+        window.print()
+      })
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("afterprint", finish)
+      document.title = pageTitle
+    }
+  }, [printing, referenceDate])
+
+  const figures = {
+    chains: slice.chains,
+    agingBands,
+    metrics,
+    universeLoaded: universe !== null,
+    exceptions: exceptionCounts,
+    linkFilters,
+    vendorFiltered: filters.vendor !== ALL,
   }
+  const plants = new Set(chains.map((c) => c.plant.plantId)).size
+  const loaded = sourceLoadedAt ? `SAP data loaded ${i08DateTime(sourceLoadedAt)}` : null
+  const caption =
+    `Open repair lines for 80-series spares, as at ${i08Date(referenceDate)}.` + (loaded ? ` ${loaded}.` : "")
 
   return (
-    <>
+    <I08Page
+      crumbs={[{ label: "Repairable Spares" }]}
+      title="Overview"
+      summary={
+        <>
+          <span>
+            {formatCount(chains.length)} open repair lines at {plants} {plants === 1 ? "plant" : "plants"}
+          </span>
+          {loaded && (
+            <>
+              <Dot />
+              <span>{loaded}</span>
+            </>
+          )}
+          <InfoPopover title="What this page shows">
+            <p>
+              The repair POs SAP still has open for 80-series (repairable) materials. A line leaves when SAP
+              marks it delivery completed.
+            </p>
+            <p>Every number opens the list behind it, filtered to the same plant, vendor and criticality.</p>
+          </InfoPopover>
+        </>
+      }
+      actions={
+        <Button
+          size="lg"
+          variant="outline"
+          className="px-3.5"
+          onClick={() => setPrintedAt(i08DateTime(new Date().toISOString()))}
+          disabled={printing}
+        >
+          <Printer className="size-4" />
+          Download PDF
+        </Button>
+      }
+    >
       {/* FR-10: the dashboard filters by plant, vendor and criticality. */}
-      <div className="flex flex-col gap-1.5">
-        <FilterBar>
-          <FilterSelect
-            value={filters.plant}
-            onChange={setFilter("plant")}
-            allLabel="All plants"
-            options={plantChoices}
-            className="sm:w-48"
-          />
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
+        <FilterSelect
+          value={filters.plant}
+          onChange={setFilter("plant")}
+          allLabel="All plants"
+          options={plantChoices}
+          className="w-48"
+        />
+        <span className="inline-flex items-center gap-0.5">
           <FilterSelect
             value={filters.vendor}
             onChange={setFilter("vendor")}
             allLabel="All vendors"
             options={vendorChoices}
-            className="sm:w-56"
+            className="w-60"
           />
-          <FilterSelect
-            value={filters.criticality}
-            onChange={setFilter("criticality")}
-            allLabel="All criticalities"
-            options={criticalityChoices}
-            className="sm:w-44"
-          />
-          <ClearFiltersButton
-            activeCount={activeFilters}
-            onClear={() => setFilters(NO_OVERVIEW_FILTERS)}
-          />
-          <div className="flex items-center gap-3 sm:ml-auto">
-            <span className="text-xs text-muted-foreground">
-              {formatCount(metrics.totalLines)} of {formatCount(chains.length)} lines
+          <InfoPopover title="What the filters narrow">
+            <p>{FILTER_NOTE}</p>
+          </InfoPopover>
+        </span>
+        <FilterSelect
+          value={filters.criticality}
+          onChange={setFilter("criticality")}
+          allLabel="All criticalities"
+          options={criticalityChoices}
+          className="w-44"
+        />
+        {activeFilters > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setFilters(NO_OVERVIEW_FILTERS)}
+              className="rounded-sm px-1.5 text-[13.5px] font-medium text-i08-link hover:underline"
+            >
+              Clear filters
+            </button>
+            <span className="ml-auto text-[13px] text-muted-foreground">
+              {formatCount(slice.chains.length)} of {formatCount(chains.length)} repair lines
             </span>
-            <Button size="sm" variant="outline" onClick={exportSummary}>
-              <Download className="size-3.5" />
-              Export summary
-            </Button>
-          </div>
-        </FilterBar>
-        <p
-          className={cn(
-            "text-[11px]",
-            filters.vendor === ALL ? "text-muted-foreground" : "font-medium text-warning",
-          )}
-        >
-          Plant and criticality narrow every figure. Vendor narrows the repair-line figures
-          only — the repairable universe has no vendor. Pending declarations are counted over
-          the whole register and never narrow.
-        </p>
+          </>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <KPIStatCard
-          label="Repairable materials monitored"
-          value={universe ? formatCount(metrics.universeMaterials) : UNKNOWN}
-        />
-        <KPIStatCard
-          label="Qty currently under repair"
-          value={formatCount(metrics.qtyUnderRepair)}
-        />
-        <KPIStatCard label="Open repair lines" value={formatCount(metrics.openLines)} />
-        {/* No "Unjustified new purchases" tile since 14-Oct-2026. The reason
-            for a new purchase is asked for at the reservation (FR-5b), and
-            the count of purchases that carry one is reported on the
-            Justifications screen, next to the reasons themselves. */}
-        <KPIStatCard
-          label="Pending declarations"
-          value={pendingDeclarations === undefined ? UNKNOWN : formatCount(pendingDeclarations)}
-        />
-        <KPIStatCard label="Repairs overdue" value={formatCount(metrics.overdueLines)} />
-      </div>
+      {slice.chains.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="text-[15px] font-semibold text-foreground">No repair lines match these filters</p>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">Try another plant, vendor or criticality.</p>
+        </div>
+      ) : (
+        <OverviewFigures {...figures} />
+      )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <ChartCard
-          title="Repair status distribution"
-          subtitle={`The ${formatCount(metrics.totalLines)} open repair lines, by current lifecycle stage`}
-          span={6}
+      {/* Only ever set by a click, so this never renders on the server. */}
+      {printedAt !== null && (
+        <OverviewPrint
+          title="Repairable Spares — Overview"
+          caption={caption}
+          filters={{
+            plant: labelOf(filters.plant, plantChoices, "All plants"),
+            vendor: labelOf(filters.vendor, vendorChoices, "All vendors"),
+            criticality: labelOf(filters.criticality, criticalityChoices, "All criticalities"),
+          }}
+          lines={`${formatCount(slice.chains.length)} of ${formatCount(chains.length)} repair lines`}
+          note={FILTER_NOTE}
+          printedAt={printedAt}
         >
-          <RepairStatusChart chains={slice.chains} />
-        </ChartCard>
-        <ChartCard
-          title="Repairs by vendor"
-          subtitle={
-            vendors.vendorCount > vendors.top.length
-              ? `Open repair lines — top ${vendors.top.length} of ${vendors.vendorCount} vendors`
-              : "Open repair lines per vendor"
-          }
-          span={6}
-        >
-          <RepairsByVendorChart data={vendors.top} />
-        </ChartCard>
-        {/* FR-9's "aging bands per lifecycle stage". Next to Repair aging,
-            which buckets the whole-repair clock: the two look like the same
-            question and are not, so they are shown together rather than one
-            standing in for the other. */}
-        <ChartCard
-          title="Aging by stage"
-          subtitle="Open repair lines, by days in their CURRENT stage"
-          span={6}
-        >
-          <StageAgingChart chains={slice.chains} bands={agingBands} />
-        </ChartCard>
-        <ChartCard
-          title="Repair aging"
-          subtitle={`Days open for the ${formatCount(metrics.openLines)} open repair lines`}
-          span={6}
-        >
-          <RepairAgingChart chains={slice.chains} bands={agingBands} />
-        </ChartCard>
-        <ChartCard
-          title="Repairable stock by plant"
-          subtitle="Stock on hand across the repairable universe (every 80-series material and plant)"
-          span={12}
-        >
-          {universe ? (
-            <RepairableStockByPlantChart data={metrics.stock.plants} />
-          ) : (
-            <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-              The repairable universe could not be loaded, so stock is not shown.
-            </div>
-          )}
-        </ChartCard>
-      </div>
-    </>
+          <OverviewFigures {...figures} print />
+        </OverviewPrint>
+      )}
+    </I08Page>
   )
 }
 
-/** The label a filter value reads as, for the CSV's header rows. */
+/** The label a filter value reads as, for the PDF's header. */
 function labelOf(
   value: string,
   options: { value: string; label: string }[],
@@ -259,7 +290,10 @@ function labelOf(
   return value === ALL ? allLabel : options.find((o) => o.value === value)?.label ?? value
 }
 
-/** One dashboard dropdown: an "all" choice followed by the given options. */
+/**
+ * One dashboard dropdown: an "all" choice followed by the given options. A set
+ * filter is tinted, so a narrowed Overview is never mistaken for the whole.
+ */
 function FilterSelect({
   value,
   onChange,
@@ -273,9 +307,17 @@ function FilterSelect({
   options: { value: string; label: string }[]
   className?: string
 }) {
+  const set = value !== ALL
   return (
     <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
-      <SelectTrigger className={cn("h-9 w-full", className)}>
+      <SelectTrigger
+        aria-label={allLabel}
+        className={cn(
+          "h-9 bg-background",
+          set && "border-primary/60 bg-accent font-medium text-accent-foreground",
+          className,
+        )}
+      >
         <SelectValue placeholder={allLabel}>
           {(selected: string) =>
             selected === ALL
@@ -284,7 +326,7 @@ function FilterSelect({
           }
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="i08-scope">
         <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>

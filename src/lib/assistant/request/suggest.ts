@@ -14,7 +14,6 @@
  *     headroom = target − (stock on hand + open PO), rounded down
  */
 
-import type { OarFacts } from "@/lib/assistant/request/catalogue"
 
 export const COVER_CEILING_MONTHS = 12
 export const MIN_HISTORY_CONSUMPTIONS = 3
@@ -34,6 +33,17 @@ function round1(value: number): number {
 }
 
 /** Demo only -- the offline catalogue's suggestion. Live, the backend's preview is used. */
+/** What is known about an OAR material at a plant, the inputs to a quantity suggestion. */
+export type OarFacts = {
+  stockOnHand: number
+  openPoQuantity: number
+  /** Per month, over the last 12 months. */
+  averageMonthlyConsumption: number
+  consumptionCount12m: number
+  daysSinceLastMovement: number | null
+  crossPlantStock: { plant: string; stockOnHand: number }[]
+}
+
 export function suggestQuantity(facts: OarFacts): QuantitySuggestion {
   const rate = facts.averageMonthlyConsumption
   const available = facts.stockOnHand + facts.openPoQuantity

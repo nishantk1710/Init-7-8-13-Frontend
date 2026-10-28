@@ -1,13 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { Link2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import {
   getUatStatus,
   listUatCandidates,
@@ -18,11 +16,6 @@ import {
   type UatCandidate,
   type UatReservation,
 } from "@/lib/api/session-links"
-
-/** Loaded only when the demo switch is on, so live never fetches the fixtures. */
-const DemoReservationTools = dynamic(() =>
-  import("@/components/assistant/demo/demo-reservation-tools").then((m) => m.DemoReservationTools)
-)
 
 /**
  * UAT stand-in for "the requester typed the session ID into SAP".
@@ -39,17 +32,19 @@ const DemoReservationTools = dynamic(() =>
  * Renders nothing unless the backend reports UAT simulation as on, so it can
  * never appear in production.
  */
-export function UatReservationTools({ sessionId }: { sessionId: string }) {
-  // The demo has its own stand-in, against the browser's demo store. A module
-  // constant, so the same branch is taken on every render.
-  return ASSISTANT_DEMO ? (
-    <DemoReservationTools sessionId={sessionId} />
-  ) : (
-    <LiveUatReservationTools sessionId={sessionId} />
-  )
+export function UatReservationTools({
+  sessionId,
+  sapText,
+}: {
+  sessionId: string
+  /** What the requester types into SAP, when it is not the session ID (a
+   *  request line types the bare request ID). Display only. */
+  sapText?: string
+}) {
+  return <LiveUatReservationTools sessionId={sessionId} sapText={sapText ?? sessionId} />
 }
 
-function LiveUatReservationTools({ sessionId }: { sessionId: string }) {
+function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sapText: string }) {
   const router = useRouter()
   const [enabled, setEnabled] = useState(false)
   const [rows, setRows] = useState<UatReservation[]>([])
@@ -111,7 +106,7 @@ function LiveUatReservationTools({ sessionId }: { sessionId: string }) {
         <p className="text-sm font-medium text-foreground">Link SAP reservation</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        In SAP the requester types <span className="font-mono">{sessionId}</span>{" "}into the
+        In SAP the requester types <span className="font-mono">{sapText}</span>{" "}into the
         reservation&rsquo;s item text (SGTXT), and the next extract links the reservation to this
         session. The platform does not write to SAP, so these links are kept in its own table;
         the loaded SAP data is never changed.

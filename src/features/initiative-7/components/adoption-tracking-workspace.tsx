@@ -21,7 +21,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { AlertTriangle, RefreshCw, Search } from "lucide-react"
+import { AlertTriangle, RefreshCw, RotateCcw, Search } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -34,7 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
 import {
   Table,
   TableBody,
@@ -43,12 +44,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatCount } from "@/lib/utils"
 import { useLiveAdoption } from "@/features/initiative-7/hooks/use-live-adoption"
 import type { AdoptionPageStatus } from "@/features/initiative-7/services/i7-api"
 
 const ALL = "all"
-const PAGE_SIZE = 20
+const PAGE_SIZE = 25
 
 const STATUS_OPTIONS: AdoptionPageStatus[] = [
   "Adopted",
@@ -87,10 +87,7 @@ export function AdoptionTrackingWorkspace() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <PageLoader label="Loading adoption tracking" className="h-72 w-full" />
     )
   }
 
@@ -112,7 +109,8 @@ export function AdoptionTrackingWorkspace() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* The same bold bordered, shadowed track as the other pages' filters. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <div className="relative w-full sm:w-56">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -137,9 +135,28 @@ export function AdoptionTrackingWorkspace() {
             ))}
           </SelectContent>
         </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action sm:ml-auto"
+          disabled={statusFilter === ALL && query.trim() === ""}
+          onClick={() => {
+            setStatusFilter(ALL)
+            setQuery("")
+          }}
+        >
+          <RotateCcw className="size-3.5" />
+          Clear filters
+        </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      {/* Keyed on the status, so the table fades in when it changes -- not on each keystroke in the search. Dropped
+          for reduced motion. */}
+      <div
+        key={statusFilter}
+        className="overflow-x-auto rounded-xl border border-border bg-card animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -175,33 +192,16 @@ export function AdoptionTrackingWorkspace() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-muted-foreground">
-          Showing {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(total, page * PAGE_SIZE)} of{" "}
-          {formatCount(total)}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            Previous
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * PAGE_SIZE >= total}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      {/* `count` is the rows the backend sent for this page, not `visible`: the status and search boxes
+          narrow what is drawn on the page, they do not move it. */}
+      <TablePagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        count={items?.length ?? 0}
+        noun="adoption checks"
+        onPageChange={setPage}
+      />
     </div>
   )
 }

@@ -37,15 +37,6 @@
  */
 
 import { apiFetch, apiPost } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-
-/**
- * The scripted demo, loaded only when `NEXT_PUBLIC_ASSISTANT_DEMO` is on.
- *
- * Imported lazily so a live build does not carry the fixtures. Temporary: see
- * `lib/assistant/demo/flag.ts` for when and how it is switched off.
- */
-const demo = () => import("@/lib/assistant/demo")
 
 // --- the conversation -------------------------------------------------------
 
@@ -136,6 +127,8 @@ export type StartSessionRequest = {
    * legitimately has none. Omit rather than sending an empty string.
    */
   department?: string
+  /** Optional free text typed beside the department code (≤200); never checked. */
+  departmentNote?: string
   /**
    * Who the part is for, as typed by whoever is operating the assistant.
    *
@@ -303,11 +296,21 @@ export type SessionTraceResponse = {
   /** MAKT / ZMM065 name, where the backend has one. */
   materialDescription?: string | null
   sessionId: string
+  /** The multi-material request this session is a line of, if any. */
+  requestId?: string | null
+  lineNo?: number | null
+  /** `<request>/<n>` for a request line, the session ID otherwise. Absent on a
+   *  backend older than the field. */
+  reference?: string
   flow: string
   outcome: ApiSessionOutcome
   materialId: string
   plant: string
   department: string | null
+  /** The code's name from VZI's department list. Absent on an older backend. */
+  departmentName?: string | null
+  /** Free text typed beside the department, if any. */
+  departmentNote?: string | null
   /** Who the part was for. Null when nobody was named — a session opened from
    *  SAP cannot carry one. Show "not stated", never a blank. */
   requestedFor: string | null
@@ -357,6 +360,8 @@ export type ApiSessionSummary = {
   materialId: string
   plant: string
   department: string | null
+  departmentName?: string | null
+  departmentNote?: string | null
   requestedFor: string | null
   /** The operator. Served, never drawn — see `SessionTraceResponse`. */
   requester: string
@@ -429,12 +434,14 @@ export type MaterialSearchResponse = {
 }
 
 /**
- * One department code: the 5-digit value VZI keys into a purchase
- * requisition's Requisitioner (`EBAN.AFNAM`). Codes only — no extract names them.
+ * One department: its 5-digit code and name, from VZI's department list
+ * (`Plant Dept Codes`, loaded as `raw_dept_codes`).
  */
 export type ApiDepartment = {
   code: string
-  /** Every in-scope plant with a requisition from this department. */
+  /** Null for a code the list does not name; absent on an older backend. */
+  name?: string | null
+  /** The plants the list gives this code. */
   plants: string[]
   /** Show before anything is typed. False: the other plant's, offered on search. */
   primary: boolean
@@ -464,7 +471,6 @@ export type DepartmentListResponse = {
 export async function startSession(
   body: StartSessionRequest
 ): Promise<StartSessionResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).startSession(body)
   return apiPost<StartSessionResponse>("/assistant/sessions", body)
 }
 
@@ -480,7 +486,6 @@ export async function postTurn(
   sessionId: string,
   answer: Record<string, unknown>
 ): Promise<AnswerResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).postTurn(sessionId, answer)
   return apiPost<AnswerResponse>(
     `/assistant/sessions/${encodeURIComponent(sessionId)}/turns`,
     { answer } satisfies AnswerRequest
@@ -528,7 +533,6 @@ export async function searchMaterials(
   q: string,
   options?: { limit?: number; signal?: AbortSignal }
 ): Promise<MaterialSearchResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).searchMaterials(q)
   return apiFetch<MaterialSearchResponse>(
     `/assistant/materials${query({ q, limit: options?.limit })}`,
     { signal: options?.signal }
@@ -537,15 +541,11 @@ export async function searchMaterials(
 
 /**
  * The opener's department codes, `plant`'s own first.
- *
- * The demo has no list: it answers "not loaded", which lets any 5-digit code
- * through, the same as a live backend that has not loaded one yet.
  */
 export async function listDepartments(
   plant: string,
   options?: { signal?: AbortSignal }
 ): Promise<DepartmentListResponse> {
-  if (ASSISTANT_DEMO) return { plant, items: [], loaded: false }
   return apiFetch<DepartmentListResponse>(`/assistant/departments${query({ plant })}`, {
     signal: options?.signal,
   })

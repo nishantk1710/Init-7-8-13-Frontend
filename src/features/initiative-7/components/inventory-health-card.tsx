@@ -1,4 +1,5 @@
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
+import type { ReactNode } from "react"
+
 import { cn, formatCount } from "@/lib/utils"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -73,13 +74,15 @@ function segmentHeightsPx(counts: { level: RiskLevel; count: number }[], total: 
  * to Low) alongside a legend giving each tier's count and share of the set.
  * Clicking a tier cross-filters the rest of the dashboard by that risk level. */
 export function InventoryHealthCard({
-  recommendations = RECOMMENDATIONS,
+  recommendations,
   activeRisk,
   onRiskClick,
   riskOverride,
   mergeCriticalIntoHigh = false,
+  visibleTiers,
+  footnote,
 }: {
-  recommendations?: Recommendation[]
+  recommendations: Recommendation[]
   activeRisk?: RiskLevel | null
   onRiskClick?: (level: RiskLevel) => void
   /** Part 36 -- portfolio-wide { level, count }[] + total, from GET
@@ -96,9 +99,16 @@ export function InventoryHealthCard({
   /** Shows three tiers -- High, Medium, Low -- with Critical counted into High. The Overview
    * uses this; the quarterly reports keep the four tiers they were generated with. */
   mergeCriticalIntoHigh?: boolean
+  /** Shows only these tiers, in the order given. The Overview's distribution has two -- High (at
+   * stockout risk) and Low (judged, not at risk) -- so it passes them rather than showing an empty
+   * Medium. Without it: every tier, or three with `mergeCriticalIntoHigh`. */
+  visibleTiers?: RiskLevel[]
+  /** A line under the legend, e.g. how many could not be judged and as of when. */
+  footnote?: ReactNode
 }) {
   const total = riskOverride?.total ?? recommendations.length
-  const tiers = mergeCriticalIntoHigh ? RISK_ORDER.filter((level) => level !== "critical") : RISK_ORDER
+  const tiers =
+    visibleTiers ?? (mergeCriticalIntoHigh ? RISK_ORDER.filter((level) => level !== "critical") : RISK_ORDER)
   const counts = tiers.map((level) => {
     // "high" stands for critical + high when merged.
     const sources: RiskLevel[] = mergeCriticalIntoHigh && level === "high" ? ["critical", "high"] : [level]
@@ -169,6 +179,7 @@ export function InventoryHealthCard({
         ))}
       </div>
     </div>
+    {footnote && <p className="mt-3 text-[11px] text-muted-foreground">{footnote}</p>}
     </div>
   )
 }

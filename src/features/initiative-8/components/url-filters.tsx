@@ -102,12 +102,21 @@ export function UrlSelect({
         onChange(next === ALL ? "" : next)
       }}
     >
-      <SelectTrigger className={cn("h-9 w-full", className)}>
+      {/* A set filter looks set -- tinted, in the link colour -- so a page
+          narrowed by one is never mistaken for the whole list. */}
+      <SelectTrigger
+        className={cn(
+          "h-9 w-full bg-background",
+          value && "border-primary/60 bg-accent font-medium text-accent-foreground",
+          className
+        )}
+      >
         <SelectValue placeholder={allLabel}>
           {(selected: string) => (selected === ALL ? allLabel : labels[selected] ?? selected)}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      {/* Portalled out of the page, so it carries the I08 look itself. */}
+      <SelectContent className="i08-scope">
         <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>

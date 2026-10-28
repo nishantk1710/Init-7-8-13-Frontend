@@ -1,14 +1,14 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ListChecks, Plus } from "lucide-react"
+import { useSyncExternalStore, type ComponentType } from "react"
+import { ChevronRight, ListChecks, Plus } from "lucide-react"
 
 import { SidebarAccount } from "@/components/auth/sidebar-account"
-import { DataModeToggle } from "@/components/shared/data-mode"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
 import {
-  CATEGORIES,
   ICONS,
   INITIATIVE_NAV_SECTIONS,
   QUICK_ACTIONS,
@@ -16,171 +16,280 @@ import {
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { cn } from "@/lib/utils"
 
-function NavSection({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+type NavLink = {
+  label: string
+  href: string
+  icon: ComponentType<{ className?: string }>
+  badge?: number
+}
+
+type NavGroup = { title: string; links: NavLink[] }
+
+/**
+ * The groups a person opened or closed, per browser. A convenience only:
+ * storage can be empty, blocked or throw (a private window, cleared site
+ * data), and then every group simply starts in its default state.
+ */
+const GROUPS_KEY = "spares.sidebar.groups"
+const NO_TOGGLES: Record<string, boolean> = {}
+const listeners = new Set<() => void>()
+let toggles: Record<string, boolean> | null = null
+
+function readToggles(): Record<string, boolean> {
+  if (toggles) return toggles
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(GROUPS_KEY) ?? "{}")
+    toggles = stored && typeof stored === "object" ? stored : {}
+  } catch {
+    toggles = {}
+  }
+  return toggles ?? NO_TOGGLES
+}
+
+function writeToggle(title: string, open: boolean) {
+  toggles = { ...readToggles(), [title]: open }
+  try {
+    window.localStorage.setItem(GROUPS_KEY, JSON.stringify(toggles))
+  } catch {
+    // Kept for this page view only.
+  }
+  listeners.forEach((listener) => listener())
+}
+
+function useGroupToggles(): Record<string, boolean> {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    readToggles,
+    () => NO_TOGGLES
+  )
+}
+
+/** Whether `href` is the page, or a page under it: /repairable-spares/repair-register/4500-10 is in the register. */
+function within(pathname: string, href: string): boolean {
+  const path = href.split("?")[0]
+  return pathname === path || pathname.startsWith(`${path}/`)
+}
+
+/**
+ * The app's side navigation: a floating, rounded panel -- light in light mode,
+ * dark in dark mode -- with the logo at the top, the current page drawn as a
+ * pill that runs out to the panel's edge with curved flares above and below, and
+ * Logout at the foot.
+ *
+ * - Home comes first;
+ * - every group collapses, and the one holding the current page starts open. A
+ *   group someone opens or closes stays that way in their browser;
+ * - the current page stays highlighted on the pages under it -- a repair line
+ *   lights up Repair Register.
+ *
+ * Colours come from the `--nav-*` tokens in globals.css.
+ */
+export function Sidebar() {
+  const pathname = usePathname()
+  const opened = useGroupToggles()
+
+  const home = QUICK_ACTIONS.find((action) => action.href === "/home")
+  const groups: NavGroup[] = [
+    {
+      title: "Reservation assistant",
+      // Real sessions are not listed here on purpose: the sidebar renders on
+      // every page, and a session is identified by a ten-character reference
+      // a planner carries to SAP, not a name they would recognise in a menu.
+      // The log lives at /assistant/sessions, one click away.
+      links: [
+        { label: "Open the assistant", icon: ICONS["message-circle"], href: "/assistant" },
+        { label: "Sessions", icon: ICONS["history"], href: "/assistant/sessions" },
+        // Offered only with NEXT_PUBLIC_ASSISTANT_REQUESTS (or the demo) --
+        // see lib/assistant/request/flag.ts.
+        ...(ASSISTANT_REQUESTS ? [{ label: "Requests", icon: ListChecks, href: "/assistant/requests" }] : []),
+      ],
+    },
+    ...INITIATIVE_NAV_SECTIONS.map((section) => ({
+      title: section.title,
+      links: section.items.map((item) => ({ label: item.label, href: item.href, icon: ICONS[item.icon] })),
+    })),
+    {
+      title: "More",
+      links: QUICK_ACTIONS.filter((action) => action !== home).map((action) => ({
+        label: action.label,
+        href: action.href,
+        icon: ICONS[action.icon],
+        badge: action.badge,
+      })),
+    },
+  ]
+
+  // The most specific link the current page is under: Sessions, not "Open the
+  // assistant", on /assistant/sessions/SXXXX.
+  const allLinks = [...(home ? [home.href] : []), ...groups.flatMap((g) => g.links.map((l) => l.href))]
+  const active = allLinks
+    .filter((href) => !href.includes("?") && within(pathname, href))
+    .sort((a, b) => b.length - a.length)[0]
+
+  const HomeIcon = home ? ICONS[home.icon] : null
+
   return (
-    <div className="py-1">
-      <div className="px-4 pt-3 pb-1 text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-        {title}
-      </div>
-      <div className="flex flex-col">{children}</div>
+    <div className="flex shrink-0 py-3 pl-3">
+      <aside className="flex w-[232px] flex-col overflow-hidden rounded-[28px] bg-nav-bg text-nav-fg shadow-xl ring-1 ring-nav-border">
+        <div className="px-5 pt-5 pb-3">
+          <Link href="/home" aria-label="Spares AI home" className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            {/* The logo has a white ground, so it sits on a white chip (invisible on a light panel). */}
+            <span className="inline-flex rounded-lg bg-white px-2 py-1">
+              <Image
+                src="/brand/vedanta-zinc-logo.png"
+                alt="Vedanta Zinc International"
+                width={245}
+                height={70}
+                priority
+                className="h-8 w-auto"
+              />
+            </span>
+            <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>
+          </Link>
+        </div>
+
+        <nav
+          aria-label="Main"
+          className="min-h-0 flex-1 overflow-y-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="px-3 pb-1">
+            <Link
+              href="/assistant"
+              className={cn(
+                "flex items-center gap-2 rounded-xl border border-dashed border-nav-muted/40 px-4 py-2 text-[13px] transition-colors",
+                pathname === "/assistant" ? "bg-nav-hover text-nav-fg" : "text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
+              )}
+            >
+              <Plus className="size-4 shrink-0" />
+              <span className="font-medium">New session</span>
+            </Link>
+          </div>
+
+          {home && HomeIcon && (
+            <div className="-my-2 py-4">
+              <NavItem link={{ label: home.label, href: home.href, icon: HomeIcon }} active={active === home.href} />
+            </div>
+          )}
+
+          {groups.map((group) => {
+            const holdsCurrent = group.links.some((link) => link.href === active)
+            const open = opened[group.title] ?? holdsCurrent
+            return (
+              <NavSection
+                key={group.title}
+                title={group.title}
+                open={open}
+                holdsCurrent={holdsCurrent}
+                onToggle={() => writeToggle(group.title, !open)}
+              >
+                {group.links.map((link) => (
+                  <NavItem key={link.href} link={link} active={link.href === active} />
+                ))}
+              </NavSection>
+            )
+          })}
+        </nav>
+
+        <div className="px-3 pt-2 pb-4">
+          <SidebarAccount>
+            <ThemeToggle />
+          </SidebarAccount>
+        </div>
+      </aside>
     </div>
   )
 }
 
-export function Sidebar() {
-  const pathname = usePathname()
-  const CpuIcon = ICONS["cpu"]
-  const MessageIcon = ICONS["message-circle"]
-  const HistoryIcon = ICONS["history"]
-
-
+function NavSection({
+  title,
+  open,
+  holdsCurrent,
+  onToggle,
+  children,
+}: {
+  title: string
+  open: boolean
+  /** The current page is in this group: marked while the group is closed. */
+  holdsCurrent: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
-      <div className="border-b border-border p-4">
-        <h3 className="flex items-center gap-1.5 text-[15px] font-medium text-foreground">
-          <CpuIcon className="size-[18px]" />
-          Spares AI
-        </h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Vedanta spares management
-        </p>
-      </div>
-
-      <div className="px-2 pt-3 pb-1">
-        <Link
-          href="/assistant"
+    <div className="py-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="mx-3 flex w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-md px-3 pt-3 pb-1.5 text-left text-[11px] font-medium tracking-[0.5px] text-nav-muted uppercase transition-colors outline-none hover:text-nav-fg focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={cn("size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")}
+        />
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        {holdsCurrent && !open && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-nav-active" />}
+      </button>
+      {/* Grid rows animate the height without measuring it. The inner box is padded and
+          pulled back by the same amount so the active pill's flares, which poke 16px above
+          and below it, are not clipped. It ignores the pointer so that padding never covers
+          the group header above it; the links turn the pointer back on. */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        )}
+      >
+        <div
           className={cn(
-            "flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] transition-colors",
-            pathname === "/assistant"
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            "pointer-events-none -my-4 flex min-h-0 flex-col overflow-hidden py-4 transition-[visibility] duration-200 motion-reduce:transition-none",
+            // Clipping is to the padding box, so the tops of the closed links would show in that padding
+            // as dashes above the next heading. Hidden once the collapse finishes, shown as it starts.
+            !open && "invisible"
           )}
+          inert={!open}
         >
-          <Plus className="size-4 shrink-0" />
-          <span className="font-medium">New session</span>
-        </Link>
+          {children}
+        </div>
       </div>
+    </div>
+  )
+}
 
-      {/* The reservation assistant, shared by Initiative 08 and 13.
-          
-          This replaces a list of "active sessions" read from `mock-data.ts` —
-          hand-written conversations that wrote nothing anywhere and linked to
-          a `/chat` route that no longer exists.
-          
-          Real sessions are not listed here on purpose. The sidebar renders on
-          every page, so fetching the log would add a request to every
-          navigation for a list nobody navigates by; and a session is
-          identified by a ten-character reference a planner carries to SAP,
-          not by a name they would recognise in a menu. The log lives at
-          /assistant/sessions, one click away. */}
-      <NavSection title="Reservation assistant">
-        {[
-          { label: "Open the assistant", icon: MessageIcon, href: "/assistant" },
-          { label: "Sessions", icon: HistoryIcon, href: "/assistant/sessions" },
-          // Offered only with NEXT_PUBLIC_ASSISTANT_REQUESTS (or the demo) --
-          // see lib/assistant/request/flag.ts.
-          ...(ASSISTANT_REQUESTS
-            ? [{ label: "Multi-material request", icon: ListChecks, href: "/assistant/requests" }]
-            : []),
-        ].map((item) => {
-          const isActive = pathname === item.href
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              <span className="font-medium">{item.label}</span>
-            </Link>
-          )
-        })}
-      </NavSection>
+/**
+ * The current page is a pill that runs to the panel's right edge. The two flares
+ * above and below it are 16px squares: the far corner is filled with the accent,
+ * the near corner is cut away by a quarter circle, which makes the pill's ends
+ * curve into the edge. (Class names are written out in full so Tailwind sees them.)
+ */
+const ACTIVE_ITEM = cn(
+  "ml-3 rounded-l-full bg-nav-active pr-5 pl-4 font-medium text-nav-active-fg",
+  "before:pointer-events-none before:absolute before:-top-4 before:right-0 before:size-4",
+  "before:bg-[image:radial-gradient(circle_at_0_0,transparent_16px,var(--nav-active)_16.5px)]",
+  "after:pointer-events-none after:absolute after:-bottom-4 after:right-0 after:size-4",
+  "after:bg-[image:radial-gradient(circle_at_0_100%,transparent_16px,var(--nav-active)_16.5px)]"
+)
 
-      {INITIATIVE_NAV_SECTIONS.map((section) => (
-        <NavSection key={section.title} title={section.title}>
-          {section.items.map((item) => {
-            const Icon = ICONS[item.icon]
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </NavSection>
-      ))}
-
-      <NavSection title="Quick actions">
-        {QUICK_ACTIONS.map((action) => {
-          const Icon = ICONS[action.icon]
-          const isActive = pathname === action.href
-          return (
-            <Link
-              key={action.href}
-              href={action.href}
-              className={cn(
-                "mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {action.label}
-              {action.badge && (
-                <span className="ml-auto shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
-                  {action.badge}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </NavSection>
-
-      <NavSection title="Categories">
-        {CATEGORIES.map((category) => {
-          const Icon = ICONS[category.icon]
-          return (
-            <Link
-              key={category.label}
-              href={`/materials?category=${encodeURIComponent(category.label)}`}
-              className="mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <Icon className="size-4 shrink-0" />
-              {category.label}
-            </Link>
-          )
-        })}
-      </NavSection>
-
-      <div className="mt-auto border-t border-border py-1">
-        <SidebarAccount />
-        <DataModeToggle />
-        <ThemeToggle />
-      </div>
-    </aside>
+function NavItem({ link, active }: { link: NavLink; active: boolean }) {
+  const Icon = link.icon
+  return (
+    <Link
+      href={link.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "pointer-events-auto relative my-0.5 flex items-center gap-3 py-2.5 text-[13px] transition-colors",
+        active ? ACTIVE_ITEM : "mx-3 rounded-xl px-4 text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 truncate">{link.label}</span>
+      {link.badge ? (
+        <span className="ml-auto shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
+          {link.badge}
+        </span>
+      ) : null}
+    </Link>
   )
 }

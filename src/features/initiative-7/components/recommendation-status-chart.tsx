@@ -10,7 +10,6 @@ import {
 } from "recharts"
 
 import { cn, formatCount } from "@/lib/utils"
-import { RECOMMENDATIONS } from "@/features/initiative-7/data/recommendations"
 import type { Recommendation, RecommendationStatus } from "@/features/initiative-7/types/inventory"
 import { statusDistribution } from "@/features/initiative-7/utils/inventory-calc"
 
@@ -50,12 +49,12 @@ function StatusTooltip({ active, payload }: TooltipContentProps) {
 }
 
 export function RecommendationStatusChart({
-  recommendations = RECOMMENDATIONS,
+  recommendations,
   activeStatus,
   onStatusClick,
   statusOverride,
 }: {
-  recommendations?: Recommendation[]
+  recommendations: Recommendation[]
   activeStatus?: RecommendationStatus | null
   onStatusClick?: (status: RecommendationStatus) => void
   /** Part 36 -- portfolio-wide { status, count }[], already reduced to the

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import dynamic from "next/dynamic"
 import { connection } from "next/server"
 
 import { SessionNotFoundNotice } from "@/components/assistant/routing-notice"
@@ -10,21 +9,10 @@ import {
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { getSession } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 
-/** Demo mode only. The run lives in the browser, so the trace is read there. */
-const DemoSessionTrace = dynamic(() =>
-  import("@/components/assistant/demo/demo-session-trace").then((m) => m.DemoSessionTrace)
-)
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ sessionId: string }>
-}): Promise<Metadata> {
-  const { sessionId } = await params
-  return { title: `Session ${sessionId} — Spares AI` }
-}
+/** No ID in the tab title: a request line's internal session ID is not
+ *  something the requester ever sees or types. */
+export const metadata: Metadata = { title: "Assistant session — Spares AI" }
 
 /**
  * One session, in full — the FR-8 demo.
@@ -51,21 +39,6 @@ export default async function AssistantSessionPage({
 }) {
   await connection()
   const { sessionId } = await params
-
-  if (ASSISTANT_DEMO) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="flex flex-col gap-5">
-          <BackToSessions />
-          <AssistantPageHeader
-            title="Assistant session"
-            description="What the assistant said, what the requester decided, and what was recorded."
-          />
-          <DemoSessionTrace sessionId={sessionId} />
-        </div>
-      </div>
-    )
-  }
 
   let trace: Awaited<ReturnType<typeof getSession>> | null = null
   let notFound: string | null = null

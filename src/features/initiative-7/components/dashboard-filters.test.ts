@@ -43,7 +43,12 @@ describe("matchesRiskFilter", () => {
 describe("the Plant filter's options", () => {
   const render = (props: object) =>
     renderToStaticMarkup(
-      createElement(DashboardFilters, { value: EMPTY_DASHBOARD_FILTERS, onChange: () => {}, ...props }),
+      createElement(DashboardFilters, {
+        value: EMPTY_DASHBOARD_FILTERS,
+        onChange: () => {},
+        plantOptions: [{ value: "1300", label: "Black Mountain (1300)" }],
+        ...props,
+      }),
     )
 
   it("shows the Stockout Risk and the other three filters the Overview relies on", () => {
@@ -57,7 +62,12 @@ describe("the Plant filter's options", () => {
 describe("the Recommendations page's filter bar", () => {
   const render = (props: object) =>
     renderToStaticMarkup(
-      createElement(DashboardFilters, { value: EMPTY_DASHBOARD_FILTERS, onChange: () => {}, ...props }),
+      createElement(DashboardFilters, {
+        value: EMPTY_DASHBOARD_FILTERS,
+        onChange: () => {},
+        plantOptions: [{ value: "1300", label: "Black Mountain (1300)" }],
+        ...props,
+      }),
     )
 
   it("still offers Recommendation Status by default (the Overview uses it)", () => {

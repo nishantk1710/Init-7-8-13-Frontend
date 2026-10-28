@@ -8,8 +8,7 @@ import { toast } from "sonner"
 import { AiEyebrow } from "@/components/assistant/ai-visuals"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
-import { LinkSimulator } from "@/components/assistant/request/link-simulator"
-import { Chip, CopyReference, DemoBanner, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
+import { Chip, CopyReference, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import { useRequest } from "@/components/assistant/request/use-requests"
 import { DownloadMenu } from "@/components/shared/download-menu"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -22,8 +21,7 @@ import {
   type ApiRequestLine,
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-import { isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 
 /**
  * A submitted request: the reference to type into SAP, every line's `R…/n`, and
@@ -50,8 +48,6 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <DemoBanner>This request is held in this browser only. The reference cannot link to a real reservation.</DemoBanner>
-
       <section className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
         <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Type in SAP</span>
         <CopyReference value={request.requestId} size="lg" />
@@ -60,6 +56,23 @@ export function RequestSummary({ requestId }: { requestId: string }) {
           every item&rsquo;s text (SGTXT). Do not add /1, /2.
         </span>
       </section>
+
+      <dl className="flex flex-wrap gap-x-6 gap-y-1 px-1 text-sm">
+        <div className="flex gap-1.5">
+          <dt className="text-muted-foreground">Plant</dt>
+          <dd className="font-mono">{request.plant}</dd>
+        </div>
+        <div className="flex gap-1.5">
+          <dt className="text-muted-foreground">Department</dt>
+          <dd>{departmentLabel(request)}</dd>
+        </div>
+        {request.departmentNote && (
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Department note</dt>
+            <dd>{request.departmentNote}</dd>
+          </div>
+        )}
+      </dl>
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -74,7 +87,6 @@ export function RequestSummary({ requestId }: { requestId: string }) {
               <tr>
                 <th className="px-3 py-2 font-medium">Reference</th>
                 <th className="px-3 py-2 font-medium">Material</th>
-                <th className="px-3 py-2 font-medium">Department</th>
                 <th className="px-3 py-2 font-medium">Decision</th>
                 <th className="px-3 py-2 font-medium">Window · purpose</th>
                 <th className="px-3 py-2 font-medium">Reason given</th>
@@ -108,7 +120,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
         </section>
       )}
 
-      {ASSISTANT_DEMO ? <LinkSimulator request={request} /> : <LiveLinks request={request} onSimulated={reload} />}
+      <LiveLinks request={request} onSimulated={reload} />
 
       <div className="flex flex-wrap gap-2">
         <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
@@ -203,9 +215,6 @@ function LineRow({ line }: { line: ApiRequestLine }) {
           <span>{line.materialDescription ?? <span className="text-muted-foreground italic">No description</span>}</span>
           <span className="text-[11px] text-muted-foreground">Plant {line.plant}</span>
         </div>
-      </td>
-      <td className="px-3 py-3 font-mono text-sm">
-        {line.department ?? <span className="font-sans text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-1">

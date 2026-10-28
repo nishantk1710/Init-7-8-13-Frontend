@@ -20,7 +20,12 @@
 
 export type AgingBand = "FAST" | "SLOW" | "NON_MOVING"
 
-export type ProcurementStatus = "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED"
+/**
+ * CLOSED and NOT_AN_ORDER: nothing more will arrive on the PO line -- SAP closed
+ * it (EKPO-ELIKZ/LOEKZ), or it is a contract or a request for quotation
+ * (EKKO-BSART) -- so it is never waiting for a delivery. UAT, 23 Oct 2026.
+ */
+export type ProcurementStatus = "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CLOSED" | "NOT_AN_ORDER"
 
 export type LedgerUtilisationStatus = "NOT_ISSUED" | "PARTIALLY_ISSUED" | "FULLY_ISSUED"
 
@@ -69,6 +74,8 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "OPEN",
   "PARTIALLY_RECEIVED",
   "RECEIVED",
+  "CLOSED",
+  "NOT_AN_ORDER",
 ]
 export const LEDGER_UTILISATION_STATUSES: readonly LedgerUtilisationStatus[] = [
   "NOT_ISSUED",
@@ -146,6 +153,8 @@ export interface UtilisationLedgerEntry {
   latestGrDate: string | null
   firstGiDate: string | null
   latestGiDate: string | null
+  /** EKET-EINDT of the PO line's next schedule line still to deliver; null with no PO / no EKET row. */
+  expectedDeliveryDate: string | null
 
   procurementStatus: ProcurementStatus
   utilisationStatus: LedgerUtilisationStatus
@@ -633,6 +642,8 @@ export interface ReservationLedgerRow {
   issuedQuantity: number | null
   firstGrDate: string | null
   lastGrDate: string | null
+  /** EKET-EINDT of the linked PO line's next schedule line still to deliver. */
+  expectedDeliveryDate: string | null
   lastIssueDate: string | null
   lifecycleStatus: string
   sessionId: string | null

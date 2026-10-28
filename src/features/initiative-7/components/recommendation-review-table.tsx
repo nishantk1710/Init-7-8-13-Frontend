@@ -14,14 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getPlantById } from "@/lib/shared-data/plants"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount, formatMoney } from "@/lib/utils"
 import {
   OarConversionLabel,
   RecommendationReviewPanel,
 } from "@/features/initiative-7/components/recommendation-review-panel"
 import { LiveDecisionActions } from "@/features/initiative-7/components/live-decision-panel"
-import { useInventoryWorkflow } from "@/features/initiative-7/context/workflow-context"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
@@ -157,6 +156,7 @@ function LiveExpandedRecommendationPanel({
   return (
     <RecommendationReviewPanel
       rec={detail}
+      onSimilarMaterialsChanged={refetch}
       action={
         <LiveDecisionActions
           recommendationId={detail.id}
@@ -195,7 +195,6 @@ export function RecommendationReviewTable({
    * recommendation has a conversion decision. */
   showMinMaxConversion?: boolean
 }) {
-  const { stateFor } = useInventoryWorkflow()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Populated only for a row that has been expanded at least once (see
   // LiveExpandedRecommendationPanel's onDetail) -- the row's Value/ROP
@@ -240,7 +239,6 @@ export function RecommendationReviewTable({
           <TableBody>
             {recommendations.map((rec) => {
               const isExpanded = expandedId === rec.id
-              const state = stateFor(rec.id)
               const atRisk = rec.risk === "critical" || rec.risk === "high"
               return (
                 <Fragment key={rec.id}>
@@ -268,7 +266,7 @@ export function RecommendationReviewTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {getPlantById(rec.plantId)?.name ?? rec.plantId}
+                      {sapPlantName(rec.plantId)}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
@@ -288,9 +286,7 @@ export function RecommendationReviewTable({
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={STATUS_TONE[rec.status]}>
-                        {state.submitted && !state.outcome && rec.status === "Pending Review"
-                          ? "In approval"
-                          : (STATUS_LABEL[rec.status] ?? rec.status)}
+                        {STATUS_LABEL[rec.status] ?? rec.status}
                       </StatusBadge>
                     </TableCell>
                     {showMinMaxConversion && (

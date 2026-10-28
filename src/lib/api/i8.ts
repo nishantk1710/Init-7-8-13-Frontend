@@ -230,8 +230,9 @@ export type ApiRepairJustification = {
 
 /**
  * The register's counts. Every line counted is open in SAP; the `excluded*`
- * figures say how many repair lines SAP has deleted, closed or blocked, each
- * counted under the first of the three that applies.
+ * figures say how many repair lines SAP has deleted, closed or blocked, or
+ * holds on a request for quotation, each counted under the first of the four
+ * that applies.
  */
 export type ApiRegisterMeta = {
   totalLines: number
@@ -259,6 +260,10 @@ export type ApiRegisterMeta = {
   excludedDeliveryCompletedLines?: number
   /** Repair lines blocked in SAP (EKPO.LOEKZ = 'S'). */
   excludedBlockedLines?: number
+  /** Item-category-3 lines on a request for quotation (EKKO.BSART = 'AN'),
+   *  which orders nothing. Left out since 21-Oct-2026; optional until every
+   *  backend in use serves it. */
+  excludedRfqLines?: number
 }
 
 /**
@@ -279,6 +284,17 @@ export type ApiRegisterFacets = {
 export type ApiRegisterPage = ApiPage<ApiRepairChain, ApiRegisterMeta> & {
   /** Absent from a backend older than server paging. */
   facets?: ApiRegisterFacets
+  /** How many of the filtered lines each quick view holds, counted before the
+   *  view applies. Absent from a backend older than the quick views. */
+  viewCounts?: ApiRegisterViewCounts
+}
+
+export type ApiRegisterViewCounts = {
+  all: number
+  overdue: number
+  undeclared: number
+  atVendor: number
+  withExceptions: number
 }
 
 export type ApiUniverseItem = {
@@ -487,7 +503,7 @@ export type ApiExceptionItem = {
    * serves it: a build talking to an older API gets `undefined` and renders
    * the queue without a lifecycle rather than claiming everything is OPEN.
    */
-  status?: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+  status?: "OPEN" | "CLOSED" | LegacyExceptionStatus
   /** Null or absent means unassigned, which is a real and common state. */
   owner?: string | null
   /** Whether a check still raises this. False only on an item fetched by id
@@ -495,6 +511,10 @@ export type ApiExceptionItem = {
   stillDetected?: boolean
   history?: ApiExceptionEvent[]
 }
+
+/** Retired on 21-Oct-2026 for OPEN and CLOSED. Served only by a backend older
+ *  than that; read through `toExceptionStatus`, never sent. */
+export type LegacyExceptionStatus = "IN_PROGRESS" | "RESOLVED"
 
 /** One entry in an exception's history. */
 export type ApiExceptionEvent = {
@@ -558,6 +578,10 @@ export type ApiExceptionFacets = {
 export type ApiExceptionPage = ApiPage<ApiExceptionItem, ApiExceptionMeta> & {
   /** Absent from a backend older than server paging. */
   facets?: ApiExceptionFacets
+  /** Items per type after every filter but `type`: what each type tab holds.
+   *  Unlike `meta.byType`, these follow the filters, status above all.
+   *  Absent from a backend older than the redesign. */
+  typeCounts?: Record<string, number> | null
 }
 
 /** One recorded attestation. */
@@ -582,6 +606,10 @@ export type ApiAttestation = {
   /** Set when a later amendment replaced this one. The original is never
    *  edited or removed — this is how a reader knows it is not current. */
   supersededBy: string | null
+  /** The repair line it was declared against (EKPO.EBELN / EBELP), when it
+   *  was declared from one; null for "Declare a part". */
+  repairDocument?: string | null
+  repairItem?: string | null
 
   /**
    * Register line ids this attestation covers. **Present on POST only**, null
@@ -670,11 +698,17 @@ export type RegisterQuery = {
   /** Required, Completed or Flagged. */
   declarationStatus?: string
   agingBucket?: string
+  /** The aging band of the days in the line's CURRENT stage (agingBucket bands
+   *  the days it has been open). What the Overview's stage-by-age cells open. */
+  stageAgingBucket?: string
   /** Only lines a check has raised something against. */
   withExceptions?: boolean
   /** Comma-separated exception types left out of each line's `exceptions`
    *  and of `withExceptions`. */
   excludeExceptionType?: string
+  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`
+   *  or `withExceptions`. `viewCounts` counts each before it applies. */
+  view?: string
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
   page?: number
@@ -762,7 +796,7 @@ export type ExceptionQuery = {
   plant?: string
   /** One repair line, as the register keys it — `4500000677-20`. */
   repair?: string
-  /** OPEN / IN_PROGRESS / RESOLVED / CLOSED. */
+  /** OPEN / CLOSED. */
   status?: string
   /** An owner, or the literal `unassigned`. */
   owner?: string
@@ -815,12 +849,16 @@ export function getException(exceptionId: string): Promise<ApiExceptionItem> {
  *
  * `ASSIGNED` with `owner: null` is an unassignment, and gets its own entry:
  * handing something back is an action, not an absence.
+ *
+ * Closing needs `text`: the backend answers 422 without it, because a person
+ * closing an item the check may still find has to say why. Reopening does not.
  */
 export function appendExceptionEvent(
   exceptionId: string,
   body:
     | { kind: "ASSIGNED"; owner: string | null }
-    | { kind: "STATUS"; status: string; text?: string }
+    | { kind: "STATUS"; status: "CLOSED"; text: string }
+    | { kind: "STATUS"; status: "OPEN"; text?: string }
     | { kind: "COMMENT"; text: string },
 ): Promise<ApiExceptionItem> {
   return apiPost<ApiExceptionItem>(

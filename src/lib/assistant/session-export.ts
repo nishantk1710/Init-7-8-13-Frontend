@@ -9,7 +9,14 @@
 import type { SessionTraceResponse } from "@/lib/api/assistant"
 import { factsCaveats, factsHeadline, isI08Facts, isI13Facts } from "@/lib/api/assistant-facts"
 import { flowLabel } from "@/lib/assistant/flow-labels"
-import { BAND_LABEL, coverReasonText, formatInstant, formatWindow, planStatusLabel } from "@/lib/assistant/trace-format"
+import {
+  BAND_LABEL,
+  coverReasonText,
+  formatInstant,
+  formatWindow,
+  planStatusLabel,
+  sessionIdentity,
+} from "@/lib/assistant/trace-format"
 import {
   downloadDocument,
   exportFilename,
@@ -119,11 +126,17 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
 /** Everything the session trace shows, bar the conversation turns, as a document. */
 export function sessionDocument(trace: SessionTraceResponse, now: Date = new Date()): ExportDocument {
   const linked = trace.linkedReservations ?? []
+  const identity = sessionIdentity(trace)
   const blocks: ExportBlock[] = [
     {
       kind: "fields",
       rows: [
-        ["Session reference", trace.sessionId],
+        ...(identity.requestId
+          ? ([
+              ["Request line", identity.label],
+              ["Type in SAP", identity.sapText],
+            ] as [string, string][])
+          : ([["Session reference", trace.sessionId]] as [string, string][])),
         ["Flow", flowLabel(trace.flow)],
         ["Outcome", OUTCOME_LABEL[trace.outcome] ?? trace.outcome],
         [
@@ -219,12 +232,14 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
     blocks.push({
       kind: "paragraph",
       muted: true,
-      text: "The link is read from the reservation's item text (SGTXT) in the loaded SAP extract. Until a reservation carrying this session's ID is loaded, this session stands on its own: it records what the planner was told and what they decided.",
+      text: `The link is read from the reservation's item text (SGTXT) in the loaded SAP extract. Until a reservation carrying ${
+        identity.requestId ? `request ${identity.requestId} for this material` : "this session's ID"
+      } is loaded, this session stands on its own: it records what the planner was told and what they decided.`,
     })
   }
 
   return {
-    title: `Assistant session ${trace.sessionId}`,
+    title: `Assistant session ${identity.label}`,
     subtitle: "What the assistant said, what the requester decided, and what was recorded.",
     generatedAt: now.toLocaleString("en-GB"),
     blocks,
@@ -233,5 +248,12 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
 
 export function downloadSession(trace: SessionTraceResponse, format: ExportFormat): Promise<boolean> {
   const now = new Date()
-  return downloadDocument(sessionDocument(trace, now), format, exportFilename("session", trace.sessionId, format, now))
+  return downloadDocument(sessionDocument(trace, now), format, exportFilename("session", exportId(trace), format, now))
+}
+
+/** The file name's ID: `R…-n` for a request line (no slash in a file name), the session ID otherwise. */
+export function exportId(trace: SessionTraceResponse): string {
+  const { requestId, lineNo } = sessionIdentity(trace)
+  if (!requestId) return trace.sessionId
+  return lineNo !== null ? `${requestId}-${lineNo}` : requestId
 }

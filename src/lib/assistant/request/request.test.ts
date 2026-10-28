@@ -3,29 +3,26 @@ import { describe, expect, it } from "vitest"
 import type { ApiPreviewLine, ApiRequest } from "@/lib/api/assistant-requests"
 import { conflictDetail, isNotEnabled, refusedDetail } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { isWellFormed } from "@/lib/assistant/demo/ids"
-import { findDemoMaterial } from "@/lib/assistant/request/catalogue"
 import {
   answersOf,
   isDuplicate,
   isReady,
   lineFromPreview,
   lineIssues,
-  needsDepartment,
   oarNeedsJustification,
   pendingLine,
   withSuggestedWindow,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
-import { requestReferencesIn, resolveLink } from "@/lib/assistant/request/link"
+import { matchesDepartment } from "@/components/assistant/department-picker"
 import {
+  departmentLabel,
+  departmentText,
   departmentsOf,
   isDeclined,
   lineReference,
-  mintRequestId,
   outcomeSentence,
-  requestIdFrom,
 } from "@/lib/assistant/request/record"
 import { needsJustification, suggestWindow, suggestionKind } from "@/lib/assistant/request/suggest"
 
@@ -102,13 +99,13 @@ describe("rows built from the preview", () => {
       "2027-06-15",
       0.5,
     ])
-    expect(lineIssues(line)).toEqual(["department", "purpose"])
+    expect(lineIssues(line)).toEqual(["purpose"])
   })
 
   it("leave the quantity blank when nothing is suggested, and then ask a reason for any", () => {
     const line = oar(null)
     expect(line.quantity).toBe("")
-    const typed = withSuggestedWindow({ ...line, department: "10100", quantity: "3" }, TODAY)
+    const typed = withSuggestedWindow({ ...line, quantity: "3" }, TODAY)
     expect(oarNeedsJustification(typed)).toBe(true)
     expect(lineIssues(typed)).toEqual(["reason", "explanation", "purpose"])
   })
@@ -118,22 +115,21 @@ describe("rows built from the preview", () => {
     expect(withSuggestedWindow({ ...edited, quantity: "1" }, TODAY).windowEnd).toBe("2026-12-31")
   })
 
-  it("need nothing once marked not needed -- not even a department", () => {
+  it("need nothing once marked not needed", () => {
     const line = { ...oar("4"), decision: "not_needed" as const }
     expect(isReady(line)).toBe(true)
-    expect(needsDepartment(line)).toBe(false)
   })
 
   it("ask a repairable row to decide only when a unit exists", () => {
     expect(repair(true).decision).toBeNull()
-    expect(lineIssues({ ...repair(true), department: "10300" })).toEqual(["decision"])
-    expect(lineIssues({ ...repair(true), department: "10300", decision: "proceed_new" })).toEqual([
+    expect(lineIssues(repair(true))).toEqual(["decision"])
+    expect(lineIssues({ ...repair(true), decision: "proceed_new" })).toEqual([
       "reason",
       "explanation",
     ])
     const none = repair(false)
     expect(none.decision).toBe("proceed_new")
-    expect(isReady({ ...none, department: "40100" })).toBe(true)
+    expect(isReady(none)).toBe(true)
   })
 
   it("keep a material that opens no session, with the backend's reason", () => {
@@ -152,14 +148,9 @@ describe("rows built from the preview", () => {
   })
 
   it("re-checked after a 409 keep what was typed and take the new figures", () => {
-    const typed: OarLine = { ...oar("4"), department: "10100", quantity: "6", purpose: "Mill 3" }
+    const typed: OarLine = { ...oar("4"), quantity: "6", purpose: "Mill 3" }
     const rechecked = lineFromPreview(oarPreview("3"), typed.key, typed) as OarLine
-    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose, rechecked.department]).toEqual([
-      3,
-      "6",
-      "Mill 3",
-      "10100",
-    ])
+    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose]).toEqual([3, "6", "Mill 3"])
     expect(rechecked.changed).toBe(true)
   })
 })
@@ -168,7 +159,6 @@ describe("what submit sends", () => {
   it("sends an OAR line's answers, a reason only when one is needed, and what was shown as suggested", () => {
     const line: OarLine = {
       ...oar("4"),
-      department: "10100",
       quantity: "6",
       purpose: " Mill 3 ",
       justification: { reasonCategory: "OTHER", freeText: " two spares " },
@@ -176,7 +166,6 @@ describe("what submit sends", () => {
     expect(answersOf(line)).toEqual({
       materialId: "1000000123",
       plant: "1300",
-      department: "10100",
       decision: "proceed",
       quantity: "6",
       windowStart: "2026-10-15",
@@ -191,20 +180,19 @@ describe("what submit sends", () => {
 
   it("sends a declined OAR line with nothing but the decision", () => {
     const answers = answersOf({ ...oar("4"), decision: "not_needed" })
-    expect(answers).toMatchObject({ decision: "not_needed", quantity: null, department: null })
+    expect(answers).toMatchObject({ decision: "not_needed", quantity: null })
+    expect(answers).not.toHaveProperty("department")
   })
 
   it("sends a repairable line's decision and reason", () => {
     const line: RepairableLine = {
       ...repair(true),
-      department: "10300",
       decision: "proceed_new",
       justification: { reasonCategory: "URGENT_BREAKDOWN", freeText: "Down" },
     }
     expect(answersOf(line)).toEqual({
       materialId: "8000005632",
       plant: "1300",
-      department: "10300",
       decision: "proceed_new",
       reasonCategory: "URGENT_BREAKDOWN",
       freeText: "Down",
@@ -234,7 +222,7 @@ describe("submit's refusals", () => {
 // --- a recorded request ------------------------------------------------------------
 
 function sampleRequest(): ApiRequest {
-  const id = requestIdFrom("7K2M4P8Q")
+  const id = "R7K2M4P8QX"
   const line = (lineNo: number, overrides: Partial<ApiRequest["lines"][number]>): ApiRequest["lines"][number] => ({
     lineNo,
     reference: lineReference(id, lineNo),
@@ -263,6 +251,7 @@ function sampleRequest(): ApiRequest {
     requester: "op",
     origin: "PLATFORM",
     issuedAt: "2026-10-15T08:00:00Z",
+    department: null,
     departments: ["10100", "10300"],
     lines: [
       line(1, {}),
@@ -284,14 +273,6 @@ function sampleRequest(): ApiRequest {
 }
 
 describe("a recorded request", () => {
-  it("has well-formed R references", () => {
-    for (let i = 0; i < 50; i += 1) {
-      const id = mintRequestId()
-      expect(id).toMatch(/^R[0-9A-HJKMNP-TV-Z]{9}$/)
-      expect(isWellFormed(id)).toBe(true)
-    }
-  })
-
   it("says what each line decided", () => {
     const [oarLine, pump, motor] = sampleRequest().lines
     expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
@@ -302,38 +283,29 @@ describe("a recorded request", () => {
   })
 })
 
-describe("the demo's link simulator", () => {
-  const request = sampleRequest()
-  const id = request.requestId
-  const find = (rid: string) => (rid === id ? request : undefined)
-  const pump = { materialId: "8000005632", plant: "1300" }
-
-  it("reads every way of writing the suffix", () => {
-    expect(requestReferencesIn(`${id}/2`)[0]).toMatchObject({ requestId: id, lineNo: 2, valid: true })
-    expect(requestReferencesIn(`${id}-2`)[0].lineNo).toBe(2)
-    expect(requestReferencesIn(`${id.slice(0, 4)} ${id.slice(4)}/2`)[0]).toMatchObject({ requestId: id, valid: true })
+describe("department names", () => {
+  it("shows the code with its name, or the code alone when the list has none", () => {
+    expect(departmentText("10100", "FINANCE-COMMERCIAL DEPARTMENT")).toBe("10100 · FINANCE-COMMERCIAL DEPARTMENT")
+    expect(departmentText("10107", null)).toBe("10107")
+    expect(departmentText("10107")).toBe("10107")
   })
 
-  it("links the bare header reference by material, with no warning", () => {
-    expect(resolveLink({ ...pump, sgtxt: id }, find)).toMatchObject({
-      status: "LINKED",
-      line: { lineNo: 2 },
-      notes: [`Matched to ${id}/2 by material and plant.`],
-    })
+  it("labels a request by its one department, named", () => {
+    expect(
+      departmentLabel({ department: "10100", departmentName: "FINANCE-COMMERCIAL DEPARTMENT", departments: ["10100"] })
+    ).toBe("10100 · FINANCE-COMMERCIAL DEPARTMENT")
+    // Before 21 Oct a request's lines could name several: codes only.
+    expect(departmentLabel({ department: null, departments: ["10100", "10300"] })).toBe("10100, 10300")
+    expect(departmentLabel({ department: null, departments: [] })).toBe("—")
   })
 
-  it("links by material, warning on a wrong /n or a declined line", () => {
-    expect(resolveLink({ ...pump, sgtxt: `${id}/2` }, find)).toMatchObject({ status: "LINKED", line: { lineNo: 2 } })
-    expect(resolveLink({ ...pump, sgtxt: `${id}/1` }, find).status).toBe("LINKED_WITH_WARNING")
-    expect(resolveLink({ materialId: "8000006120", plant: "1300", sgtxt: `${id}/3` }, find).status).toBe(
-      "LINKED_WITH_WARNING"
-    )
-    expect(resolveLink({ materialId: "3000001122", plant: "1300", sgtxt: `${id}/2` }, find).status).toBe(
-      "NOT_ON_REQUEST"
-    )
-  })
-
-  it("knows every catalogue material", () => {
-    expect(findDemoMaterial("0008000005632", "1300")?.description).toBe("Pump, centrifugal")
+  it("finds a department by the start of its code or anywhere in its name", () => {
+    const finance = { code: "10100", name: "FINANCE-COMMERCIAL DEPARTMENT", plants: ["1300"], primary: true }
+    const unnamed = { code: "10107", name: null, plants: ["1300"], primary: true }
+    expect(matchesDepartment(finance, "101")).toBe(true)
+    expect(matchesDepartment(finance, "commercial")).toBe(true)
+    expect(matchesDepartment(finance, "100")).toBe(false)
+    expect(matchesDepartment(unnamed, "1010")).toBe(true)
+    expect(matchesDepartment(unnamed, "finance")).toBe(false)
   })
 })

@@ -12,7 +12,7 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import { Skeleton } from "@/components/ui/skeleton"
+import { ChartLoader } from "@/components/shared/chart-loader"
 import { cn, formatCount } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { useForecastVsActual } from "@/features/initiative-7/hooks/use-forecast-vs-actual"
@@ -110,7 +110,7 @@ export function PortfolioForecastVsActualChart({ months = 12, period }: { months
       </div>
 
       {loading ? (
-        <Skeleton className="h-[220px] w-full" />
+        <ChartLoader label="Loading the chart" className="h-[220px] w-full" />
       ) : error ? (
         <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
           <p>Could not load Forecast vs Actual from the backend.</p>

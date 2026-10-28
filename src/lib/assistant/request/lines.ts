@@ -40,8 +40,6 @@ type Common = {
 export type OarLine = Common & {
   kind: "i13"
   preview: ApiPreviewLine
-  /** Picked per line from the plant's codes. Blank until chosen -- never inherited. */
-  department: string
   /** The suggestion as served; null when none can be made. */
   suggested: number | null
   /** Average monthly consumption -- what a new quantity's window is sized by. */
@@ -62,7 +60,6 @@ export type OarLine = Common & {
 export type RepairableLine = Common & {
   kind: "i08"
   preview: ApiPreviewLine
-  department: string
   unitExists: boolean
   /** Null until chosen. Fixed to `proceed_new` when no unit exists anywhere. */
   decision: "use_existing" | "proceed_new" | null
@@ -136,7 +133,6 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
         ...common,
         kind: "i13",
         preview,
-        department: "",
         suggested,
         rate: toNumber(facts.averageMonthlyConsumption) ?? 0,
         decision: "proceed",
@@ -163,7 +159,6 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
         ...common,
         kind: "i08",
         preview,
-        department: previous?.kind === "i08" ? previous.department : "",
         unitExists: preview.unitExists === true,
         decision:
           previous?.kind === "i08" ? previous.decision : preview.unitExists === true ? null : "proceed_new",
@@ -203,7 +198,6 @@ export function lineIssues(line: DraftLine): string[] {
     case "i13": {
       if (line.decision === "not_needed") return []
       const issues: string[] = []
-      if (!line.department) issues.push("department")
       if (parseQuantity(line.quantity) === null) issues.push("quantity")
       if (oarNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
       if (!line.windowStart) issues.push("window start")
@@ -216,7 +210,6 @@ export function lineIssues(line: DraftLine): string[] {
     }
     case "i08": {
       const issues: string[] = []
-      if (!line.department) issues.push("department")
       if (line.decision === null) issues.push("decision")
       else if (repairableNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
       return issues
@@ -226,12 +219,6 @@ export function lineIssues(line: DraftLine): string[] {
     default:
       return []
   }
-}
-
-/** Lines that still need a department. A line marked not needed takes none. */
-export function needsDepartment(line: DraftLine): boolean {
-  if (line.kind === "i13") return line.decision === "proceed"
-  return line.kind === "i08"
 }
 
 export function isReady(line: DraftLine): boolean {
@@ -246,7 +233,6 @@ export function answersOf(line: DraftLine): ApiLineAnswers {
     const reason = oarNeedsJustification(line)
     return {
       ...base,
-      department: proceed ? line.department : null,
       decision: line.decision,
       quantity: proceed ? line.quantity.trim() : null,
       windowStart: proceed ? line.windowStart : null,
@@ -261,7 +247,6 @@ export function answersOf(line: DraftLine): ApiLineAnswers {
     const reason = repairableNeedsJustification(line)
     return {
       ...base,
-      department: line.department,
       decision: line.decision,
       reasonCategory: reason ? line.justification.reasonCategory : null,
       freeText: reason ? line.justification.freeText.trim() : null,

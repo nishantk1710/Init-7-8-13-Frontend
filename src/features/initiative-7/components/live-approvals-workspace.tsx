@@ -1,24 +1,18 @@
 // Part 22 — I07 complete frontend live data integration.
 //
-// Live-mode counterpart to approvals-workspace.tsx. Reuses the same table/
-// filter/sidebar layout and the same shared UI primitives, but every row
-// comes from the real backend (GET /recommendations, filtered by the real
-// submitted statuses -- see hooks/use-live-approval-queue.ts) instead of the
-// scenario dataset's in-memory simulation. The outcome tabs use the
-// backend's own status vocabulary (Pending/Approved/Rejected/Returned) --
-// not the scenario's approve/adjust/reject taxonomy, since ADJUST/HOLD/
-// SEND_BACK are real, distinct backend statuses with no single scenario
-// equivalent.
+// Every row comes from the real backend (GET /recommendations, filtered by the
+// real submitted statuses -- see hooks/use-live-approval-queue.ts). The outcome
+// tabs use the backend's own status vocabulary (Pending/Approved/Rejected/
+// Returned), since ADJUST/HOLD/SEND_BACK are real, distinct backend statuses.
 //
 // AUTHENTICATION LIMITATION (Part 13 deferred): there is no signed-in user,
-// so "My queue" here is not filterable by a real identity the way the
-// scenario's DEMO_ROLE persona fakes it -- this component shows only "All
-// approvals", honestly, rather than fabricating a queue split with no real
-// basis.
+// so "My queue" here is not filterable by a real identity -- this component
+// shows only "All approvals", honestly, rather than fabricating a queue split
+// with no real basis.
 
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 
@@ -43,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useMaterial360 } from "@/lib/material-360-context"
 import { cn, formatMoney } from "@/lib/utils"
 import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import { CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
@@ -167,8 +160,16 @@ function LiveApprovalWorkflowSidebar({ rec }: { rec: Recommendation | null }) {
   )
 }
 
-export function LiveApprovalsWorkspace() {
-  const { openMaterial360 } = useMaterial360()
+/** What the workspace is listing right now, for a page that wants to say so above it: the rows on screen, and how many
+ * recommendations sit in the selected status before the criticality filter narrows them. */
+export type ApprovalsSummary = { shown: number; total: number }
+
+export function LiveApprovalsWorkspace({
+  onSummaryChange,
+}: {
+  /** Called with the figures whenever they change, and with `null` while loading, on an error, and on unmount. */
+  onSummaryChange?: (summary: ApprovalsSummary | null) => void
+}) {
   const { recommendations, loading, error, refetch } = useLiveApprovalQueue()
   const [statusTab, setStatusTab] = useState<StatusTab>("pending")
   const [criticality, setCriticality] = useState<string>(ALL)
@@ -196,6 +197,15 @@ export function LiveApprovalsWorkspace() {
   }, [recommendations, statusTab, criticality, sortBy])
 
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null
+
+  // Say what is on screen, not what the aggregate feed holds. Nothing is claimed until the queue has loaded.
+  const ready = !loading && !error
+  const shown = rows.length
+  const total = statusCounts[statusTab]
+  useEffect(() => {
+    onSummaryChange?.(ready ? { shown, total } : null)
+  }, [onSummaryChange, ready, shown, total])
+  useEffect(() => () => onSummaryChange?.(null), [onSummaryChange])
 
   if (loading) {
     return (
@@ -318,7 +328,6 @@ export function LiveApprovalsWorkspace() {
                         <TableCell>
                           <MaterialIdentity
                             material={rec.material}
-                            onOpen={openMaterial360}
                             className="max-w-[210px]"
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">

@@ -4,6 +4,10 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 import { DataModeBanner } from "@/components/shared/data-mode";
+import { AuthBridge } from "@/components/auth/auth-bridge";
+// Registers the server's access-token provider for lib/api/client.ts, so
+// server components call the backend as the signed-in user (AUTH_MODE=entra).
+import "@/auth";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -22,13 +26,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Shared by both frontends this app serves (see src/proxy.ts):
- *
- *   live   app/(live)/  -- this branch's frontend, reading the real backend
- *   demo   app/demo/    -- main's frontend as it was, on its own mock data
- *
- * Each brings its own shell (sidebar, providers) in its own layout; this one
- * only holds what they have in common, plus the strip saying which is showing.
+ * Root layout: theme provider plus the strip shown when the live backend is
+ * down. The app shell (sidebar, providers) lives in app/(live)/layout.tsx.
  */
 export default function RootLayout({
   children,
@@ -48,6 +47,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AuthBridge />
           <DataModeBanner />
           <div className="flex min-h-0 flex-1">{children}</div>
         </ThemeProvider>

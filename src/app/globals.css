@@ -6,6 +6,17 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-action: var(--action);
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-fg: var(--nav-fg);
+  --color-nav-muted: var(--nav-muted);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-border: var(--nav-border);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-fg: var(--nav-active-fg);
+  --color-nav-btn: var(--nav-btn);
+  --color-nav-btn-fg: var(--nav-btn-fg);
+  --color-canvas: var(--canvas);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -53,7 +64,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* `.light-scope` puts the light theme back on one subtree of a dark page: the
+   tokens are declared again on that element, so everything under it inherits
+   these values instead of `.dark`'s. The I08 overview's PDF copy wears it --
+   it is printed on paper, whichever theme the person printing it was using. */
+:root,
+.light-scope {
   /* Native controls -- the <select> popup, scrollbars, date pickers -- are
      painted by the browser, not by these tokens, and default to light. The
      assistant's reason dropdown inherited the page's light text colour and
@@ -61,7 +77,23 @@
      the browser forced its own highlight colours. Declaring the scheme is
      what tells the browser which way round the page actually is. */
   color-scheme: light;
+  /* The page behind the cards: the grey Initiative 8 introduced (--i08-canvas),
+     now the app-wide page. Cards stay white (--card), as in I08. */
+  --canvas: #f4f6f8;
+  /* The floating side navigation. Light panel in light mode, dark in dark mode;
+     one accent for the current page. Change these to recolour the whole bar. */
+  --nav-bg: #ffffff;
+  --nav-fg: #0f172a;
+  --nav-muted: #5b6577;
+  --nav-hover: rgb(15 23 42 / 0.06);
+  --nav-border: rgb(15 23 42 / 0.08);
+  --nav-active: #1f74c0;
+  --nav-active-fg: #ffffff;
+  --nav-btn: #0f172a;
+  --nav-btn-fg: #ffffff;
   --background: oklch(1 0 0);
+  /* The OAR screens' action buttons (Export, Summary report, ...): blue, in the logo's family. */
+  --action: #0a66b5;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -88,6 +120,10 @@
   --chart-3: #1baf7a;
   --chart-4: #eda100;
   --chart-5: #4a3aa7;
+  /* The plant bars of the Overview's Stockout risk and Excess inventory charts: one colour per plant. */
+  --plant-all: #5b3fc4;
+  --plant-1300: #0b8a82;
+  --plant-1500: #e0701f;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -101,41 +137,56 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #6366f1;
+  /* Deep navy page, slightly lighter navy cards, hairline borders, one vivid
+     blue for actions. The chart, plant and status colours below are NOT part of
+     this palette and keep their own values. */
+  --canvas: var(--background);
+  --nav-bg: #0a1020;
+  --nav-fg: #f4f6fb;
+  --nav-muted: #9aa5ba;
+  --nav-hover: rgb(255 255 255 / 0.07);
+  --nav-border: rgb(255 255 255 / 0.07);
+  --nav-btn: #ffffff;
+  --nav-btn-fg: #0b1220;
+  --background: #060a16;
+  --foreground: #f4f6fb;
+  --card: #0c1223;
+  --card-foreground: #f4f6fb;
+  --popover: #0e1527;
+  --popover-foreground: #f4f6fb;
+  --primary: #1f6bff;
+  --action: #7cb9ee;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: rgba(99, 102, 241, 0.16);
-  --accent-foreground: #c7d2fe;
+  --secondary: #141c31;
+  --secondary-foreground: #f4f6fb;
+  --muted: #141c31;
+  --muted-foreground: #8f98b0;
+  --accent: rgb(31 107 255 / 0.16);
+  --accent-foreground: #b4cdff;
   --destructive: oklch(0.704 0.191 22.216);
   --success: #22b989;
   --success-foreground: #06231a;
   --warning: #fbbf24;
   --warning-foreground: #451a03;
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: #818cf8;
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.1);
+  --ring: #4d8aff;
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;
   --chart-4: #c98500;
   --chart-5: #9085e9;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --plant-all: #8f73ea;
+  --plant-1300: #1fb3a7;
+  --plant-1500: #f08a3c;
+  --sidebar: #080d1b;
+  --sidebar-foreground: #f4f6fb;
+  --sidebar-primary: #1f6bff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #111a30;
+  --sidebar-accent-foreground: #f4f6fb;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #4d8aff;
 }
 
 @layer base {
@@ -203,4 +254,527 @@
   --primary: #1f74c0;
   --ring: #5aa2e0;
   --brand-link: #7cb9ee;
+}
+
+/* `.blue-scope` swaps the app's primary (indigo) for the action blue on one subtree: the shared
+   Button, chips and focus rings inside recolour without being edited. Same blue as `--action`
+   (the tinted buttons); the dark value is the one the brand scope uses, because white text has
+   to stay readable on a solid fill. */
+.blue-scope {
+  --primary: #0a66b5;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --accent: #e6f0f9;
+  --accent-foreground: #004b87;
+}
+
+.dark .blue-scope {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --accent: rgb(31 116 192 / 0.2);
+  --accent-foreground: #a9d0f5;
+}
+
+/* Semantic status tokens -- one meaning per colour, everywhere it is used:
+   healthy (fast-moving, done), caution (slow, in progress), urgent
+   (non-moving, overdue), attention (banners asking for a follow-up). Each has
+   a solid fill, an ink for text on its tint, and the tint itself. The inks
+   meet 4.5:1 on their tints and on white. Declared on :root so the sidebar can
+   use them too; the OAR screens add the layout tokens in `.oar-scope` below. */
+@theme inline {
+  --color-page: var(--page);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-strong-hover: var(--primary-strong-hover);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-ink: var(--primary-ink);
+  --color-healthy: var(--healthy);
+  --color-healthy-ink: var(--healthy-ink);
+  --color-healthy-tint: var(--healthy-tint);
+  --color-caution: var(--caution);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-tint: var(--caution-tint);
+  --color-urgent: var(--urgent);
+  --color-urgent-ink: var(--urgent-ink);
+  --color-urgent-tint: var(--urgent-tint);
+  --color-attention: var(--attention);
+  --color-attention-line: var(--attention-line);
+  --color-attention-ink: var(--attention-ink);
+  --radius-card: 16px;
+}
+
+:root,
+.light-scope {
+  --page: #f4f6fb;
+  --line: #e2e8f0;
+  --ink: #0f172a;
+  --ink-muted: #475569;
+  --primary-strong: #4338ca;
+  --primary-strong-hover: #3730a3;
+  --primary-tint: #e0e7ff;
+  --primary-ink: #3730a3;
+  --healthy: #10b981;
+  --healthy-ink: #065f46;
+  --healthy-tint: #d1fae5;
+  --caution: #f59e0b;
+  --caution-ink: #92400e;
+  --caution-tint: #fef3c7;
+  --urgent: #ef4444;
+  --urgent-ink: #b91c1c;
+  --urgent-tint: #fee2e2;
+  --attention: #fff7ed;
+  --attention-line: #fdba74;
+  --attention-ink: #9a3412;
+}
+
+.dark {
+  --page: oklch(0.145 0 0);
+  --line: oklch(1 0 0 / 12%);
+  --ink: oklch(0.985 0 0);
+  --ink-muted: #a3adbd;
+  --primary-strong: #4f46e5;
+  --primary-strong-hover: #4338ca;
+  --primary-tint: rgba(99, 102, 241, 0.2);
+  --primary-ink: #c7d2fe;
+  --healthy: #10b981;
+  --healthy-ink: #6ee7b7;
+  --healthy-tint: rgba(16, 185, 129, 0.16);
+  --caution: #f59e0b;
+  --caution-ink: #fcd34d;
+  --caution-tint: rgba(245, 158, 11, 0.16);
+  --urgent: #ef4444;
+  --urgent-ink: #fca5a5;
+  --urgent-tint: rgba(239, 68, 68, 0.16);
+  --attention: rgba(249, 115, 22, 0.1);
+  --attention-line: rgba(253, 186, 116, 0.45);
+  --attention-ink: #fdba74;
+}
+
+/* The OAR Utilization screens (features/initiative-13/components/ui/oar-scope.tsx).
+   The shared shadcn tokens are re-pointed here, so Button, Tabs, Select and
+   Input inside take the indigo primary, slate text and borders without being
+   edited -- the rest of the app keeps its own. */
+.oar-scope {
+  --primary: var(--primary-strong);
+  --ring: #6366f1;
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --muted-foreground: var(--ink-muted);
+  --border: var(--line);
+  --input: var(--line);
+  --accent: var(--primary-tint);
+  --accent-foreground: var(--primary-ink);
+  background-color: var(--page);
+  color: var(--ink);
+}
+
+.dark .oar-scope {
+  --ring: #818cf8;
+}
+
+/* 44px touch targets for every control on these screens, shared ones included. */
+.oar-scope :is([data-slot="button"], [data-slot="select-trigger"], [data-slot="input"], [data-slot="tabs-trigger"]) {
+  min-height: 44px;
+}
+
+/* Filters sit on the page background; their fields stay card-coloured. */
+.oar-scope :is([data-slot="select-trigger"], [data-slot="input"]) {
+  background-color: var(--card);
+}
+
+/* Table headers: the same size and weight as the other modules' tables (13px, medium). */
+.oar-scope [data-slot="table-head"] {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+/* The petal loader (components/shared/loading-spinner.tsx): the whole ring turns in twelve steps, one petal at a time. It turns
+   against the direction the petals lighten, so the pale ones trail behind the dark one. */
+@keyframes spinner-petals-turn {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.spinner-petals {
+  transform-origin: 50% 50%;
+  animation: spinner-petals-turn 1s steps(12, end) infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, turning slowly. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner-petals {
+    animation-duration: 4s;
+  }
+}
+
+/* The page loader (components/shared/page-loader.tsx): an hourglass. The top sand empties, the bottom fills, a thin stream
+   falls between them, and the glass turns over to start again. */
+@keyframes page-loader-turn {
+  0%,
+  80% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes page-loader-top {
+  0% {
+    transform: scaleY(1);
+  }
+  80%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes page-loader-bottom {
+  0% {
+    transform: scaleY(0);
+  }
+  80%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes page-loader-stream {
+  0%,
+  8% {
+    opacity: 0;
+  }
+  12%,
+  76% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.page-loader-glass {
+  transform-origin: 50% 50%;
+  animation: page-loader-turn 3s ease-in-out infinite;
+}
+
+.page-loader-top,
+.page-loader-bottom {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.page-loader-top {
+  animation: page-loader-top 3s linear infinite;
+}
+
+.page-loader-bottom {
+  animation: page-loader-bottom 3s linear infinite;
+}
+
+.page-loader-stream {
+  animation: page-loader-stream 3s linear infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, much slower. */
+@media (prefers-reduced-motion: reduce) {
+  .page-loader-glass,
+  .page-loader-top,
+  .page-loader-bottom,
+  .page-loader-stream {
+    animation-duration: 12s;
+  }
+}
+
+/* The chart loader (components/shared/chart-loader.tsx): a ring with one arc running round it. */
+@keyframes chart-loader-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-loader-ring {
+  transform-origin: 50% 50%;
+  animation: chart-loader-turn 0.9s linear infinite;
+}
+
+/* For anyone who has asked for less motion: the same loader, turning slowly. */
+@media (prefers-reduced-motion: reduce) {
+  .chart-loader-ring {
+    animation-duration: 4s;
+  }
+}
+
+/* Wide tables whose sideways scrollbar stays on screen
+   (components/shared/sticky-scroll-table.tsx). */
+
+/* The table's own scrollbar is hidden: the pinned bar below replaces it. The
+   box still scrolls, so Shift + wheel and trackpad swipes work as before. */
+.sticky-hscroll-viewport {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sticky-hscroll-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* The pinned bar. Thicker and darker than the browser's own on purpose: the
+   people it is for missed the thin grey default entirely. A grey lane with a
+   dark thumb, so it reads as a control even before it is hovered. */
+.sticky-hscroll-bar {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar {
+  height: 14px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-track {
+  background-color: var(--muted);
+  border-radius: 9999px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--foreground) 45%, var(--muted));
+  border: 2px solid var(--muted);
+  border-radius: 9999px;
+}
+
+.sticky-hscroll-bar::-webkit-scrollbar-thumb:hover,
+.sticky-hscroll-bar::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--foreground) 65%, var(--muted));
+}
+
+/* Firefox has no ::-webkit-scrollbar. Chromium ignores those rules once
+   scrollbar-color is set, so it is set only where they do not apply. */
+@supports not selector(::-webkit-scrollbar) {
+  .sticky-hscroll-bar {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 45%, var(--muted)) var(--muted);
+  }
+}
+
+/* The frozen column: stays at the left edge while the others scroll under it. */
+[data-frozen-column] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--background);
+}
+
+/* TableRow tints a hovered, focused or open row with a translucent muted,
+   which on this cell would let the scrolled cells show through. So the cell
+   paints the same colour solid: half muted over the page background. */
+tr:hover > [data-frozen-column],
+tr:focus-visible > [data-frozen-column],
+tr[aria-expanded="true"] > [data-frozen-column],
+tr:has([aria-expanded="true"]) > [data-frozen-column] {
+  background-color: color-mix(in srgb, var(--muted) 50%, var(--background));
+}
+
+tr[data-state="selected"] > [data-frozen-column] {
+  background-color: var(--muted);
+}
+
+/* An edge, once there is something scrolled under the column. */
+[data-frozen-pinned] [data-frozen-column] {
+  box-shadow:
+    inset -1px 0 0 var(--border),
+    6px 0 6px -6px rgb(0 0 0 / 0.2);
+}
+
+/* ---------------------------------------------------------------------------
+   Initiative 8 (Repairable Spares), Live: the redesign's look.
+
+   I08_Live_UI_Redesign_Plan.md, V1. Scoped, not global: the I08 layout puts
+   `i08-scope` on its pages, and the dialogs, drawers and popups they open carry
+   it too, so the rest of the app keeps its own look until this one has been
+   seen. Vedanta blue for actions and links, a light grey page under white
+   cards, and status colours whose text clears 4.5:1 on its own tint -- every
+   pair below was measured.
+   --------------------------------------------------------------------------- */
+.i08-scope {
+  --primary: #005da4;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --accent: #e6f0f9;
+  --accent-foreground: #004b87;
+  --muted-foreground: #525866;
+  --i08-canvas: #f4f6f8;
+  --i08-link: #005da4;
+  --i08-row-hover: #f2f6fb;
+  --i08-crit: #d03b3b;
+  --i08-crit-ink: #b42318;
+  --i08-crit-tint: #fef3f2;
+  --i08-crit-border: #fecdca;
+  --i08-warn: #f0a20b;
+  --i08-warn-ink: #93370d;
+  --i08-warn-tint: #fffaeb;
+  --i08-warn-border: #fedf89;
+  --i08-good: #5c9e1f;
+  --i08-good-ink: #3f6b12;
+  --i08-good-tint: #eef6e4;
+  --i08-good-border: #cfe5b4;
+  --i08-neutral: #98a2b3;
+  --i08-bar: #2a78d6;
+  /* The lifecycle stages in order, light to dark: one hue, validated. */
+  --i08-ord-1: #86b6ef;
+  --i08-ord-2: #3987e5;
+  --i08-ord-3: #184f95;
+}
+
+/* Not inside `.light-scope`. The Overview's PDF copy (overview-print.tsx) carries
+ * both classes so that a dark page still prints in the light I08 palette. Without
+ * the :not(), this block -- two classes specific, against `.light-scope`'s one --
+ * won, and the PDF came out with pale status text and a reversed heat ramp on
+ * white paper. */
+.dark .i08-scope:not(.light-scope) {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --accent: rgb(31 116 192 / 0.2);
+  --accent-foreground: #a9d0f5;
+  /* Without this the light value (#525866) carried into dark mode: dark grey
+     on near-black, about 2.5:1. This is about 7:1 on the cards. */
+  --muted-foreground: #a3abb8;
+  --i08-canvas: var(--background);
+  --i08-link: #7cb9ee;
+  --i08-row-hover: rgb(255 255 255 / 0.04);
+  --i08-crit: #e66767;
+  --i08-crit-ink: #ffa39e;
+  --i08-crit-tint: rgb(230 103 103 / 0.12);
+  --i08-crit-border: rgb(230 103 103 / 0.35);
+  --i08-warn: #f5b941;
+  --i08-warn-ink: #f9cf7a;
+  --i08-warn-tint: rgb(245 185 65 / 0.12);
+  --i08-warn-border: rgb(245 185 65 / 0.35);
+  --i08-good: #8cc657;
+  --i08-good-ink: #b2dc8a;
+  --i08-good-tint: rgb(140 198 87 / 0.12);
+  --i08-good-border: rgb(140 198 87 / 0.35);
+  --i08-neutral: #6b7685;
+  --i08-bar: #3987e5;
+  --i08-ord-1: #184f95;
+  --i08-ord-2: #3987e5;
+  --i08-ord-3: #b7d3f6;
+}
+
+@theme inline {
+  --color-i08-canvas: var(--i08-canvas);
+  --color-i08-link: var(--i08-link);
+  --color-i08-row-hover: var(--i08-row-hover);
+  --color-i08-crit: var(--i08-crit);
+  --color-i08-crit-ink: var(--i08-crit-ink);
+  --color-i08-crit-tint: var(--i08-crit-tint);
+  --color-i08-crit-border: var(--i08-crit-border);
+  --color-i08-warn: var(--i08-warn);
+  --color-i08-warn-ink: var(--i08-warn-ink);
+  --color-i08-warn-tint: var(--i08-warn-tint);
+  --color-i08-warn-border: var(--i08-warn-border);
+  --color-i08-good: var(--i08-good);
+  --color-i08-good-ink: var(--i08-good-ink);
+  --color-i08-good-tint: var(--i08-good-tint);
+  --color-i08-good-border: var(--i08-good-border);
+  --color-i08-neutral: var(--i08-neutral);
+  --color-i08-bar: var(--i08-bar);
+  --color-i08-ord-1: var(--i08-ord-1);
+  --color-i08-ord-2: var(--i08-ord-2);
+  --color-i08-ord-3: var(--i08-ord-3);
+}
+
+/* Rows that open something: a clearer hover than the shared table's. */
+.i08-scope tr[data-i08-row]:hover,
+.i08-scope tr[data-i08-row]:focus-visible {
+  background-color: var(--i08-row-hover);
+}
+
+/* The frozen Material column (StickyScrollTable) sits in a white card here,
+   not on the page, so it paints the card's colour -- and the header's and the
+   hover's, solid, so scrolled cells never show through it. */
+.i08-scope {
+  --i08-head: color-mix(in srgb, var(--muted) 55%, var(--card));
+  --i08-row-hover-solid: #f2f6fb;
+}
+.dark .i08-scope {
+  --i08-row-hover-solid: color-mix(in srgb, #ffffff 4%, var(--card));
+}
+.i08-scope [data-frozen-column] {
+  background-color: var(--card);
+}
+.i08-scope thead [data-frozen-column] {
+  background-color: var(--i08-head);
+}
+.i08-scope tr[data-i08-row]:hover > [data-frozen-column],
+.i08-scope tr[data-i08-row]:focus-visible > [data-frozen-column],
+.i08-scope tr[aria-expanded="true"] > [data-frozen-column] {
+  background-color: var(--i08-row-hover-solid);
+}
+
+/* The Overview's stage-by-age table: one blue, light (few lines) to dark (many).
+   Sequential, so the light end may recede; every cell also prints its number. */
+.i08-seq-1 { background-color: #cde2fb; color: #0d2847; }
+.i08-seq-2 { background-color: #9ec5f4; color: #0d2847; }
+.i08-seq-3 { background-color: #6da7ec; color: #0d2847; }
+.i08-seq-4 { background-color: #3987e5; color: #ffffff; }
+.i08-seq-5 { background-color: #256abf; color: #ffffff; }
+.i08-seq-6 { background-color: #184f95; color: #ffffff; }
+.i08-seq-7 { background-color: #0d366b; color: #ffffff; }
+/* The PDF copy keeps the light ramp, as above. */
+.dark .i08-seq-1:not(.light-scope *) { background-color: #12345c; color: #e8f1fc; }
+.dark .i08-seq-2:not(.light-scope *) { background-color: #184f95; color: #e8f1fc; }
+.dark .i08-seq-3:not(.light-scope *) { background-color: #1c5cab; color: #ffffff; }
+.dark .i08-seq-4:not(.light-scope *) { background-color: #2a78d6; color: #ffffff; }
+.dark .i08-seq-5:not(.light-scope *) { background-color: #5598e7; color: #0b1f38; }
+.dark .i08-seq-6:not(.light-scope *) { background-color: #86b6ef; color: #0b1f38; }
+.dark .i08-seq-7:not(.light-scope *) { background-color: #b7d3f6; color: #0b1f38; }
+
+/* Motion (plan, section 3.7): short, purposeful, and off for anyone who asked
+   for less. A bar grows from its baseline; a cell or a timeline step settles in. */
+@keyframes i08-grow {
+  from { transform: scaleX(0); }
+}
+@keyframes i08-settle {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes i08-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(380%); }
+}
+.i08-grow {
+  transform-origin: left center;
+  animation: i08-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.i08-settle {
+  animation: i08-settle 0.35s ease-out both;
+}
+/* The thin bar across the top of a list while its next page loads. */
+.i08-progress {
+  overflow: hidden;
+  pointer-events: none;
+}
+.i08-progress::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 30%;
+  background-color: var(--primary);
+  opacity: 0;
+}
+.i08-progress[data-on]::before {
+  opacity: 1;
+  animation: i08-slide 0.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .i08-grow,
+  .i08-settle {
+    animation: none;
+  }
+  .i08-progress[data-on]::before {
+    animation-duration: 3s;
+  }
 }

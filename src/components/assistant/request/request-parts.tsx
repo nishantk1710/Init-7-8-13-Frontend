@@ -1,13 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy, FlaskConical } from "lucide-react"
+import { Check, Copy } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
 import type { Justification } from "@/lib/assistant/request/lines"
 import { RequiredMark } from "@/components/assistant/step-form"
 import { cn } from "@/lib/utils"
@@ -24,21 +23,6 @@ export const SELECT_CLASS = cn(
   "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   "aria-invalid:border-destructive dark:bg-input/30"
 )
-
-/** Shown only in the offline demo -- live screens carry no banner. */
-export function DemoBanner({ children }: { children?: React.ReactNode }) {
-  if (!ASSISTANT_DEMO) return null
-  return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-foreground">
-      <FlaskConical className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-      <span>
-        <span className="font-semibold">Preview on mock data.</span>{" "}
-        {children ??
-          "Materials, stock and suggestions are invented to show every case. Nothing is sent to the backend or SAP; requests are kept in this browser only."}
-      </span>
-    </div>
-  )
-}
 
 export type ChipTone = "ready" | "todo" | "muted" | "warn" | "bad"
 
@@ -134,65 +118,6 @@ export function JustificationFields({
         />
       </div>
     </div>
-  )
-}
-
-/**
- * One line's department: a code from the plant's list
- * (`GET /assistant/departments?plant=`, the plant's own codes).
- *
- * A native select rather than a searchable popover: it sits inside a table,
- * which would clip one.
- *
- * While the backend's list has not loaded, a 5-digit code can be typed
- * instead -- the backend then accepts any code of that shape, as the opener does.
- */
-export function DepartmentSelect({
-  codes,
-  value,
-  onChange,
-  label,
-  invalid,
-  disabled,
-}: {
-  codes: readonly string[]
-  value: string
-  onChange: (code: string) => void
-  label: string
-  invalid: boolean
-  disabled?: boolean
-}) {
-  if (codes.length === 0) {
-    return (
-      <input
-        aria-label={label}
-        inputMode="numeric"
-        maxLength={5}
-        placeholder="5 digits"
-        className={cn(SELECT_CLASS, "w-28 font-mono")}
-        value={value}
-        disabled={disabled}
-        aria-invalid={invalid}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
-      />
-    )
-  }
-  return (
-    <select
-      aria-label={label}
-      className={cn(SELECT_CLASS, "w-28 font-mono")}
-      value={value}
-      disabled={disabled}
-      aria-invalid={invalid}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">Choose…</option>
-      {codes.map((code) => (
-        <option key={code} value={code}>
-          {code}
-        </option>
-      ))}
-    </select>
   )
 }
 

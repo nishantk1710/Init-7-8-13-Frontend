@@ -1,12 +1,35 @@
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { TableCell } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
-import type { DeliveryStatus } from "@/features/initiative-13/utils/delivery-status"
-import { formatCount } from "@/lib/utils"
+import {
+  DELIVERY_STATE_EXPLANATIONS,
+  DELIVERY_STATE_LABELS,
+  type DeliveryStatus,
+} from "@/features/initiative-13/utils/delivery-status"
+import { cn, formatCount } from "@/lib/utils"
+
+/** Hover text naming the SAP field, so the cell itself can stay short. */
+const EXPECTED_TITLE = "Expected delivery date (EKET-EINDT): the PO line's next schedule line still to deliver"
+
+/** "Expected 25 Oct 2026" (or "Next expected …"), red once the date has passed. */
+function ExpectedLine({ date, overdue, prefix }: { date: string; overdue: boolean; prefix: string }) {
+  return (
+    <span
+      className={cn("whitespace-nowrap text-xs", overdue ? "font-medium text-destructive" : "text-muted-foreground")}
+      title={`${EXPECTED_TITLE}${overdue ? " -- this date has passed" : ""}`}
+    >
+      {prefix} {formatApiDate(date)}
+    </span>
+  )
+}
 
 /**
- * The "Delivered on" cell: goods-receipt date with its status underneath, so a
- * partial delivery never shows as a bare date.
+ * The "Delivered on" cell: goods-receipt date (EKBE-BUDAT) with its status
+ * underneath, so a partial delivery never shows as a bare date. A line not
+ * (fully) delivered also says when the rest is expected (EKET-EINDT), in red
+ * with an Overdue badge once that date has passed. A line nothing more will
+ * arrive on (closed in SAP, or not an order) says so, never "Not delivered".
  */
 export function DeliveredOnCell({
   status,
@@ -20,15 +43,40 @@ export function DeliveredOnCell({
 }) {
   if (status.state === "NO_PO") {
     return (
-      <TableCell className="text-muted-foreground" title="No purchase order yet">
-        —
+      <TableCell>
+        <EmptyValue kind="noPoYet" />
+      </TableCell>
+    )
+  }
+  if (status.state === "CLOSED" || status.state === "NOT_AN_ORDER") {
+    const received = receivedQuantity ?? 0
+    return (
+      <TableCell title={DELIVERY_STATE_EXPLANATIONS[status.state]}>
+        <div className="flex flex-col items-start gap-1">
+          {received > 0 && status.date && (
+            <span className="whitespace-nowrap text-foreground">{formatApiDate(status.date)}</span>
+          )}
+          <StatusBadge>
+            {DELIVERY_STATE_LABELS[status.state]}
+            {received > 0 ? ` · ${formatCount(received)} received` : ""}
+          </StatusBadge>
+        </div>
       </TableCell>
     )
   }
   if (status.state === "NOT_DELIVERED") {
     return (
       <TableCell>
-        <StatusBadge>Not delivered</StatusBadge>
+        <div className="flex flex-col items-start gap-1">
+          {status.expectedDate ? (
+            <ExpectedLine date={status.expectedDate} overdue={status.overdue} prefix="Expected" />
+          ) : (
+            <span className="text-xs text-muted-foreground" title={EXPECTED_TITLE}>
+              No expected date in SAP
+            </span>
+          )}
+          {status.overdue ? <StatusBadge tone="danger">Overdue</StatusBadge> : <StatusBadge>Not delivered</StatusBadge>}
+        </div>
       </TableCell>
     )
   }
@@ -50,6 +98,13 @@ export function DeliveredOnCell({
           <StatusBadge tone="success">Delivered</StatusBadge>
         ) : (
           <StatusBadge tone="warning">Partially received · {partialDetail}</StatusBadge>
+        )}
+        {status.state === "PARTIAL" && status.expectedDate && (
+          <ExpectedLine
+            date={status.expectedDate}
+            overdue={status.overdue}
+            prefix={status.overdue ? "Overdue · next expected" : "Next expected"}
+          />
         )}
       </div>
     </TableCell>

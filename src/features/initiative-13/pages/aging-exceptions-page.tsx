@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
+import { ListChecks, UserCheck, UserX } from "lucide-react"
 
-import { AlertBanner } from "@/components/shared/alert-banner"
-import { PageHeader } from "@/components/shared/page-header"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { ActExceptionsBoard } from "@/features/initiative-13/components/act-exceptions-board"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
+import { AttentionBanner } from "@/features/initiative-13/components/ui/attention-banner"
+import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
+import { OarPageHeader, OarScope } from "@/features/initiative-13/components/ui/oar-scope"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { loadLiveActExceptions } from "@/features/initiative-13/data/live-loaders"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
@@ -83,24 +85,47 @@ export async function ExceptionsPage({
   const unrouted = live ? live.count - live.ownedCount : 0
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
-        <PageHeader
+    <OarScope>
+        <OarPageHeader
           title="Procurement Exceptions"
-          description="Planned consumption overdue, Non-AI reservations, materials received but not issued for 30+ days, and quantity overridden reservations — with the requester's reason and HOD escalation."
+          subtitle="Planned consumption overdue, Non-AI reservations, materials received but not issued for 30+ days, and quantity overridden reservations — with the requester's reason and HOD escalation."
         />
 
+        {live !== null && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <KpiCard
+              label="Exceptions on this page"
+              icon={<ListChecks className="size-3.5" aria-hidden />}
+              value={formatCount(live.count)}
+              hint={live.total !== null ? `of ${formatCount(live.total)} in the queue` : undefined}
+            />
+            <KpiCard
+              accent="healthy"
+              label="Requester identified"
+              icon={<UserCheck className="size-3.5" aria-hidden />}
+              value={formatCount(live.ownedCount)}
+              hint="Routed to the requester for a reason."
+            />
+            <KpiCard
+              accent="urgent"
+              label="Requester not identified"
+              icon={<UserX className="size-3.5" aria-hidden />}
+              value={formatCount(unrouted)}
+              hint="Nobody has been asked, so these cannot escalate."
+            />
+          </div>
+        )}
+
         {live !== null && unrouted > 0 && (
-          <AlertBanner
-            tone="warning"
-            title={`${formatCount(unrouted)} of the ${formatCount(live.count)} exceptions on this page: requester not identified`}
+          <AttentionBanner
+            title={`Why ${formatCount(unrouted)} of the ${formatCount(live.count)} exceptions on this page are unassigned`}
           >
             We can&rsquo;t tell who raised these reservations, so nobody has been
             asked for a reason and they cannot escalate. The requester is taken
-            from the consumption plan first and from the reservation&rsquo;s goods
-            recipient in SAP second; where neither is available — or the two name
+            from the <strong>consumption plan first</strong> and from the reservation&rsquo;s{" "}
+            <strong>goods recipient in SAP second</strong>; where neither is available — or the two name
             different people — it is left unassigned rather than guessed.
-          </AlertBanner>
+          </AttentionBanner>
         )}
 
         <I13UrlFilters
@@ -127,7 +152,6 @@ export async function ExceptionsPage({
             />
           </>
         )}
-      </div>
-    </div>
+    </OarScope>
   )
 }

@@ -1,0 +1,95 @@
+# Production deployment of the frontend (app-vzi-aicom-fe-prod-san), from
+# Azure DevOps.
+#
+# HOW CODE GETS HERE
+#
+#   GitHub main is mirrored into this repository by
+#   .github/workflows/mirror-to-devops.yml on every merge, and GitHub main only
+#   receives release PRs from dev -- commits that already ran on nonprod. Nothing
+#   is committed to this repository directly.
+#
+# WHAT THIS DOES
+#
+#   Wait for approval on environment aicom-prod-web -> build with the prod values ->
+#   zip deploy the standalone bundle to prod -> smoke check. The build happens
+#   after approval and per environment because NEXT_PUBLIC_* values are inlined
+#   into the JavaScript at build time; nonprod's bundle (built by GitHub with
+#   nonprod's API address) cannot be reused here. Nonprod is untouched: no
+#   nonprod credential exists in Azure DevOps.
+#
+# REQUIRED IN AZURE DEVOPS
+#
+#   * Variable group frontend-prod: FE_DEPLOY_USER, FE_DEPLOY_PASSWORD (secret),
+#     FE_HOST, FE_SCM_HOST, and the two build values below.
+#   * Environment aicom-prod-web, with the approval, branch-control (main) and
+#     exclusive-lock checks. Its own environment, separate from the backend's
+#     aicom-prod-api, so the two apps deploy in parallel while each app still
+#     never has two deployments overlapping.
+#
+# Build values -- only these two; the rest default correctly in the code
+# (ASSISTANT_CHAT off, API_GET_TIMEOUT_MS 60000, ACTOR_ID unset as on nonprod):
+#   API_BASE_URL        the prod API including /api. Unset, the site calls localhost.
+#   ASSISTANT_REQUESTS  "true", matching the prod backend's ASSISTANT_REQUESTS_ENABLED.
+
+trigger:
+  branches:
+    include: [main]
+
+# PRs are not built here; review and CI happen on GitHub before the mirror.
+pr: none
+
+stages:
+  - stage: Deploy_prod
+    condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    variables:
+      - group: frontend-prod
+    jobs:
+      - deployment: web
+        environment: aicom-prod-web
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                # UseNode@1 replaces the deprecated NodeTool@0.
+                - task: UseNode@1
+                  inputs:
+                    version: "22.x"
+
+                - bash: |
+                    set -euo pipefail
+                    # A variable missing from the group reaches the script as the
+                    # literal text "$(NAME)" -- refuse rather than build it in.
+                    for pair in "API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" "ASSISTANT_REQUESTS=$NEXT_PUBLIC_ASSISTANT_REQUESTS"; do
+                      case "${pair#*=}" in
+                        ''|'$('*) echo "##vso[task.logissue type=error]${pair%%=*} is not set in variable group frontend-prod."; exit 1 ;;
+                      esac
+                    done
+                    npm ci
+                    npm run build
+                    # The standalone output omits public/ and .next/static/ (Next
+                    # expects a CDN). Without a CDN, copy them in or every page
+                    # renders unstyled.
+                    cp -r public .next/standalone/public
+                    cp -r .next/static .next/standalone/.next/static
+                    (cd .next/standalone && zip -qr "$(Pipeline.Workspace)/frontend.zip" .)
+                  displayName: Build with the prod values
+                  env:
+                    NEXT_PUBLIC_API_BASE_URL: $(API_BASE_URL)
+                    NEXT_PUBLIC_ASSISTANT_REQUESTS: $(ASSISTANT_REQUESTS)
+
+                - template: pipelines/zipdeploy.yml
+                  parameters:
+                    package: $(Pipeline.Workspace)/frontend.zip
+                    user: $(FE_DEPLOY_USER)
+                    password: $(FE_DEPLOY_PASSWORD)
+                    scmHost: $(FE_SCM_HOST)
+
+                - bash: |
+                    curl --fail --silent --show-error --output /dev/null \
+                      --retry 20 --retry-delay 15 --retry-all-errors \
+                      "https://$(FE_HOST)/"
+                  displayName: Smoke check

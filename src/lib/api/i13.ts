@@ -130,6 +130,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
     openQuantity: toNumber(raw.open_quantity as string) ?? null,
     firstGrDate: str(raw.first_gr_date),
     latestGrDate: str(raw.latest_gr_date),
+    expectedDeliveryDate: str(raw.expected_delivery_date),
     firstGiDate: str(raw.first_gi_date),
     latestGiDate: str(raw.latest_gi_date),
     procurementStatus: oneOf(
@@ -1226,6 +1227,7 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? null,
     firstGrDate: str(raw.first_gr_date),
     lastGrDate: str(raw.last_gr_date),
+    expectedDeliveryDate: str(raw.expected_delivery_date),
     lastIssueDate: str(raw.last_issue_date),
     lifecycleStatus: String(raw.lifecycle_status ?? ""),
     sessionId: str(raw.session_id),
@@ -1241,6 +1243,8 @@ export function getI13ReservationLedgerList(params?: {
   plant?: string
   material?: string
   sessionId?: string
+  /** Exact match on the reservation number, as the backend stores it. */
+  reservationNumber?: string
   limit?: number
   offset?: number
 }): Promise<ApiList<ReservationLedgerRow>> {
@@ -1248,6 +1252,7 @@ export function getI13ReservationLedgerList(params?: {
     plant: params?.plant,
     material: params?.material,
     session_id: params?.sessionId,
+    reservation_number: params?.reservationNumber,
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })

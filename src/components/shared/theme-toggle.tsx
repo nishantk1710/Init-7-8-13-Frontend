@@ -23,7 +23,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <div className="mx-2 my-0.5 flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] text-muted-foreground">
+      <div className="flex h-9 items-center gap-2 rounded-xl px-3 text-[13px] text-nav-muted">
         <span className="size-4" />
         Appearance
       </div>
@@ -36,7 +36,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="mx-2 my-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-muted"
+      className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] text-nav-muted transition-colors hover:bg-nav-hover hover:text-nav-fg"
     >
       {isDark ? (
         <Moon className="size-4 shrink-0" />

@@ -16,21 +16,6 @@ export function pagedTableView(loading: boolean, rows: readonly unknown[] | null
   return loading ? "skeleton" : "empty"
 }
 
-/** The footer's left side. While a page loads it says so, instead of showing the new page's range above the
- * old page's rows. */
-export function pagedFooterText(args: { loading: boolean; page: number; pageSize: number; total: number }): string {
-  const { loading, page, pageSize, total } = args
-  if (loading) return `Loading page ${page.toLocaleString("en-US")}…`
-  const first = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const last = Math.min(total, page * pageSize)
-  return `Showing ${first.toLocaleString("en-US")}–${last.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`
-}
-
-/** Next/Previous are off while a page loads, so repeated clicks cannot queue a pile of requests. */
-export function canGoPrevious(loading: boolean, page: number): boolean {
-  return !loading && page > 1
-}
-
-export function canGoNext(loading: boolean, page: number, pageSize: number, total: number): boolean {
-  return !loading && page * pageSize < total
-}
+// The footer under a paged table is the shared `TablePagination` (`loading` prop): while a page loads it names the
+// page coming instead of showing the new page's range above the old page's rows, and Previous/Next switch off so
+// repeated clicks cannot queue a pile of requests. Its text is `pageSummary` in `lib/pagination.ts`.

@@ -1,7 +1,9 @@
 "use client"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
+import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import {
   Table,
   TableBody,
@@ -15,7 +17,7 @@ import { formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
-const BAND_TONE = { FAST: "success", SLOW: "warning", NON_MOVING: "danger" } as const
+const BAND_TONE = { FAST: "healthy", SLOW: "caution", NON_MOVING: "urgent" } as const
 
 /**
  * One bar per month of net goods issues, scaled to this row's own busiest month.
@@ -55,7 +57,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
+    <DataTable className={FITTED_TABLE}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -79,12 +81,12 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
                   <MaterialName material={row.material} description={row.materialDescription} />
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
               <TableCell>
                 {row.agingBand ? (
-                  <StatusBadge tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusBadge>
+                  <StatusPill tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusPill>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <EmptyValue kind="notClassified" />
                 )}
               </TableCell>
               <TableCell>
@@ -96,16 +98,18 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
               <TableCell className="text-right text-foreground">
-                {row.stockOnHand === null ? "—" : formatCount(row.stockOnHand)}
+                {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
               </TableCell>
               <TableCell className="text-right text-foreground">
-                {row.averageMonthlyConsumption === null ? "—" : row.averageMonthlyConsumption.toFixed(1)}
+                {row.averageMonthlyConsumption === null ? (
+                  <EmptyValue kind="noConsumptionHistory" />
+                ) : (
+                  row.averageMonthlyConsumption.toFixed(1)
+                )}
               </TableCell>
               <TableCell className="text-right text-foreground">
                 {row.monthsOfCover === null ? (
-                  <span className="text-muted-foreground" title="No consumption to divide by">
-                    —
-                  </span>
+                  <EmptyValue kind="noConsumptionHistory" />
                 ) : (
                   row.monthsOfCover.toFixed(1)
                 )}
@@ -114,6 +118,6 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
           ))}
         </TableBody>
       </Table>
-    </div>
+    </DataTable>
   )
 }

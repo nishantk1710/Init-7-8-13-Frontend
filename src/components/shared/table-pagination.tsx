@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import { buttonVariants } from "@/components/ui/button"
-import { pageWindow } from "@/lib/pagination"
+import { pageSummary, pageWindow } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
 
 /**
@@ -19,6 +19,10 @@ import { cn, formatCount } from "@/lib/utils"
  *
  * The buttons are hidden when everything fits on one page; the count line is
  * not, because "12 of 12" is still worth saying.
+ *
+ * `loading` is for a client-fetched table that keeps the previous page's rows
+ * (dimmed) while the next page loads: the line says which page is coming and
+ * both buttons switch off, so repeated clicks cannot queue a pile of requests.
  */
 export function TablePagination({
   page,
@@ -28,6 +32,7 @@ export function TablePagination({
   noun,
   hrefFor,
   onPageChange,
+  loading = false,
   className,
 }: {
   /** 1-based. */
@@ -41,6 +46,8 @@ export function TablePagination({
   noun?: string
   hrefFor?: (page: number) => string
   onPageChange?: (page: number) => void
+  /** The next page is being fetched while this one's rows are still shown. */
+  loading?: boolean
   className?: string
 }) {
   if (count === 0 && page === 1) return null
@@ -48,27 +55,22 @@ export function TablePagination({
   const w = pageWindow({ page, pageSize, total, count })
   const showButtons = w.hasPrevious || w.hasNext
 
-  const range =
-    count === 0
-      ? "No rows on this page"
-      : `Showing ${formatCount(w.first)}–${formatCount(w.last)}` +
-        (total === null ? "" : ` of ${formatCount(total)}`) +
-        (noun ? ` ${noun}` : "")
+  const range = pageSummary({ page, pageSize, total, count, noun, loading })
   const pageLabel =
     w.pageCount === null ? `Page ${formatCount(page)}` : `Page ${formatCount(page)} of ${formatCount(w.pageCount)}`
 
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-2", className)}>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground" aria-live={loading ? "polite" : undefined}>
         {range}
-        {showButtons && <> · {pageLabel}</>}
+        {showButtons && !loading && <> · {pageLabel}</>}
       </p>
       {showButtons && (
         <div className="flex gap-2">
-          <PageButton target={page - 1} enabled={w.hasPrevious} hrefFor={hrefFor} onPageChange={onPageChange}>
+          <PageButton target={page - 1} enabled={!loading && w.hasPrevious} hrefFor={hrefFor} onPageChange={onPageChange}>
             Previous
           </PageButton>
-          <PageButton target={page + 1} enabled={w.hasNext} hrefFor={hrefFor} onPageChange={onPageChange}>
+          <PageButton target={page + 1} enabled={!loading && w.hasNext} hrefFor={hrefFor} onPageChange={onPageChange}>
             Next
           </PageButton>
         </div>
@@ -93,20 +95,20 @@ function PageButton({
   const className = buttonVariants({ variant: "outline", size: "sm" })
   if (!enabled) {
     return (
-      <span aria-disabled="true" className={cn(className, "pointer-events-none opacity-50")}>
+      <span data-slot="button" aria-disabled="true" className={cn(className, "pointer-events-none opacity-50")}>
         {children}
       </span>
     )
   }
   if (hrefFor) {
     return (
-      <Link href={hrefFor(target)} scroll={false} className={className}>
+      <Link data-slot="button" href={hrefFor(target)} scroll={false} className={className}>
         {children}
       </Link>
     )
   }
   return (
-    <button type="button" className={className} onClick={() => onPageChange?.(target)}>
+    <button data-slot="button" type="button" className={className} onClick={() => onPageChange?.(target)}>
       {children}
     </button>
   )

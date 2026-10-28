@@ -31,7 +31,8 @@ import type {
   DeclarationQuery,
 } from "@/lib/api/i8"
 import type { ApiAttestation } from "@/lib/api/i8"
-import { formatApiDate, getAttestations, getDeclarations } from "@/lib/api/i8"
+import { getAttestations, getDeclarations } from "@/lib/api/i8"
+import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
@@ -69,10 +70,10 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
     repairStatus: (row.repairStatus as RepairStatus | null) ?? undefined,
     status: row.status,
     declaredBy: orUndefined(row.declaredBy),
-    declaredAt: row.declaredAt ? formatApiDate(row.declaredAt) : undefined,
+    declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     condition: orUndefined(row.condition),
     nextAction: row.nextAction,
-    createdAt: row.createdAt ? formatApiDate(row.createdAt) : undefined,
+    createdAt: row.createdAt ? i08Date(row.createdAt) : undefined,
   }
 }
 
@@ -112,6 +113,9 @@ export type DeclarationLogRow = {
   supersededBy?: string
   /** True when this row IS an amendment of an earlier one. */
   isAmendment: boolean
+  /** The repair line it was declared against, as the register keys it --
+   *  absent for a part declared with no repair line. */
+  repairId?: string
 }
 
 function toLogRow(row: ApiAttestation): DeclarationLogRow {
@@ -131,9 +135,14 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
     conditionDescription: row.conditionDescription,
     serialNumber: row.serialNumber ?? undefined,
     attestor: row.attestor,
-    attestedAt: row.attestedAt ? formatApiDate(row.attestedAt) : undefined,
+    // A full timestamp, so the date AND the time: the shared formatApiDate
+    // turned a timestamp into an invalid date, and this column read "—" on
+    // every row (I08_Live_UI_Redesign_Plan.md, Q11).
+    attestedAt: row.attestedAt ? i08DateTime(row.attestedAt) : undefined,
     supersededBy: row.supersededBy ?? undefined,
     isAmendment: Boolean(row.supersedes),
+    repairId:
+      row.repairDocument && row.repairItem ? `${row.repairDocument}-${row.repairItem}` : undefined,
   }
 }
 

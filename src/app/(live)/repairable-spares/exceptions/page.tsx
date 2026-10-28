@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
-import { PageHeader } from "@/components/shared/page-header"
-import { ExceptionsTable } from "@/features/initiative-8/components/exceptions-table"
+import { ExceptionsScreen } from "@/features/initiative-8/components/exceptions-screen"
+import { I08Page } from "@/features/initiative-8/components/kit/page"
 import {
   exceptionsHref,
   loadExceptionsPage,
@@ -12,7 +12,7 @@ import {
   type ExceptionsPage,
 } from "@/features/initiative-8/data/live-exceptions"
 import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
-import { getException } from "@/lib/api/i8"
+import { getAttestations, getException } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
@@ -66,10 +66,15 @@ export const metadata: Metadata = {
  *
  * ## Paged on the server
  *
- * `?q=`, `?type=`, `?plant=`, `?open=`, `?status=`, `?repair=` and `?page=`
- * are read here, and the backend searches, filters, counts and pages. The
- * screen used to load all 5,978 items and filter them in the browser: a 17 MB
- * page that took ten seconds to arrive. See `loadExceptionsPage`.
+ * `?q=`, `?type=`, `?plant=`, `?status=`, `?repair=` and `?page=` are read
+ * here, and the backend searches, filters, counts and pages. The screen used
+ * to load all 5,978 items and filter them in the browser: a 17 MB page that
+ * took ten seconds to arrive. See `loadExceptionsPage`.
+ *
+ * ## Laid out as tabs
+ *
+ * `?type=` is a tab and `?status=` the Open / Closed / All switch beside the
+ * tabs (I08_Live_UI_Redesign_Plan.md, L5); see `ExceptionsScreen`.
  */
 /**
  * `?id=EX-…` opens that item's drawer; `?repair=4500000677-20` narrows the
@@ -89,6 +94,12 @@ export default async function I08ExceptionsPage({
 
   const { filters, page, id } = parseExceptionParams(await searchParams)
 
+  // Best-effort and in parallel, for the drawer's Declare button: a failure
+  // costs the form its category list (it then says so), never the queue.
+  const faultCategories = getAttestations()
+    .then((body) => body.faultCategories ?? [])
+    .catch(() => [] as string[])
+
   // The linked item is fetched by id beside the page, not looked for on it:
   // it may be on any page, or filtered off them all. Best-effort -- a failure
   // costs the drawer, never the queue.
@@ -106,6 +117,7 @@ export default async function I08ExceptionsPage({
     loadError = error instanceof Error ? error.message : String(error)
   }
   const initialItem = await linked
+  const categories = await faultCategories
 
   // Past the end -- a stale link, or a filter that now matches fewer: go to
   // the last page there is rather than show an empty one. Outside the try:
@@ -115,46 +127,36 @@ export default async function I08ExceptionsPage({
     if (page > lastPage) redirect(exceptionsHref(filters, lastPage))
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
-        {/* Names only the checks this queue shows. Unjustified new purchases
-            used to be the second half of this line; that type has been dropped
-            from the queue since 14-Oct-2026 (see ALL_CHECKS in the table). */}
-        <PageHeader
-          title="Repair Exceptions"
-          description="Repair lines sent away with no condition declaration, and open repairs past their due date."
-        />
+  if (data === null) {
+    return (
+      <I08Page
+        crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Exceptions" }]}
+        title="Repair Exceptions"
+      >
+        <div role="alert" className="mt-6 rounded-xl border border-i08-crit-border bg-i08-crit-tint p-5">
+          <p className="text-sm text-foreground">The exception queue could not be loaded.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">{loadError}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            This is not &ldquo;no exceptions&rdquo;: it is a failed request, and on this screen the two mean opposite
+            things. Try again in a minute.
+          </p>
+        </div>
+      </I08Page>
+    )
+  }
 
-        {data === null ? (
-          <div
-            role="alert"
-            className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"
-          >
-            <p className="text-sm text-foreground">
-              The exception queue could not be loaded.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              This is not &ldquo;no exceptions&rdquo; — it is a failed request,
-              and on this screen the two mean opposite things. Check that the
-              backend is running and that its I08 data has finished building.
-            </p>
-          </div>
-        ) : (
-          <ExceptionsTable
-            key={id ?? ""}
-            rows={data.rows}
-            total={data.total}
-            page={page}
-            pageSize={DEFAULT_PAGE_SIZE}
-            summary={data.summary}
-            facets={data.facets}
-            filters={filters}
-            initialItem={initialItem}
-          />
-        )}
-      </div>
-    </div>
+  return (
+    <ExceptionsScreen
+      rows={data.rows}
+      total={data.total}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
+      summary={data.summary}
+      facets={data.facets}
+      filters={filters}
+      typeCounts={data.typeCounts}
+      initialItem={initialItem}
+      faultCategories={categories}
+    />
   )
 }

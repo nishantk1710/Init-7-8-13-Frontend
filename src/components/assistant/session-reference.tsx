@@ -41,12 +41,24 @@ import { cn } from "@/lib/utils"
  */
 export function SessionReference({
   sessionId,
+  request,
+  issuedAt,
   expiresAt,
   expired = false,
   className,
   children,
 }: {
   sessionId: string
+  /**
+   * Set when the session is a line of a multi-material request (the trace
+   * page). The line is shown as `R…/n`, but what goes into SAP is the bare
+   * `R…`, so that is what is copied. Left out, the session ID is both.
+   */
+  request?: { label: string; sapText: string }
+  /** When the session was minted. The trace passes it; the live chat does not
+   *  need it, because there the session was minted moments ago. */
+  issuedAt?: string | null
+  /** End of the reference's validity window -- not when it was recorded. */
   expiresAt?: string | null
   expired?: boolean
   className?: string
@@ -54,10 +66,12 @@ export function SessionReference({
   children?: React.ReactNode
 }) {
   const [copied, setCopied] = useState(false)
+  const shown = request?.label ?? sessionId
+  const sapText = request?.sapText ?? sessionId
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(sessionId)
+      await navigator.clipboard.writeText(sapText)
       setCopied(true)
       toast.success("Reference copied", {
         description: "Type it into the reservation's item text (SGTXT) in SAP.",
@@ -88,19 +102,29 @@ export function SessionReference({
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                Your session reference
+                {request ? "Request line" : "Your session reference"}
               </span>
               <span className="ai-gradient-text font-mono text-xl font-bold tracking-[0.18em]">
-                {sessionId}
+                {shown}
               </span>
             </span>
-            <span className="text-xs text-muted-foreground">
-              Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
-              what you actually reserve.
-            </span>
-            {expiresAt && !expired && (
+            {request ? (
+              <span className="text-xs text-muted-foreground">
+                Part of a multi-material request. Type{" "}
+                <span className="font-mono font-semibold text-foreground">{sapText}</span>
+                {" "}into the reservation&rsquo;s header text in SAP; SAP copies it to every item.
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Type this into the reservation&rsquo;s item text (SGTXT) in SAP so this advice can be linked to
+                what you actually reserve.
+              </span>
+            )}
+            {(issuedAt || (expiresAt && !expired)) && (
               <span className="text-[11px] text-muted-foreground">
-                Recorded {formatExpiry(expiresAt)}
+                {issuedAt && <>Recorded {formatExpiry(issuedAt)}</>}
+                {issuedAt && expiresAt && !expired && " · "}
+                {expiresAt && !expired && <>Valid until {formatExpiry(expiresAt)}</>}
               </span>
             )}
             {expired && (

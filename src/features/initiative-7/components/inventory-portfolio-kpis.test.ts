@@ -17,7 +17,7 @@ function render(workingCapitalOverride?: { amount: number | null; currency: stri
   return renderToStaticMarkup(
     createElement(InventoryPortfolioKpis, {
       recommendations: [] as Recommendation[],
-      pendingApprovalOverride: { count: 5, total: 100 },
+      adoptedOverride: { count: 5, total: 100 },
       stockoutRiskOverride: { count: 3, total: 100 },
       excessInventoryOverride: { count: 7, total: 100, opportunity: null },
       workingCapitalOverride,
@@ -65,6 +65,33 @@ describe("High Stockout Risk KPI without a backend figure", () => {
   })
 })
 
+describe("Adopted recommendation KPI", () => {
+  const renderAdopted = (adoptedOverride?: { count: number; total: number } | null) =>
+    renderToStaticMarkup(createElement(InventoryPortfolioKpis, { recommendations: [] as Recommendation[], adoptedOverride }))
+
+  it("replaces Pending Approval: x adopted of y recommendations, and the share", () => {
+    const markup = renderAdopted({ count: 12, total: 400 })
+    expect(markup).toContain("Adopted recommendation")
+    expect(markup).not.toContain("Pending Approval")
+    expect(markup).toContain(">12<")
+    expect(markup).toContain("of 400 recommendations")
+    expect(markup).toContain("3.0% adopted")
+  })
+
+  it("reads 0 of y, not Not available, when there is something to adopt and none has been", () => {
+    const markup = renderAdopted({ count: 0, total: 400 })
+    expect(markup).toContain("of 400 recommendations")
+    expect(markup).toContain("0.0% adopted")
+  })
+
+  it("says Not available, never 0, when the adoption counts could not be loaded", () => {
+    const markup = renderAdopted(null)
+    expect(markup).toContain("Adopted recommendation")
+    expect(markup).toContain("adoption counts could not be loaded")
+    expect(markup).not.toContain("% adopted")
+  })
+})
+
 describe("Working Capital Impact KPI", () => {
   it("shows the backend's portfolio net release, not a sum of the fetched rows", () => {
     const markup = render({ amount: 2_500_000, currency: "USD" })
@@ -82,7 +109,7 @@ describe("Working Capital Impact KPI", () => {
   it("says Not available, never 0, when the backend has no figure", () => {
     const markup = render({ amount: null, currency: null })
     expect(markup).toContain("Not available")
-    expect(markup).toContain("needs a unit price and a calculated safety stock")
+    expect(markup).toContain("needs a unit price and a calculated reorder point")
     expect(markup).not.toContain("Net release")
   })
 
@@ -101,7 +128,7 @@ describe("High Stockout Risk KPI", () => {
     return renderToStaticMarkup(
       createElement(InventoryPortfolioKpis, {
         recommendations: [] as Recommendation[],
-        pendingApprovalOverride: { count: 5, total: 100 },
+        adoptedOverride: { count: 5, total: 100 },
         stockoutRiskOverride,
         excessInventoryOverride: { count: 7, total: 100, opportunity: null },
         workingCapitalOverride: { amount: null, currency: null },
@@ -137,5 +164,72 @@ describe("High Stockout Risk KPI", () => {
     const markup = renderStockout(undefined)
     expect(markup).toContain("of in-scope")
     expect(markup).not.toContain("As of")
+  })
+})
+
+describe("a card that is waiting for its figure shows a loader, not Not available", () => {
+  const renderLoading = (loading: Parameters<typeof InventoryPortfolioKpis>[0]["loading"]) =>
+    renderToStaticMarkup(
+      createElement(InventoryPortfolioKpis, {
+        recommendations: [] as Recommendation[],
+        stockoutRiskOverride: { count: 891, total: 9916, insufficient: 503, asOf: "2026-05-31" },
+        excessInventoryOverride: { count: 727, total: 18627, opportunity: 1000 },
+        workingCapitalOverride: { amount: -2_000_000, currency: null },
+        adoptedOverride: { count: 0, total: 3911 },
+        loading,
+      }),
+    )
+
+  it("draws a loader for each card flagged as loading and none of its figures, not even the previous filter's", () => {
+    const html = renderLoading({ stockout: true, excess: true, workingCapital: true, adopted: true })
+    expect(html.match(/role="status"/g)).toHaveLength(4)
+    expect(html).toContain("Loading High Stockout Risk")
+    expect(html).not.toContain("Not available")
+    expect(html).not.toContain("891")
+    expect(html).not.toContain("727")
+    expect(html).not.toContain("3,911")
+  })
+
+  it("leaves the cards that are not loading showing their figures", () => {
+    const html = renderLoading({ stockout: true })
+    expect(html.match(/role="status"/g)).toHaveLength(1)
+    expect(html).toContain("727")
+    expect(html).toContain("3,911")
+    expect(html).toContain("−2.00M")
+  })
+
+  it("shows the figures as before when nothing is loading", () => {
+    const html = renderLoading(undefined)
+    expect(html).not.toContain('role="status"')
+    expect(html).toContain("891")
+  })
+
+  it("still says Not available, with its reason, when a figure really cannot be had", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryPortfolioKpis, { recommendations: [] as Recommendation[], stockoutRiskUnavailable: "could not be loaded from the backend" }),
+    )
+    expect(html).toContain("Not available")
+    expect(html).toContain("could not be loaded from the backend")
+  })
+})
+
+describe("a loading card is the ring loader, as tall as its content", () => {
+  it("is the ring, not the grey bars, and is as tall as the value and its lines", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryPortfolioKpis, { recommendations: [] as Recommendation[], loading: { stockout: true } }),
+    )
+    expect(html).toContain("chart-loader-ring")
+    expect(html).not.toContain("animate-pulse")
+    expect(html).toContain("h-[76px]")
+  })
+})
+
+describe("every loading card has the same one-colour loader", () => {
+  it("the same blue on all four, whatever the card's own accent", () => {
+    const only = (key: "stockout" | "excess" | "workingCapital" | "adopted") =>
+      renderToStaticMarkup(createElement(InventoryPortfolioKpis, { recommendations: [] as Recommendation[], loading: { [key]: true } }))
+    for (const key of ["stockout", "excess", "workingCapital", "adopted"] as const) {
+      expect(only(key)).toContain("chart-loader-ring size-12 shrink-0 text-primary")
+    }
   })
 })

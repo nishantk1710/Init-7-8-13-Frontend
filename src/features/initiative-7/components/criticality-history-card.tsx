@@ -4,7 +4,9 @@ import { useState } from "react"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ChartLoader } from "@/components/shared/chart-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
+import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import { formatApiDateTime } from "@/lib/api/format"
@@ -16,7 +18,6 @@ import {
   STATUS_TONE,
   filterUploads,
   formatMonth,
-  showingLabel,
 } from "@/features/initiative-7/utils/criticality-reports"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -73,6 +74,11 @@ export function HistoryBody({
   loading: boolean
   error: string | null
 }) {
+  // Before the early returns: a hook cannot be skipped. The plant is the reset key, so switching chip lands on
+  // page 1 of that plant rather than on a page that may not exist for it.
+  const shown = uploads ? filterUploads(uploads, plant) : []
+  const { paged, page, pageSize, total, setPage } = usePaginatedRows(shown, { resetKey: plant ?? "" })
+
   if (error && !uploads) {
     return (
       <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -81,10 +87,9 @@ export function HistoryBody({
     )
   }
   if (!uploads) {
-    return loading ? <Skeleton className="h-40 w-full" /> : null
+    return loading ? <ChartLoader label="Loading the upload history" className="h-40 w-full" /> : null
   }
 
-  const shown = filterUploads(uploads, plant)
   if (shown.length === 0) {
     return (
       <EmptyState
@@ -114,7 +119,7 @@ export function HistoryBody({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {shown.map((u) => (
+            {paged.map((u) => (
               <TableRow key={u.id} className={cn(u.status === "replaced" && "text-muted-foreground")}>
                 <TableCell className="font-medium text-foreground">{formatMonth(u.reportMonth)}</TableCell>
                 <TableCell>{sapPlantLabel(u.plant)}</TableCell>
@@ -138,7 +143,14 @@ export function HistoryBody({
           </TableBody>
         </Table>
       </div>
-      <p className="text-xs text-muted-foreground">{showingLabel(shown.length)}</p>
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        count={paged.length}
+        noun={total === 1 ? "upload" : "uploads"}
+        onPageChange={setPage}
+      />
     </>
   )
 }

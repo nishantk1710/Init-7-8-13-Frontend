@@ -40,6 +40,8 @@ export type I13SearchParams = {
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
   session?: string
+  /** Ledger screen, reservations view: one reservation number (exact match). */
+  reservation?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -76,6 +78,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     deliveryStatus: single(raw.deliveryStatus),
     view: single(raw.view),
     session: single(raw.session),
+    reservation: single(raw.reservation),
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),

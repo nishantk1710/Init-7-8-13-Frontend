@@ -3,6 +3,33 @@
  * two cannot say different things.
  */
 
+/**
+ * How a session is quoted. A line of a multi-material request is shown as
+ * `R…/n` but SAP carries the bare `R…` (header text, copied to every item);
+ * a stand-alone session is its own session ID for both.
+ */
+export type SessionIdentity = {
+  /** `R…/n` for a request line, the session ID otherwise. */
+  label: string
+  /** What is typed into SAP: the bare request ID, or the session ID. */
+  sapText: string
+  requestId: string | null
+  lineNo: number | null
+}
+
+export function sessionIdentity(trace: {
+  sessionId: string
+  requestId?: string | null
+  lineNo?: number | null
+  reference?: string
+}): SessionIdentity {
+  const requestId = trace.requestId || null
+  const lineNo = trace.lineNo ?? null
+  const label =
+    trace.reference || (requestId && lineNo ? `${requestId}/${lineNo}` : requestId ?? trace.sessionId)
+  return { label, sapText: requestId ?? trace.sessionId, requestId, lineNo }
+}
+
 /** Display only -- the band is the backend's. */
 export const BAND_LABEL: Record<string, string> = {
   FAST: "Fast-moving",

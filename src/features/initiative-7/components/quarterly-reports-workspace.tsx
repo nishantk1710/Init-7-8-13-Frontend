@@ -33,7 +33,9 @@ import { Button } from "@/components/ui/button"
 import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
+import { PageLoader } from "@/components/shared/page-loader"
+import { TablePagination } from "@/components/shared/table-pagination"
 import {
   Table,
   TableBody,
@@ -51,6 +53,9 @@ import { RecommendationStatusChart } from "@/features/initiative-7/components/re
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { KpiCard } from "@/features/initiative-7/components/report-kpi-card"
+import { dayAfter, QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
+import { ManagementPrintView } from "@/features/initiative-7/components/quarterly-management-print"
+import { StockPolicyRow } from "@/features/initiative-7/components/quarterly-stock-policy-row"
 import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quarterly-snapshot-report"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
@@ -59,19 +64,11 @@ import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api
 import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
 import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
-import type {
-  ApiBaselineComparisonRow,
-  ApiUndefinedManagementMetric,
-} from "@/features/initiative-7/types/api"
+import type { ApiUndefinedManagementMetric } from "@/features/initiative-7/types/api"
 import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7-api"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
-import {
-  canGoNext,
-  canGoPrevious,
-  pagedFooterText,
-  pagedTableView,
-} from "@/features/initiative-7/utils/paged-table-state"
+import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
 import { landingQuarters, SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
@@ -146,67 +143,21 @@ function UndefinedKpiCard({
   )
 }
 
-/** The mockup's "How the stock policy is changing" table -- Current (SAP) /
- * Recommended / Change, one row per metric, with REAL mean values (not
- * populated-counts) -- sourced from Section 12's baseline_comparison.rows,
- * the one place the report already computes the mean current value, mean
- * recommended value, and their delta/delta% over rows where both are
- * populated (see BaselineComparisonRow's own docstring on the backend: never
- * derived from two separately-scoped aggregates). A missing SAP baseline
- * (baseline_value === null, e.g. Safety Stock's confirmed 0-populated
- * current_safety_stock) renders as an explicit dash + "not set in SAP" via
- * AvailabilityValue, never a bare 0 or an invented number. */
-function StockPolicyRow({
-  label,
-  sublabel,
-  row,
-}: {
-  label: string
-  sublabel: string
-  row: ApiBaselineComparisonRow
-}) {
-  const currentAvailable = row.baseline_value !== null
-  const recommendedAvailable = row.recommendation_value !== null
-  const changeKnown = row.delta !== null
-
-  const deltaTone = row.delta === null ? "text-muted-foreground" : Number(row.delta) >= 0 ? "text-success" : "text-destructive"
-
+/** Shown above a report saved before the management view existed (report version 1.1 and earlier). Its charts are
+ * built from a sample of the 200 newest recommendations and some of its cards say "Not configured", so it is offered
+ * for regeneration rather than presented as the period's full picture. */
+function RegenerateBanner({ onRegenerate, generating }: { onRegenerate: () => void; generating: boolean }) {
   return (
-    <TableRow>
-      <TableCell>
-        {label} <span className="text-xs text-muted-foreground">· {sublabel}</span>
-      </TableCell>
-      <TableCell className="text-right">
-        {currentAvailable ? (
-          <span className="tabular-nums">{formatDecimal(row.baseline_value, 0)}</span>
-        ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
-        )}
-      </TableCell>
-      <TableCell className="text-right">
-        {recommendedAvailable ? (
-          <span className="tabular-nums">{formatDecimal(row.recommendation_value, 0)}</span>
-        ) : (
-          <AvailabilityValue status="NOT_AVAILABLE" size="sm" className="justify-end" />
-        )}
-      </TableCell>
-      <TableCell className={cn("text-right tabular-nums", deltaTone)}>
-        {changeKnown ? (
-          <>
-            {Number(row.delta) >= 0 ? "+" : ""}
-            {formatDecimal(row.delta, 0)}
-            {row.delta_percentage !== null && (
-              <span className="ml-1">
-                ({Number(row.delta_percentage) >= 0 ? "+" : ""}
-                {formatDecimal(row.delta_percentage, 0)}%)
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-    </TableRow>
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3">
+      <p className="min-w-[260px] flex-1 text-xs leading-relaxed text-foreground">
+        This report was saved before the management view existed. Its stockout and status charts come from a sample of
+        the 200 newest recommendations, not from this period. Regenerate it to see the updated figures.
+      </p>
+      <Button size="sm" variant="outline" onClick={onRegenerate} disabled={generating}>
+        <RefreshCw className={cn("size-3.5", generating && "animate-spin")} />
+        {generating ? "Regenerating…" : "Regenerate"}
+      </Button>
+    </div>
   )
 }
 
@@ -321,7 +272,7 @@ export function QuarterlyReportsWorkspace() {
   // indexed, whitelisted field instead of inventing a ranking. The heading
   // says "recent", not "top", because that is what the data now is.
   const { data: materials, total: materialsTotal, loading: materialsLoading } = useLiveRecommendations(
-    report
+    report && !report.management
       ? {
           sort: "generated_at",
           sortDesc: true,
@@ -336,7 +287,7 @@ export function QuarterlyReportsWorkspace() {
   // which need the full set to group by circuit/compute a forecast series,
   // not just the 5-row "top changes" preview above.
   const { data: chartRecommendations } = useLiveRecommendations(
-    report ? { pageSize: 200 } : {},
+    report && !report.management ? { pageSize: 200 } : {},
   )
 
   // No circuit in the data means every row reads "Unassigned": the table
@@ -351,7 +302,19 @@ export function QuarterlyReportsWorkspace() {
   const { data: pdfMaterials, total: pdfMaterialsTotal, loading: pdfMaterialsLoading } =
     useLiveRecommendations(
       report && printRequested
-        ? { sort: "generated_at", sortDesc: true, page: 1, pageSize: PDF_MATERIALS_SIZE }
+        ? {
+            sort: "generated_at",
+            sortDesc: true,
+            page: 1,
+            pageSize: PDF_MATERIALS_SIZE,
+            // A report with the management view prints this period's recommendations; an older one keeps the unscoped list.
+            ...(report.management
+              ? {
+                  generatedFrom: `${report.metadata.period_start}T00:00:00`,
+                  generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
+                }
+              : {}),
+          }
         : {},
     )
 
@@ -486,9 +449,7 @@ export function QuarterlyReportsWorkspace() {
           )}
 
           {loading && !report && (
-            <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-              Loading report…
-            </div>
+            <PageLoader label="Loading the report" className="h-72 w-full" />
           )}
 
           {error && !report && (
@@ -500,8 +461,11 @@ export function QuarterlyReportsWorkspace() {
             />
           )}
 
-          {report && (
+          {report && report.management && <QuarterlyManagementView report={report} management={report.management} />}
+
+          {report && !report.management && (
             <>
+              <RegenerateBanner onRegenerate={generate} generating={generating} />
               {/* --- KPI row: real metrics + honestly-undefined ones --------- */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <UndefinedKpiCard
@@ -612,7 +576,7 @@ export function QuarterlyReportsWorkspace() {
                   span={12}
                 >
                   {pagedTableView(materialsLoading, materials) === "skeleton" ? (
-                    <Skeleton className="h-48 w-full" />
+                    <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
                   ) : pagedTableView(materialsLoading, materials) === "rows" && materials ? (
                     <div className="flex flex-col gap-3">
                       <div
@@ -661,37 +625,15 @@ export function QuarterlyReportsWorkspace() {
                         </Table>
                       </div>
 
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground" aria-live="polite">
-                          {pagedFooterText({
-                            loading: materialsLoading,
-                            page: materialsPage,
-                            pageSize: MATERIALS_PAGE_SIZE,
-                            total: materialsTotal,
-                          })}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setMaterialsPage((p) => Math.max(1, p - 1))}
-                            disabled={!canGoPrevious(materialsLoading, materialsPage)}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-xs text-muted-foreground">
-                            Page {materialsPage} of {Math.max(1, Math.ceil(materialsTotal / MATERIALS_PAGE_SIZE))}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setMaterialsPage((p) => p + 1)}
-                            disabled={!canGoNext(materialsLoading, materialsPage, MATERIALS_PAGE_SIZE, materialsTotal)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
+                      <TablePagination
+                        page={materialsPage}
+                        pageSize={MATERIALS_PAGE_SIZE}
+                        total={materialsTotal}
+                        count={materials.length}
+                        noun="recommendations"
+                        loading={materialsLoading}
+                        onPageChange={setMaterialsPage}
+                      />
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">No recommendations found.</div>
@@ -758,13 +700,22 @@ export function QuarterlyReportsWorkspace() {
         typeof document !== "undefined" &&
         createPortal(
           <div className="print-portal">
-            <ReportPrintView
-              report={report}
-              materials={pdfMaterials ?? []}
-              materialsTotal={pdfMaterialsTotal}
-              chartSampleSize={CHART_SAMPLE_SIZE}
-              chartRecommendations={chartRecommendations ?? []}
-            />
+            {report.management ? (
+              <ManagementPrintView
+                report={report}
+                management={report.management}
+                materials={pdfMaterials ?? []}
+                materialsTotal={pdfMaterialsTotal}
+              />
+            ) : (
+              <ReportPrintView
+                report={report}
+                materials={pdfMaterials ?? []}
+                materialsTotal={pdfMaterialsTotal}
+                chartSampleSize={CHART_SAMPLE_SIZE}
+                chartRecommendations={chartRecommendations ?? []}
+              />
+            )}
           </div>,
           document.body,
         )}
@@ -788,7 +739,13 @@ function GenerateReportButton({
   onClick: () => void
 }) {
   return (
-    <Button size="sm" variant="outline" onClick={onClick} disabled={generating}>
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+      onClick={onClick}
+      disabled={generating}
+    >
       {generating ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
       {generating ? "Generating…" : label}
     </Button>

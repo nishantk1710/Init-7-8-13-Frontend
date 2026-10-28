@@ -45,7 +45,7 @@ export function DistributionBar({
       <div
         role="img"
         aria-label={`${label}. ${summary}`}
-        className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
+        className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
       >
         {segments
           .filter((s) => s.count > 0)
@@ -70,7 +70,7 @@ export function DistributionBar({
                 {formatCount(s.count)}
               </span>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {total === 0 ? "—" : `${formatShare(share(s.count))}%`}
+                {total === 0 ? "0%" : `${formatShare(share(s.count))}%`}
               </span>
             </span>
           </li>

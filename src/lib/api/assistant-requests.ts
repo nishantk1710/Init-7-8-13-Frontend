@@ -7,17 +7,11 @@
  *
  * The routes answer 404 until the backend's `ASSISTANT_REQUESTS_ENABLED` is on;
  * {@link isNotEnabled} tells that apart from a request that does not exist.
- *
- * With `NEXT_PUBLIC_ASSISTANT_DEMO` on, every call is answered in the browser
- * by `lib/assistant/request/demo-api.ts` instead, on the mock catalogue.
  */
 
 import { ApiError, apiFetch, apiPost } from "@/lib/api/client"
 import type { ApiDepartment, ApiLinkedReservation, ApiMaterialMatch } from "@/lib/api/assistant"
 import { listDepartments, searchMaterials } from "@/lib/api/assistant"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-
-const demo = () => import("@/lib/assistant/request/demo-api")
 
 // --- preview ------------------------------------------------------------------
 
@@ -60,7 +54,6 @@ export type PreviewResponse = {
 export type ApiLineAnswers = {
   materialId: string
   plant: string
-  department?: string | null
   decision?: "proceed" | "not_needed" | "use_existing" | "proceed_new" | null
   quantity?: string | null
   windowStart?: string | null
@@ -76,6 +69,10 @@ export type CreateRequestBody = {
   idempotencyKey: string
   plant: string
   requestedFor?: string | null
+  /** The request's one department code (UAT, 21 Oct): recorded on every line. */
+  department: string
+  /** Optional free text beside the department code (≤200); never checked. */
+  departmentNote?: string | null
   origin?: "PLATFORM" | "BADI"
   lines: ApiLineAnswers[]
 }
@@ -98,6 +95,8 @@ export type ApiRequestLine = {
   materialDescription: string | null
   plant: string
   department: string | null
+  departmentName?: string | null
+  departmentNote?: string | null
   decision: string | null
   plannedQuantity: string | null
   suggestedQuantity: string | null
@@ -118,6 +117,12 @@ export type ApiRequest = {
   requester: string
   origin: string
   issuedAt: string
+  /** The request's department; null only for an older request whose lines named several. */
+  department: string | null
+  /** `department`'s name from the department list. Absent on an older backend. */
+  departmentName?: string | null
+  /** Free text typed beside the department, if any. */
+  departmentNote?: string | null
   departments: string[]
   lines: ApiRequestLine[]
   skipped: ApiSkipped[]
@@ -131,6 +136,8 @@ export type ApiRequestSummary = {
   issuedAt: string
   lineCount: number
   skippedCount: number
+  department: string | null
+  departmentName?: string | null
   departments: string[]
 }
 
@@ -168,36 +175,30 @@ export function isNotEnabled(error: unknown): boolean {
 export async function previewRequest(
   materials: { materialId: string; plant: string }[]
 ): Promise<PreviewResponse> {
-  if (ASSISTANT_DEMO) return (await demo()).previewRequest(materials)
   return apiPost<PreviewResponse>("/assistant/requests/preview", { materials })
 }
 
 /** Record every line, or nothing. **Responds 201.** Throws 422 / 409 -- see above. */
 export async function createRequest(body: CreateRequestBody): Promise<ApiRequest> {
-  if (ASSISTANT_DEMO) return (await demo()).createRequest(body)
   return apiPost<ApiRequest>("/assistant/requests", body)
 }
 
 export async function getRequest(requestId: string): Promise<ApiRequest> {
-  if (ASSISTANT_DEMO) return (await demo()).getRequest(requestId)
   return apiFetch<ApiRequest>(`/assistant/requests/${encodeURIComponent(requestId)}`)
 }
 
 export async function listRequests(limit = 50): Promise<ApiRequestSummary[]> {
-  if (ASSISTANT_DEMO) return (await demo()).listRequests()
   const response = await apiFetch<{ items: ApiRequestSummary[] }>(`/assistant/requests?limit=${limit}`)
   return response.items
 }
 
 /** Material+plant pairs for the request's search box -- the opener's search. */
 export async function searchRequestMaterials(q: string, signal?: AbortSignal): Promise<ApiMaterialMatch[]> {
-  if (ASSISTANT_DEMO) return (await demo()).searchRequestMaterials(q)
   return (await searchMaterials(q, { limit: 15, signal })).items
 }
 
 /** One plant's department codes, its own first. Empty while the backend's list loads. */
 export async function requestDepartments(plant: string): Promise<{ items: ApiDepartment[]; loaded: boolean }> {
-  if (ASSISTANT_DEMO) return (await demo()).requestDepartments(plant)
   const response = await listDepartments(plant)
   return { items: response.items, loaded: response.loaded }
 }
@@ -206,7 +207,6 @@ export async function requestDepartments(plant: string): Promise<{ items: ApiDep
 
 /** Whether the backend's UAT stand-in for SAP is on (never in production). */
 export async function uatEnabled(): Promise<boolean> {
-  if (ASSISTANT_DEMO) return false
   try {
     return (await apiFetch<{ enabled: boolean }>("/i13/uat")).enabled
   } catch {

@@ -35,6 +35,8 @@ const request: ApiRequest = {
   requester: "nancy",
   origin: "web",
   issuedAt: "2026-10-17T10:49:53Z",
+  // An older request whose lines named two departments: no single department.
+  department: null,
   departments: ["10301", "10101"],
   lines: [
     line({}),
@@ -73,12 +75,17 @@ const request: ApiRequest = {
 describe("requestExportModel", () => {
   const model = requestExportModel(request)
 
+  it("shows a request's one department", () => {
+    const single = requestExportModel({ ...request, department: "10301", departments: ["10301"] })
+    expect(Object.fromEntries(single.details).Department).toBe("10301")
+  })
+
   it("carries the header facts and counts the screen shows", () => {
     expect(model.title).toBe("Request R46WFYXS1R")
     expect(Object.fromEntries(model.details)).toMatchObject({
       "Requested for": "nancy",
       Plant: "1300",
-      Departments: "10301, 10101",
+      Department: "10301, 10101",
       Lines: "2",
       "To reserve": "2",
       "No session": "1",
@@ -92,14 +99,14 @@ describe("requestExportModel", () => {
   })
 
   it("uses the screen's decision sentence and quantities", () => {
-    expect(model.lines[0][3]).toEqual(["New unit -- none exists in stock or on repair."])
-    expect(model.lines[1][3]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year -- justified."])
-    expect(model.lines[1][5]).toEqual(["Urgent Breakdown", "grgnj"])
+    expect(model.lines[0][2]).toEqual(["New unit -- none exists in stock or on repair."])
+    expect(model.lines[1][2]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year -- justified."])
+    expect(model.lines[1][4]).toEqual(["Urgent Breakdown", "grgnj"])
   })
 
   it("shows not-linked and linked SAP items", () => {
-    expect(model.lines[0][6]).toEqual(["Not linked yet"])
-    expect(model.lines[1][6]).toEqual(['0012345678/0001 · SGTXT "R46WFYXS1R/2"'])
+    expect(model.lines[0][5]).toEqual(["Not linked yet"])
+    expect(model.lines[1][5]).toEqual(['0012345678/0001 · SGTXT "R46WFYXS1R/2"'])
     expect(model.linkSummary).toBe("1 SAP reservation item linked so far.")
   })
 })

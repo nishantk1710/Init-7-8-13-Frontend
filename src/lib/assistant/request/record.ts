@@ -1,34 +1,15 @@
 /**
- * Helpers over a recorded request (`ApiRequest`), live or demo.
+ * Helpers over a recorded request (`ApiRequest`).
  *
  * A request's reference is `R` + eight characters + a check character, in the
  * session ID's alphabet and checksum; each line is quoted on its SAP item as
- * `R…/n`. The backend mints it; {@link mintRequestId} is the demo's stand-in.
+ * `R…/n`. The backend mints it.
  */
 
-import { checkCharacter } from "@/lib/assistant/demo/ids"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
-
-export const REQUEST_PREFIX = "R"
-const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-const ID_LENGTH = 10
 
 export type RequestRecord = ApiRequest
 export type RequestLine = ApiRequestLine
-
-export function requestIdFrom(payload: string): string {
-  const body = REQUEST_PREFIX + payload.toUpperCase()
-  return body + checkCharacter(body)
-}
-
-/** Demo only -- live, the backend mints the reference. */
-export function mintRequestId(random: () => number = Math.random): string {
-  let payload = ""
-  for (let i = 0; i < ID_LENGTH - REQUEST_PREFIX.length - 1; i += 1) {
-    payload += ALPHABET[Math.floor(random() * ALPHABET.length)]
-  }
-  return requestIdFrom(payload)
-}
 
 /** What the requester types into SGTXT for one line. */
 export function lineReference(requestId: string, lineNo: number): string {
@@ -64,6 +45,21 @@ export function outcomeSentence(line: ApiRequestLine): string {
   return suggested === 0
     ? `Procure ${quantity} although stock covers the year -- justified.`
     : `Procure ${quantity} -- above the suggested ${plain(line.suggestedQuantity)}, justified.`
+}
+
+/** A department as shown: `10100 · FINANCE-COMMERCIAL DEPARTMENT`, or the code
+ * alone when VZI's list gives it no name. */
+export function departmentText(code: string, name?: string | null): string {
+  return name ? `${code} · ${name}` : code
+}
+
+/** The request's department as shown: the one department with its name, or --
+ * for a request from before 21 Oct whose lines named several -- all the codes. */
+export function departmentLabel(
+  request: Pick<ApiRequest, "department" | "departments"> & { departmentName?: string | null }
+): string {
+  if (request.department) return departmentText(request.department, request.departmentName)
+  return request.departments.length > 0 ? request.departments.join(", ") : "—"
 }
 
 /** The distinct departments a request serves, in line order. */

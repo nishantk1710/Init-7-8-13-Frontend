@@ -9,19 +9,15 @@ import { PageHeader } from "@/components/shared/page-header"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getPlantById } from "@/lib/shared-data/plants"
+import { PageLoader } from "@/components/shared/page-loader"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { formatMoney } from "@/lib/utils"
-import { DecisionActions, DecisionHistory } from "@/features/initiative-7/components/decision-panel"
 import { LiveDecisionActions, LiveDecisionHistory } from "@/features/initiative-7/components/live-decision-panel"
 import { RecommendationReviewPanel } from "@/features/initiative-7/components/recommendation-review-panel"
 import { OarColdStartPanel } from "@/features/initiative-7/components/oar-cold-start-panel"
-import { RepairContextSignal } from "@/features/initiative-7/components/repair-context-signal"
-import { getRecommendationById } from "@/features/initiative-7/data/recommendations"
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality, Recommendation } from "@/features/initiative-7/types/inventory"
 import { serviceLevelZFactor } from "@/features/initiative-7/utils/inventory-calc"
-import { USING_LIVE_DATA } from "@/lib/sap/dataset-mode"
 
 const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "warning" | "danger"> = {
   "Pending Review": "default",
@@ -62,13 +58,10 @@ function NotFoundView({ recommendationId }: { recommendationId: string }) {
   )
 }
 
-/** Presentational body shared by the mock (scenario/generated) and live
- * modes — `live` swaps DecisionActions/DecisionHistory (the scenario-chain
- * simulation) for LiveDecisionActions/LiveDecisionHistory (the real backend
- * ledger), and passes nothing else differently. */
+/** Presentational body: the recommendation, its decision controls and the real
+ * backend decision ledger. */
 function RecommendationDetailView({
   recommendation,
-  live = false,
   decide = false,
   onLiveChanged,
 }: {
@@ -78,7 +71,6 @@ function RecommendationDetailView({
   decide?: boolean
   onLiveChanged?: () => void
 }) {
-  const plant = getPlantById(recommendation.plantId)
   const router = useRouter()
 
   return (
@@ -95,7 +87,7 @@ function RecommendationDetailView({
 
         <PageHeader
           title={recommendation.material.description}
-          description={`${recommendation.material.materialId} · ${plant?.name ?? recommendation.plantId}${recommendation.circuit === "Unassigned" ? "" : ` · ${recommendation.circuit} circuit`}`}
+          description={`${recommendation.material.materialId} · ${sapPlantName(recommendation.plantId)}${recommendation.circuit === "Unassigned" ? "" : ` · ${recommendation.circuit} circuit`}`}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <RiskBadge level={recommendation.risk} />
@@ -122,37 +114,26 @@ function RecommendationDetailView({
           </span>
         </div>
 
-        {recommendation.material.materialId === "500-14892" && (
-          <RepairContextSignal materialId={recommendation.material.materialId} />
-        )}
-
         {recommendation.oarColdStart && <OarColdStartPanel guidance={recommendation.oarColdStart} />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <ChartCard title="Recommended inventory changes" span={12}>
             <RecommendationReviewPanel
               rec={recommendation}
+              onSimilarMaterialsChanged={() => onLiveChanged?.()}
               action={
-                live ? (
-                  <LiveDecisionActions
-                    recommendationId={recommendation.id}
-                    onChanged={() => onLiveChanged?.()}
-                    surface={decide ? "action-center" : "recommendation"}
-                    convertToMinMax={Boolean(recommendation.oarConversion)}
-                  />
-                ) : (
-                  <DecisionActions recommendation={recommendation} />
-                )
+                <LiveDecisionActions
+                  recommendationId={recommendation.id}
+                  onChanged={() => onLiveChanged?.()}
+                  surface={decide ? "action-center" : "recommendation"}
+                  convertToMinMax={Boolean(recommendation.oarConversion)}
+                />
               }
             />
           </ChartCard>
 
           <ChartCard title="Decision history" span={12}>
-            {live ? (
-              <LiveDecisionHistory recommendationId={recommendation.id} reloadKey={recommendation.generatedAt} />
-            ) : (
-              <DecisionHistory recommendation={recommendation} />
-            )}
+            <LiveDecisionHistory recommendationId={recommendation.id} reloadKey={recommendation.generatedAt} />
           </ChartCard>
         </div>
       </div>
@@ -166,11 +147,7 @@ function LiveRecommendationDetailPage({ recommendationId, decide }: { recommenda
   if (loading) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-96 w-full" />
-        </div>
+        <PageLoader label="Loading the recommendation" className="h-[420px] w-full" />
       </div>
     )
   }
@@ -200,7 +177,7 @@ function LiveRecommendationDetailPage({ recommendationId, decide }: { recommenda
     return <NotFoundView recommendationId={recommendationId} />
   }
 
-  return <RecommendationDetailView recommendation={data} live decide={decide} onLiveChanged={refetch} />
+  return <RecommendationDetailView recommendation={data} decide={decide} onLiveChanged={refetch} />
 }
 
 export function RecommendationDetailPage({
@@ -210,13 +187,5 @@ export function RecommendationDetailPage({
   recommendationId: string
   decide?: boolean
 }) {
-  if (USING_LIVE_DATA) {
-    return <LiveRecommendationDetailPage recommendationId={recommendationId} decide={decide} />
-  }
-
-  const recommendation = getRecommendationById(recommendationId)
-  if (!recommendation) {
-    return <NotFoundView recommendationId={recommendationId} />
-  }
-  return <RecommendationDetailView recommendation={recommendation} />
+  return <LiveRecommendationDetailPage recommendationId={recommendationId} decide={decide} />
 }

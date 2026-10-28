@@ -1,13 +1,10 @@
 // Part 21 — I07 frontend/backend integration.
 //
-// Live (backend-driven) counterpart to decision-panel.tsx's DecisionActions/
-// DecisionHistory. Rendered only when NEXT_PUBLIC_DATASET=live (see
-// recommendation-detail-page.tsx) -- decision-panel.tsx itself is untouched
-// and keeps driving the scenario/generated simulation exactly as before.
+// Backend-driven DecisionActions/DecisionHistory, rendered by
+// recommendation-detail-page.tsx.
 //
 // AUTHENTICATION LIMITATION (Part 13 deferred, revisited Part 35): no real
-// login exists yet. Until one does, this follows decision-panel.tsx's own
-// existing pattern exactly (see DEMO_ROLE in approvals-workspace.tsx) rather
+// login exists yet. Until one does, this uses a placeholder identity rather
 // than asking the user to type an actor id and pick a role from every
 // possible value: a single fixed demo identity acts, and the role it acts AS
 // is derived from the backend's own pending_role for this recommendation
@@ -37,8 +34,7 @@ import {
 } from "@/features/initiative-7/utils/decision-panel-mode"
 
 /** Stand-in for a real signed-in identity (see the AUTHENTICATION LIMITATION
- * note above) -- one fixed demo user/role, exactly like the scenario chain's
- * own DEMO_ROLE ("Engineering Manager", approvals-workspace.tsx). "End User"
+ * note above) -- one fixed placeholder user/role. "End User"
  * is chosen here because it is the first step of both real routing chains
  * (criticality-tier and OAR/SOP 3.1.1), so a fresh recommendation is
  * immediately actionable rather than always showing "not your turn". */
@@ -62,12 +58,13 @@ const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
 /**
  * Decision controls for a LIVE recommendation. The acting role is always
  * DEMO_ACTOR_ROLE (see above) -- never chosen per action -- and the pending
- * role comes from the backend's own workflow state, matching
- * decision-panel.tsx's "Approve as {role}" pattern instead of a role picker.
+ * role comes from the backend's own workflow state, instead of a role picker.
  *
- * `surface` decides what is offered. On a recommendation page ("recommendation", the default) the only
- * action is Send for approval; once sent, the page shows where it is and points to the Action Center. The
- * approve / adjust / send back / hold / reject buttons exist only on the Action Center ("action-center").
+ * `surface` decides what is offered. On a recommendation page ("recommendation", the default) a planner
+ * can Send for approval or Reject (with a reason, so a recommendation they will not adopt does not have to
+ * go through the chain only to be rejected there); once sent, the page shows where it is and points to the
+ * Action Center. The approve / adjust / send back / hold / reject buttons for a recommendation that is in
+ * the chain exist only on the Action Center ("action-center").
  */
 export function LiveDecisionActions({
   recommendationId,
@@ -83,12 +80,16 @@ export function LiveDecisionActions({
    * chain either way. */
   convertToMinMax?: boolean
 }) {
-  const { submitting, error, act, submit, lastState } = useLiveApproval(recommendationId, onChanged)
+  const { submitting, error, act, submit, reject, lastState } = useLiveApproval(recommendationId, onChanged)
   const { state: loadedWorkflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
   // The state the backend returned for the last action is the newest there is; the loaded one is from before it.
   const workflow = lastState ?? loadedWorkflow
   const [comment, setComment] = useState("")
   const commentId = useId()
+  // Declining from the recommendation page: the reason box opens on Reject, and Confirm sends it.
+  const [rejecting, setRejecting] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const rejectReasonId = useId()
 
   async function handle(action: "APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD") {
     const accepted = await act(DEMO_ACTOR_ID, DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
@@ -106,6 +107,17 @@ export function LiveDecisionActions({
       toast.success("Sent for approval", {
         description: "It is now in the Action Center, where it is reviewed and approved.",
       })
+    }
+  }
+
+  async function handleReject() {
+    const accepted = await reject(DEMO_ACTOR_ID, rejectReason.trim())
+    if (accepted) {
+      toast.success("Rejected", {
+        description: "It is not sent for approval and leaves the Recommendations list.",
+      })
+      setRejecting(false)
+      setRejectReason("")
     }
   }
 
@@ -146,10 +158,67 @@ export function LiveDecisionActions({
             ? "Not yet submitted — converting it from OAR to Min-Max ordering starts the approval chain with the first role in its route."
             : "Not yet submitted — sending it for approval starts the chain with the first role in its route."}
         </p>
-        <Button size="sm" className="self-start" disabled={submitting} onClick={handleSend}>
-          <Send className="size-3.5" />
-          {convertToMinMax ? "Convert OAR into Min-Max" : "Send for approval"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={submitting || rejecting} onClick={handleSend}>
+            <Send className="size-3.5" />
+            {convertToMinMax ? "Convert OAR into Min-Max" : "Send for approval"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            disabled={submitting || rejecting}
+            onClick={() => setRejecting(true)}
+          >
+            <CircleX className="size-3.5" />
+            Reject
+          </Button>
+        </div>
+        {rejecting ? (
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor={rejectReasonId}
+              className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
+            >
+              Reason for rejecting (required)
+            </label>
+            <textarea
+              id={rejectReasonId}
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              rows={2}
+              placeholder="Why this should not be adopted -- it is recorded with the decision…"
+              className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                disabled={submitting || rejectReason.trim().length === 0}
+                onClick={handleReject}
+              >
+                <CircleX className="size-3.5" />
+                Confirm reject
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={submitting}
+                onClick={() => {
+                  setRejecting(false)
+                  setRejectReason("")
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Not adopting it? Reject it here with a reason -- it does not need to go through approval first.
+          </p>
+        )}
         {error && <p className="text-[12px] text-destructive">{error.message}</p>}
       </div>
     )

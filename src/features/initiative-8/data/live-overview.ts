@@ -25,6 +25,7 @@
  * `utils/overview-view.ts` for the check that the two agree.
  */
 
+import { DEFAULT_EXCEPTION_STATUS, fetchAllExceptions } from "@/features/initiative-8/data/live-exceptions"
 import { loadLiveRegister, type LiveRegister } from "@/features/initiative-8/data/live-register"
 import type { UniverseRow } from "@/features/initiative-8/utils/overview-view"
 import type { ApiDeclarationMeta, ApiUniverseItem, ApiUniverseMeta } from "@/lib/api/i8"
@@ -73,16 +74,25 @@ export type LiveOverview = {
   /** Null when that source could not be read — shown as such, never as 0. */
   universe: LiveUniverse | null
   declarations: ApiDeclarationMeta | null
+  /**
+   * Every open exception item, by the line it is on, for the "Open
+   * exceptions" card: counted against the lines the filters keep, so the card
+   * narrows with the rest. Null when the queue could not be read.
+   */
+  exceptions: { repairId?: string; type: string }[] | null
 }
 
 /** Throws only if the register fails; the rest degrade to null. */
 export async function loadLiveOverview(): Promise<LiveOverview> {
-  const [register, universe, declarations] = await Promise.all([
+  const [register, universe, declarations, exceptions] = await Promise.all([
     loadLiveRegister(),
     loadUniverse().catch(() => null),
     getDeclarations({ pageSize: 1 })
       .then((body) => body.meta)
       .catch(() => null),
+    fetchAllExceptions({ status: DEFAULT_EXCEPTION_STATUS })
+      .then((rows) => rows.map((row) => ({ repairId: row.repairId, type: row.type })))
+      .catch(() => null),
   ])
-  return { register, universe, declarations }
+  return { register, universe, declarations, exceptions }
 }

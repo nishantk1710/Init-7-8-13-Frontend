@@ -2,60 +2,66 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
+import { Copy, SquarePen } from "lucide-react"
 import { toast } from "sonner"
 
-import { DetailDrawer } from "@/components/shared/detail-drawer"
-import { MaterialIdentity } from "@/components/shared/material-identity"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { Timeline, type TimelineEvent } from "@/components/shared/timeline"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
+import { StatusDot } from "@/features/initiative-8/components/kit/status"
+import { repairHref } from "@/features/initiative-8/components/repair-register-table"
 import { toExceptionRow } from "@/features/initiative-8/data/live-exceptions"
-import type {
-  ExceptionEvent,
-  ExceptionQueueRow,
-  ExceptionStatus,
-} from "@/features/initiative-8/types/repair"
-import {
-  EXCEPTION_SEVERITY_TONE,
-  EXCEPTION_STATUSES,
-  EXCEPTION_STATUS_LABEL,
-  EXCEPTION_STATUS_TONE,
-  UNKNOWN,
-  exceptionTypeLabel,
-} from "@/features/initiative-8/utils/status"
+import type { ExceptionEvent, ExceptionQueueRow, ExceptionStatus } from "@/features/initiative-8/types/repair"
+import { actorLabel, isUnsigned, plantShort } from "@/features/initiative-8/utils/format"
+import { EXCEPTION_STATUS_LABEL, exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
-import { appendExceptionEvent, type ApiExceptionItem } from "@/lib/api/i8"
-import { useMaterial360 } from "@/lib/material-360-context"
+import { appendExceptionEvent, getException, type ApiExceptionItem } from "@/lib/api/i8"
 
-/** What each history entry's verb reads as. */
-const KIND_VERB: Record<ExceptionEvent["kind"], string> = {
-  ASSIGNED: "assigned it",
-  COMMENT: "commented",
-  STATUS: "changed the status",
-  AUTO_RESOLVED: "resolved itself",
+/** Who did it, in a sentence: a placeholder author is "Someone not signed in". */
+function who(actor: string): string {
+  if (actor === "system") return "The check"
+  return isUnsigned(actor) ? "Someone not signed in" : actorLabel(actor)
 }
 
-const EVENT_TONE: Record<string, TimelineEvent["tone"]> = {
-  RESOLVED: "success",
-  CLOSED: "default",
-  IN_PROGRESS: "warning",
-  OPEN: "danger",
-}
-
-/** One history entry as a timeline step, coloured by the status it set. */
-function historyStep(event: ExceptionEvent): TimelineEvent {
-  return {
-    id: event.id,
-    label:
-      event.kind === "AUTO_RESOLVED"
-        ? "The check stopped finding it"
-        : `${event.actor} ${KIND_VERB[event.kind]}`,
-    timestamp: event.at,
-    description: event.text || undefined,
-    tone: event.status ? EVENT_TONE[event.status] ?? "default" : "default",
+/**
+ * One history entry as a line of plain English. Green only when the data
+ * closed it: the check stopping is the one ending that proves the gap is
+ * gone. A person closing it is recorded plainly, because the check may still
+ * find the item.
+ */
+function historyLine(event: ExceptionEvent): {
+  text: string
+  tone: "good" | "neutral" | "warn"
+} {
+  switch (event.kind) {
+    case "AUTO_RESOLVED":
+      return { text: "The check stopped finding it", tone: "good" }
+    case "STATUS":
+      // "set it to Open", not "reopened it": an entry from before 21-Oct that
+      // said In progress reads as Open, and that item was never closed.
+      return event.status === "CLOSED"
+        ? { text: `${who(event.actor)} closed it`, tone: "neutral" }
+        : { text: `${who(event.actor)} set it to Open`, tone: "warn" }
+    case "ASSIGNED":
+      return {
+        text: event.owner ? `${who(event.actor)} assigned it to ${event.owner}` : `${who(event.actor)} unassigned it`,
+        tone: "neutral",
+      }
+    default:
+      return { text: `${who(event.actor)} commented`, tone: "neutral" }
   }
+}
+
+/** "4500001635-10" as the document and item the declaration form sends. */
+function repairKey(repairId: string | undefined): {
+  document?: string
+  item?: string
+} {
+  if (!repairId) return {}
+  const cut = repairId.lastIndexOf("-")
+  return cut > 0 ? { document: repairId.slice(0, cut), item: repairId.slice(cut + 1) } : {}
 }
 
 export type ExceptionDetailDrawerProps = {
@@ -68,42 +74,60 @@ export type ExceptionDetailDrawerProps = {
    * page, say -- and the drawer then shows this rather than going blank.
    */
   onChanged?: (exception: ExceptionQueueRow) => void
+  /** The declaration form's fault categories. Empty when that fetch failed:
+   *  the form then says so and cannot submit. */
+  faultCategories?: string[]
 }
 
 /**
- * One exception-queue item, opened from its row (FR-11): what the check found,
- * the records it points at, its history, and the controls to work it.
+ * One exception-queue item, opened from its row (FR-11) --
+ * I08_Live_UI_Redesign_Plan.md, L5 and decision D6.
+ *
+ * Reads top to bottom as the questions somebody opening it has: what clears
+ * it, what the check found, where it is, then the controls and the history.
+ * "What clears this" used to come last, under the facts.
+ *
+ * ## The Declare button (D6)
+ *
+ * A missing declaration is cleared by recording the declaration, and this
+ * drawer used to say so without offering it ("not this drawer's to do"). It
+ * opens the same form the repair page and the queue use now, naming this
+ * repair line. The declaration is still what clears the item -- the button
+ * only saves the trip. Afterwards the item is read again: the check may have
+ * stopped finding it, and the drawer then says so rather than showing it open.
  *
  * ## Why every action is one POST
  *
  * Assigning, commenting and moving an item all append one entry to the same
- * history. The item's status and owner are not columns anybody edits — they
- * are folded from that history — so there is no PATCH here, and none anywhere
- * in this application.
+ * history. The item's status and owner are not columns anybody edits -- they
+ * are folded from that history -- so there is no PATCH here, and none anywhere
+ * in this application. Each write POSTs and then refreshes the route, which
+ * brings back the new history and whatever the checks now say.
  *
- * ## Why this writes and then refreshes the route
+ * ## Why only Open and Closed
  *
- * The item itself is not stored — it is recomputed from the register and the
- * attestation table on every read — so there is nothing here to mutate
- * locally and re-render. Each action POSTs and then calls `router.refresh()`,
- * which re-runs the server fetch and brings back both the new history and
- * whatever the checks now say. That is also how an item that resolved itself
- * in the meantime shows up as resolved rather than sitting here looking open.
+ * In progress and Resolved were retired on 21-Oct-2026. An item ends one of
+ * two ways -- the data is fixed and the check stops finding it, or a person
+ * closes it with a reason -- and the history tells those apart.
  */
 export function ExceptionDetailDrawer({
   exception,
   open,
   onOpenChange,
   onChanged,
+  faultCategories = [],
 }: ExceptionDetailDrawerProps) {
   const router = useRouter()
-  const { openMaterial360 } = useMaterial360()
   const [note, setNote] = useState("")
   const [comment, setComment] = useState("")
   const [owner, setOwner] = useState("")
   const [busy, setBusy] = useState(false)
+  const [declaring, setDeclaring] = useState(false)
+  // A fresh form per opening, so a half-typed description cannot reappear.
+  const [formKey, setFormKey] = useState(0)
 
   if (!exception) return null
+  const item = exception
 
   /** Run one write, report it, and re-read the queue. */
   async function run(action: () => Promise<ApiExceptionItem>, success: string) {
@@ -120,249 +144,417 @@ export function ExceptionDetailDrawer({
       // Named, not swallowed: a write that failed must not leave the drawer
       // looking like it worked, because the row behind it will not have moved.
       toast.error(
-        error instanceof ApiError || error instanceof Error
-          ? error.message
-          : "The change could not be saved.",
+        error instanceof ApiError || error instanceof Error ? error.message : "The change could not be saved.",
       )
     } finally {
       setBusy(false)
     }
   }
 
-  const item = exception
-  const autoResolved = [...item.history]
-    .reverse()
-    .find((e) => e.kind === "AUTO_RESOLVED")
+  /**
+   * After a declaration: read the item again. Gone (404) means nobody had
+   * touched it and the check no longer finds it -- it has left the queue, and
+   * the drawer closes saying so. Any other failure leaves the drawer as it
+   * was; the route refresh the form runs brings the queue up to date anyway.
+   */
+  async function afterDeclared() {
+    try {
+      onChanged?.(toExceptionRow(await getException(item.id)))
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        toast.success("This exception is cleared", {
+          description: "The check no longer finds it, so it has left the queue.",
+        })
+        onOpenChange(false)
+      }
+    }
+  }
+
+  const autoResolved = [...item.history].reverse().find((e) => e.kind === "AUTO_RESOLVED")
+  const { document: repairDocument, item: repairItem } = repairKey(item.repairId)
+  const canDeclare = item.type === "MISSING_ATTESTATION" && item.stillDetected && Boolean(item.plant?.plantId)
+  const lineLink = item.repairId ? (
+    <Link href={repairHref({ id: item.repairId })} className="font-mono text-i08-link hover:underline">
+      {item.repairLine}
+    </Link>
+  ) : (
+    <span className="font-mono">{item.repairLine}</span>
+  )
 
   return (
-    <DetailDrawer
-      open={open}
-      onOpenChange={onOpenChange}
-      title={exceptionTypeLabel(item.type)}
-      description={item.id}
-    >
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={EXCEPTION_STATUS_TONE[item.status]}>
-            {EXCEPTION_STATUS_LABEL[item.status]}
-          </StatusBadge>
-          <StatusBadge tone={EXCEPTION_SEVERITY_TONE[item.severity] ?? "default"}>
-            {item.severity}
-          </StatusBadge>
-          <StatusBadge>{item.owner ? `Owner: ${item.owner}` : "Unassigned"}</StatusBadge>
-          {item.preAutomation && <StatusBadge>Raised before Spares Automation</StatusBadge>}
-          {!item.stillDetected && (
-            <StatusBadge tone="success">No longer found by the check</StatusBadge>
-          )}
-        </div>
-
-        {/* What the check found, and what it searched for. The second half is
-            what lets a reader tell a real gap from a rule that did not fit. */}
-        <div>
-          <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
-        </div>
-
-        {autoResolved && (
-          <p className="rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-xs text-muted-foreground">
-            {autoResolved.text} Recorded {autoResolved.at}.
-          </p>
-        )}
-
-        <dl className="grid grid-cols-2 gap-y-2 text-xs">
-          <dt className="text-muted-foreground">Material</dt>
-          <dd className="text-right">
-            <MaterialIdentity material={item.material} onOpen={openMaterial360} />
-          </dd>
-          <dt className="text-muted-foreground">Plant</dt>
-          <dd className="text-right text-foreground">{item.plant?.name ?? UNKNOWN}</dd>
-          <dt className="text-muted-foreground">Repair line</dt>
-          <dd className="text-right text-foreground">
-            {item.repairId ? (
-              <Link
-                href={`/repairable-spares/repair-register/${encodeURIComponent(item.repairId)}`}
-                className="text-primary hover:underline"
-              >
-                {item.repairLine}
-              </Link>
-            ) : (
-              item.repairLine
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="i08-scope" widthClassName="w-full sm:max-w-[560px]">
+        <SheetHeader className="gap-1.5 px-5 pt-5 pr-12 pb-4">
+          <SheetTitle className="text-[17px] leading-snug font-semibold">{exceptionTypeLabel(item.type)}</SheetTitle>
+          <SheetDescription className="text-[13.5px] text-muted-foreground">
+            <span className="font-mono font-medium text-foreground">{item.material.materialCode}</span>
+            {item.material.description && item.material.description !== item.material.materialCode && (
+              <> {item.material.description}</>
             )}
-          </dd>
-          {item.acquisitionLine && (
-            <>
-              <dt className="text-muted-foreground">Purchase line</dt>
-              <dd className="text-right text-foreground">{item.acquisitionLine}</dd>
-            </>
-          )}
-          <dt className="text-muted-foreground">Raised</dt>
-          <dd className="text-right text-foreground">{item.raisedAt ?? UNKNOWN}</dd>
-        </dl>
-
-        {/* How the finding is actually cleared. Neither of these is a button
-            here, because neither is this drawer's to do: recording the
-            declaration or the justification is what makes the check stop
-            finding the item, and the item then resolves itself. */}
-        <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          {item.type === "MISSING_ATTESTATION" ? (
-            <>
-              Recording the condition declaration on{" "}
-              {item.repairId ? (
-                <Link
-                  href={`/repairable-spares/repair-register/${encodeURIComponent(item.repairId)}`}
-                  className="text-primary hover:underline"
-                >
-                  this repair line
-                </Link>
-              ) : (
-                "this repair line"
-              )}{" "}
-              makes the check stop finding this item, and it resolves itself with
-              the declaration in its history.
-            </>
-          ) : (
-            "This item resolves itself when the data it was raised on changes — a goods receipt, a declaration, or a justification."
-          )}
-        </p>
-
-        {/* --- working it ------------------------------------------------ */}
-        <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
-          <h3 className="text-xs font-medium text-foreground">Work this item</h3>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] text-muted-foreground" htmlFor="exception-owner">
-              Owner
-            </label>
-            <div className="flex gap-2">
-              <Input
-                id="exception-owner"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                placeholder={item.owner ?? "Nobody yet"}
-                className="h-9"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy || !owner.trim()}
+          </SheetDescription>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+            <StatusDot tone={item.status === "OPEN" ? "warn" : "neutral"}>
+              {EXCEPTION_STATUS_LABEL[item.status]}
+            </StatusDot>
+            <span>{item.owner ? `Owner: ${item.owner}` : "Unassigned"}</span>
+            {!item.stillDetected && <StatusDot tone="good">No longer found by the check</StatusDot>}
+            <span className="inline-flex items-center gap-0.5 font-mono text-[12px]">
+              {item.id}
+              <button
+                type="button"
+                aria-label={`Copy ${item.id}`}
+                title="Copy the exception id"
                 onClick={() =>
-                  run(
-                    () =>
-                      appendExceptionEvent(item.id, {
-                        kind: "ASSIGNED",
-                        owner: owner.trim(),
-                      }),
-                    `${item.id} assigned to ${owner.trim()}`,
+                  navigator.clipboard?.writeText(item.id).then(
+                    () => toast.success(`Copied ${item.id}`),
+                    () => toast.error("Could not copy: the browser blocked it."),
                   )
                 }
+                className="grid size-5 place-items-center rounded hover:bg-muted hover:text-i08-link"
               >
-                Assign
-              </Button>
-              {item.owner && (
+                <Copy className="size-3" />
+              </button>
+            </span>
+          </div>
+        </SheetHeader>
+
+        <SheetBody className="px-5 py-5">
+          <div className="flex flex-col gap-6">
+            {/* What clears it, first: the one thing somebody opening this wants. */}
+            <section className="rounded-xl border border-primary/20 bg-accent p-4">
+              <h3 className="text-[13px] font-semibold text-accent-foreground">What clears this</h3>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-foreground">
+                {!item.stillDetected ? (
+                  "Nothing more: the check no longer finds this item."
+                ) : item.type === "MISSING_ATTESTATION" ? (
+                  <>
+                    A condition declaration for repair line {lineLink}. Once it is recorded the check stops finding this
+                    item, and it leaves the queue.
+                  </>
+                ) : item.type === "OVERDUE_REPAIR" ? (
+                  <>
+                    SAP marking repair line {lineLink} delivery completed, or a later delivery date agreed with the
+                    vendor and entered on the PO in SAP. Either one stops the check finding this item.
+                  </>
+                ) : (
+                  "The item clears itself when the data it was raised on changes."
+                )}
+              </p>
+              {canDeclare && (
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() =>
-                    run(
-                      // An ASSIGNED entry naming nobody. Handing something
-                      // back is an action and gets its own line in the
-                      // history, not a quietly cleared field.
-                      () => appendExceptionEvent(item.id, { kind: "ASSIGNED", owner: null }),
-                      `${item.id} unassigned`,
-                    )
-                  }
+                  size="lg"
+                  className="mt-3 px-3.5"
+                  onClick={() => {
+                    setFormKey((k) => k + 1)
+                    setDeclaring(true)
+                  }}
                 >
-                  Unassign
+                  <SquarePen className="size-4" />
+                  Declare condition
                 </Button>
               )}
-            </div>
-          </div>
+            </section>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] text-muted-foreground" htmlFor="exception-note">
-              Note — recorded with whatever you do next
-            </label>
-            <Input
-              id="exception-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Why, for whoever reads this later"
-              className="h-9"
+            {autoResolved && (
+              <p className="rounded-lg border border-i08-good-border bg-i08-good-tint px-3.5 py-2.5 text-[13px] text-foreground">
+                {autoResolved.text} Recorded {autoResolved.at}.
+              </p>
+            )}
+
+            {/* What the check found, and what it searched for: the second half
+                is what lets a reader tell a real gap from a rule that did not fit. */}
+            <section>
+              <h3 className="text-[13px] font-semibold text-foreground">What the check found</h3>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-muted-foreground">{item.detail}</p>
+            </section>
+
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-[13.5px]">
+              <Fact label="Plant">{item.plant ? plantShort(item.plant.name ?? item.plant.plantId) : "Not known"}</Fact>
+              <Fact label="Repair line">{lineLink}</Fact>
+              {item.acquisitionLine && (
+                <Fact label="Purchase line">
+                  <span className="font-mono">{item.acquisitionLine}</span>
+                </Fact>
+              )}
+              <Fact label="Raised">{item.raisedAt ?? "Not known"}</Fact>
+            </dl>
+
+            <WorkThisItem
+              item={item}
+              busy={busy}
+              owner={owner}
+              setOwner={setOwner}
+              note={note}
+              setNote={setNote}
+              comment={comment}
+              setComment={setComment}
+              run={run}
             />
-            <div className="flex flex-wrap gap-2">
-              {EXCEPTION_STATUSES.filter((s) => s !== item.status).map((status) => (
-                <Button
-                  key={status}
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(
-                      () =>
-                        appendExceptionEvent(item.id, {
-                          kind: "STATUS",
-                          status,
-                          text: note.trim(),
-                        }),
-                      `${item.id} set to ${EXCEPTION_STATUS_LABEL[status]}`,
+
+            <section>
+              <h3 className="mb-2.5 text-[13px] font-semibold text-foreground">History</h3>
+              {item.history.length === 0 ? (
+                <p className="text-[13.5px] text-muted-foreground">
+                  Nothing yet. A check raised it and nobody has picked it up.
+                </p>
+              ) : (
+                <ol className="flex flex-col gap-3">
+                  {item.history.map((event) => {
+                    const line = historyLine(event)
+                    return (
+                      <li key={event.id} className="flex flex-col gap-0.5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <StatusDot tone={line.tone} wrap>
+                            {line.text}
+                          </StatusDot>
+                          <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">{event.at}</span>
+                        </div>
+                        {event.text && <p className="pl-3.5 text-[13px] text-muted-foreground">{event.text}</p>}
+                      </li>
                     )
-                  }
-                >
-                  {EXCEPTION_STATUS_LABEL[status]}
-                </Button>
-              ))}
-            </div>
+                  })}
+                </ol>
+              )}
+            </section>
           </div>
+        </SheetBody>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] text-muted-foreground" htmlFor="exception-comment">
-              Comment — without moving it
-            </label>
-            <div className="flex gap-2">
-              <Input
-                id="exception-comment"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Chasing the vendor…"
-                className="h-9"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy || !comment.trim()}
-                onClick={() =>
-                  run(
-                    () =>
-                      appendExceptionEvent(item.id, {
-                        kind: "COMMENT",
-                        text: comment.trim(),
-                      }),
-                    `Comment added to ${item.id}`,
-                  )
-                }
-              >
-                Comment
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="mb-2 text-xs font-medium text-foreground">History</h3>
-          {item.history.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Nothing has happened to this item yet. It was raised by a check and
-              nobody has picked it up.
-            </p>
-          ) : (
-            <Timeline events={item.history.map(historyStep)} />
-          )}
-        </div>
-      </div>
-    </DetailDrawer>
+        {/* Inside the panel, so the form opens as a dialog nested in it: a
+            click in the form is not a click outside the panel. */}
+        {declaring && (
+          <DeclarationFormDialog
+            key={formKey}
+            open
+            onClose={() => setDeclaring(false)}
+            onSaved={() => void afterDeclared()}
+            target={{
+              materialId: item.material.materialId,
+              plantId: item.plant?.plantId,
+              label: `${item.material.materialCode} · ${item.material.description} · ${item.plant?.name ?? "an unknown plant"} · repair line ${item.repairLine}`,
+              defaultQuantity: "1",
+              // FR-4's link to the repair PO: declaring from here declares THAT line.
+              repairDocument,
+              repairItem,
+            }}
+            faultCategories={faultCategories}
+          />
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
 
-/** Re-exported for the table's status dropdown. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-foreground">{children}</dd>
+    </>
+  )
+}
+
+/** Owner, close or reopen, and comment: each one POST to the item's history. */
+function WorkThisItem({
+  item,
+  busy,
+  owner,
+  setOwner,
+  note,
+  setNote,
+  comment,
+  setComment,
+  run,
+}: {
+  item: ExceptionQueueRow
+  busy: boolean
+  owner: string
+  setOwner: (value: string) => void
+  note: string
+  setNote: (value: string) => void
+  comment: string
+  setComment: (value: string) => void
+  run: (action: () => Promise<ApiExceptionItem>, success: string) => Promise<void>
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
+      <h3 className="text-[13px] font-semibold text-foreground">Work this item</h3>
+
+      <Field label="Owner" htmlFor="exception-owner">
+        <Input
+          id="exception-owner"
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+          placeholder={item.owner ?? "Nobody yet"}
+          className="h-9"
+        />
+        <Button
+          size="lg"
+          variant="outline"
+          disabled={busy || !owner.trim()}
+          onClick={() =>
+            run(
+              () =>
+                appendExceptionEvent(item.id, {
+                  kind: "ASSIGNED",
+                  owner: owner.trim(),
+                }),
+              `Assigned to ${owner.trim()}`,
+            )
+          }
+        >
+          Assign
+        </Button>
+        {item.owner && (
+          <Button
+            size="lg"
+            variant="ghost"
+            disabled={busy}
+            onClick={() =>
+              run(
+                // An ASSIGNED entry naming nobody: handing something back is
+                // an action, with its own line in the history.
+                () =>
+                  appendExceptionEvent(item.id, {
+                    kind: "ASSIGNED",
+                    owner: null,
+                  }),
+                "Unassigned",
+              )
+            }
+          >
+            Unassign
+          </Button>
+        )}
+      </Field>
+
+      {/* Two statuses, so one move from here. Closing needs a note -- the
+          backend refuses one without -- because a person's close is the ending
+          the data did not produce. */}
+      {item.status === "OPEN" ? (
+        <Field
+          label="Close with a note (required)"
+          htmlFor="exception-note"
+          hint={
+            item.stillDetected
+              ? "The check still finds this item, so closing it records that it was dealt with by hand."
+              : undefined
+          }
+        >
+          <Input
+            id="exception-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Why it is being closed"
+            className="h-9"
+          />
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={busy || !note.trim()}
+            title={note.trim() ? undefined : "A closing note is required"}
+            onClick={() =>
+              run(
+                () =>
+                  appendExceptionEvent(item.id, {
+                    kind: "STATUS",
+                    status: "CLOSED",
+                    text: note.trim(),
+                  }),
+                "Exception closed",
+              )
+            }
+          >
+            {/* "item": the drawer's own dismiss button is called Close. */}
+            Close item
+          </Button>
+        </Field>
+      ) : item.stillDetected ? (
+        <Field label="Reopen, with a note (optional)" htmlFor="exception-note">
+          <Input
+            id="exception-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Why it is being reopened"
+            className="h-9"
+          />
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              run(
+                () =>
+                  appendExceptionEvent(item.id, {
+                    kind: "STATUS",
+                    status: "OPEN",
+                    text: note.trim(),
+                  }),
+                "Exception reopened",
+              )
+            }
+          >
+            Reopen item
+          </Button>
+        </Field>
+      ) : (
+        // Reopening would only be undone: the next read of the queue closes
+        // an open item the check no longer finds.
+        <p className="text-[13px] text-muted-foreground">
+          The check no longer finds this item, so there is nothing to reopen.
+        </p>
+      )}
+
+      <Field label="Comment, without changing anything" htmlFor="exception-comment">
+        <Input
+          id="exception-comment"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Chasing the vendor…"
+          className="h-9"
+        />
+        <Button
+          size="lg"
+          variant="outline"
+          disabled={busy || !comment.trim()}
+          onClick={() =>
+            run(
+              () =>
+                appendExceptionEvent(item.id, {
+                  kind: "COMMENT",
+                  text: comment.trim(),
+                }),
+              "Comment added",
+            )
+          }
+        >
+          Comment
+        </Button>
+      </Field>
+    </section>
+  )
+}
+
+function Field({
+  label,
+  htmlFor,
+  hint,
+  children,
+}: {
+  label: string
+  htmlFor: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[12.5px] font-medium text-muted-foreground" htmlFor={htmlFor}>
+        {label}
+      </label>
+      <div className="flex gap-2">{children}</div>
+      {hint && <p className="text-[12.5px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/** Re-exported for the screen's status switch. */
 export type { ExceptionStatus }

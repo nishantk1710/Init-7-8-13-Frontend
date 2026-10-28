@@ -5,24 +5,39 @@ import { Search } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { listDepartments, type ApiDepartment } from "@/lib/api/assistant"
+import { departmentText } from "@/lib/assistant/request/record"
 import { cn } from "@/lib/utils"
 
 const CODE = /^\d{5}$/
 
-/** Rows shown at once. The full list is ~76 codes; the box narrows it. */
+/** Rows shown at once. The full list is ~105 codes; the box narrows it. */
 const MAX_ROWS = 50
 
+type Loaded = { items: ApiDepartment[]; loaded: boolean }
+
+function loadFromApi(plant: string, signal: AbortSignal): Promise<Loaded> {
+  return listDepartments(plant, { signal })
+}
+
+/** A code or name fragment: a code by its start, a name anywhere in it. */
+export function matchesDepartment(department: ApiDepartment, typed: string): boolean {
+  const query = typed.trim().toLowerCase()
+  if (!query) return true
+  return department.code.startsWith(query) || (department.name ?? "").toLowerCase().includes(query)
+}
+
 /**
- * The Department field: a 5-digit code picked from a list, never free text.
+ * The Department field: a 5-digit code picked from a list, never free text
+ * (free text goes in the separate department note).
  *
- * The codes are the ones VZI keys into a purchase requisition's Requisitioner
- * (`EBAN.AFNAM`), served per plant by `GET /assistant/departments`. Before
- * anything is typed it shows the picked plant's codes; typing searches every
- * code, so a department from the other site can still be chosen — labelled
- * with where it is used.
+ * The list is VZI's department list (`Plant Dept Codes`), served per plant by
+ * `GET /assistant/departments` with each code's name. Before anything is
+ * typed it shows the plant's own codes; typing searches every code by code or
+ * name, so a department the list files under the other plant can still be
+ * chosen — labelled with the plant it is listed at.
  *
  * `value` is set only by a pick. Editing the text afterwards clears it, so the
- * opener's Start button cannot go ahead on a half-typed code.
+ * form cannot go ahead on a half-typed code.
  *
  * When the backend has no list yet (still loading, unreadable, or the demo),
  * any 5-digit code can be used as typed — the backend accepts it in that state
@@ -33,12 +48,17 @@ export function DepartmentPicker({
   plant,
   value,
   onChange,
+  load = loadFromApi,
+  invalid = false,
 }: {
   id: string
   /** Empty until a material (and so a plant) is picked; the box is disabled. */
   plant: string
   value: string
   onChange: (code: string) => void
+  /** Where the list comes from; the request screen passes its demo-aware loader. */
+  load?: (plant: string, signal: AbortSignal) => Promise<Loaded>
+  invalid?: boolean
 }) {
   const listId = useId()
   const [query, setQuery] = useState(value)
@@ -54,10 +74,11 @@ export function DepartmentPicker({
   useEffect(() => {
     if (!plant) return
     const controller = new AbortController()
-    listDepartments(plant, { signal: controller.signal })
-      .then((response) =>
+    load(plant, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) return
         setAnswer({ plant, items: response.items, loaded: response.loaded, error: null })
-      )
+      })
       .catch((caught: unknown) => {
         if (controller.signal.aborted) return
         setAnswer({
@@ -68,16 +89,20 @@ export function DepartmentPicker({
         })
       })
     return () => controller.abort()
-  }, [plant])
+  }, [plant, load])
 
   const current = answer?.plant === plant ? answer : null
-  const typed = query.trim()
+
+  // A code handed in (from SAP, or kept from before) is shown with its name
+  // once the list arrives.
+  const preset = value && query === value ? current?.items.find((d) => d.code === value) : undefined
+  const shown = preset ? departmentText(preset.code, preset.name) : query
+  // With a department picked, the list offers the plant's own again, unfiltered.
+  const typed = value ? "" : query.trim()
 
   const options: Option[] = useMemo(() => {
     const items = current?.items ?? []
-    const matches = typed
-      ? items.filter((d) => d.code.startsWith(typed))
-      : items.filter((d) => d.primary)
+    const matches = typed ? items.filter((d) => matchesDepartment(d, typed)) : items.filter((d) => d.primary)
     const rows: Option[] = matches.slice(0, MAX_ROWS).map((department) => ({
       kind: "listed",
       department,
@@ -91,10 +116,14 @@ export function DepartmentPicker({
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
 
   function pick(option: Option) {
-    const code = option.kind === "listed" ? option.department.code : option.code
-    setQuery(code)
+    if (option.kind === "listed") {
+      setQuery(departmentText(option.department.code, option.department.name))
+      onChange(option.department.code)
+    } else {
+      setQuery(option.code)
+      onChange(option.code)
+    }
     setOpen(false)
-    onChange(code)
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -124,21 +153,27 @@ export function DepartmentPicker({
       />
       <Input
         id={id}
-        value={query}
+        value={shown}
+        // The whole name on hover: the box is narrower than the longest names.
+        title={value ? shown : undefined}
         disabled={!plant}
         onChange={(event) => {
-          const next = event.target.value.replace(/\D/g, "").slice(0, 5)
+          const next = event.target.value.slice(0, 80)
           setQuery(next)
           setActive(0)
           setOpen(true)
-          if (value && next !== value) onChange("")
+          if (value) onChange("")
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={(event) => {
+          setOpen(true)
+          // A picked department's text is selected, so typing replaces it.
+          if (value) event.target.select()
+        }}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
-        placeholder={plant ? "department code, e.g. 10100" : "pick a material first"}
-        className="pl-8 font-mono"
-        inputMode="numeric"
+        placeholder={plant ? "code or name, e.g. 10100 or finance" : "add a material first"}
+        className="truncate pl-8"
+        aria-invalid={invalid}
         autoComplete="off"
         role="combobox"
         aria-expanded={showList}
@@ -148,7 +183,7 @@ export function DepartmentPicker({
       />
 
       {showList && (
-        <div className="absolute top-full right-0 left-0 z-20 mt-1 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+        <div className="absolute top-full right-0 left-0 z-20 mt-1 min-w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
           {current.error && (
             <p className="px-3 py-2 text-xs text-destructive" role="alert">
               {current.error} Type the 5-digit code.
@@ -161,11 +196,11 @@ export function DepartmentPicker({
           )}
           {current.loaded && options.length === 0 && (
             <p className="px-3 py-2 text-xs text-muted-foreground" role="status">
-              No department code at plant 1300 or 1500 starts with &ldquo;{typed}&rdquo;.
+              No department at plant 1300 or 1500 matches &ldquo;{typed}&rdquo;.
             </p>
           )}
           {options.length > 0 && (
-            <ul id={listId} role="listbox" aria-label="Department codes" className="max-h-60 overflow-y-auto py-1">
+            <ul id={listId} role="listbox" aria-label="Departments" className="max-h-60 overflow-y-auto py-1">
               {options.map((option, index) => (
                 <li
                   key={option.kind === "listed" ? option.department.code : "typed"}
@@ -180,16 +215,19 @@ export function DepartmentPicker({
                   }}
                   onMouseEnter={() => setActive(index)}
                   className={cn(
-                    "flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm",
+                    "flex cursor-pointer items-baseline gap-3 px-3 py-1.5 text-sm",
                     index === activeIndex ? "bg-muted" : "bg-transparent"
                   )}
                 >
                   {option.kind === "listed" ? (
                     <>
-                      <span className="font-mono text-foreground">{option.department.code}</span>
+                      <span className="shrink-0 font-mono text-foreground">{option.department.code}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                        {option.department.name ?? <span className="text-muted-foreground">no name on the list</span>}
+                      </span>
                       {!option.department.plants.includes(plant) && (
-                        <span className="text-[11px] text-muted-foreground">
-                          used at {option.department.plants.join(", ")}
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          listed at {option.department.plants.join(", ")}
                         </span>
                       )}
                     </>

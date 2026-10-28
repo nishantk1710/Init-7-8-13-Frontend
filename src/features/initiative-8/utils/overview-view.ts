@@ -9,12 +9,12 @@ import {
 } from "@/features/initiative-8/utils/status"
 
 /**
- * The overview dashboard's filtering and export, as plain functions.
+ * The overview dashboard's filtering and counting, as plain functions.
  *
  * Pulled out of the component for the same reason `register-view.ts` was: the
- * rules are testable without React, and the exported CSV is built from exactly
- * the slice the tiles and charts were drawn from, so the file and the screen
- * can never disagree about which rows a filter matched.
+ * rules are testable without React, and the PDF is drawn from exactly the
+ * slice the tiles and charts on screen were drawn from, so the file and the
+ * screen can never disagree about which rows a filter matched.
  *
  * ## Why every figure is computed from rows
  *
@@ -249,7 +249,7 @@ export type OverviewMetrics = {
   stock: StockByPlant
 }
 
-/** Every figure the tiles and the CSV need, from one pass over the slice. */
+/** Every figure the tiles and charts need, from one pass over the slice. */
 export function summariseOverview(slice: OverviewSlice): OverviewMetrics {
   const open = slice.chains.filter(isOpenRepair)
   return {
@@ -269,44 +269,137 @@ export function summariseOverview(slice: OverviewSlice): OverviewMetrics {
   }
 }
 
-export const OVERVIEW_SUMMARY_HEADERS = ["Metric", "Value"]
+/**
+ * The name the PDF is saved under.
+ *
+ * The browser's "Save as PDF" offers the page's `document.title` as the file
+ * name, so the dashboard sets this as the title while the print dialog is
+ * open. Dated by the figures' as-at day, which is what tells two saved copies
+ * apart.
+ */
+export function overviewPdfTitle(referenceDate: string): string {
+  return referenceDate ? `i08-overview-${referenceDate}` : "i08-overview"
+}
+
+
+// --- The redesigned Overview (I08_Live_UI_Redesign_Plan.md, L1) -------------
 
 /**
- * The figures on the page as a two-column CSV, with the filters that produced
- * them on top: a summary pasted into a report has to say which slice it is.
+ * Which configured aging band a number of days falls in: "0-15", "60+".
  *
- * The figures the backend only reports over the whole dataset are labelled as
- * such rather than quietly exported as though they were filtered.
+ * The same rule as the backend's `aging_bucket` -- a negative count is day
+ * zero, "60+" starts at 61 -- so a cell's count and the register lines its
+ * link opens are the same lines.
  */
-export function overviewSummaryRows(
-  metrics: OverviewMetrics,
-  filterLabels: { plant: string; vendor: string; criticality: string },
-  wholeDataset: {
-    referenceDate: string
-    pendingDeclarations?: number
-  },
-): (string | number)[][] {
-  const unfiltered = (value: number | undefined) => (value === undefined ? "not available" : value)
-  return [
-    ["As at", wholeDataset.referenceDate],
-    ["Plant filter", filterLabels.plant],
-    ["Vendor filter (repair lines only)", filterLabels.vendor],
-    ["Criticality filter", filterLabels.criticality],
-    ["Repairable materials monitored", metrics.universeMaterials],
-    ["Material-plant rows in the universe", metrics.universeRows],
-    ["Plants in the universe", metrics.universePlants],
-    ["Qty currently under repair", metrics.qtyUnderRepair],
-    ["Open repair lines", metrics.openLines],
-    ["Repair lines in the register", metrics.totalLines],
-    ["Repairs overdue", metrics.overdueLines],
-    ["Open repairs with no due date", metrics.noDueDateLines],
-    ...metrics.stock.plants.map(
-      (p): (string | number)[] => [`Stock on hand — ${p.plant}`, p.stock],
-    ),
-    ["Universe rows with no stock record", metrics.stock.unknownRows],
-    // Named as a whole-dataset figure: it comes from a `meta` the backend
-    // computes over everything, so a filtered export must not imply it
-    // narrowed with the rest.
-    ["Pending declarations (whole register, unfiltered)", unfiltered(wholeDataset.pendingDeclarations)],
-  ]
+export function bandOf(days: number | null | undefined, bands: string[]): string | undefined {
+  if (days === null || days === undefined || bands.length === 0) return undefined
+  const value = Math.max(days, 0)
+  for (const band of bands) {
+    if (band.endsWith("+")) {
+      if (value > Number(band.slice(0, -1))) return band
+      continue
+    }
+    const [low, high] = band.split("-").map(Number)
+    if (value >= low && value <= high) return band
+  }
+  return bands[bands.length - 1]
+}
+
+/** The lifecycle stages a repair line can be in, in order. */
+export const STAGE_ORDER: RepairStatus[] = ["PR Raised", "PO Issued", "At Vendor"]
+
+export type StageAging = {
+  /** One row per stage that holds a line: how many lines sit in each band of
+   *  days in that stage. A stage with no lines has no row -- an empty row
+   *  would claim the stage is tracked and nothing reached it. */
+  rows: { stage: RepairStatus; cells: number[] }[]
+  /** Every open line, by days open (the whole repair). */
+  total: number[]
+  /** The largest cell, for shading. */
+  max: number
+}
+
+/**
+ * FR-9's aging per stage, as a table of counts rather than a bar chart: a
+ * chart with one bar said less than the number, and on today's data every
+ * line sits in one cell.
+ */
+export function stageAging(chains: RepairChain[], bands: string[]): StageAging {
+  const open = chains.filter(isOpenRepair)
+  const rows = STAGE_ORDER.filter((stage) => open.some((c) => c.repairStatus === stage)).map(
+    (stage) => ({
+      stage,
+      cells: bands.map(
+        (band) =>
+          open.filter((c) => c.repairStatus === stage && bandOf(c.daysInCurrentStage, bands) === band)
+            .length,
+      ),
+    }),
+  )
+  // The days-open band is the backend's own, so the total row and the
+  // register's "days open" filter count the same lines.
+  const total = bands.map((band) => open.filter((c) => c.agingBucket === band).length)
+  const max = Math.max(1, ...rows.flatMap((row) => row.cells), ...total)
+  return { rows, total, max }
+}
+
+export type VendorRow = {
+  /** What the register's vendor filter takes: the code, or `none`. */
+  code: string
+  name: string
+  open: number
+  late: number
+}
+
+/** Open repair lines per vendor, most first, with how many are late. */
+export function vendorRows(chains: RepairChain[]): VendorRow[] {
+  const byVendor = new Map<string, VendorRow>()
+  for (const chain of chains) {
+    if (!isOpenRepair(chain)) continue
+    const code = chain.vendor ?? "none"
+    const row = byVendor.get(code) ?? { code, name: vendorLabel(chain), open: 0, late: 0 }
+    row.open += 1
+    if (isRepairOverdue(chain)) row.late += 1
+    byVendor.set(code, row)
+  }
+  return [...byVendor.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name))
+}
+
+/** The open exception items raised against these lines, by type. */
+export function openExceptionCounts(
+  chains: RepairChain[],
+  items: { repairId?: string; type: string }[],
+): { total: number; missing: number; overdue: number } {
+  const ids = new Set(chains.map((c) => c.id))
+  const mine = items.filter((item) => item.repairId && ids.has(item.repairId))
+  return {
+    total: mine.length,
+    missing: mine.filter((item) => item.type === "MISSING_ATTESTATION").length,
+    overdue: mine.filter((item) => item.type === "OVERDUE_REPAIR").length,
+  }
+}
+
+/** The queues an Overview card can open. The register is not one: it narrows by
+ *  everything the Overview does, so its links need no note. */
+export type QueueDestination = "declarations" | "exceptions"
+
+/**
+ * What a card says when the queue it opens cannot narrow the way the Overview
+ * did, or undefined when it can -- so the card never quietly opens a longer
+ * list than its own count.
+ *
+ * The declaration queue narrows by plant and by a vendor code. It has no
+ * criticality, and no "lines with no vendor" (`none`, which the register
+ * understands and the queue would match as a vendor code and list nothing).
+ * The exception queue narrows by plant alone.
+ */
+export function queueNote(
+  filters: { vendor?: string; criticality?: string },
+  destination: QueueDestination,
+): string | undefined {
+  const lost: string[] = []
+  const vendorLost = destination === "exceptions" ? Boolean(filters.vendor) : filters.vendor === "none"
+  if (vendorLost) lost.push("vendor")
+  if (filters.criticality) lost.push("criticality")
+  return lost.length ? `The queue does not narrow by ${lost.join(" or ")}, so it opens wider than this count.` : undefined
 }

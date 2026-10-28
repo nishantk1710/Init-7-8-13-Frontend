@@ -23,7 +23,7 @@ export function DataSourcePanel() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+        className="flex min-h-11 w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
       >
         {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         Data sources

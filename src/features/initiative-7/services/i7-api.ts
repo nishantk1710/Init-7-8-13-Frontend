@@ -27,6 +27,7 @@ import type {
   ApiApprovalRole,
   ApiDecimal,
   ApiForecastHistoryResponse,
+  ApiSimilarMaterialsChangeResponse,
   ApiSimilarMaterialsResponse,
   ApiGenerationStatusResponse,
   ApiQuarterlyReport,
@@ -438,6 +439,13 @@ export interface RecommendationListParams {
   confidence?: string
   /** ELIGIBLE | NOT_ELIGIBLE -- the OAR -> Min-Max conversion decision, applied in SQL. */
   conversionEligibility?: string
+  /** Only recommendations issued more than the policy threshold in the last 12 months -- drops
+   * zero-consumption materials too. Applied in SQL. */
+  consumptionAboveThreshold?: boolean
+  /** Only recommendations with something to adopt in SAP: an OAR one eligible for the Min-Max
+   * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
+   * current value. The set the SAP adoption counts cover. Applied in SQL. */
+  actionable?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -476,6 +484,8 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.type) search.set("type", params.type)
   if (params.confidence) search.set("confidence", params.confidence)
   if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
+  if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
+  if (params.actionable) search.set("actionable", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
@@ -521,6 +531,9 @@ export interface RecommendationSummaryStats {
   /** Currency of the money figures, when every priced material shares one. */
   currency: string | null
   netSafetyStockValueImpact: number | null
+  /** Net working-capital impact of the recommended reorder points (unit price x current - recommended
+   * ROP): positive releases, negative ties up. null when no row has all three; never 0. */
+  netRopValueImpact: number | null
   /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
    * consumption x lead time. */
   criticalStockoutRiskCount: number
@@ -561,6 +574,7 @@ export async function fetchRecommendationSummary(
     notEvaluableCount: response.not_evaluable_count,
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
+    netRopValueImpact: toNumber(response.net_rop_value_impact ?? null),
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
     stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,
@@ -638,26 +652,132 @@ export interface SimilarMaterial {
   contributed: boolean
 }
 
-/** GET /recommendations/{id}/similar-materials -- the neighbours an OAR
- * recommendation was sized from, best first (up to five). `[]` (never fabricated)
- * when it was not sized from similarity. */
+/** A similar material a user removed for this material -- eligible and ranked, then set aside by a person.
+ * Not one that failed the similarity rules: those are never listed. */
+export interface ExcludedSimilarMaterial {
+  material: string
+  plant: string
+  description: string | null
+  /** 0..1 score it had when removed, or null. */
+  similarity: number | null
+  rank: number | null
+  reason: string | null
+  /** The identity the request carried -- see `isPlaceholderActor` before presenting it as a person. */
+  excludedBy: string
+  excludedAt: string | null
+}
+
+/** The similar-materials card's whole state for one recommendation. */
+export interface SimilarMaterialsView {
+  items: SimilarMaterial[]
+  excluded: ExcludedSimilarMaterial[]
+  /** Whether removing or restoring is possible now. `null` from a backend that predates it: the
+   * card then offers no controls rather than guessing. */
+  canEdit: boolean | null
+  editBlockedReason: string | null
+  /** How many similar materials the estimate needs. */
+  minimumNeighbours: number | null
+}
+
+function mapSimilarMaterialsView(response: ApiSimilarMaterialsResponse): SimilarMaterialsView {
+  return {
+    items: response.neighbours.map((n) => ({
+      rank: n.rank,
+      material: n.material,
+      plant: n.plant,
+      description: n.description,
+      similarity: toNumber(n.similarity),
+      criticality: n.criticality ? n.criticality.toUpperCase() : null,
+      historyMonths: n.history_months,
+      safetyStock: toNumber(n.current_safety_stock ?? null),
+      rop: toNumber(n.current_rop ?? null),
+      maxStock: toNumber(n.current_max_stock ?? null),
+      contributed: n.contributed,
+    })),
+    excluded: (response.excluded ?? []).map((e) => ({
+      material: e.material,
+      plant: e.plant,
+      description: e.description,
+      similarity: toNumber(e.similarity),
+      rank: e.rank,
+      reason: e.reason,
+      excludedBy: e.excluded_by,
+      excludedAt: e.excluded_at,
+    })),
+    canEdit: response.can_edit ?? null,
+    editBlockedReason: response.edit_blocked_reason ?? null,
+    minimumNeighbours: response.minimum_neighbours ?? null,
+  }
+}
+
+const similarMaterialsPath = (id: string) => `${I7_BASE}/recommendations/${encodeURIComponent(id)}/similar-materials`
+
+/** GET /recommendations/{id}/similar-materials -- the neighbours an OAR recommendation was sized from,
+ * best first, and the ones a user removed. `items` is `[]` (never fabricated) when it was not sized from
+ * similarity. */
+export async function fetchSimilarMaterialsView(id: string): Promise<SimilarMaterialsView> {
+  return mapSimilarMaterialsView(await apiFetch<ApiSimilarMaterialsResponse>(similarMaterialsPath(id)))
+}
+
+/** The neighbours alone -- see `fetchSimilarMaterialsView` for the removed ones and whether editing is allowed. */
 export async function fetchSimilarMaterials(id: string): Promise<SimilarMaterial[]> {
-  const response = await apiFetch<ApiSimilarMaterialsResponse>(
-    `${I7_BASE}/recommendations/${encodeURIComponent(id)}/similar-materials`,
+  return (await fetchSimilarMaterialsView(id)).items
+}
+
+/** The recommendation after a similar material was removed or restored, as the backend recalculated it. */
+export interface SimilarMaterialsChange {
+  status: string
+  safetyStock: number | null
+  rop: number | null
+  maxStock: number | null
+  view: SimilarMaterialsView
+}
+
+function mapChange(response: ApiSimilarMaterialsChangeResponse): SimilarMaterialsChange {
+  return {
+    status: response.status,
+    safetyStock: toNumber(response.recommended_safety_stock),
+    rop: toNumber(response.recommended_rop),
+    maxStock: toNumber(response.recommended_max_stock),
+    view: mapSimilarMaterialsView(response.similar_materials),
+  }
+}
+
+/** POST .../similar-materials/exclusions -- stop using one similar material for THIS material, now and in
+ * every later run. The user is whoever the request is made as (the `X-Actor-Id` header the client sets);
+ * no user id travels in the body. Refused with 409 -- ApiError, with the backend's reason -- when the
+ * recommendation is past review or too few similar materials would remain. */
+export async function excludeSimilarMaterial(
+  id: string,
+  donorMaterial: string,
+  donorPlant: string,
+  reason?: string,
+): Promise<SimilarMaterialsChange> {
+  return mapChange(
+    await apiFetch<ApiSimilarMaterialsChangeResponse>(`${similarMaterialsPath(id)}/exclusions`, {
+      method: "POST",
+      body: JSON.stringify({
+        donor_material: donorMaterial,
+        donor_plant: donorPlant,
+        reason: reason?.trim() ? reason.trim() : null,
+      }),
+    }),
   )
-  return response.neighbours.map((n) => ({
-    rank: n.rank,
-    material: n.material,
-    plant: n.plant,
-    description: n.description,
-    similarity: toNumber(n.similarity),
-    criticality: n.criticality ? n.criticality.toUpperCase() : null,
-    historyMonths: n.history_months,
-    safetyStock: toNumber(n.current_safety_stock ?? null),
-    rop: toNumber(n.current_rop ?? null),
-    maxStock: toNumber(n.current_max_stock ?? null),
-    contributed: n.contributed,
-  }))
+}
+
+/** POST .../similar-materials/exclusions/restore -- make a removed similar material eligible again (a POST
+ * because the API has no DELETE; the removal's record is kept, marked restored). */
+export async function restoreSimilarMaterial(
+  id: string,
+  donorMaterial: string,
+  donorPlant: string,
+): Promise<SimilarMaterialsChange> {
+  return mapChange(
+    await apiFetch<ApiSimilarMaterialsChangeResponse>(`${similarMaterialsPath(id)}/exclusions/restore`, {
+      method: "POST",
+      body: JSON.stringify({ donor_material: donorMaterial, donor_plant: donorPlant }),
+    }),
+  )
 }
 
 export interface ForecastVsActual {
@@ -702,6 +822,21 @@ export async function submitForApproval(id: string, actorId: string): Promise<Ap
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/submit`, {
     method: "POST",
     body: JSON.stringify({ actor_id: actorId }),
+  })
+}
+
+/** POST .../reject -- declines a recommendation that has not been sent for approval, straight from the
+ * Recommendations page. The backend only accepts it while the recommendation is READY_FOR_REVIEW, and
+ * requires a comment (the reason). Once a recommendation is in the approval chain, rejecting it is the
+ * pending approver's decision (applyApprovalAction). */
+export async function rejectRecommendation(
+  id: string,
+  actorId: string,
+  comment: string,
+): Promise<ApiWorkflowStateResponse> {
+  return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ actor_id: actorId, comment }),
   })
 }
 
@@ -987,17 +1122,40 @@ export interface AdoptionSummaryResult {
    * from the denominator) -- null when every evaluated row is still
    * UNKNOWN, never a fabricated 0%. See ApiAdoptionSummary's own docstring. */
   adoptionRatePercentage: number | null
+  /** What the Adopted card counts. `adoptedCount` unless the Calculation page changed the rule; absent or null
+   * means use `adoptedCount`. */
+  countedAsAdopted?: number | null
+}
+
+/** What the adoption summary can be narrowed by. All optional; none means the whole portfolio. */
+export interface AdoptionSummaryParams {
+  /** One SAP plant code. */
+  plant?: string
+  /** oar | stock_item -- the Overview's Recommendation filter. */
+  type?: "oar" | "stock_item"
+  /** The stored demand class (see DEMAND_CLASS_FOR_PATTERN). */
+  demandClass?: string
+  /** Critical | High | Medium | Low -- the level the pages show, not the raw tier. */
+  criticalityLevel?: string
 }
 
 /** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide
  * counts from the persisted ledger (i7_sap_adoption), not a live
- * re-evaluation. Feeds the Inventory Planning overview's adoption-rate card
- * and the quarterly report's SAP Adoption section. Optional `plant` narrows
- * to one SAP plant code (the backend joins to Recommendation to get one,
- * since the ledger itself carries no plant column -- see
- * app/api/i7/adoption.py::get_adoption_summary). */
-export async function fetchAdoptionSummary(plant?: string): Promise<AdoptionSummaryResult> {
-  const query = plant ? `?plant=${encodeURIComponent(plant)}` : ""
+ * re-evaluation. Feeds the Inventory Planning overview's adoption card
+ * and the quarterly report's SAP Adoption section. Counts only recommendations
+ * with something to adopt (an OAR one eligible for the Min-Max conversion, or a
+ * stock item with a changed ROP / safety stock / max stock), the same set
+ * `RecommendationListParams.actionable` lists. `plant` narrows to one SAP plant
+ * code (the backend joins to Recommendation to get one, since the ledger itself
+ * carries no plant column -- see app/api/i7/adoption.py::get_adoption_summary). */
+export async function fetchAdoptionSummary(params: AdoptionSummaryParams = {}): Promise<AdoptionSummaryResult> {
+  const search = new URLSearchParams()
+  if (params.plant) search.set("plant", params.plant)
+  if (params.type) search.set("type", params.type)
+  if (params.demandClass) search.set("demand_class", params.demandClass)
+  if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
+  const queryString = search.toString()
+  const query = queryString ? `?${queryString}` : ""
   const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary${query}`)
   return {
     totalEvaluated: response.total_evaluated,
@@ -1006,6 +1164,7 @@ export async function fetchAdoptionSummary(plant?: string): Promise<AdoptionSumm
     notAdoptedCount: response.not_adopted_count,
     unknownCount: response.unknown_count,
     adoptionRatePercentage: response.adoption_rate_percentage,
+    countedAsAdopted: response.counted_as_adopted ?? null,
   }
 }
 

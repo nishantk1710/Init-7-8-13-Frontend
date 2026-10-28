@@ -76,13 +76,14 @@ export function DeclarePartButton({
 
   return (
     <>
-      <Button size="sm" onClick={open}>
-        <ClipboardCheck className="size-3.5" />
+      <Button size="lg" className="px-3.5" onClick={open}>
+        <ClipboardCheck className="size-4" />
         Declare a part
       </Button>
 
       <Dialog open={picking} onOpenChange={(o) => !o && setPicking(false)}>
-        <DialogContent>
+        {/* Portalled out of the page, so it carries the I08 look itself. */}
+        <DialogContent className="i08-scope gap-4 p-5">
           <DialogHeader>
             <DialogTitle>Declare a part</DialogTitle>
             <DialogDescription>
@@ -92,7 +93,7 @@ export function DeclarePartButton({
           </DialogHeader>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground" htmlFor="declare-material">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="declare-material">
               Material number
             </label>
             <Input
@@ -104,7 +105,7 @@ export function DeclarePartButton({
                 if (e.key === "Enter") next()
               }}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[12.5px] text-muted-foreground">
               An 80-series repairable material. Leading zeroes do not matter — the
               backend normalises the number before it compares anything, and refuses a
               part that is not in the repairable universe.
@@ -112,12 +113,12 @@ export function DeclarePartButton({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Plant</label>
+            <label className="text-[13px] font-medium text-foreground">Plant</label>
             <Select value={plantId} onValueChange={(v) => setPlantId(v ?? "")}>
               <SelectTrigger className="h-9 w-full">
                 <SelectValue placeholder="Select a plant" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="i08-scope">
                 {plantOptions.map((p) => (
                   <SelectItem key={p.plantId} value={p.plantId}>
                     {p.name}

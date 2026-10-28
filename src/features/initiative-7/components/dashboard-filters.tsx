@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { cn } from "@/lib/utils"
-import { getPlantById, PLANTS } from "@/lib/shared-data/plants"
 import {
   CIRCUITS,
   CRITICALITIES,
@@ -157,7 +156,10 @@ function FilterField({
 }) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+      <span
+        data-slot="filter-label"
+        className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
+      >
         {label}
       </span>
       {children}
@@ -181,7 +183,9 @@ export function DashboardFilters({
   showCircuitFilter = true,
   showTypeFilter = false,
   typeFilterLabel = "Type",
+  typeFilterAllowAll = false,
   showStatusFilter = true,
+  showRiskFilter = true,
   showConfidenceFilter = false,
   showConversionFilter = false,
   resetFilters = EMPTY_DASHBOARD_FILTERS,
@@ -191,12 +195,9 @@ export function DashboardFilters({
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
   layout?: "rail" | "bar"
-  /** Live mode only: the real SAP plant codes present in the data, from the
-   * backend's own by_plant aggregate. The default PLANTS list is app-side
-   * scenario master data keyed on invented ids (PLANT-GBG etc.) that never
-   * match a live row's SAP WERKS code, so selecting one filtered everything
-   * out -- see utils/sap-plants.ts. When provided, these replace that list. */
-  plantOptions?: { value: string; label: string; count?: number }[]
+  /** The real SAP plant codes present in the data, from the backend's own
+   * by_plant aggregate -- see utils/sap-plants.ts. */
+  plantOptions: { value: string; label: string; count?: number }[]
   /** Live mode only -- the scenario dataset has no "blocked vs calculated"
    * distinction to filter on (every fixture row carries values). */
   showRecommendationFilter?: boolean
@@ -212,10 +213,16 @@ export function DashboardFilters({
   showTypeFilter?: boolean
   /** The label above that dropdown. The Recommendations page calls it "Recommendation". */
   typeFilterLabel?: string
+  /** Adds an "All" option to the Type dropdown. The Recommendations page has none (a recommendation
+   * is OAR or a stock item); the Overview, which counts both, offers it. */
+  typeFilterAllowAll?: boolean
   /** False hides the Recommendation Status dropdown. The Recommendations page hides it: a
    * recommendation sent for approval is decided in the Action Center and leaves that page, so
    * there is no status left to filter by. */
   showStatusFilter?: boolean
+  /** False hides the Stockout Risk dropdown -- for a page whose risk figures are not a property of a
+   * recommendation row, so there is nothing for the dropdown to filter. */
+  showRiskFilter?: boolean
   /** Adds the OAR confidence dropdown (High / Medium / Low). Offered only where the rows
    * on view are OAR ones, since no other recommendation carries a confidence. */
   showConfidenceFilter?: boolean
@@ -237,20 +244,20 @@ export function DashboardFilters({
   }
 
   const isBar = layout === "bar"
-  const plants: { value: string; label: string; count?: number }[] =
-    plantOptions ?? PLANTS.map((p) => ({ value: p.plantId, label: p.name }))
-  const plantLabel = (v: string) =>
-    plantOptions
-      ? (plantOptions.find((p) => p.value === v)?.label ?? v)
-      : (getPlantById(v)?.name ?? v)
+  const plants = plantOptions
+  const plantLabel = (v: string) => plantOptions.find((p) => p.value === v)?.label ?? v
 
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card p-4",
+        "bg-card p-4",
         isBar
-          ? "flex flex-wrap items-end gap-3 [&>div]:min-w-[132px] [&>div]:flex-1"
-          : "flex flex-col gap-4"
+          ? // The bar: the same bold bordered, shadowed track as the filters on the Action Center, Approvals and
+            // Audit trail.
+            // Field names bold and dark, and the chosen values semi-bold, so the bar reads at a glance.
+            "flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 shadow-lg [&>div]:min-w-[132px] [&>div]:flex-1 [&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground [&_[data-slot=select-trigger]]:font-semibold [&_[data-slot=input]]:font-semibold"
+          : // The Overview's rail: field names (Recommendation, Plant, ...) a little bolder than the bar's.
+            "flex flex-col gap-4 rounded-xl border border-border [&_[data-slot=filter-label]]:font-semibold"
       )}
     >
       {!isBar && <div className="text-sm font-medium text-foreground">Filters</div>}
@@ -276,14 +283,17 @@ export function DashboardFilters({
 
       {showTypeFilter && (
         <FilterField label={typeFilterLabel}>
-          {/* No "All": a recommendation is either OAR or a stock item. */}
+          {/* No "All" unless asked for: a recommendation is either OAR or a stock item. */}
           <Select value={value.type} onValueChange={(v) => set("type", v ?? resetFilters.type)}>
             <SelectTrigger className="h-8 w-full">
-              <SelectValue placeholder="OAR">
-                {(v: string) => RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v}
+              <SelectValue placeholder={typeFilterAllowAll ? "All" : "OAR"}>
+                {(v: string) =>
+                  v === ALL_FILTER ? "All" : (RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v)
+                }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              {typeFilterAllowAll && <SelectItem value={ALL_FILTER}>All</SelectItem>}
               {RECOMMENDATION_TYPE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -422,23 +432,25 @@ export function DashboardFilters({
         </FilterField>
       )}
 
-      <FilterField label="Stockout Risk">
-        <Select value={value.risk} onValueChange={(v) => set("risk", v ?? ALL_FILTER)}>
-          <SelectTrigger className="h-8 w-full">
-            <SelectValue placeholder="All">
-              {(v: string) => (v === ALL_FILTER ? "All" : v.charAt(0).toUpperCase() + v.slice(1))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER}>All</SelectItem>
-            {(mergeCriticalIntoHigh ? RISK_LEVELS.filter((r) => r !== "critical") : RISK_LEVELS).map((r) => (
-              <SelectItem key={r} value={r}>
-                {r.charAt(0).toUpperCase() + r.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterField>
+      {showRiskFilter && (
+        <FilterField label="Stockout Risk">
+          <Select value={value.risk} onValueChange={(v) => set("risk", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">
+                {(v: string) => (v === ALL_FILTER ? "All" : v.charAt(0).toUpperCase() + v.slice(1))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {(mergeCriticalIntoHigh ? RISK_LEVELS.filter((r) => r !== "critical") : RISK_LEVELS).map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
 
       {showSapAdoptionFilter && (
         <FilterField label="SAP Adoption">
@@ -473,7 +485,12 @@ export function DashboardFilters({
       <Button
         variant="outline"
         size="sm"
-        className={isBar ? "shrink-0 grow-0" : undefined}
+        className={
+          isBar
+            ? // Highlighted like Clear filters on the Audit trail; it dims, as before, while there is nothing to clear.
+              "shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+            : undefined
+        }
         disabled={!isDashboardFiltersActive(value, resetFilters)}
         onClick={() => onChange(resetFilters)}
       >

@@ -22,6 +22,7 @@ function stats(overrides: Record<string, unknown> = {}) {
     excessInventoryCandidatesCount: 3,
     awaitingApprovalCount: 7,
     netSafetyStockValueImpact: -1_048_500,
+    netRopValueImpact: -1_048_500,
     currency: "ZAR",
     ...overrides,
   }

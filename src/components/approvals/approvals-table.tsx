@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
@@ -41,12 +42,21 @@ const SEVERITY_TONE = {
 export function ApprovalsTable({
   approvals,
   incomplete = false,
+  onShownChange,
 }: {
   approvals: GlobalAction[]
   /** Some module could not be loaded, so an empty list is not "all clear". */
   incomplete?: boolean
+  /** Told how many rows are on screen (this page), and `null` once the table goes away. */
+  onShownChange?: (shown: number | null) => void
 }) {
   const { paged, page, pageSize, total, setPage } = usePaginatedRows(approvals)
+
+  const shown = paged.length
+  useEffect(() => {
+    onShownChange?.(shown)
+  }, [onShownChange, shown])
+  useEffect(() => () => onShownChange?.(null), [onShownChange])
 
   if (approvals.length === 0) {
     return incomplete ? (
@@ -84,7 +94,7 @@ export function ApprovalsTable({
                 <TableCell>
                   <Link
                     href={a.href}
-                    className="inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-[13px] font-medium text-action hover:underline"
                   >
                     Review
                     <ArrowRight className="size-3" />

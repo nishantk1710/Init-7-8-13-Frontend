@@ -13,7 +13,7 @@ import {
   type TooltipContentProps,
 } from "recharts"
 
-import { Skeleton } from "@/components/ui/skeleton"
+import { ChartLoader } from "@/components/shared/chart-loader"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { PlantPositionsState } from "@/features/initiative-7/hooks/use-plant-positions"
@@ -37,9 +37,9 @@ const SCOPE_NAME: Record<PositionScope, string> = {
 }
 
 const SCOPE_COLOR: Record<PositionScope, string> = {
-  ALL: "var(--chart-5)",
-  "1300": "var(--chart-3)",
-  "1500": "var(--chart-1)",
+  ALL: "var(--plant-all)",
+  "1300": "var(--plant-1300)",
+  "1500": "var(--plant-1500)",
 }
 
 interface BarDatum extends PositionBar {
@@ -105,7 +105,7 @@ function PositionTooltip({
  * nothing to count, bars) can be rendered and tested on its own. */
 export function PlantPositionView({ state, metric }: { state: PlantPositionsState; metric: PositionMetric }) {
   const copy = METRIC_COPY[metric]
-  if (state.loading) return <Skeleton className="h-[220px] w-full" />
+  if (state.loading) return <ChartLoader label="Loading the chart" className="h-[220px] w-full" />
   if (state.error) {
     return (
       <div className="flex h-[220px] w-full flex-col items-center justify-center gap-1 text-center text-xs text-muted-foreground">
@@ -132,11 +132,22 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
     )
   }
   const data = toData(bars)
+  // Each bar is its plant's colour, strongest at the top and fading toward the base. The gradient ids carry the metric because
+  // the Stockout and Excess charts sit on the same page and an id must be unique in it.
+  const gradientId = (scope: PositionScope) => `plant-bar-${metric}-${scope}`
   return (
     <div className="flex flex-col gap-2">
       <div className="h-[220px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 20, right: 12, left: 0, bottom: 0 }}>
+            <defs>
+              {data.map((bar) => (
+                <linearGradient key={bar.scope} id={gradientId(bar.scope)} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={SCOPE_COLOR[bar.scope]} stopOpacity={1} />
+                  <stop offset="100%" stopColor={SCOPE_COLOR[bar.scope]} stopOpacity={0.8} />
+                </linearGradient>
+              ))}
+            </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis
               dataKey="name"
@@ -164,7 +175,7 @@ export function PlantPositionView({ state, metric }: { state: PlantPositionsStat
             />
             <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {data.map((bar) => (
-                <Cell key={bar.scope} fill={SCOPE_COLOR[bar.scope]} />
+                <Cell key={bar.scope} fill={`url(#${gradientId(bar.scope)})`} />
               ))}
               <LabelList
                 dataKey="value"

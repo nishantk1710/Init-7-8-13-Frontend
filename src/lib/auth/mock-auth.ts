@@ -21,7 +21,8 @@ export const PUBLIC_PATHS = ["/login", "/signup"] as const
 
 export const DEFAULT_LANDING = "/home"
 
-export type AccountSource = "uat" | "signup"
+/** "entra": the user signed in with Microsoft (hooks/use-current-user.ts), not here. */
+export type AccountSource = "uat" | "signup" | "entra"
 
 export interface MockUser {
   username: string

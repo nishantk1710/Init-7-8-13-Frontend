@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Copy, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Search, Sparkles, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { AI_BUTTON, AiEyebrow } from "@/components/assistant/ai-visuals"
+import { DepartmentPicker } from "@/components/assistant/department-picker"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
-import { Chip, DemoBanner, SELECT_CLASS } from "@/components/assistant/request/request-parts"
-import { useDepartments } from "@/components/assistant/request/use-requests"
+import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
@@ -19,11 +19,11 @@ import {
   isNotEnabled,
   previewRequest,
   refusedDetail,
+  requestDepartments,
   searchRequestMaterials,
   type ApiReasonCategory,
 } from "@/lib/api/assistant-requests"
-import { ASSISTANT_DEMO } from "@/lib/assistant/demo/flag"
-import { REQUEST_CATALOGUE } from "@/lib/assistant/request/catalogue"
+import type { RequestEntry } from "@/lib/assistant/request/entry"
 import {
   DEFAULT_MAX_LINES,
   EMPTY_JUSTIFICATION,
@@ -43,8 +43,11 @@ import {
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
-import { PLANTS } from "@/lib/shared-data/plants"
+import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+
+/** The sites a request can be for: the two plants VZI's delivery names. */
+const REQUEST_PLANTS = ["1300", "1500"] as const
 
 /** A material as picked: from search, or a number typed with a plant. */
 type Picked = { materialId: string; plant: string; description: string | null }
@@ -67,13 +70,27 @@ function newDraftKey(): string {
  * filled in. Submitting records the whole request, or nothing; each line is
  * numbered `/1`, `/2` … in the order it was added.
  *
- * One request is for one plant: the first material added fixes it. Department
- * is per line, from that plant's codes, picked in each row -- there is no
- * request-wide department (removed after UAT, 19 Oct).
+ * One request is for one plant and one department (UAT, 21 Oct): the first
+ * material added fixes the plant, and the requester picks the department once,
+ * from that plant's codes, for every material on the request.
+ *
+ * One material is a request too (UAT, 21 Oct): `entry` -- from the landing
+ * page or the SAP BAdI link -- starts the request with that material as line 1,
+ * the requester and department pre-filled from the link. A request opened from
+ * SAP (`origin` BADI) may have neither, as the backend allows: the pop-up
+ * cannot always supply them.
  */
-export function RequestBuilder() {
+export function RequestBuilder({ entry = null }: { entry?: RequestEntry | null }) {
   const router = useRouter()
-  const [requester, setRequester] = useState("")
+  const fromSap = entry?.origin === "BADI"
+  const [requester, setRequester] = useState(entry?.requestedFor ?? "")
+  /** Picked for one plant; a different plant (or an emptied request) clears it. */
+  const [picked, setPicked] = useState<{ plant: string | null; code: string }>({
+    plant: entry?.plant ?? null,
+    code: entry?.department ?? "",
+  })
+  /** Free text beside the code (UAT, 21 Oct): optional, never checked. */
+  const [departmentNote, setDepartmentNote] = useState("")
   const [rows, setRows] = useState<DraftLine[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -95,11 +112,11 @@ export function RequestBuilder() {
 
   /** Fixed by the first material added; null while the request is empty. */
   const requestPlant = rows.length > 0 ? rows[0].plant : null
-  const plantName = PLANTS.find((p) => p.sapPlantCode === requestPlant)?.name ?? null
-  const departments = useDepartments(requestPlant)
+  const plantName = requestPlant ? sapPlantName(requestPlant) : null
+  const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
-  const headerReady = requester.trim().length > 0
+  const headerReady = fromSap || (requester.trim().length > 0 && department.length > 0)
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
 
@@ -148,6 +165,15 @@ export function RequestBuilder() {
     }
   }
 
+  /** The link's material is line 1. Once: a ref survives Strict Mode's re-run. */
+  const started = useRef(false)
+  useEffect(() => {
+    if (!entry || started.current) return
+    started.current = true
+    void add({ materialId: entry.materialId, plant: entry.plant, description: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first render's link
+  }, [])
+
   function update(next: DraftLine) {
     if (next.key === refusedKey) setRefusedKey(null)
     setRows((current) => current.map((row) => (row.key === next.key ? next : row)))
@@ -188,7 +214,7 @@ export function RequestBuilder() {
       setShowErrors(true)
       toast.error("Some rows still need answers", {
         description: !headerReady
-          ? "Fill in the requester first."
+          ? "Fill in the requester and pick the department first."
           : pendingCount > 0
             ? "Wait for every material to finish checking."
             : "Each row's status says what is missing.",
@@ -201,7 +227,10 @@ export function RequestBuilder() {
       const request = await createRequest({
         idempotencyKey: draftKey.current,
         plant: requestPlant ?? "",
-        requestedFor: requester.trim(),
+        requestedFor: requester.trim() || null,
+        department,
+        departmentNote: departmentNote.trim() || null,
+        origin: fromSap ? "BADI" : "PLATFORM",
         lines: submitted.map(answersOf),
       })
       router.push(`/assistant/requests/${request.requestId}`)
@@ -235,18 +264,16 @@ export function RequestBuilder() {
 
   return (
     <div className="flex flex-col gap-5 pb-24">
-      <DemoBanner />
-
       <section className="ai-glass flex flex-col gap-4 rounded-2xl p-5">
         <AiEyebrow>1 · Who is it for</AiEyebrow>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
             id="req-requester"
             label="Requester"
             value={requester}
             onChange={setRequester}
             placeholder="who the parts are for"
-            invalid={showErrors && !requester.trim()}
+            invalid={showErrors && !fromSap && !requester.trim()}
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Plant</span>
@@ -264,10 +291,44 @@ export function RequestBuilder() {
               </div>
             )}
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="req-department" className="text-sm font-medium text-foreground">
+              Department
+            </label>
+            {requestPlant ? (
+              // Keyed by plant: a new plant starts the search afresh.
+              <DepartmentPicker
+                key={requestPlant}
+                id="req-department"
+                plant={requestPlant}
+                load={loadDepartments}
+                value={department}
+                invalid={showErrors && !fromSap && !department}
+                onChange={(code) => setPicked({ plant: requestPlant, code })}
+              />
+            ) : (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground">
+                Pick once the plant is set
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="req-department-note" className="text-sm font-medium text-foreground">
+            Department note <span className="font-normal text-muted-foreground">(optional)</span>
+          </label>
+          <Input
+            id="req-department-note"
+            value={departmentNote}
+            onChange={(e) => setDepartmentNote(e.target.value)}
+            placeholder="anything else about the department, e.g. section or crew"
+            maxLength={DEPARTMENT_NOTE_MAX}
+          />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          One request is for one plant. Each material picks its own department from that plant&rsquo;s list, in its
-          row below, so one request can serve several departments.
+          One request is for one plant and one department. The first material you add sets the plant; the department
+          you pick applies to every material on the request.
+          {fromSap && " Opened from SAP: the requester and department are optional."}
         </p>
       </section>
 
@@ -298,7 +359,6 @@ export function RequestBuilder() {
             rows={oarRows}
             lineNumbers={lineNumbers}
             showErrors={showErrors}
-            departments={departments.own}
             reasons={reasons}
             refusedKey={refusedKey}
             onChange={update}
@@ -331,7 +391,6 @@ export function RequestBuilder() {
             rows={repairableRows}
             lineNumbers={lineNumbers}
             showErrors={showErrors}
-            departments={departments.own}
             reasons={reasons}
             refusedKey={refusedKey}
             onChange={update}
@@ -397,7 +456,7 @@ export function RequestBuilder() {
 export function NotEnabledNotice() {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm">
-      <span className="font-medium text-foreground">Multi-material requests are not switched on yet.</span>
+      <span className="font-medium text-foreground">Requests are not switched on yet.</span>
       <span className="text-muted-foreground">
         The backend answers these routes only when ASSISTANT_REQUESTS_ENABLED is set. Until then, check one material at
         a time from the assistant.
@@ -455,6 +514,14 @@ function LabelledInput({
   )
 }
 
+/** The backend's limit on the department note. */
+const DEPARTMENT_NOTE_MAX = 200
+
+/** The picker's list, through the demo-aware request API. Module-level so it is stable. */
+function loadDepartments(plant: string) {
+  return requestDepartments(plant)
+}
+
 // --- adding materials -----------------------------------------------------------
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -472,7 +539,7 @@ function AddMaterials({
   onAdd: (picked: Picked) => void
 }) {
   const [query, setQuery] = useState("")
-  const [typedPlant, setTypedPlant] = useState<string>(PLANTS[0].sapPlantCode)
+  const [typedPlant, setTypedPlant] = useState<string>(REQUEST_PLANTS[0])
   const [results, setResults] = useState<{ query: string; items: ApiMaterialMatch[]; error: string | null } | null>(null)
   const plant = requestPlant ?? typedPlant
   const typedNumber = /^\d{3,18}$/.test(query.replace(/[\s-]/g, "")) ? query.replace(/[\s-]/g, "") : null
@@ -561,9 +628,9 @@ function AddMaterials({
                   disabled={!!requestPlant}
                   onChange={(e) => setTypedPlant(e.target.value)}
                 >
-                  {PLANTS.map((p) => (
-                    <option key={p.sapPlantCode} value={p.sapPlantCode}>
-                      {p.sapPlantCode} {p.name}
+                  {REQUEST_PLANTS.map((code) => (
+                    <option key={code} value={code}>
+                      {code} {sapPlantName(code)}
                     </option>
                   ))}
                 </select>
@@ -586,79 +653,7 @@ function AddMaterials({
         )}
       </div>
 
-      {ASSISTANT_DEMO && <DemoCatalogue rows={rows} requestPlant={requestPlant} onAdd={onAdd} />}
     </section>
-  )
-}
-
-/** Demo only: the mock catalogue's materials, one per case. */
-function DemoCatalogue({
-  rows,
-  requestPlant,
-  onAdd,
-}: {
-  rows: DraftLine[]
-  requestPlant: string | null
-  onAdd: (picked: Picked) => void
-}) {
-  const otherPlant = (plant: string) => !!requestPlant && plant !== requestPlant
-  return (
-    <details className="group rounded-xl border border-dashed border-border px-4 py-3" open>
-      <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-        <span>Demo materials -- one per case. Click to add.</span>
-        <span className="flex gap-1.5">
-          {PLANTS.filter((p) => !requestPlant || p.sapPlantCode === requestPlant).map((p) => (
-            <Button
-              key={p.sapPlantCode}
-              type="button"
-              size="xs"
-              variant="outline"
-              onClick={(e) => {
-                e.preventDefault()
-                for (const m of REQUEST_CATALOGUE) {
-                  if (m.plant === p.sapPlantCode && !isDuplicate(rows, m.materialId, m.plant)) {
-                    onAdd({ materialId: m.materialId, plant: m.plant, description: m.description })
-                  }
-                }
-              }}
-            >
-              <Copy /> Add all at {p.sapPlantCode}
-            </Button>
-          ))}
-        </span>
-      </summary>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {REQUEST_CATALOGUE.map((m) => {
-          const added = isDuplicate(rows, m.materialId, m.plant)
-          return (
-            <li key={`${m.materialId}-${m.plant}`}>
-              <button
-                type="button"
-                disabled={added || otherPlant(m.plant)}
-                onClick={() => onAdd({ materialId: m.materialId, plant: m.plant, description: m.description })}
-                className="flex w-full flex-col items-start gap-0.5 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-ai-2/40 hover:bg-muted/40 disabled:opacity-45"
-              >
-                <span className="flex w-full items-center gap-2">
-                  <span className="font-mono text-[11px] font-semibold">{m.materialId}</span>
-                  <span className="text-[11px] text-muted-foreground">@ {m.plant}</span>
-                  <span className="ml-auto">
-                    {added ? (
-                      <Chip tone="muted">Added</Chip>
-                    ) : otherPlant(m.plant) ? (
-                      <Chip tone="muted">Other plant</Chip>
-                    ) : (
-                      <Plus className="size-3.5 text-ai-2" />
-                    )}
-                  </span>
-                </span>
-                <span className="text-xs text-foreground">{m.description}</span>
-                <span className="text-[11px] text-ai-2">{m.scenario}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </details>
   )
 }
 

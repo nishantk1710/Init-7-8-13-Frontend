@@ -12,7 +12,6 @@ import {
   filterUploads,
   formatMonth,
   previousMonth,
-  showingLabel,
   thisMonth,
 } from "@/features/initiative-7/utils/criticality-reports"
 
@@ -100,7 +99,27 @@ describe("the history", () => {
     expect(said).toContain("Current")
     expect(said).toContain("Replaced")
     expect(said).toContain("Previous")
-    expect(said).toContain("Showing 4 uploads")
+    expect(said).toContain("Showing 1–4 of 4 uploads")
+  })
+
+  it("pages a long history, 25 to a page, and shows the pager only then", () => {
+    const many = Array.from({ length: 30 }, (_, i) => upload({ id: i + 1, fileName: `report-${i + 1}.xlsx` }))
+    const html = renderToStaticMarkup(createElement(HistoryBody, { uploads: many, plant: null, loading: false, error: null }))
+    const said = text(html)
+    expect(said).toContain("Showing 1–25 of 30 uploads · Page 1 of 2")
+    expect(said).toContain("report-25.xlsx")
+    expect(said).not.toContain("report-26.xlsx")
+    // A short history has nothing to turn to: the count line, no Previous/Next.
+    expect(html).toContain(">Next</button>")
+    expect(render(null)).not.toContain("Next")
+  })
+
+  it("shows the chart ring, not a blank, while the history loads", () => {
+    const html = renderToStaticMarkup(
+      createElement(HistoryBody, { uploads: null, plant: null, loading: true, error: null })
+    )
+    expect(html).toContain("chart-loader-ring")
+    expect(html).toContain('aria-label="Loading the upload history"')
   })
 
   it("shows the July delivery as such, with nobody as its uploader", () => {
@@ -113,7 +132,8 @@ describe("the history", () => {
 
   it("narrows to one plant", () => {
     const said = render("1500")
-    expect(said).toContain("Showing 1 upload")
+    expect(said).toContain("Showing 1–1 of 1 upload")
+    expect(said).not.toContain("1 uploads")
     expect(said).not.toContain("aug-v2.xlsx")
   })
 
@@ -161,7 +181,5 @@ describe("helpers", () => {
     const rows = [upload({ plant: "1300" }), upload({ id: 2, plant: "1500" })]
     expect(filterUploads(rows, null)).toHaveLength(2)
     expect(filterUploads(rows, "1500").map((u) => u.id)).toEqual([2])
-    expect(showingLabel(1)).toBe("Showing 1 upload")
-    expect(showingLabel(10521)).toBe("Showing 10,521 uploads")
   })
 })
