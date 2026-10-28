@@ -15,6 +15,8 @@ import {
   stockFigure,
   stockView,
   unitsText,
+  usableBreakdownText,
+  conditionWord,
 } from "./i08-facts-format"
 
 /** The I08 keys a record from before 27-Oct-2026 carries (none of the new ones). */
@@ -244,6 +246,9 @@ describe("repair request wording", () => {
   it("words a quantity as units", () => {
     expect(unitsText("1")).toBe("1 unit")
     expect(unitsText("2")).toBe("2 units")
+    // SAP pads a quantity with decimals; the screen does not.
+    expect(unitsText("1.000000")).toBe("1 unit")
+    expect(unitsText("8.000")).toBe("8 units")
   })
 
   it("keeps the old 'nothing exists' text on an older record", () => {
@@ -262,5 +267,50 @@ describe("repair request wording", () => {
     expect(I08_WANT_NEW_NOTE).toBe(
       "Your reason is kept on the platform. It doesn't buy anything: the reservation takes whatever usable stock the plant has, and a new unit is bought only when MRP or an inventory controller raises a purchase request. The desk that raises it won't see your reason."
     )
+  })
+})
+
+describe("usableBreakdownText", () => {
+  const known = { ...legacy, stockOnHand: "3", usableStock: "3", damagedStock: "0", stockConditionKnown: true }
+
+  it("names each usable condition, in the order sent", () => {
+    expect(
+      usableBreakdownText({
+        ...known,
+        usableBreakdown: [
+          { condition: "NEW", quantity: "2.000000" },
+          { condition: "REFURBISHD", quantity: "1.000000" },
+        ],
+      })
+    ).toBe("2 new · 1 refurbished")
+    expect(usableBreakdownText({ ...known, usableBreakdown: [{ condition: "REFURBISHD", quantity: "1" }] })).toBe(
+      "1 refurbished"
+    )
+  })
+
+  it("leaves out conditions holding nothing", () => {
+    expect(
+      usableBreakdownText({
+        ...known,
+        usableBreakdown: [
+          { condition: "NEW", quantity: "0" },
+          { condition: "REFURBISHD", quantity: "1" },
+        ],
+      })
+    ).toBe("1 refurbished")
+  })
+
+  it("is null on an older record, an empty list or a malformed one", () => {
+    expect(usableBreakdownText(legacy)).toBeNull()
+    expect(usableBreakdownText({ ...known, usableBreakdown: [] })).toBeNull()
+    expect(usableBreakdownText({ ...known, usableBreakdown: "NEW" })).toBeNull()
+    expect(usableBreakdownText({ ...known, usableBreakdown: [{ quantity: "1" }] })).toBeNull()
+    expect(usableBreakdownText(null)).toBeNull()
+  })
+
+  it("words an unknown condition rather than showing the code", () => {
+    expect(conditionWord("NEW")).toBe("new")
+    expect(conditionWord("REFURBISHD")).toBe("refurbished")
+    expect(conditionWord("AS_IS")).toBe("as is")
   })
 })

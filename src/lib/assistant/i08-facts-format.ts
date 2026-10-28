@@ -106,6 +106,44 @@ export function stockView(facts: unknown): I08StockView {
   return { state: "condition-unknown", usable: null, damaged: null, total: stockOnHand }
 }
 
+/** SAP's condition codes as words. `REFURBISHD` is SAP's own (10-character) spelling. */
+const CONDITION_WORDS: Record<string, string> = {
+  NEW: "new",
+  REFURBISHD: "refurbished",
+  REFURBISHED: "refurbished",
+  DAMAGED: "damaged",
+}
+
+/** A stock condition code as a lower-case word: `REFURBISHD` -> "refurbished". */
+export function conditionWord(condition: string): string {
+  return CONDITION_WORDS[condition] ?? condition.replace(/_/g, " ").trim().toLowerCase()
+}
+
+/**
+ * The usable units by condition, as `1 refurbished` or `2 new · 1 refurbished`,
+ * in the order the backend sent them (its configured order). Null when the
+ * record does not say (an older record, or the condition is unknown) or names
+ * nothing above zero -- the screens then say "usable" as before.
+ */
+export function usableBreakdownText(facts: unknown): string | null {
+  if (!isRecord(facts) || !Array.isArray(facts.usableBreakdown)) return null
+  const parts = facts.usableBreakdown
+    .filter(
+      (entry): entry is { condition: string; quantity: unknown } =>
+        isRecord(entry) && typeof entry.condition === "string" && entry.condition.trim() !== ""
+    )
+    .map((entry) => ({ condition: entry.condition, quantity: stringOrNull(entry.quantity) }))
+    .filter((entry) => isPositiveQuantity(entry.quantity))
+    .map((entry) => `${trimQuantity(entry.quantity as string)} ${conditionWord(entry.condition)}`)
+  return parts.length > 0 ? parts.join(" · ") : null
+}
+
+/** `1.000000` -> `1`, `2.500` -> `2.5`. Anything unparsable is shown as sent. */
+function trimQuantity(value: string): string {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? String(parsed) : value
+}
+
 /** True for a quantity string above zero; false for zero, null or anything unparsable. */
 export function isPositiveQuantity(value: string | null | undefined): boolean {
   if (value === null || value === undefined || value === "") return false
@@ -208,9 +246,10 @@ export function openRepairsSuffix(facts: unknown): string | null {
   return count > 0 ? `+${count} requested, not ordered` : null
 }
 
-/** `1 unit` / `2 units`, the quantity as sent. */
+/** `1 unit` / `2 units`, without the trailing decimals SAP pads a quantity with. */
 export function unitsText(quantity: string): string {
-  return `${quantity} unit${quantity === "1" ? "" : "s"}`
+  const shown = trimQuantity(quantity)
+  return `${shown} unit${shown === "1" ? "" : "s"}`
 }
 
 /**

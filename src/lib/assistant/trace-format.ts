@@ -54,18 +54,61 @@ export function planStatusLabel(status: string): string {
 
 export function formatWindow(start: string | null, end: string | null): string | null {
   if (!start && !end) return null
-  if (start && end) return `${start} to ${end}`
-  return start ? `from ${start}` : `by ${end}`
+  if (start && end) return `${formatDay(start)} to ${formatDay(end)}`
+  return start ? `from ${formatDay(start)}` : `by ${formatDay(end)}`
 }
 
-export function formatInstant(iso: string): string {
-  const parsed = new Date(iso)
-  if (Number.isNaN(parsed.getTime())) return iso
-  return parsed.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+// --- dates ------------------------------------------------------------------
+//
+// One format on every assistant screen, the same as the Repairable Spares
+// screens: `27 Oct 2026`, and with a time `27 Oct 2026, 13:04`. Times are
+// South African: the pages render on a server running in UTC, and a time
+// without a zone would be two hours out for everyone reading it at a mine.
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+const ZONE = "Africa/Johannesburg"
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
+const pad = (value: number) => String(value).padStart(2, "0")
+
+function local(timestamp: string): { y: number; m: number; d: number; hh: number; mm: number } | null {
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return null
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: ZONE,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    })
+      .formatToParts(parsed)
+      .map((part) => [part.type, part.value])
+  )
+  return { y: Number(parts.year), m: Number(parts.month), d: Number(parts.day), hh: Number(parts.hour), mm: Number(parts.minute) }
+}
+
+/**
+ * `2026-10-27` or a full timestamp as `27 Oct 2026`. A bare date is a calendar
+ * date and is never moved by a time zone. Anything unreadable is shown as sent.
+ */
+export function formatDay(value: string | null | undefined, fallback = "—"): string {
+  if (!value) return fallback
+  const plain = DATE_ONLY.exec(value)
+  if (plain) {
+    const month = Number(plain[2])
+    if (month < 1 || month > 12) return value
+    return `${plain[3]} ${MONTHS[month - 1]} ${plain[1]}`
+  }
+  const at = local(value)
+  return at ? `${pad(at.d)} ${MONTHS[at.m - 1]} ${at.y}` : value
+}
+
+/** A timestamp as `27 Oct 2026, 13:04`, South African time. A bare date stays a date. */
+export function formatInstant(value: string | null | undefined, fallback = "—"): string {
+  if (!value) return fallback
+  if (DATE_ONLY.test(value)) return formatDay(value, fallback)
+  const at = local(value)
+  return at ? `${pad(at.d)} ${MONTHS[at.m - 1]} ${at.y}, ${pad(at.hh)}:${pad(at.mm)}` : value
 }

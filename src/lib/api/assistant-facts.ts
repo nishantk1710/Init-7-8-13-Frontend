@@ -171,6 +171,12 @@ export type I08Facts = FactsCommon & {
   /** Damaged units, never counted as usable. Absent on an older backend or an older stored session. */
   damagedStock?: string | null
   /**
+   * The usable units by condition (`NEW`, `REFURBISHD`, ...), in the
+   * configured order; empty when unknown. Absent on an older backend or an
+   * older stored session. Read with `usableBreakdownText`.
+   */
+  usableBreakdown?: { condition: string; quantity: string }[]
+  /**
    * True when the part has condition rows, so `usableStock` and
    * `damagedStock` can be trusted. `stockOnHand` stays the plant total either
    * way. Absent on an older backend or an older stored session.
