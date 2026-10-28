@@ -38,6 +38,7 @@ import {
   ACT_EXCEPTION_TYPES,
   AGING_BANDS,
   ATTRIBUTION_STATUSES,
+  ISSUE_MATCHES,
   LEDGER_UTILISATION_STATUSES,
   LINKAGE_STATUSES,
   MATERIAL_SCOPES,
@@ -149,6 +150,10 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
       ? oneOf(raw.attribution_status as string, ATTRIBUTION_STATUSES, "UNATTRIBUTED")
       : null,
     attributionEvidence: str(raw.attribution_evidence),
+    issueMatch: raw.issue_match ? oneOf(raw.issue_match as string, ISSUE_MATCHES, "OLDEST_DELIVERY_FIRST") : null,
+    deliveryCount: toCount(raw.delivery_count as number),
+    nextPlannedIssueDate: str(raw.next_planned_issue_date),
+    nextPlannedIssueQuantity: toNumber(raw.next_planned_issue_quantity as string) ?? null,
   }
 }
 
@@ -1099,30 +1104,36 @@ export type { ActExceptionType }
 function toGrniEntry(raw: RawRecord): GrniEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
-    reservationNumber: String(raw.reservation_number ?? ""),
-    reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
     materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     prNumber: str(raw.pr_number),
-    poNumber: str(raw.po_number),
-    poItem: str(raw.po_item),
+    prItem: str(raw.pr_item),
+    poNumber: String(raw.po_number ?? ""),
+    poItem: String(raw.po_item ?? ""),
+    reservationNumber: str(raw.reservation_number),
+    reservationItem: str(raw.reservation_item),
     receivedQuantity: toNumber(raw.received_quantity as string) ?? 0,
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? 0,
     outstandingQuantity: toNumber(raw.outstanding_quantity as string) ?? 0,
+    deliveryCount: toCount(raw.delivery_count as number),
     firstGrDate: str(raw.first_gr_date),
     lastGrDate: String(raw.last_gr_date ?? ""),
     daysSinceGr: toCount(raw.days_since_gr as number),
     thresholdDays: toCount(raw.threshold_days as number),
-    requirementDate: str(raw.requirement_date),
-    lifecycleStatus: String(raw.lifecycle_status ?? ""),
+    firstIssueDate: str(raw.first_issue_date),
+    lastIssueDate: str(raw.last_issue_date),
+    issueMatch: raw.issue_match ? oneOf(raw.issue_match as string, ISSUE_MATCHES, "OLDEST_DELIVERY_FIRST") : null,
+    nextPlannedIssueDate: str(raw.next_planned_issue_date),
+    nextPlannedIssueQuantity: toNumber(raw.next_planned_issue_quantity as string) ?? null,
+    utilisationStatus: oneOf(raw.utilisation_status as string, LEDGER_UTILISATION_STATUSES, "NOT_ISSUED"),
   }
 }
 
 /**
- * `GET /i13/grni` — goods received and not issued for 30+ days, per
- * reservation line, oldest receipt first. Served from the I13 snapshot.
+ * `GET /i13/grni` — goods received and not issued for 30+ days, per PO line,
+ * oldest receipt first. Served from the I13 snapshot.
  */
 export function getI13Grni(params?: {
   plant?: string
