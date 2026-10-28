@@ -6,6 +6,7 @@
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 import {
   downloadDocument,
@@ -74,14 +75,14 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
   return {
     title: `Request ${request.requestId}`,
     subtitle: "What was decided for each material, and how to quote it in SAP.",
-    generatedAt: now.toLocaleString("en-GB"),
+    generatedAt: formatInstant(now.toISOString()),
     details: [
       ["Type in SAP", request.requestId],
       ["Requested for", request.requestedFor ?? "—"],
       ["Plant", request.plant],
       ["Department", departmentLabel(request)],
       ["Department note", request.departmentNote ?? "—"],
-      ["Issued", new Date(request.issuedAt).toLocaleString("en-GB")],
+      ["Issued", formatInstant(request.issuedAt)],
       ["Lines", String(request.lines.length)],
       ["To reserve", String(toReserve)],
       ["No session", String(request.skipped.length)],

@@ -16,6 +16,7 @@ import { isNotEnabled, type ApiRequestSummary } from "@/lib/api/assistant-reques
 import { ApiError } from "@/lib/api/client"
 import { groupByDay } from "@/lib/assistant/request/group-by-day"
 import { departmentLabel } from "@/lib/assistant/request/record"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { formatCount } from "@/lib/utils"
 
 /** Recent multi-material requests, newest first (`GET /assistant/requests`). */
@@ -187,7 +188,7 @@ function DraftList() {
           <tbody>
             {drafts.map((d) => (
               <tr key={d.id} className="border-t border-border">
-                <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(d.savedAt).toLocaleString("en-GB")}</td>
+                <td className="px-3 py-2 text-xs text-muted-foreground">{formatInstant(d.savedAt)}</td>
                 <td className="px-3 py-2">{d.requester || "—"}</td>
                 <td className="px-3 py-2 text-xs">
                   <span className="font-mono font-semibold">{d.rows[0]?.plant ?? "—"}</span>

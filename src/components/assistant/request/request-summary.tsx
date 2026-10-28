@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -92,13 +93,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Recorded</dt>
           <dd className="font-semibold text-foreground">
-            {new Date(request.issuedAt).toLocaleString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {formatInstant(request.issuedAt)}
           </dd>
         </div>
       </dl>

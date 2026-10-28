@@ -46,6 +46,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
 const REQUEST_PLANTS = ["1300", "1500"] as const
@@ -592,7 +593,7 @@ export function RequestBuilder({
           </span>
           {savedAt && (
             <span className="text-[11px] text-muted-foreground">
-              Draft saved {new Date(savedAt).toLocaleString("en-GB")} in this browser only.
+              Draft saved {formatInstant(savedAt)} in this browser only.
             </span>
           )}
         </div>
