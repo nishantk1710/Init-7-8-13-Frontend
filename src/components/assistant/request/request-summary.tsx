@@ -11,7 +11,7 @@ import { Chip, CopyReferenceButton, formatDate, reasonLabel } from "@/components
 import { useRequest } from "@/components/assistant/request/use-requests"
 import { DownloadMenu } from "@/components/shared/download-menu"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import {
   isNotEnabled,
   simulateRequestReservation,
@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils"
  */
 export function RequestSummary({ requestId }: { requestId: string }) {
   const { data: request, error, loading, reload } = useRequest(requestId)
-  if (loading) return <Skeleton className="h-64 w-full rounded-2xl" />
+  if (loading) return <PageLoader label="Loading the request" className="h-64 w-full" />
   if (isNotEnabled(error)) return <NotEnabledNotice />
   if (!request) {
     return (
