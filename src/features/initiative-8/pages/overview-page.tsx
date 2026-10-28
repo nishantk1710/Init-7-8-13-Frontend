@@ -6,6 +6,7 @@ import {
   loadLiveOverview,
   type LiveOverview,
 } from "@/features/initiative-8/data/live-overview"
+import { repairRequestsNote } from "@/features/initiative-8/utils/repair-request"
 
 /**
  * The Initiative 8 overview — live.
@@ -20,6 +21,10 @@ import {
  * the "Open exceptions" card, so it narrows with the filters like the rest.
  * See `data/live-overview.ts` for which figure comes from where. Nothing on
  * screen is invented.
+ *
+ * Every figure counts repair PO lines. Repairs requested with no PO yet are
+ * taken out by `loadLiveOverview` and only counted, in a note beside the
+ * total, when the backend serves them.
  *
  * The register is required; the other sources are best-effort, and a figure
  * whose source failed says so instead of showing a number.
@@ -56,11 +61,12 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, exceptions } = live
+  const { register, requests, universe, exceptions } = live
 
   return (
     <OverviewDashboard
       chains={register.chains}
+      requests={requests}
       agingBands={register.agingBands}
       universe={universe}
       exceptions={exceptions}
@@ -69,6 +75,7 @@ export async function RefurbishableSparesOverviewPage() {
       criticalityOptions={register.criticalityOptions}
       referenceDate={register.referenceDate}
       sourceLoadedAt={register.sourceLoadedAt}
+      repairRequestsNote={repairRequestsNote(register.repairRequestsEnabled, register.meta.openRepairRequests)}
     />
   )
 }

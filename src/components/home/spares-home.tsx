@@ -59,12 +59,12 @@ export async function SparesHome() {
   })
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-page px-4 py-6 sm:px-6">
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <HomeGreeting />
-            <h1 className="mt-0.5 text-[30px] leading-tight font-extrabold tracking-tight text-ink">
+            <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-foreground">
               Here&rsquo;s what needs your attention today
             </h1>
           </div>
@@ -130,10 +130,10 @@ export async function SparesHome() {
             }
           >
             <div>
-              <div className="text-xs text-ink-muted">Waiting for a decision</div>
+              <div className="text-xs text-muted-foreground">Waiting for a decision</div>
               {/* With no module answering there is no count to give; "0" would
                   read as "nothing is waiting". */}
-              <div className="text-[40px] leading-tight font-extrabold tracking-tight text-primary-ink tabular-nums">
+              <div className="text-[30px] leading-tight font-semibold tracking-tight text-action tabular-nums">
                 {noneAnswered ? NOT_LOADED : actions.decisionTotal.toLocaleString()}
               </div>
             </div>

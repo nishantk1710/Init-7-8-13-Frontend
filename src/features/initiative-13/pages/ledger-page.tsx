@@ -40,8 +40,8 @@ function LinkageBreakdown({ counts, total }: { counts: Record<string, number>; t
         {segments.map((s) => (
           <li key={s.key} className="flex items-center gap-1.5">
             <span aria-hidden className={cn("size-2 rounded-full", TONE_FILL[s.tone])} />
-            <span className="text-ink">{s.label}</span>
-            <span className="text-ink-muted tabular-nums">
+            <span className="text-foreground">{s.label}</span>
+            <span className="text-muted-foreground tabular-nums">
               {formatCount(s.count)} · {percentLabel(s.count, total)}
             </span>
           </li>
@@ -255,7 +255,7 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
               value={formatCount(unmatched)}
               hint={
                 <>
-                  <span className="font-bold text-caution-ink">{percentLabel(unmatched, totalLines)} of total</span> —
+                  <span className="font-semibold text-warning">{percentLabel(unmatched, totalLines)} of total</span> —
                   these could not be stitched together, so they are shown as unmatched rather than inferred.
                 </>
               }

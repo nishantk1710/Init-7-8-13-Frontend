@@ -11,13 +11,14 @@ import type { MaterialReference, PlantReference, SAPDocumentReference } from "@/
  * Where a repair chain sits in its lifecycle.
  *
  * No "In Transit Return": it is not an FRS stage, and nothing in MSEG or EKBE
- * tells "shipped back" apart from "still at the vendor". "PR Raised" is not
- * emitted today -- the register is built from PO lines -- but FRS acceptance
- * criterion 3 counts open repair PR lines too, so the stage stays.
+ * tells "shipped back" apart from "still at the vendor". "PR Raised" is a
+ * repair requested on a PR with no PO yet (`lineKind: "PR"`): served since
+ * 27-Oct-2026 when the backend switches PR rows on, because FRS acceptance
+ * criterion 3 counts open repair PR lines too.
  *
- * The live register emits "PO Issued" and "At Vendor" only: since 19-Oct-2026
- * it serves the lines SAP still has open, and none other. "Received" and
- * "Closed" remain for the scenario fixtures in `data/repair-chains.ts`.
+ * The live register's PO lines are "PO Issued" or "At Vendor": since
+ * 19-Oct-2026 it serves the lines SAP still has open, and none other.
+ * "Received" and "Closed" remain for the scenario fixtures.
  */
 export type RepairStatus =
   | "PR Raised"
@@ -33,7 +34,7 @@ export type RepairStatus =
  * repairable, and it went for repair anyway. There is no "Pending": the FRS
  * has no approval step, so an attestation is recorded or it is not.
  */
-export type DeclarationStatus = "Required" | "Completed" | "Flagged"
+export type DeclarationStatus = "Required" | "Completed" | "Flagged" | "Historical"
 
 export type DeclarationCondition = "Repairable" | "Beyond Economical Repair" | "Scrap"
 
@@ -65,8 +66,19 @@ export type AgingBucket = string
  * The backend never sends "RECEIVED" since 19-Oct-2026 -- every line it serves
  * is open in SAP. It stays here for the scenario fixtures, whose closed rows
  * `overdueStatusOf()` reads as received.
+ *
+ * "NOT_ORDERED" (since 27-Oct-2026) is a repair requested on a PR with no PO
+ * yet: nothing is ordered, so no date can have been promised. Only PR rows
+ * carry it.
  */
-export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED"
+export type OverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "RECEIVED" | "NOT_ORDERED"
+
+/**
+ * What a register row is: a repair PO line, or an open repair PR with no PO
+ * yet. Test it through `isPrOnly()` in `utils/status.ts`, which also treats a
+ * row with no PO reference as a PR row.
+ */
+export type RegisterLineKind = "PO" | "PR"
 
 /**
  * Where a repair line stands against the material's planned delivery time.
@@ -95,10 +107,14 @@ export type LeadTimeStatus =
 /**
  * A single repairable material's repair chain — the core entity behind the
  * Repair Register and Repair Detail pages. Live, every one is a repair PO line
- * SAP still has open (not "Delivery completed", deleted or blocked).
+ * SAP still has open (not "Delivery completed", deleted or blocked) -- or,
+ * since 27-Oct-2026, an open repair PR with no PO yet (`lineKind: "PR"`).
  */
 export interface RepairChain {
+  /** `{EBELN}-{EBELP}` on a PO row; `PR-{BANFN}-{BNFPO}` on a PR row. */
   id: string
+  /** `PO` for a repair PO line, `PR` for a repair requested with no PO yet. */
+  lineKind: RegisterLineKind
   material: MaterialReference
   plant: PlantReference
 
@@ -111,6 +127,17 @@ export interface RepairChain {
    * conflated.
    */
   stockOnHand?: number
+
+  /**
+   * Stock on hand split by condition (since 28-Oct-2026): usable (e.g. new
+   * and refurbished) and damaged. Undefined when the backend does not say,
+   * or does not know the split for this material: the page then shows the
+   * total alone, never a 0 it was not told.
+   */
+  usableStock?: number
+  damagedStock?: number
+  /** Whether the condition split is known here. Undefined when not said. */
+  stockConditionKnown?: boolean
 
   /**
    * Optional, and undefined far more often than you would expect: the MARC
@@ -151,6 +178,12 @@ export interface RepairChain {
    * second, unrelated one — which is how an audit chain becomes a pile.
    */
   declarationId?: string
+  /** How that declaration was matched to the line; undefined when none
+   *  covers it or the backend does not say. */
+  declarationLink?: "BOUND" | "REFERENCE" | "WINDOW"
+  /** The assistant session behind that declaration, when there is one: the
+   *  repair page links to it. */
+  declarationSessionId?: string
 
   /**
    * Where this line stands against its promised date. Authoritative when
@@ -169,7 +202,9 @@ export interface RepairChain {
   /**
    * How long this repair has been out: whole days from the repair PO line's
    * creation date (`EKPO.ERDAT`, falling back to the PO header's `EKKO.AEDAT`)
-   * to the reference date. Not measured from the PR, despite the column's name.
+   * to the reference date. Not measured from the PR, despite the column's name
+   * -- except on a PR row (no PO yet), where it runs from the PR date
+   * (`EBAN.BADAT`).
    *
    * It keeps counting until SAP closes the line ("Delivery completed"), and the
    * line then leaves the register. The backend serves the same number as
@@ -274,8 +309,12 @@ export interface RepairChain {
   condition?: DeclarationCondition
   /** What a person should do about this line's declaration, in a sentence. */
   declarationNextAction?: string
-  /** EKPO.AFNAM — a requisitioner CODE, not a name. */
+  /** The requisitioner — a CODE, not a name. On a repair PR it is a 5-digit
+   *  department code. */
   requester?: string
+  /** The department's name for `requester`, when the department list knows
+   *  it. Undefined otherwise: the code is shown, never an invented name. */
+  requesterName?: string
 
   /**
    * FR-7 on this line. Undefined when no reason was recorded while it was out
@@ -301,6 +340,9 @@ export interface RepairLineException {
   /** `MISSING_ATTESTATION`, `UNJUSTIFIED_ACQUISITION`, `OVERDUE_REPAIR`, … */
   type: string
   severity: string
+  /** Raised before the control existed (go-live): nothing to act on. The
+   *  register's badge leaves these out of its count. */
+  preAutomation: boolean
 }
 
 /**
@@ -326,10 +368,12 @@ export interface RepairJustificationEntry {
   sessionId?: string
 }
 
-/** A new unit bought while the line was out, with no reason recorded. */
+/** A new unit requested or bought while the line was out, with no reason
+ *  recorded. */
 export interface UnjustifiedPurchase {
   /** The `UNJUSTIFIED_ACQUISITION` exception this is. */
   exceptionId: string
+  /** The new-buy PR (`type: 'PR'`), or a PO ordered directly with no PR. */
   purchase: SAPDocumentReference
   raisedAt?: string
   /** Bought before the justification control existed — nobody was asked. */
@@ -475,13 +519,27 @@ export interface ExceptionQueueRow {
   severity: string
   material: MaterialReference
   plant?: PlantReference
-  /** The repair line, as `{document}-{item}`. For an unjustified acquisition,
-   *  the repair that was already open when the new unit was bought. */
+  /** The repair, as the register keys it: `{EBELN}-{EBELP}` for a repair PO
+   *  line, `PR-{BANFN}-{BNFPO}` for a repair requested on a PR with no PO yet.
+   *  For an unjustified acquisition, the repair that was already open when the
+   *  new unit was requested or bought. */
   repairLine: string
   /** The register detail key, when the line can be linked at all. */
   repairId?: string
-  /** The new-purchase PO line, on an unjustified acquisition only. */
+  /** `PO` or `PR` (since 27-Oct-2026 a repair can be a PR with no PO yet).
+   *  An older backend always says `PO`. */
+  repairLineType?: SAPDocumentReference["type"]
+  /** The new-unit purchase, as `{document}-{item}`, on an unjustified
+   *  acquisition only. Usually a new-buy PR since 27-Oct-2026; a PO only when
+   *  it was ordered directly, with no PR. `acquisitionType` says which. */
   acquisitionLine?: string
+  /** `PR` or `PO`. Undefined when there is no purchase on the item. */
+  acquisitionType?: SAPDocumentReference["type"]
+  /** The reservation line, as `{RSNUM}-{RSPOS}`, on a reservation with no
+   *  R-reference (`MISSING_SESSION_ID`) only. */
+  reservationLine?: string
+  /** The declaration the item is about, on the two declaration-based checks. */
+  declarationId?: string
   title: string
   /** Says what is missing AND what was searched for — a finding nobody can
    *  trace to a rule is a finding nobody will act on. */
@@ -588,6 +646,11 @@ export interface DeclarationQueueRow {
   /** EKPO's requisitioner, a CODE rather than a name — no person directory
    *  was delivered, so it is served as what it is. */
   requester?: string
+  /** The department's name for `requester`, when the department list knows it. */
+  requesterName?: string
+  /** The declaration covering this line, when one does: the row then offers
+   *  Amend (a new record superseding it), never a second Declare. */
+  declarationId?: string
   /** Absent where the repair line carries no requisition number. */
   purchaseRequisition?: string
   /** The repair line this declaration belongs to, as `{document}-{item}`. */

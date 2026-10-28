@@ -102,9 +102,10 @@ export default async function AssistantPage({
               icon={<Wrench className="size-4" />}
               term="For a repairable (80-series) part"
             >
-              Whether a unit already exists — as stock available, or on a repair order with a due
-              date — and how far past that date it is. If you still need a new one, it records
-              why.
+              Whether a usable unit already exists: new or refurbished stock (damaged units are
+              shown, not counted), a repair PO with its due date and how late it is, or a repair
+              requested but not yet ordered. If you still need a new one, it records why, and you
+              can declare the faulty unit you are taking out.
             </FeatureTile>
             <FeatureTile
               icon={<Boxes className="size-4" />}

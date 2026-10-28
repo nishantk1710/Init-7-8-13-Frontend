@@ -61,23 +61,23 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
   return (
     <div
       className={cn(
-        "relative flex flex-col gap-1 overflow-hidden rounded-card border py-4 pr-4 pl-5",
+        "relative flex flex-col gap-1 overflow-hidden rounded-xl border py-4 pr-4 pl-5",
         blocked
           ? // Dashed, muted, and no figure. It must not be mistakable for a
             // count of zero.
-            "border-dashed border-line bg-transparent"
+            "border-dashed border-border bg-transparent"
           : cn(
-              "border-line bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
+              "border-border bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
               clean ? "before:bg-success" : (EDGE_BY_ID[check.id] ?? "before:bg-action")
             )
       )}
     >
       {check.state === "counted" ? (
         <>
-          <p className="text-[30px] leading-tight font-extrabold tracking-tight text-foreground tabular-nums">
+          <p className="text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
             {check.count.toLocaleString()}
           </p>
-          <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+          <p className="flex items-center gap-1.5 text-base font-semibold text-foreground">
             {clean ? (
               <CircleCheck className="size-4 text-success" aria-hidden />
             ) : (
@@ -92,7 +92,7 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
         <>
           {/* Deliberately not a number, not a dash in the same typeface as a
               figure, and not "—". A word, so it cannot be skimmed as a count. */}
-          <p className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground">
+          <p className="flex items-center gap-1.5 text-base font-semibold text-muted-foreground">
             <CircleHelp className="size-4" aria-hidden />
             {check.label}: cannot be checked
           </p>

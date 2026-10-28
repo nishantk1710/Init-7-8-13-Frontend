@@ -61,8 +61,16 @@ export type ApiSAPDocumentReference = {
 }
 
 /** Where a repair line stands against its promised date. Never "received":
- *  every line the register serves is open in SAP. */
-export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE"
+ *  every line the register serves is open in SAP.
+ *
+ *  `NOT_ORDERED` (since 27-Oct-2026) is a repair requested on a PR with no PO
+ *  yet: there is no promised date because nothing has been ordered. Only PR
+ *  rows carry it; an older backend never sends it. */
+export type ApiOverdueStatus = "ON_TIME" | "OVERDUE" | "NO_DUE_DATE" | "NOT_ORDERED"
+
+/** What a register row is keyed on: a repair PO line, or (since 27-Oct-2026)
+ *  an open repair PR with no PO yet. */
+export type ApiRegisterLineKind = "PO" | "PR"
 
 /**
  * Where a repair line stands against the material's planned delivery time.
@@ -86,15 +94,34 @@ export type ApiLeadTimeStatus =
  * SAP still has open: since 19-Oct-2026 a line marked "Delivery completed",
  * deleted or blocked is not served, and goods receipts are not read -- so no
  * row carries a receipt status, a receipt date or a turnaround.
+ *
+ * Since 27-Oct-2026 a row can instead be an open repair PR with no PO yet
+ * (`lineKind: "PR"`), listed after every PO row when the backend's
+ * `repairRequestsEnabled` rule is on. Such a row has no PO, vendor or due
+ * date; it is dated from the PR (EBAN.BADAT).
  */
 export type ApiRepairChain = {
-  /** `{EBELN}-{EBELP}`. The register key as one string. */
+  /** `{EBELN}-{EBELP}` on a PO row; `PR-{BANFN}-{BNFPO}` on a PR row. The
+   *  register key as one string. */
   id: string
+  /** `PO` or `PR`. Absent on an older backend, whose rows are all PO lines. */
+  lineKind?: ApiRegisterLineKind
   material: ApiMaterialReference
   plant: ApiPlantReference | null
 
   /** Summed across storage locations. Null means no stock record, not zero. */
   stockOnHand: string | null
+  /**
+   * The stock at this plant in a usable condition (the backend's configured
+   * usable conditions, e.g. NEW and REFURBISHD), and in a damaged one.
+   * Decimal strings. Null when the condition split is not known for this
+   * material; absent on a backend older than 28-Oct-2026.
+   */
+  usableStock?: string | null
+  damagedStock?: string | null
+  /** Whether the stock's condition split is known for this material at this
+   *  plant. Null or absent when the backend does not say. */
+  stockConditionKnown?: boolean | null
   /** Null for every Gamsberg material — the planning extract omits that plant. */
   reorderPoint: string | null
   qtyUnderRepair: string
@@ -107,11 +134,14 @@ export type ApiRepairChain = {
   /** Null unless the vendor master knows this vendor — it usually does not. */
   vendorName: string | null
 
-  /** "PO Issued", or "At Vendor" once a dispatch (the 541) is attributable. */
+  /** "PO Issued", or "At Vendor" once a dispatch (the 541) is attributable;
+   *  "PR Raised" on a PR row (no PO yet). */
   repairStatus: string
   overdueStatus: ApiOverdueStatus
   leadTimeStatus: ApiLeadTimeStatus
-  declarationStatus: "Required" | "Completed" | "Flagged"
+  /** `Historical`: raised before declarations began (the attestation
+   *  cutover), so never required. Absent on an older backend. */
+  declarationStatus: "Required" | "Completed" | "Flagged" | "Historical"
 
   /** Raised to today — the same number as `daysElapsed`. */
   daysOpen: number | null
@@ -172,14 +202,29 @@ export type ApiRepairChain = {
   /** The attestation covering this line, when one does — so the detail page
    *  can offer to amend it rather than only to add another. */
   declarationId?: string | null
+  /**
+   * How the covering declaration was matched to this line: it named the line
+   * (`BOUND`), the R-reference typed on the repair order (`REFERENCE`), or the
+   * material, plant and date window (`WINDOW`). Null when nothing covers it.
+   * Absent on an older backend.
+   */
+  declarationLink?: "BOUND" | "REFERENCE" | "WINDOW" | null
+  /** The assistant session behind the declaration that covers this line,
+   *  when there is one. Absent on a backend older than 28-Oct-2026. */
+  declarationSessionId?: string | null
   declaredBy?: string | null
   /** ISO timestamp of the attestation. */
   declaredAt?: string | null
   condition?: "Repairable" | "Beyond Economical Repair" | "Scrap" | null
   /** What a person should do about this line's declaration, as a sentence. */
   nextAction?: string | null
-  /** EKPO.AFNAM — a CODE, not a name. No person directory was delivered. */
+  /** The requisitioner field (AFNAM) — a CODE, not a name. On repair PRs it is
+   *  a 5-digit department code (all 2,418 undeleted repair PRs carry one,
+   *  measured 26-Oct-2026). */
   requester?: string | null
+  /** The department's name for `requester`, when the department list knows
+   *  the code. Null when it does not. Absent on an older backend. */
+  requesterName?: string | null
   /** Null when no reason was recorded while the line was out AND no new
    *  purchase overlapped it without one. */
   justification?: ApiRepairJustification | null
@@ -196,7 +241,12 @@ export type ApiRepairChain = {
 export type ApiLineException = {
   id: string
   type: string
+  /** `info` only on an item raised before the control existed: the checks
+   *  raise every other item as a warning or worse. */
   severity: "info" | "warning" | "critical"
+  /** Raised before the control existed. Not sent today: read it through
+   *  `toRegisterLine`, which falls back on the severity. */
+  preAutomation?: boolean
 }
 
 /** One NEW_ACQUISITION justification recorded while a repair line was out. */
@@ -210,10 +260,12 @@ export type ApiRepairJustificationEntry = {
   sessionId: string | null
 }
 
-/** A new unit bought while the line was out, with no reason on record — the
- *  `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
+/** A new unit requested or bought while the line was out, with no reason on
+ *  record — the `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
 export type ApiUnjustifiedPurchase = {
   exceptionId: string
+  /** `type` `PR` for a new-buy purchase request (since 27-Oct-2026), `PO` for
+   *  a PO ordered directly with no PR. An older backend always sent `PO`. */
   purchase: ApiSAPDocumentReference
   raisedAt: string | null
   /** Bought before the justification control existed — nobody was asked. */
@@ -264,6 +316,19 @@ export type ApiRegisterMeta = {
    *  which orders nothing. Left out since 21-Oct-2026; optional until every
    *  backend in use serves it. */
   excludedRfqLines?: number
+
+  // Open repair PRs with no PO yet (since 27-Oct-2026). `totalLines` and
+  // `openLines` above stay PO lines only. All absent on an older backend.
+
+  /** Open repair PR items with no PO, found whether or not the backend serves
+   *  them as rows (its `repairRequestsEnabled` rule). */
+  openRepairRequests?: number
+  /** Repair PR items deleted in SAP, left out. */
+  requisitionsExcludedDeleted?: number
+  /** Repair PR items that already have a live PO line -- that line is the row. */
+  requisitionsExcludedLivePo?: number
+  /** Repair PR items whose repair order SAP has closed, left out. */
+  requisitionsExcludedReservationClosed?: number
 }
 
 /**
@@ -295,6 +360,9 @@ export type ApiRegisterViewCounts = {
   undeclared: number
   atVendor: number
   withExceptions: number
+  /** PR rows (repair requested, no PO yet) among the filtered lines; 0 while
+   *  the backend does not serve them. Absent on an older backend. */
+  notOrdered?: number
 }
 
 export type ApiUniverseItem = {
@@ -303,6 +371,10 @@ export type ApiUniverseItem = {
   plant: ApiPlantReference | null
   materialType: string | null
   stockOnHand: string | null
+  /** Usable and damaged stock, as on a register row. Null when the condition
+   *  split is not known; absent on a backend older than 28-Oct-2026. */
+  usableStock?: string | null
+  damagedStock?: string | null
   storageLocations: number
   reorderPoint: string | null
   mrpType: string | null
@@ -387,7 +459,28 @@ export type ApiSnapshot = {
   universe: ApiUniverseMeta
   /** The configuration actually in force, echoed back so a surprising number
    *  can be traced to a setting without reading the deployment. */
-  rules: Record<string, string | number>
+  rules: ApiSnapshotRules
+}
+
+/**
+ * `GET /api/i8/snapshot`'s `rules`: an open map of settings, plus the ones the
+ * screens act on. Each named key is absent on an older backend.
+ *
+ * The two switches are typed loosely on purpose: the backend's rules map is
+ * declared as strings and integers, so a Python `True` may arrive as `1`.
+ * Read them through `ruleIsOn` in `data/live-register.ts`, never by `=== true`.
+ */
+export type ApiSnapshotRules = Record<string, string | number | boolean> & {
+  /** Whether open repair PRs with no PO yet are served as register rows. */
+  repairRequestsEnabled?: boolean | number | string
+  /** Whether the assistant shows its need-date line. */
+  needDateAdviceEnabled?: boolean | number | string
+  /** Where usable vs damaged stock comes from: `MCHB` or `MBEW`. */
+  stockConditionSource?: string
+  /** Conditions counted as usable, comma-separated (e.g. `NEW,REFURBISHD`). */
+  usableStockConditions?: string
+  /** Conditions counted as damaged, comma-separated (e.g. `DAMAGED`). */
+  damagedStockConditions?: string
 }
 
 // --- W5.3: attestations, declarations and exceptions ----------------------
@@ -404,6 +497,12 @@ export type ApiDeclarationItem = {
    * was delivered. Populated on all 1,225 repair lines, 27 distinct values.
    */
   requester: string | null
+  /** The department's name for `requester`, when the department list knows
+   *  it. Absent on an older backend. */
+  requesterName?: string | null
+  /** Which kind of repair document the row is: a repair PO line or an open
+   *  repair PR line. Absent on an older backend (PO). */
+  repairDocumentType?: "PO" | "PR" | null
   relatedRepairId: string
   /** The same repair line, unjoined — so the declaration form can send FR-4's
    *  link to the repair PO without splitting `relatedRepairId` on a hyphen. */
@@ -419,7 +518,7 @@ export type ApiDeclarationItem = {
    * No "Pending": that would mean "submitted, awaiting sign-off", and the FRS
    * has no approval step — an attestation is recorded or it is not.
    */
-  status: "Required" | "Completed" | "Flagged"
+  status: "Required" | "Completed" | "Flagged" | "Historical"
   /** The attestation covering this line, when one does. */
   declarationId?: string | null
   declaredBy: string | null
@@ -465,10 +564,10 @@ export type ApiDeclarationPage = ApiPage<ApiDeclarationItem, ApiDeclarationMeta>
 /**
  * One row of `GET /api/i8/exceptions`.
  *
- * `type` is a plain string, not a closed union. Two are raised today —
+ * `type` is a plain string, not a closed union. Among those raised are
  * `MISSING_ATTESTATION` (a repair line went out with no condition assessment)
- * and `UNJUSTIFIED_ACQUISITION` (a new unit was bought while a repair of the
- * same material and plant was open, and nobody recorded why) — and the backend
+ * and `UNJUSTIFIED_ACQUISITION` (a new unit was requested or bought while a
+ * repair of the same material and plant was open, and nobody recorded why) — and the backend
  * declares more than it raises. A type this build has not heard of must still
  * render, so nothing may switch exhaustively over it.
  */
@@ -479,13 +578,28 @@ export type ApiExceptionItem = {
   material: ApiMaterialReference
   plant: ApiPlantReference | null
   /** The repair line. For `UNJUSTIFIED_ACQUISITION`, the repair that was open
-   *  when the new unit was bought. */
+   *  when the new unit was requested or bought: `type` `PO` for a repair PO
+   *  line, `PR` (since 27-Oct-2026) for a repair PR with no PO yet. */
   repairLine: ApiSAPDocumentReference
   /**
-   * The new-purchase PO line, for `UNJUSTIFIED_ACQUISITION`. Null for
-   * `MISSING_ATTESTATION`; optional until every backend in use serves it.
+   * The new-unit purchase, for `UNJUSTIFIED_ACQUISITION`: `type` `PR` for a
+   * new-buy purchase request (the usual case since 27-Oct-2026), `PO` for a
+   * PO ordered directly with no PR. An older backend always sent a PO line.
+   * Null for the other types; optional until every backend in use serves it.
    */
   acquisitionLine?: ApiSAPDocumentReference | null
+  /**
+   * The 80-series reservation line with no valid R-reference, on a
+   * `MISSING_SESSION_ID` item (`type` `RESERVATION`: RSNUM and RSPOS). Absent
+   * on an older backend.
+   */
+  reservationLine?: ApiSAPDocumentReference | null
+  /**
+   * The declaration a `REPAIRED_AGAINST_ASSESSMENT` or `DECLARED_NO_REPAIR_PR`
+   * item is about, so the drawer can offer to amend it. Absent on an older
+   * backend.
+   */
+  declarationId?: string | null
   title: string
   /** Says what is missing AND what was searched for. */
   detail: string
@@ -610,6 +724,15 @@ export type ApiAttestation = {
    *  was declared from one; null for "Declare a part". */
   repairDocument?: string | null
   repairItem?: string | null
+  /** The name the declarer typed (not a sign-in). Absent on an older backend
+   *  and on declarations recorded before it was asked for. */
+  attestorName?: string | null
+  /** Why this amendment was made. Absent on an older backend; null on an
+   *  original declaration. */
+  amendmentReason?: string | null
+  /** Whether `repairDocument` names a repair PO or a repair PR. Absent on an
+   *  older backend. */
+  repairDocumentType?: "PO" | "PR" | null
 
   /**
    * Register line ids this attestation covers. **Present on POST only**, null
@@ -669,6 +792,13 @@ export type AttestationRequest = {
    */
   repairDocument?: string
   repairItem?: string
+  /** `PR` binds to an open repair PR (`repairDocument` = the PR, `repairItem`
+   *  = its item); default PO. */
+  repairDocumentType?: "PO" | "PR"
+  /** The declarer's typed name -- not a sign-in, and said so on the form. */
+  attestorName?: string
+  /** Required by the backend whenever `supersedes` is set. */
+  amendmentReason?: string
 }
 
 // --- Query parameters -----------------------------------------------------
@@ -691,7 +821,8 @@ export type RegisterQuery = {
   material?: string
   status?: string
   overdueOnly?: boolean
-  /** OVERDUE, ON_TIME or NO_DUE_DATE. */
+  /** OVERDUE, ON_TIME or NO_DUE_DATE; NOT_ORDERED for repair PRs with no PO
+   *  yet (a backend from 27-Oct-2026). */
   overdueStatus?: string
   /** The rating the line shows, or the literal `none` for unrated lines. */
   criticality?: string
@@ -706,8 +837,9 @@ export type RegisterQuery = {
   /** Comma-separated exception types left out of each line's `exceptions`
    *  and of `withExceptions`. */
   excludeExceptionType?: string
-  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`
-   *  or `withExceptions`. `viewCounts` counts each before it applies. */
+  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`,
+   *  `withExceptions` or (a backend from 27-Oct-2026) `notOrdered`.
+   *  `viewCounts` counts each before it applies. */
   view?: string
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
@@ -747,7 +879,8 @@ export function getUniverseMaterial(materialId: string): Promise<ApiUniverseDeta
   return apiFetch(`/i8/universe/${encodeURIComponent(materialId)}`)
 }
 
-/** `GET /api/i8/register` — repair lines at material + repair-PO-line grain. */
+/** `GET /api/i8/register` — repair lines at material + repair-PO-line grain,
+ *  then (when switched on) open repair PRs with no PO yet. */
 export function getRegister(query: RegisterQuery = {}): Promise<ApiRegisterPage> {
   return apiFetch(`/i8/register${queryString(query)}`)
 }
@@ -802,6 +935,9 @@ export type ExceptionQuery = {
   owner?: string
   /** Leave out items raised before the control existed (`preAutomation`). */
   actionableOnly?: boolean
+  /** Only the items raised before the control existed. A backend older than
+   *  28-Oct-2026 ignores it: the screen filters the rows again. */
+  preAutomationOnly?: boolean
   /**
    * Comma-separated types the queue does not carry. Unlike a filter, they come
    * off the meta counts and the facets as well as the items.
@@ -836,6 +972,61 @@ export function getExceptions(query: ExceptionQuery = {}): Promise<ApiExceptionP
  */
 export function getException(exceptionId: string): Promise<ApiExceptionItem> {
   return apiFetch(`/i8/exceptions/${encodeURIComponent(exceptionId)}`)
+}
+
+/**
+ * One entry of FR-11's notification log: an exception the checks found
+ * actionable for the first time, logged once per exception id, for the types
+ * the backend's `I8_NOTIFICATION_TYPES` names.
+ *
+ * Email is not sent yet (27-Oct-2026): `channel` names where it will go and
+ * `emailed` is always false. The log is the list email will send.
+ */
+export type ApiNotification = {
+  id: string
+  exceptionId: string
+  type: string
+  severity: string
+  title: string
+  materialId: string
+  plant: string | null
+  /** The repair line as the register keys it: `4500001719-10`, or
+   *  `PR-2000028756-10` for a repair PR. Null when the item names none;
+   *  absent on a backend older than 28-Oct-2026. */
+  repairLine?: string | null
+  /** The material's description, and the plant's name. Same story. */
+  description?: string | null
+  plantName?: string | null
+  /** ISO date-time the exception was first logged. */
+  loggedAt: string
+  channel: "EMAIL"
+  emailed: boolean
+}
+
+export type ApiNotificationsResponse = {
+  items: ApiNotification[]
+  total: number
+  page: number
+  pageSize: number
+  /** The types the log carries. */
+  types: string[]
+}
+
+export type NotificationQuery = {
+  page?: number
+  /** Default 25, at most 500. */
+  pageSize?: number
+  type?: string
+}
+
+/**
+ * `GET /api/i8/notifications` — the notification log, newest first.
+ *
+ * Optional: absent on an older backend, which answers 404. A 404 here means
+ * "this backend has no log", never "nothing was logged".
+ */
+export function getNotifications(query: NotificationQuery = {}): Promise<ApiNotificationsResponse> {
+  return apiFetch(`/i8/notifications${queryString(query)}`)
 }
 
 /**
@@ -899,6 +1090,53 @@ export function createAttestation(body: AttestationRequest): Promise<ApiAttestat
     method: "POST",
     body: JSON.stringify(body),
   })
+}
+
+/** One goods movement against a job's reservation line. Quantity as a string. */
+export interface ApiJobMovement {
+  postedOn: string
+  quantity: string
+}
+
+/** A reservation line whose item text carries the session's R-reference. */
+export interface ApiJobReservation {
+  reservation: string
+  item: string
+  order: string | null
+  material: string
+  plant: string
+  quantity: string
+  requirementDate: string | null
+  /** 261: issued to the job. */
+  issued: ApiJobMovement[]
+  /** 262: returned to stock -- posted on the day the repaired unit came back. */
+  returned: ApiJobMovement[]
+}
+
+/** A repair PR or PO whose repair-order line carries the same R-reference. */
+export interface ApiJobRepair {
+  /** The register row id: `{PO}-{item}` or `PR-{BANFN}-{BNFPO}`. */
+  rowId: string
+  type: "PR" | "PO"
+  document: string
+  item: string
+  status: string
+}
+
+export interface ApiSessionJob {
+  sessionId: string
+  reservations: ApiJobReservation[]
+  repairs: ApiJobRepair[]
+}
+
+/**
+ * `GET /api/i8/sessions/{sessionId}/job` -- the job behind an assistant
+ * session: its reservation lines, their 261/262 movements, and the repair
+ * rows linked by the same R-reference. 404 for an unknown session (or an
+ * older backend without the route); empty lists when nothing is linked yet.
+ */
+export function getSessionJob(sessionId: string): Promise<ApiSessionJob> {
+  return apiFetch(`/i8/sessions/${encodeURIComponent(sessionId)}/job`)
 }
 
 // --- W5.5: coding candidates ------------------------------------------------

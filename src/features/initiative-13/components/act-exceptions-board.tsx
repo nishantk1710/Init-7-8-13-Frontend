@@ -62,9 +62,9 @@ const NO_PLAN_REASON_LABEL: Record<string, string> = {
 /** A reservation number as a monospace chip: the form a storeman types into SAP. */
 function ReservationChip({ number, item }: { number: string; item: string | null }) {
   return (
-    <code className="inline-flex items-center rounded-md border border-line bg-page px-1.5 py-0.5 font-mono text-[11px] font-semibold whitespace-nowrap text-ink">
+    <code className="inline-flex items-center rounded-md border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] font-semibold whitespace-nowrap text-foreground">
       {number}
-      {item && <span className="text-ink-muted">/{item}</span>}
+      {item && <span className="text-muted-foreground">/{item}</span>}
     </code>
   )
 }
@@ -76,7 +76,7 @@ function DueCell({ dueAt }: { dueAt: string | null }) {
     <div className="flex flex-col gap-0.5">
       <span className="text-foreground">{formatApiDateTime(dueAt)}</span>
       {hint && (
-        <span className={cn("text-xs font-bold", hint.overdue ? "text-urgent-ink" : "text-caution-ink")}>
+        <span className={cn("text-xs font-semibold", hint.overdue ? "text-destructive" : "text-warning")}>
           {hint.label}
         </span>
       )}
@@ -208,7 +208,7 @@ export function ActExceptionsBoard({
                           {exception.sessionId ? (
                             <Link
                               href={`/assistant/sessions/${encodeURIComponent(exception.sessionId)}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs font-medium text-primary-ink transition-colors hover:bg-primary-tint"
+                              className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-action transition-colors hover:bg-action/10"
                             >
                               <MessagesSquare className="size-3" aria-hidden />
                               Session
@@ -236,7 +236,7 @@ export function ActExceptionsBoard({
                     <TableCell className="font-semibold text-foreground">
                       {exception.ownerRequesterId ?? (
                         <span
-                          className="font-semibold text-urgent-ink"
+                          className="font-semibold text-destructive"
                           title="No requester could be resolved, so this exception has never been routed and cannot escalate."
                         >
                           Unresolved
@@ -284,7 +284,7 @@ export function ActExceptionsBoard({
                         )}
                       >
                         <div className="min-h-0 overflow-hidden">
-                          <div className="bg-page px-4 py-5">
+                          <div className="bg-muted/40 px-4 py-5">
                             {isExpanded && <ExceptionDetail exception={exception} />}
                           </div>
                         </div>
@@ -323,13 +323,13 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
           <StatusPill tone={TYPE_TONE[exception.exceptionType]}>
             {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
           </StatusPill>
-          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted">
+          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
             {exception.exceptionType}
           </code>
         </div>
-        <h3 className="text-base font-bold whitespace-normal text-ink">{EXCEPTION_HEADING[exception.exceptionType]}</h3>
+        <h3 className="text-base font-semibold whitespace-normal text-foreground">{EXCEPTION_HEADING[exception.exceptionType]}</h3>
         {/* Detection's own wording, kept for whoever traces a row back to the run. */}
-        <p className="text-xs whitespace-normal text-ink-muted">Detection note: {exception.reason}</p>
+        <p className="text-xs whitespace-normal text-muted-foreground">Detection note: {exception.reason}</p>
       </div>
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -344,7 +344,7 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
           {noPlanReason ? (
             <span title={noPlanReason}>{NO_PLAN_REASON_LABEL[noPlanReason] ?? noPlanReason.replaceAll("_", " ").toLowerCase()}</span>
           ) : (
-            <span className="text-ink-muted">Not applicable</span>
+            <span className="text-muted-foreground">Not applicable</span>
           )}
         </Tile>
         <Tile label="Routing">{exception.routingStatus ?? EMPTY_LABEL.notRouted.label}</Tile>
@@ -355,7 +355,7 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
               : exception.currentAssigneeId
             : EMPTY_LABEL.unassigned.label}
           {exception.escalatedAt && (
-            <span className="mt-0.5 block text-xs font-medium text-urgent-ink">
+            <span className="mt-0.5 block text-xs font-medium text-destructive">
               Escalated {formatApiDateTime(exception.escalatedAt)}
             </span>
           )}
@@ -366,8 +366,8 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
           {otherEvidence.map(([key, value]) => (
             <div key={key} className="flex gap-1.5">
-              <dt className="text-ink-muted">{key.replaceAll("_", " ")}</dt>
-              <dd className="font-semibold text-ink">{value}</dd>
+              <dt className="text-muted-foreground">{key.replaceAll("_", " ")}</dt>
+              <dd className="font-semibold text-foreground">{value}</dd>
             </div>
           ))}
         </dl>
@@ -375,7 +375,7 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
 
       {whyNot.length > 0 && (
         <section className="rounded-xl border border-attention-line bg-attention p-4 text-attention-ink">
-          <h4 className="flex items-center gap-2 text-sm font-bold">
+          <h4 className="flex items-center gap-2 text-sm font-semibold">
             <CircleHelp aria-hidden className="size-4 shrink-0" />
             Why this cannot clear yet
           </h4>
@@ -388,9 +388,9 @@ function ExceptionDetail({ exception }: { exception: ActException }) {
 
 function Tile({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-line bg-card p-3">
-      <dt className="text-xs font-medium text-ink-muted">{label}</dt>
-      <dd className="text-sm font-semibold whitespace-normal text-ink">{children}</dd>
+    <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-3">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-semibold whitespace-normal text-foreground">{children}</dd>
     </div>
   )
 }

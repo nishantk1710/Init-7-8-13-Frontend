@@ -10,9 +10,6 @@
  * backend builds one **with the evidence for every stage, including the stages
  * it cannot prove** — and those are the interesting ones:
  *
- *   removed     "MSEG 261/201 carries no PO reference at all, so removal cannot
- *                be tied to this line. Modelled at material+plant level or left
- *                out — never linked by a guess."
  *   dispatched  "No 541 movement attributable to this line."
  *   at vendor   "No dispatch movement attributable to this line, so time at the
  *                vendor cannot be measured. Stores post most 541s on the day
@@ -21,6 +18,15 @@
  * A stage rendered as blank looks like a field somebody forgot. A stage that
  * says why it is blank is the product. So the adapter carries `evidence`
  * through as the step's description rather than dropping it.
+ *
+ * ## No "Removed from machine" stage
+ *
+ * Ruled 26-Oct-2026: SAP has no record of a unit coming off the machine (the
+ * issue to the maintenance order carries no PO reference, so it cannot be tied
+ * to a repair line), and the stage was empty on every line. "Condition
+ * declared" and the replacement issue tell that part of the story. The backend
+ * stopped sending the stage on 27-Oct-2026; an older backend still does, so
+ * the adapter drops it here.
  */
 
 import type { TimelineEvent } from "@/components/shared/timeline"
@@ -36,13 +42,20 @@ export type LiveRepairDetail = {
 }
 
 /** Stages that mean something happened, so a date makes them a success. No
- *  "received" stage since 19-Oct-2026: every line served is open in SAP. */
+ *  "received" stage since 19-Oct-2026: every line served is open in SAP.
+ *  `pr_raised` ("Repair requested") arrived on 27-Oct-2026, on PR rows, and
+ *  in phase 2 on PO rows whose PR is known. */
 const COMPLETED_TONE: Record<string, TimelineEvent["tone"]> = {
+  pr_raised: "default",
   attested: "success",
   po_raised: "default",
   dispatched: "default",
   at_vendor: "warning",
 }
+
+/** Stages an older backend may still send but the timeline no longer shows.
+ *  `removed` ("Removed from machine"): dropped 27-Oct-2026, see above. */
+const DROPPED_STAGES: ReadonlySet<string> = new Set(["removed"])
 
 function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {
   const happened = stage.occurredAt !== null
@@ -58,8 +71,36 @@ function toTimelineEvent(stage: ApiLifecycleStage): TimelineEvent {
   }
 }
 
+/** How a register id names a repair requested with no PO yet:
+ *  `PR-{BANFN}-{BNFPO}`. */
+const REPAIR_REQUEST_PREFIX = "PR-"
+
+/** Is this register id a repair requested on a PR with no PO yet? */
+export function isRepairRequestId(repairId: string): boolean {
+  return repairId.startsWith(REPAIR_REQUEST_PREFIX)
+}
+
 /**
- * Fetch one repair line by the register's `{EBELN}-{EBELP}` id.
+ * The two path segments `GET /api/i8/register/{document}/{item}` takes for a
+ * register id, or null when the id is not one.
+ *
+ * `4500001052-1310` -> `4500001052` / `1310`; a PR row's `PR-2000029113-10`
+ * -> `PR-2000029113` / `10`, which the backend reads as the PR (since
+ * 27-Oct-2026). Both split on the LAST hyphen, so the PR prefix stays with the
+ * document.
+ */
+export function repairLineKey(repairId: string): { document: string; item: string } | null {
+  const separator = repairId.lastIndexOf("-")
+  if (separator <= 0 || separator === repairId.length - 1) return null
+  const document = repairId.slice(0, separator)
+  // "PR-" alone names no requisition.
+  if (document === REPAIR_REQUEST_PREFIX.slice(0, -1)) return null
+  return { document, item: repairId.slice(separator + 1) }
+}
+
+/**
+ * Fetch one repair line by the register's `{EBELN}-{EBELP}` id, or a repair
+ * requested with no PO yet by its `PR-{BANFN}-{BNFPO}` id.
  *
  * The id is split on the LAST hyphen. Purchasing documents in this extract
  * carry none, but splitting on the first would quietly send the wrong item
@@ -91,15 +132,13 @@ function isNotFound(error: unknown): boolean {
 export async function loadLiveRepairDetail(
   repairId: string,
 ): Promise<LiveRepairDetail | null> {
-  const separator = repairId.lastIndexOf("-")
-  if (separator <= 0) {
+  const key = repairLineKey(repairId)
+  if (key === null) {
     throw new Error(
-      `"${repairId}" is not a repair line id. Expected {purchasingDocument}-{item}.`,
+      `"${repairId}" is not a repair line id. Expected {purchasingDocument}-{item} or PR-{requisition}-{item}.`,
     )
   }
-
-  const document = repairId.slice(0, separator)
-  const item = repairId.slice(separator + 1)
+  const { document, item } = key
 
   let detail
   try {
@@ -111,6 +150,8 @@ export async function loadLiveRepairDetail(
 
   return {
     chain: toRepairChain(detail.line),
-    timeline: detail.timeline.map(toTimelineEvent),
+    timeline: detail.timeline
+      .filter((stage) => !DROPPED_STAGES.has(stage.stage))
+      .map(toTimelineEvent),
   }
 }

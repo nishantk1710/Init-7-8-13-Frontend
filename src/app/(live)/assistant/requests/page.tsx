@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 /** Demo only: multi-material requests made in this browser. */
 export default function RequestsPage() {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
         <AssistantPageHeader
           plain

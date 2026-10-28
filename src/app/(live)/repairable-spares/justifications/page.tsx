@@ -118,6 +118,7 @@ export default async function I08JustificationsPage({
       filters={filters}
       facets={data.facets}
       descriptions={descriptions}
+      purchasesChecked={data.purchasesChecked}
     />
   )
 }

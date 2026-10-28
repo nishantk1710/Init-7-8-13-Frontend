@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -50,15 +51,15 @@ export function RequestSummary({ requestId }: { requestId: string }) {
     <div className="flex flex-col gap-5">
       <section
         aria-label="Request reference"
-        className="grid overflow-hidden rounded-card border border-line bg-card sm:grid-cols-[11rem_1fr]"
+        className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
       >
-        <div className="flex flex-col justify-center gap-0.5 border-b border-dashed border-line px-5 py-4 sm:border-r sm:border-b-0">
+        <div className="flex flex-col justify-center gap-0.5 border-b border-dashed border-border px-5 py-4 sm:border-r sm:border-b-0">
           <span className="text-sm text-muted-foreground">Request reference</span>
-          <span className="text-sm font-bold text-foreground">Type this in SAP</span>
+          <span className="text-sm font-semibold text-foreground">Type this in SAP</span>
         </div>
         <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 flex-col gap-2">
-            <span className="font-mono text-3xl font-bold tracking-[0.18em] break-all text-foreground select-all">
+            <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-foreground select-all">
               {request.requestId}
             </span>
             <span className="max-w-xl text-sm text-muted-foreground">
@@ -73,7 +74,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
       <dl className="flex flex-wrap gap-x-6 gap-y-1 px-1 text-sm">
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Plant</dt>
-          <dd className="font-mono font-bold text-foreground">{request.plant}</dd>
+          <dd className="font-mono font-semibold text-foreground">{request.plant}</dd>
         </div>
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Department</dt>
@@ -92,13 +93,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
         <div className="flex gap-1.5">
           <dt className="text-muted-foreground">Recorded</dt>
           <dd className="font-semibold text-foreground">
-            {new Date(request.issuedAt).toLocaleString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {formatInstant(request.issuedAt)}
           </dd>
         </div>
       </dl>
@@ -121,8 +116,8 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
       {request.skipped.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-foreground">No session — reserve as usual</h2>
-          <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-card">
+          <h2 className="text-base font-semibold text-foreground">No session: reserve as usual</h2>
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
             {request.skipped.map((s) => (
               <li key={`${s.materialId}-${s.plant}`} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
                 <CircleSlash className="mt-0.5 size-4 text-muted-foreground" aria-hidden />
@@ -183,7 +178,7 @@ function LiveLinks({ request, onSimulated }: { request: ApiRequest; onSimulated:
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-card border border-dashed border-line bg-card p-4 text-sm text-muted-foreground">
+    <section className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
       <span>
         {linked === 0
           ? "No SAP reservation item carries these references yet. Links appear here once a SAP extract with the item texts is loaded."
@@ -273,14 +268,14 @@ function LineCard({ line }: { line: ApiRequestLine }) {
   return (
     <article
       className={cn(
-        "relative overflow-hidden rounded-card border border-line bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
+        "relative overflow-hidden rounded-xl border border-border bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
         EDGE[decision.tone]
       )}
     >
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-3 pr-4 pl-5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border py-3 pr-4 pl-5">
         <Link
           href={`/assistant/sessions/${line.sessionId}`}
-          className="font-mono text-sm font-bold tracking-wider text-action hover:underline"
+          className="font-mono text-sm font-semibold tracking-wider text-action hover:underline"
           title="Open this line's full conversation record"
         >
           {line.reference}
@@ -309,7 +304,7 @@ function LineCard({ line }: { line: ApiRequestLine }) {
       </header>
       <div className="grid gap-5 py-4 pr-4 pl-5 md:grid-cols-3">
         <Field label="Decision">
-          <span className={cn("text-2xl font-extrabold tracking-tight", isDeclined(line) && decision.tone === "muted" ? "text-muted-foreground" : "text-foreground")}>
+          <span className={cn("text-2xl font-semibold tracking-tight", isDeclined(line) && decision.tone === "muted" ? "text-muted-foreground" : "text-foreground")}>
             {decision.headline}
           </span>
           <Pill tone={decision.tone}>{decision.pill}</Pill>

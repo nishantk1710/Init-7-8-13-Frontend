@@ -23,11 +23,26 @@
  * backend's `meta` is computed over the whole register and cannot be narrowed,
  * so the dashboard counts the rows it is holding instead. See the note in
  * `utils/overview-view.ts` for the check that the two agree.
+ *
+ * ## PO lines only
+ *
+ * Since 27-Oct-2026 the register can also list repairs requested on a
+ * purchase requisition with no PO yet (PR rows). Every Overview figure is about
+ * repairs that are out -- lines open, units under repair, late, not declared,
+ * age in stage, vendors -- and a PR row is none of those yet, so they are
+ * taken out here, before any figure or filter sees them. The page says how
+ * many there are in a note of their own (`repairRequestsNote`).
  */
 
 import { DEFAULT_EXCEPTION_STATUS, fetchAllExceptions } from "@/features/initiative-8/data/live-exceptions"
-import { loadLiveRegister, type LiveRegister } from "@/features/initiative-8/data/live-register"
-import type { UniverseRow } from "@/features/initiative-8/utils/overview-view"
+import {
+  buildRegisterOptions,
+  loadLiveRegister,
+  type LiveRegister,
+} from "@/features/initiative-8/data/live-register"
+import { isPrOnly } from "@/features/initiative-8/utils/status"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
+import type { OpenExceptionItem, UniverseRow } from "@/features/initiative-8/utils/overview-view"
 import type { ApiDeclarationMeta, ApiUniverseItem, ApiUniverseMeta } from "@/lib/api/i8"
 import { getDeclarations, getUniverse, toNumber } from "@/lib/api/i8"
 
@@ -48,6 +63,9 @@ export function toUniverseRows(items: ApiUniverseItem[]): UniverseRow[] {
     plantName: item.plant?.name ?? "Unknown plant",
     criticality: item.criticality ?? undefined,
     stock: toNumber(item.stockOnHand),
+    // The condition split, when the backend sends it (28-Oct-2026).
+    usable: toNumber(item.usableStock),
+    damaged: toNumber(item.damagedStock),
   }))
 }
 
@@ -70,7 +88,12 @@ async function loadUniverse(): Promise<LiveUniverse> {
 }
 
 export type LiveOverview = {
+  /** PO lines only: see `withoutRepairRequests`. */
   register: LiveRegister
+  /** The repairs requested with no PO yet (PR rows), kept apart: the
+   *  process tile counts them under the filters, and the exceptions card
+   *  matches items raised on them. Empty when the backend serves none. */
+  requests: RepairChain[]
   /** Null when that source could not be read — shown as such, never as 0. */
   universe: LiveUniverse | null
   declarations: ApiDeclarationMeta | null
@@ -79,7 +102,21 @@ export type LiveOverview = {
    * exceptions" card: counted against the lines the filters keep, so the card
    * narrows with the rest. Null when the queue could not be read.
    */
-  exceptions: { repairId?: string; type: string }[] | null
+  exceptions: OpenExceptionItem[] | null
+}
+
+/**
+ * The register with its PR rows (repair requested, no PO yet) taken out, and
+ * the filter choices rebuilt from what is left -- so no dropdown offers a
+ * choice that only a PR row held, such as "Unknown vendor".
+ *
+ * `meta` is kept as it is: its `openLines` and `totalLines` are PO lines
+ * already, and its `openRepairRequests` is what the page's note reads.
+ */
+export function withoutRepairRequests(register: LiveRegister): LiveRegister {
+  const chains = register.chains.filter((chain) => !isPrOnly(chain))
+  if (chains.length === register.chains.length) return register
+  return { ...register, chains, ...buildRegisterOptions(chains) }
 }
 
 /** Throws only if the register fails; the rest degrade to null. */
@@ -91,8 +128,14 @@ export async function loadLiveOverview(): Promise<LiveOverview> {
       .then((body) => body.meta)
       .catch(() => null),
     fetchAllExceptions({ status: DEFAULT_EXCEPTION_STATUS })
-      .then((rows) => rows.map((row) => ({ repairId: row.repairId, type: row.type })))
+      .then((rows) => rows.map((row) => ({ repairId: row.repairId, type: row.type, plantId: row.plant?.plantId })))
       .catch(() => null),
   ])
-  return { register, universe, declarations, exceptions }
+  return {
+    register: withoutRepairRequests(register),
+    requests: register.chains.filter(isPrOnly),
+    universe,
+    declarations,
+    exceptions,
+  }
 }

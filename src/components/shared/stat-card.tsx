@@ -36,15 +36,15 @@ export function StatCard({
 }) {
   const body = (
     <>
-      <span className="text-[30px] leading-tight font-extrabold tracking-tight text-foreground tabular-nums">
+      <span className="text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
         {typeof value === "number" ? formatCount(value) : value}
       </span>
-      <span className="text-sm font-bold text-foreground">{label}</span>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
       {hint && <span className="text-[13px] text-muted-foreground">{hint}</span>}
     </>
   )
   const frame = cn(
-    "relative flex flex-col items-start gap-0.5 overflow-hidden rounded-card border border-line bg-card py-4 pr-4 pl-5 text-left",
+    "relative flex flex-col items-start gap-0.5 overflow-hidden rounded-xl border border-border bg-card py-4 pr-4 pl-5 text-left",
     "before:absolute before:inset-y-0 before:left-0 before:w-1",
     EDGE[tone],
     className

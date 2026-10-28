@@ -20,10 +20,11 @@ import {
   matchesCandidateSearch,
   newItemPriceCell,
   nextPriceSort,
+  screenedAgo,
   sortByNewItemPrice,
   type PriceSort,
 } from "@/features/initiative-8/utils/coding-candidates-view"
-import { i08Date, i08DateTime, plantShort, plural } from "@/features/initiative-8/utils/format"
+import { i08DateTime, plantShort, plural } from "@/features/initiative-8/utils/format"
 import { UNKNOWN } from "@/features/initiative-8/utils/status"
 import { usePaginatedRows } from "@/hooks/use-paginated-rows"
 import { CODING_SCREEN_BATCH, CODING_SCREEN_TIMEOUT_MS, getCodingCandidates } from "@/lib/api/i8"
@@ -86,6 +87,9 @@ export type CodingCandidatesTableProps = {
   loadError?: string | null
   /** Which free texts the run read (PO, PR, movement), for the ⓘ. */
   sources?: string[]
+  /** When the page was rendered (epoch ms), for "Screened 15 days ago": read
+   *  once on the server so the server's text and the browser's agree. */
+  renderedAt?: number
 }
 
 /**
@@ -108,6 +112,7 @@ export function CodingCandidatesTable({
   candidates: initialCandidates = [],
   loadError = null,
   sources = [],
+  renderedAt,
 }: CodingCandidatesTableProps = {}) {
   const [candidates, setCandidates] = useState(initialCandidates)
   const [screening, setScreening] = useState(false)
@@ -236,6 +241,9 @@ export function CodingCandidatesTable({
     (latest, c) => (c.screenedAt && (!latest || c.screenedAt > latest) ? c.screenedAt : latest),
     undefined,
   )
+  // "Screened 15 days ago", amber after a week: new PO and PR text since then
+  // is not judged until somebody runs the screen again.
+  const screened = renderedAt === undefined ? undefined : screenedAgo(lastRun, renderedAt)
 
   /**
    * The slow, opt-in language-judgement pass, run in batches.
@@ -332,11 +340,18 @@ export function CodingCandidatesTable({
             {plural(candidates.length, "material")} not coded 80-series whose {sourceWords} text mentions repair
           </span>
           <Dot />
-          <span>
-            {unscreenedCount === 0
-              ? `All screened by the AI${lastRun ? `, last run ${i08Date(lastRun)}` : ""}`
-              : `${formatCount(unscreenedCount)} not screened yet`}
-          </span>
+          <span>{unscreenedCount === 0 ? "All screened by the AI" : `${formatCount(unscreenedCount)} not screened yet`}</span>
+          {screened && (
+            <>
+              <Dot />
+              <span
+                className={cn(screened.stale && "font-medium text-i08-warn-ink")}
+                title={`Last screened ${lastRun ? i08DateTime(lastRun) : ""}${screened.stale ? ". Text added to POs and PRs since then is not judged yet." : ""}`}
+              >
+                {screened.text}
+              </span>
+            </>
+          )}
           <InfoPopover title="About this list">
             <p>
               Materials bought under an ordinary number whose requisition, PO or goods-movement text talks about
@@ -518,7 +533,24 @@ export function CodingCandidatesTable({
                   <Head frozen>Material</Head>
                   <Head>Verdict</Head>
                   <Head>
+                    {/* The two marks a row can carry, explained once. */}
                     <span className="sr-only">Signals</span>
+                    <InfoPopover title="The two marks" className="-ml-1.5">
+                      <p className="flex items-start gap-2">
+                        <GitCompareArrows className="mt-0.5 size-4 shrink-0 text-i08-good-ink" aria-hidden="true" />
+                        <span>
+                          <b className="font-semibold text-foreground">Twin found.</b> An 80-series material in SAP
+                          carries the very same text. The strongest evidence on this page.
+                        </span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <Flag className="mt-0.5 size-4 shrink-0 text-i08-warn-ink" aria-hidden="true" />
+                        <span>
+                          <b className="font-semibold text-foreground">Worth a read.</b> The AI judged it likely
+                          repairable, or could not tell.
+                        </span>
+                      </p>
+                    </InfoPopover>
                   </Head>
                   <Head>Reason</Head>
                   <Head>Plants</Head>

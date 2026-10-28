@@ -5,12 +5,10 @@ import { connection } from "next/server"
 import { SessionLogTable } from "@/components/assistant/session-log-table"
 import { wentAheadSessionIds } from "@/lib/assistant/session-outcome"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
-import {
-  CompliancePanel,
-  type ComplianceCheck,
-} from "@/components/assistant/compliance-panel"
+import type { ComplianceCheck } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
 import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
+import { formatDay } from "@/lib/assistant/trace-format"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -74,19 +72,18 @@ export default async function AssistantSessionsPage({
       id: "advice-not-taken",
       label: "Went ahead anyway",
       description:
-        "Someone was told a repairable unit exists, or offered a smaller quantity, and proceeded regardless. Each one carries a recorded reason.",
+        "Told a usable unit exists, or offered a smaller quantity, and went ahead. Each one carries a recorded reason.",
       state: "counted",
       count:
         justifications?.items.filter(
           (j) => j.kind === "NEW_ACQUISITION" || j.kind === "QUANTITY_OVERRIDE"
         ).length ?? 0,
-      detail: "Recorded at the moment of the decision.",
     },
     {
       id: "abandoned",
       label: "Advice given, not acted on",
       description:
-        "Sessions opened and left without an answer. Both FRSs count these, which is why the log lists them rather than hiding unfinished conversations.",
+        "Sessions opened and left without an answer. They are listed, not hidden: both initiatives count them.",
       state: "counted",
       count: sessions?.items.filter((s) => s.outcome === "ABANDONED").length ?? 0,
     },
@@ -94,13 +91,13 @@ export default async function AssistantSessionsPage({
       ? {
           id: "missing-session",
           label: "Reservations with no session",
-          description: `OAR reservations required since ${compliance.goLiveDate} whose item text (SGTXT) carries no valid session ID.`,
+          description: `OAR reservations needed since ${formatDay(compliance.goLiveDate)} whose text carries no valid session reference.`,
           state: "counted",
           count: compliance.missingSession + compliance.invalidSession,
           detail:
             `${compliance.covered} of ${compliance.reservations} carry a session with a plan; ` +
-            `${compliance.invalidSession} carry an ID that is mistyped or not for that part; ` +
-            `${compliance.sessionWithoutPlan} name a session that captured no plan.`,
+            `${compliance.invalidSession} carry a reference that is mistyped or for another part; ` +
+            `${compliance.sessionWithoutPlan} name a session with no plan.`,
         }
       : {
           id: "missing-session",
@@ -115,7 +112,7 @@ export default async function AssistantSessionsPage({
   ]
 
   return (
-    <div className="blue-scope min-h-0 flex-1 overflow-y-auto bg-page p-4 sm:p-6">
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <AssistantPageHeader
           plain
@@ -140,15 +137,14 @@ export default async function AssistantSessionsPage({
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
           </div>
         ) : (
-          // The filter bar leads the page; the compliance cards follow it, above the table.
+          // The cards live in the table: with Flow set to Repairable Spares they
+          // become the repairable ones, and that choice is the table's state.
           <SessionLogTable
             sessions={sessions.items}
-            note={sessions.note}
             total={sessions.total}
+            checks={checks}
             wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
-          >
-            <CompliancePanel checks={checks} />
-          </SessionLogTable>
+          />
         )}
       </div>
     </div>

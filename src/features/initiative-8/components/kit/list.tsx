@@ -58,13 +58,20 @@ export function QuickViews({
   )
 }
 
-/** Tabs along a hairline, the selected one underlined: "To declare 104". */
+/**
+ * Tabs along a hairline, the selected one underlined: "To declare 104".
+ *
+ * `oneRow` keeps a long row of tabs on one line, a little tighter, scrolling
+ * sideways when the screen is too narrow for it rather than wrapping a lone
+ * tab onto a second line (the exception types did, at 1440px).
+ */
 export function Tabs({
   choices,
   value,
   onSelect,
   label,
   end,
+  oneRow = false,
 }: {
   choices: Choice[]
   value: string
@@ -72,10 +79,23 @@ export function Tabs({
   label: string
   /** Something on the right of the tab row, e.g. the Open / Closed switch. */
   end?: ReactNode
+  oneRow?: boolean
 }) {
   return (
-    <div className="mt-5 flex flex-wrap items-end gap-x-1 gap-y-2 border-b border-border">
-      <div role="tablist" aria-label={label} className="flex flex-wrap items-end gap-1">
+    <div
+      className={cn(
+        "mt-5 flex items-end gap-x-1 gap-y-2 border-b border-border",
+        oneRow ? "flex-nowrap" : "flex-wrap",
+      )}
+    >
+      <div
+        role="tablist"
+        aria-label={label}
+        className={cn(
+          "flex items-end gap-1",
+          oneRow ? "min-w-0 flex-1 flex-nowrap overflow-x-auto [scrollbar-width:thin]" : "flex-wrap",
+        )}
+      >
         {choices.map((choice) => {
           const active = choice.value === value
           return (
@@ -86,7 +106,8 @@ export function Tabs({
               aria-selected={active}
               onClick={() => onSelect(choice.value)}
               className={cn(
-                "relative inline-flex h-11 items-center gap-2 px-3.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                "relative inline-flex h-11 items-center gap-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                oneRow ? "shrink-0 px-3 whitespace-nowrap" : "px-3.5",
                 "after:absolute after:inset-x-2.5 after:-bottom-px after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200",
                 active ? "text-foreground after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-foreground",
               )}
@@ -97,7 +118,7 @@ export function Tabs({
           )
         })}
       </div>
-      {end && <div className="ml-auto pb-1.5">{end}</div>}
+      {end && <div className="ml-auto shrink-0 pb-1.5">{end}</div>}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Download, Loader2 } from "lucide-react"
 
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
@@ -48,6 +48,8 @@ export type ExceptionsTableProps = {
   /** The screen's `push`, with `?id=` dropped on every change. */
   update: (patch: Record<string, string | undefined>) => void
   pending: boolean
+  /** Open / Closed / All / Raised before go-live, in the filter bar. */
+  stateSwitch?: ReactNode
 }
 
 /**
@@ -81,6 +83,7 @@ export function ExceptionsTable({
   faultCategories = [],
   update,
   pending,
+  stateSwitch,
 }: ExceptionsTableProps) {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -89,7 +92,9 @@ export function ExceptionsTable({
   // The page's copy when it has one: that is as fresh as the last refresh.
   const current = selected ? (rows.find((r) => r.id === selected.id) ?? selected) : undefined
   // Every status at once: the one view where a row's status tells it apart.
-  const showStatus = filters.status === undefined
+  // Not the before-go-live view, where no item is anybody's work.
+  const before = filters.preAutomation === true
+  const showStatus = filters.status === undefined && !before
 
   function openItem(row: ExceptionQueueRow) {
     setSelected(row)
@@ -103,7 +108,7 @@ export function ExceptionsTable({
     try {
       const all = await fetchAllExceptions(filters)
       const built = await downloadExcel(
-        "i08-exception-queue.xlsx",
+        before ? "i08-exceptions-before-go-live.xlsx" : "i08-exception-queue.xlsx",
         ["Exception", "Material", "Description", "Plant", "Repair Line", "Raised", "Status", "Owner", "Detail", "Exception ID"],
         all.map((row) => [
           exceptionTypeLabel(row.type),
@@ -157,6 +162,7 @@ export function ExceptionsTable({
           ).map((id) => ({ value: id, label: plantNames.get(id) ?? id }))}
           className="sm:w-48"
         />
+        {stateSwitch}
         <div className="flex items-center gap-2 sm:ml-auto">
           {exportError && (
             <span role="alert" className="text-[12.5px] text-i08-crit-ink">
@@ -178,18 +184,22 @@ export function ExceptionsTable({
             <p className="text-[15px] font-semibold text-foreground">
               {chips.length
                 ? "No exceptions match"
-                : filters.status === "CLOSED"
-                  ? "No closed exceptions"
-                  : filters.status === DEFAULT_EXCEPTION_STATUS
-                    ? "No open exceptions"
-                    : "No exceptions"}
+                : before
+                  ? "Nothing raised before go-live"
+                  : filters.status === "CLOSED"
+                    ? "No closed exceptions"
+                    : filters.status === DEFAULT_EXCEPTION_STATUS
+                      ? "No open exceptions"
+                      : "No exceptions"}
             </p>
             <p className="max-w-md text-[13.5px] text-muted-foreground">
               {chips.length
                 ? "Change or clear the filters to see more."
-                : filters.status === "CLOSED"
-                  ? "An exception closes when the check stops finding it, or when someone closes it with a note."
-                  : "The checks found nothing to work on here."}
+                : before
+                  ? "Every item the checks found was raised after go-live."
+                  : filters.status === "CLOSED"
+                    ? "An exception closes when the check stops finding it, or when someone closes it with a note."
+                    : "The checks found nothing to work on here."}
             </p>
             {chips.length > 0 && (
               <Button variant="outline" size="lg" className="mt-1" onClick={clearAll}>
@@ -268,7 +278,10 @@ export function ExceptionsTable({
                     </Cell>
                     <Cell>{row.raisedAt ?? "—"}</Cell>
                     <Cell>
-                      {row.owner ? (
+                      {row.preAutomation ? (
+                        // Nobody's work: raised before the checks began.
+                        <span className="text-muted-foreground">No action needed</span>
+                      ) : row.owner ? (
                         <span className="block truncate" title={row.owner}>
                           {row.owner}
                         </span>

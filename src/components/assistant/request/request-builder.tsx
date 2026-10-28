@@ -28,6 +28,7 @@ import {
   DEFAULT_MAX_LINES,
   EMPTY_JUSTIFICATION,
   FALLBACK_REASONS,
+  FALLBACK_RECOMMENDATIONS,
   answersOf,
   isDuplicate,
   isReady,
@@ -45,6 +46,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
 const REQUEST_PLANTS = ["1300", "1500"] as const
@@ -138,6 +140,11 @@ export function RequestBuilder({
   const [submitting, setSubmitting] = useState(false)
   const [maxLines, setMaxLines] = useState(DEFAULT_MAX_LINES)
   const [reasons, setReasons] = useState<readonly ApiReasonCategory[]>(FALLBACK_REASONS)
+  // Empty until a preview names them: an older backend sends none and cannot
+  // take a declaration with the request, so the section is not offered.
+  const [faultCategories, setFaultCategories] = useState<readonly string[]>([])
+  const [recommendations, setRecommendations] =
+    useState<readonly ApiReasonCategory[]>(FALLBACK_RECOMMENDATIONS)
   const [refusedKey, setRefusedKey] = useState<string | null>(null)
   const [notEnabled, setNotEnabled] = useState(false)
   /** One per draft: a resubmitted draft is the same request, never a second one. */
@@ -168,7 +175,7 @@ export function RequestBuilder({
   async function add(picked: Picked) {
     if (requestPlant && picked.plant !== requestPlant) {
       toast.error(`This request is for plant ${requestPlant}`, {
-        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant -- start another for ${picked.plant}.`,
+        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant. Start another for ${picked.plant}.`,
       })
       return
     }
@@ -190,6 +197,8 @@ export function RequestBuilder({
       const response = await previewRequest([{ materialId: picked.materialId, plant: picked.plant }])
       setMaxLines(response.maxLines)
       if (response.reasonCategories?.length) setReasons(response.reasonCategories)
+      if (response.faultCategories?.length) setFaultCategories(response.faultCategories)
+      if (response.recommendations?.length) setRecommendations(response.recommendations)
       const [preview] = response.lines
       setRows((current) =>
         current.map((row) =>
@@ -375,7 +384,7 @@ export function RequestBuilder({
 
   return (
     <div className="flex flex-col gap-5 pb-28 [&_input]:min-h-11 [&_select]:min-h-11">
-      <section className="flex flex-col gap-4 rounded-card border border-line bg-card p-5">
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
         <StepHeading n={1}>Who is it for</StepHeading>
         <div className="grid gap-3 sm:grid-cols-3">
           <LabelledInput
@@ -389,7 +398,7 @@ export function RequestBuilder({
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Plant</span>
             {requestPlant ? (
-              <div className="flex min-h-11 items-center gap-2 rounded-lg border border-line bg-action/10 px-3 text-sm">
+              <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-action/10 px-3 text-sm">
                 <span className="font-mono font-semibold">{requestPlant}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{plantName}</span>
                 <Button type="button" variant="ghost" size="xs" onClick={changePlant}>
@@ -397,7 +406,7 @@ export function RequestBuilder({
                 </Button>
               </div>
             ) : (
-              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-line px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Set by the first material you add
               </div>
             )}
@@ -418,7 +427,7 @@ export function RequestBuilder({
                 onChange={(code) => setPicked({ plant: requestPlant, code })}
               />
             ) : (
-              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-line px-3 text-xs text-muted-foreground">
+              <div className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground">
                 Pick once the plant is set
               </div>
             )}
@@ -446,7 +455,7 @@ export function RequestBuilder({
       <AddMaterials rows={rows} requestPlant={requestPlant} maxLines={maxLines} onAdd={add} />
 
       {rows.length === 0 && (
-        <div className="rounded-card border border-dashed border-line bg-card p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Add materials above. Each one is checked and goes to the right table automatically.
         </div>
       )}
@@ -503,6 +512,9 @@ export function RequestBuilder({
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
+            faultCategories={faultCategories}
+            recommendations={recommendations}
+            requester={requester}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}
@@ -518,7 +530,7 @@ export function RequestBuilder({
             subtitle="Kept on the request so you can see why nothing is asked. Reserve these as usual."
             count={noSessionRows.length}
           />
-          <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-card">
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
             {noSessionRows.map((row) => (
               <li key={row.key} className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 text-sm">
                 <span className="font-mono text-xs font-semibold">{row.materialId}</span>
@@ -539,9 +551,9 @@ export function RequestBuilder({
         </section>
       )}
 
-      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-card border border-line bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
+      <footer className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-sm font-bold text-foreground">
+          <span className="text-sm font-semibold text-foreground">
             {sessionRows.length === 0
               ? "No materials that need the assistant yet"
               : `${readyCount} of ${sessionRows.length} line${sessionRows.length === 1 ? "" : "s"} ready`}
@@ -581,7 +593,7 @@ export function RequestBuilder({
           </span>
           {savedAt && (
             <span className="text-[11px] text-muted-foreground">
-              Draft saved {new Date(savedAt).toLocaleString("en-GB")} in this browser only.
+              Draft saved {formatInstant(savedAt)} in this browser only.
             </span>
           )}
         </div>
@@ -619,7 +631,7 @@ export function RequestBuilder({
 
 export function NotEnabledNotice() {
   return (
-    <div className="flex flex-col gap-2 rounded-card border border-line bg-card p-6 text-sm">
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm">
       <span className="font-medium text-foreground">Requests are not switched on yet.</span>
       <span className="text-muted-foreground">
         The backend answers these routes only when ASSISTANT_REQUESTS_ENABLED is set. Until then, check one material at
@@ -633,7 +645,7 @@ export function NotEnabledNotice() {
 function StepHeading({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <h2 className="flex items-center gap-2.5 text-base font-semibold text-foreground">
-      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
         {n}
       </span>
       <span>
@@ -752,11 +764,11 @@ function AddMaterials({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-line bg-card p-5">
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <StepHeading n={2}>Add materials</StepHeading>
       <p className="-mt-2 text-xs text-muted-foreground">
         {requestPlant
-          ? `Showing plant ${requestPlant} only -- this request is for ${requestPlant}.`
+          ? `Showing plant ${requestPlant} only: this request is for ${requestPlant}.`
           : "The first material you add sets the request's plant."}{" "}
         {full && <span className="text-warning">This request is full ({maxLines} materials).</span>}
       </p>
@@ -853,7 +865,7 @@ function OarApplyAll({
   const active = rows.filter((r) => r.decision === "proceed").length
 
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-line bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
         Apply to all {active} OAR line{active === 1 ? "" : "s"} being procured
       </span>
@@ -927,10 +939,10 @@ function JustificationApplyAll({
 }) {
   const [value, setValue] = useState<Justification>(EMPTY_JUSTIFICATION)
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-card border border-line bg-card p-4")}>
-      <span className="text-sm font-bold text-foreground">{label}</span>
+    <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-xl border border-border bg-card p-4")}>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
       <select
-        aria-label={`${label} -- reason`}
+        aria-label={`${label}: reason`}
         className={cn(SELECT_CLASS, "w-48")}
         value={value.reasonCategory}
         disabled={disabled}
@@ -944,7 +956,7 @@ function JustificationApplyAll({
         ))}
       </select>
       <Input
-        aria-label={`${label} -- text`}
+        aria-label={`${label}: text`}
         value={value.freeText}
         disabled={disabled}
         onChange={(e) => setValue({ ...value, freeText: e.target.value })}
