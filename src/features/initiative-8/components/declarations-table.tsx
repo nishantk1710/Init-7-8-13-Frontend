@@ -19,6 +19,7 @@ import {
   fetchAllDeclarations,
   type DeclarationFacets,
   type DeclarationFilters,
+  type DeclarationList,
 } from "@/features/initiative-8/data/live-declarations"
 import type { DeclarationQueueRow, RepairStatus } from "@/features/initiative-8/types/repair"
 import { plantShort, stageLabel } from "@/features/initiative-8/utils/format"
@@ -31,6 +32,10 @@ import { downloadExcel } from "@/lib/utils"
 const REPAIR_STATUS_ORDER = Object.keys(REPAIR_STATUS_TONE) as RepairStatus[]
 
 export type DeclarationsTableProps = {
+  /** Which list: the queue, or the lines raised before declarations began. */
+  list?: DeclarationList
+  /** What the list says when it is empty and unfiltered. */
+  empty: { title: string; body: string }
   /** One page of the queue. */
   rows: DeclarationQueueRow[]
   /** Matching the filters, across every page. */
@@ -59,8 +64,14 @@ export type DeclarationsTableProps = {
  * the queue is not a round trip per row. Declaring from a row names that
  * repair line outright, rather than leaving it to a date window these years-old
  * lines are far too old to match.
+ *
+ * The same table lists the Historical tab (28-Oct-2026): the open lines raised
+ * before declarations began. Nobody owes a declaration on them, but one can
+ * still be recorded, so each offers Declare.
  */
 export function DeclarationsTable({
+  list = "queue",
+  empty,
   rows,
   total,
   page,
@@ -88,9 +99,9 @@ export function DeclarationsTable({
     setExporting(true)
     setExportError(null)
     try {
-      const all = await fetchAllDeclarations(filters)
+      const all = await fetchAllDeclarations(filters, undefined, list)
       const built = await downloadExcel(
-        "i08-declaration-queue.xlsx",
+        list === "historical" ? "i08-declarations-historical.xlsx" : "i08-declaration-queue.xlsx",
         ["Material", "Description", "Plant", "Vendor", "Repair Status", "Repair Line", "Requisition", "Requester", "Declaration Status", "Raised"],
         all
           .filter((row) => row.status !== "Completed")
@@ -115,7 +126,11 @@ export function DeclarationsTable({
     }
   }
 
-  const visible = rows.filter((row) => row.status !== "Completed")
+  // Filtered again, so a backend ignoring the parameters can never put a
+  // declared line, with a Declare button, on either list.
+  const visible = rows.filter((row) =>
+    list === "historical" ? row.status === "Historical" : row.status !== "Completed",
+  )
   const repairStatuses = REPAIR_STATUS_ORDER.filter((status) => facets.repairStatuses.includes(status))
   const plantNames = new Map(facets.plants.map((p) => [p.plantId, p.name]))
   const vendorLabels = new Map(facets.vendors.map((v) => [v.value, v.label]))
@@ -201,12 +216,10 @@ export function DeclarationsTable({
         {visible.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
             <p className="text-[15px] font-semibold text-foreground">
-              {chips.length ? "No repair lines match" : "Every repair line has a condition declaration"}
+              {chips.length ? "No repair lines match" : empty.title}
             </p>
-            <p className="text-[13.5px] text-muted-foreground">
-              {chips.length
-                ? "Change or clear the filters to see more lines."
-                : "Nothing is waiting. New repair lines appear here when SAP raises them."}
+            <p className="max-w-lg text-[13.5px] text-muted-foreground">
+              {chips.length ? "Change or clear the filters to see more lines." : empty.body}
             </p>
             {chips.length > 0 && (
               <Button variant="outline" size="lg" className="mt-1" onClick={clearAll}>
@@ -240,7 +253,7 @@ export function DeclarationsTable({
                 {visible.map((row) => {
                   const href = repairHref({ id: row.relatedRepairId })
                   const display = declarationDisplay(row.status)
-                  const action = declarationAction(row.status, row.declarationId)
+                  const action = declarationAction(row.status, row.declarationId, { voluntary: list === "historical" })
                   return (
                     <TableRow
                       key={row.id}
@@ -304,7 +317,7 @@ export function DeclarationsTable({
                 total={total}
                 count={visible.length}
                 noun="repair lines"
-                hrefFor={(p) => declarationsHref(filters, p)}
+                hrefFor={(p) => declarationsHref(filters, p, list)}
               />
             </div>
           </>

@@ -6,6 +6,7 @@ import {
   declarationDisplay,
   declarationFormProblem,
   declarationLinkLabel,
+  emptyQueueText,
   exceptionDeclarationAction,
   isWaitingForDeclaration,
   optionalText,
@@ -40,6 +41,37 @@ describe("declarationAction", () => {
   it("an undeclared Historical line offers nothing; Required offers Declare", () => {
     expect(declarationAction("Historical", undefined)).toBeNull()
     expect(declarationAction("Required", null)).toBe("declare")
+  })
+})
+
+describe("declarationAction on the Historical tab", () => {
+  it("offers Declare on a Historical line there, voluntarily, and Amend once declared", () => {
+    expect(declarationAction("Historical", undefined, { voluntary: true })).toBe("declare")
+    expect(declarationAction("Historical", "ATT-1", { voluntary: true })).toBe("amend")
+  })
+})
+
+describe("emptyQueueText", () => {
+  it("says what is true when every open line is Historical", () => {
+    // It used to say "Every repair line has a condition declaration" while
+    // 211 open lines had none.
+    expect(emptyQueueText(211, "27 Oct 2026")).toEqual({
+      title: "Nothing to declare",
+      body:
+        "The 211 open lines were raised before declarations began on 27 Oct 2026. " +
+        "They are under Historical, where any of them can still be declared.",
+    })
+  })
+
+  it("leaves out a date it was not given, and counts one line as one", () => {
+    expect(emptyQueueText(1, undefined).body).toBe(
+      "The 1 open line was raised before declarations began. They are under Historical, where any of them can still be declared.",
+    )
+  })
+
+  it("says nothing is waiting when there are no Historical lines, or their count is unknown", () => {
+    expect(emptyQueueText(0, "27 Oct 2026").body).toBe("Nothing is waiting. New repair lines appear here when SAP raises them.")
+    expect(emptyQueueText(undefined, undefined).title).toBe("Nothing to declare")
   })
 })
 
