@@ -8,13 +8,14 @@ import { NotificationLogLink } from "@/features/initiative-8/components/notifica
 import { useUrlFilters } from "@/features/initiative-8/components/url-filters"
 import {
   ALL_STATUSES,
+  BEFORE_GO_LIVE,
   DEFAULT_EXCEPTION_STATUS,
   EXCEPTIONS_PATH,
   type ExceptionFacets,
   type ExceptionFilters,
 } from "@/features/initiative-8/data/live-exceptions"
 import type { ExceptionQueueRow, ExceptionQueueSummary } from "@/features/initiative-8/types/repair"
-import { plural } from "@/features/initiative-8/utils/format"
+import { i08Date, plural } from "@/features/initiative-8/utils/format"
 import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
@@ -37,9 +38,10 @@ const ALL_CHECKS = [
   "MISSING_SESSION_ID",
 ] as const
 
-/** The tabs' short names; the drawer and the rows keep the full ones. */
+/** The tabs' short names; the drawer and the rows keep the full ones. Short
+ *  enough that every type fits one row at 1440px. */
 const TAB_LABEL: Record<string, string> = {
-  MISSING_ATTESTATION: "No declaration",
+  MISSING_ATTESTATION: "Not declared",
   OVERDUE_REPAIR: "Overdue",
   UNJUSTIFIED_ACQUISITION: "Bought new",
   MISSING_SESSION_ID: "No R-reference",
@@ -51,10 +53,15 @@ const TAB_LABEL: Record<string, string> = {
 /**
  * Repair Exceptions (FR-8, FR-9, FR-11) -- I08_Live_UI_Redesign_Plan.md, L5.
  *
- * Type tabs -- All, No declaration, Overdue, Bought new -- with an Open / Closed / All
- * switch beside them, in place of a type dropdown, a status dropdown, a
- * summary band and a "How each check works" box above the table. All comes
- * first so the Overview's "open exceptions" card lands on the same number.
+ * Type tabs -- All, Not declared, Overdue, Bought new and the rest -- on one
+ * row, with an Open / Closed / All / Raised before go-live switch in the
+ * filter bar, in place of a type dropdown, a status dropdown, a summary band
+ * and a "How each check works" box above the table. All comes first so the
+ * Overview's "open exceptions" card lands on the same number.
+ *
+ * "Raised before go-live" (28-Oct-2026) lists the items from before the
+ * checks began, which need nothing; the header counts them apart from the
+ * ones to act on, so the two numbers add up to what the checks found.
  *
  * The tab counts are the backend's `typeCounts`: every filter applied but the
  * type, so a tab's number is the rows it opens on. Without them (an older
@@ -117,7 +124,13 @@ export function ExceptionsScreen({
       actions={<NotificationLogLink />}
       summary={
         <>
-          <span>{plural(summary.total, "item")} found by the checks</span>
+          <span>{formatCount(summary.actionable)} to act on</span>
+          {summary.preAutomation > 0 && (
+            <>
+              <Dot />
+              <span>{formatCount(summary.preAutomation)} raised before go-live</span>
+            </>
+          )}
           {summary.linesChecked > 0 && (
             <>
               <Dot />
@@ -182,12 +195,20 @@ export function ExceptionsScreen({
             <p>
               An item closes itself when the check stops finding it. Someone can also close it, with a note saying why.
             </p>
+            <p>
+              <strong className="font-semibold text-foreground">Raised before go-live.</strong> A repair line or
+              purchase from before the checks began
+              {summary.attestationCutoverDate ? ` on ${i08Date(summary.attestationCutoverDate)}` : ""}. Nobody was
+              asked for a declaration or a reason then, so nothing needs doing. They are listed apart, under their
+              own switch.
+            </p>
           </InfoPopover>
         </>
       }
     >
       <Tabs
         label="Exception type"
+        oneRow
         value={filters.type ?? ""}
         onSelect={(value) => update({ type: value || undefined })}
         choices={[
@@ -198,18 +219,6 @@ export function ExceptionsScreen({
             count: countOf(type),
           })),
         ]}
-        end={
-          <Segmented
-            label="Status"
-            value={filters.status ?? ALL_STATUSES}
-            onSelect={(value) => update({ status: value === DEFAULT_EXCEPTION_STATUS ? undefined : value })}
-            choices={[
-              { value: "OPEN", label: "Open" },
-              { value: "CLOSED", label: "Closed" },
-              { value: ALL_STATUSES, label: "All" },
-            ]}
-          />
-        }
       />
       <ExceptionsTable
         // Keyed by the linked item, so following a second item link while
@@ -225,6 +234,19 @@ export function ExceptionsScreen({
         faultCategories={faultCategories}
         update={update}
         pending={isPending}
+        stateSwitch={
+          <Segmented
+            label="Status"
+            value={filters.preAutomation ? BEFORE_GO_LIVE : (filters.status ?? ALL_STATUSES)}
+            onSelect={(value) => update({ status: value === DEFAULT_EXCEPTION_STATUS ? undefined : value })}
+            choices={[
+              { value: "OPEN", label: "Open" },
+              { value: "CLOSED", label: "Closed" },
+              { value: ALL_STATUSES, label: "All" },
+              { value: BEFORE_GO_LIVE, label: "Raised before go-live" },
+            ]}
+          />
+        }
       />
     </I08Page>
   )

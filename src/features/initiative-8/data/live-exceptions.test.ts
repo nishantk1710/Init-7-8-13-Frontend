@@ -8,6 +8,7 @@ vi.mock("@/lib/api/i8", async (importOriginal) => ({
 }))
 
 import {
+  BEFORE_GO_LIVE,
   activeExceptionFilters,
   exceptionsHref,
   fetchAllExceptions,
@@ -461,5 +462,42 @@ describe("fetchAllExceptions", () => {
 
     expect(await fetchAllExceptions({}, fetchPage)).toHaveLength(3)
     expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("raised before go-live (28-Oct-2026)", () => {
+  it("reads and writes its own status value, every status included", () => {
+    const { filters } = parseExceptionParams({ status: BEFORE_GO_LIVE, type: "UNJUSTIFIED_ACQUISITION" })
+    expect(filters).toMatchObject({ status: undefined, preAutomation: true, type: "UNJUSTIFIED_ACQUISITION" })
+    expect(exceptionsHref(filters)).toBe("/repairable-spares/exceptions?type=UNJUSTIFIED_ACQUISITION&status=before-go-live")
+    expect(parseExceptionParams({ status: "OPEN" }).filters.preAutomation).toBeUndefined()
+  })
+
+  it("asks for those items alone, not the ones to act on", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([unjustified({ preAutomation: true })]))
+
+    const { rows } = await loadExceptionsPage({ preAutomation: true, plant: "1300" }, 1, { pageSize: 25, fetchPage })
+
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ preAutomationOnly: true, plant: "1300" }))
+    expect(fetchPage.mock.calls[0][0]).not.toHaveProperty("actionableOnly")
+    expect(fetchPage.mock.calls[0][0].status).toBeUndefined()
+    expect(rows).toHaveLength(1)
+  })
+
+  it("keeps the items to act on off, from a backend that ignores preAutomationOnly", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified({ preAutomation: true })]))
+
+    const { rows } = await loadExceptionsPage({ preAutomation: true }, 1, { fetchPage })
+
+    expect(rows.map((r) => r.type)).toEqual(["UNJUSTIFIED_ACQUISITION"])
+  })
+
+  it("exports the same view", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified({ preAutomation: true })]))
+
+    const rows = await fetchAllExceptions({ preAutomation: true }, fetchPage)
+
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ preAutomationOnly: true }))
+    expect(rows.map((r) => r.type)).toEqual(["UNJUSTIFIED_ACQUISITION"])
   })
 })
