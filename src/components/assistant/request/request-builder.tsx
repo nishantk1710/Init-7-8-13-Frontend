@@ -174,7 +174,7 @@ export function RequestBuilder({
   async function add(picked: Picked) {
     if (requestPlant && picked.plant !== requestPlant) {
       toast.error(`This request is for plant ${requestPlant}`, {
-        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant -- start another for ${picked.plant}.`,
+        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant. Start another for ${picked.plant}.`,
       })
       return
     }
@@ -759,7 +759,7 @@ function AddMaterials({
       <StepHeading n={2}>Add materials</StepHeading>
       <p className="-mt-2 text-xs text-muted-foreground">
         {requestPlant
-          ? `Showing plant ${requestPlant} only -- this request is for ${requestPlant}.`
+          ? `Showing plant ${requestPlant} only: this request is for ${requestPlant}.`
           : "The first material you add sets the request's plant."}{" "}
         {full && <span className="text-warning">This request is full ({maxLines} materials).</span>}
       </p>
@@ -933,7 +933,7 @@ function JustificationApplyAll({
     <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-xl border border-border bg-card p-4")}>
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <select
-        aria-label={`${label} -- reason`}
+        aria-label={`${label}: reason`}
         className={cn(SELECT_CLASS, "w-48")}
         value={value.reasonCategory}
         disabled={disabled}
@@ -947,7 +947,7 @@ function JustificationApplyAll({
         ))}
       </select>
       <Input
-        aria-label={`${label} -- text`}
+        aria-label={`${label}: text`}
         value={value.freeText}
         disabled={disabled}
         onChange={(e) => setValue({ ...value, freeText: e.target.value })}

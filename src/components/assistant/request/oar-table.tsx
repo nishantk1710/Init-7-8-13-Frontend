@@ -229,7 +229,7 @@ function OarRow({
               </span>
             )}
             {!declined && !suggestedWindow && row.rate <= 0 && (
-              <span className="text-[11px] text-muted-foreground">No usage rate -- enter the window.</span>
+              <span className="text-[11px] text-muted-foreground">No usage rate: enter the window.</span>
             )}
             {!declined && windowDiffers && (
               <button

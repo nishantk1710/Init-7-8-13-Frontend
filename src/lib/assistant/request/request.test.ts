@@ -334,7 +334,7 @@ function sampleRequest(): ApiRequest {
 describe("a recorded request", () => {
   it("says what each line decided", () => {
     const [oarLine, pump, motor] = sampleRequest().lines
-    expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
+    expect(outcomeSentence(oarLine)).toBe("Procure 4: the suggested quantity.")
     expect(outcomeSentence(pump)).toMatch(/justified/)
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)

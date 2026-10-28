@@ -99,8 +99,8 @@ describe("requestExportModel", () => {
   })
 
   it("uses the screen's decision sentence and quantities", () => {
-    expect(model.lines[0][2]).toEqual(["New unit -- none exists in stock or on repair."])
-    expect(model.lines[1][2]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year -- justified."])
+    expect(model.lines[0][2]).toEqual(["New unit: none exists in stock or on repair."])
+    expect(model.lines[1][2]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year, justified."])
     expect(model.lines[1][4]).toEqual(["Urgent Breakdown", "grgnj"])
   })
 
@@ -118,7 +118,7 @@ describe("writers", () => {
   it("text has every line reference and the skipped material", () => {
     const txt = toTxt(doc)
     expect(txt).toContain("R46WFYXS1R/1")
-    expect(txt).toContain("Procure 2 although stock covers the year -- justified.")
+    expect(txt).toContain("Procure 2 although stock covers the year, justified.")
     expect(txt).toContain("Not in the I13 data.")
   })
 

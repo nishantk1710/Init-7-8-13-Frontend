@@ -87,7 +87,7 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
       ["No session", String(request.skipped.length)],
     ],
     note:
-      `Create one SAP reservation for this request and type ${request.requestId} into its header text -- without /1, /2. ` +
+      `Create one SAP reservation for this request and type ${request.requestId} into its header text, without /1, /2. ` +
       "SAP copies it to every item's text (SGTXT), and each item is matched to its line by material and plant.",
     lines: request.lines.map(lineCells),
     skipped: request.skipped.map((s) => ({ materialId: s.materialId, plant: s.plant, reason: s.reason })),
@@ -111,7 +111,7 @@ export function requestDocument(model: RequestExportModel): ExportDocument {
       { kind: "table", columns: [...LINE_COLUMNS], rows: model.lines },
       ...(model.skipped.length > 0
         ? ([
-            { kind: "heading", text: "No session -- reserve as usual" },
+            { kind: "heading", text: "No session: reserve as usual" },
             {
               kind: "table",
               columns: ["Material", "Plant", "Reason"],

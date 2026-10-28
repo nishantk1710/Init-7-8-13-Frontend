@@ -114,7 +114,7 @@ export function JustificationFields({
           aria-label="In your own words"
           aria-required
           rows={1}
-          placeholder="In your own words -- the part a reviewer actually reads"
+          placeholder="In your own words: the part a reviewer actually reads"
           value={value.freeText}
           aria-invalid={showErrors && !value.freeText.trim()}
           onChange={(e) => onChange({ ...value, freeText: e.target.value })}

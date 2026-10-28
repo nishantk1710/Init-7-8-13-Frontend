@@ -226,7 +226,7 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
         (s): ExportBlock => ({
           kind: "paragraph",
           muted: true,
-          text: `Computed against a ${s.coverCeilingMonths}-month cover ceiling, a ${s.lookbackMonths}-month look-back and a minimum of ${s.minHistoryConsumptions} consumptions -- ${s.consumptionCount} found. All three are configuration and none is confirmed by VZI yet.`,
+          text: `Computed against a ${s.coverCeilingMonths}-month cover ceiling, a ${s.lookbackMonths}-month look-back and a minimum of ${s.minHistoryConsumptions} consumptions (${s.consumptionCount} found). All three are configuration and none is confirmed by VZI yet.`,
         })
       )
     )
