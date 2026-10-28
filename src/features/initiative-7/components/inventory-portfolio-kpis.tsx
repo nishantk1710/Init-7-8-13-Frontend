@@ -65,7 +65,7 @@ function formatCompactSigned(amount: number, currency?: string | null): string {
  * The caption is coloured to match the value's tone unless `captionMuted` is
  * set, for a plain descriptive caption rather than a share-of-portfolio percentage.
  */
-function PortfolioKpiCard({
+export function PortfolioKpiCard({
   title,
   icon,
   tone,
@@ -76,6 +76,9 @@ function PortfolioKpiCard({
   note,
   loading = false,
   infoId,
+  info,
+  styled = false,
+  children,
 }: {
   title: string
   icon: ReactNode
@@ -91,10 +94,18 @@ function PortfolioKpiCard({
   loading?: boolean
   /** Puts the (i) icon beside the title, explaining how the figure is calculated. */
   infoId?: OverviewInfoId
+  /** An (i) popup the caller built, in place of `infoId`'s -- the quarterly report explains each card from the
+   * saved report itself rather than from `OVERVIEW_INFO`. */
+  info?: ReactNode
+  /** Draws the Overview's card (accent bar, icon chip) with no (i) at all, for a caller that wants the look and
+   * has nothing to put behind an icon. */
+  styled?: boolean
+  /** Extra lines under the note, for a caller with more to say (the report's "why this is not available"). */
+  children?: ReactNode
 }) {
-  // Only where the card explains itself (the Overview): the quarterly reports reuse these cards and
-  // keep the plain card below.
-  if (infoId) {
+  // The Overview's card: for the Overview itself, and for the quarterly report's cards (with an (i) of their own, or
+  // none). The plain card below is for a caller that asks for none of that.
+  if (infoId || info || styled) {
     return (
       <div
         className={cn(
@@ -115,7 +126,7 @@ function PortfolioKpiCard({
             {icon}
           </span>
           <span className="truncate">{title}</span>
-          <OverviewInfo id={infoId} />
+          {info ?? (infoId ? <OverviewInfo id={infoId} /> : null)}
         </span>
         {loading ? (
           // As tall as a card's value and its two lines, so the card does not change size when the figure arrives.
@@ -129,7 +140,12 @@ function PortfolioKpiCard({
               {suffix && <span className="shrink-0 text-[13px] text-muted-foreground">{suffix}</span>}
             </div>
             {caption && <span className="truncate text-[13.5px] text-muted-foreground">{caption}</span>}
-            {note && <span className="truncate text-xs text-muted-foreground">{note}</span>}
+            {note && (
+              <span className="line-clamp-2 text-xs text-muted-foreground" title={note}>
+                {note}
+              </span>
+            )}
+            {children}
           </>
         )}
       </div>

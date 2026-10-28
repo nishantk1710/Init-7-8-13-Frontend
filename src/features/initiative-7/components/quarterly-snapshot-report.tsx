@@ -1,7 +1,7 @@
 "use client"
 
 // The Q2 2026 Quarterly Report, opened from the landing grid like any generated quarter and laid out the same
-// way: a control bar (All quarters, status, Refresh, Download PDF), then the figures.
+// way: a control bar (All reports, status, Refresh, Download PDF), then the figures.
 //
 // Q2 is a fixed snapshot of the Inventory Planning Overview's own figures -- see utils/quarterly-snapshot.ts --
 // so this page is the Overview as a report: the same four cards, the same four charts, and the Plant and
@@ -169,7 +169,7 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
       {/* --- Controls: the same bar the generated reports have ------------------------------------- */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
         <Button size="sm" variant="ghost" onClick={onBack}>
-          ← All quarters
+          ← All reports
         </Button>
         <span className="text-sm font-medium text-foreground">{snapshot?.quarter ?? "Q2 2026"}</span>
         <StatusBadge tone="success">COMPLETED</StatusBadge>

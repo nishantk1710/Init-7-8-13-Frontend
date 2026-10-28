@@ -988,6 +988,22 @@ describe("fetchQuarterlyReport", () => {
       expect(JSON.parse(init?.body as string)).toEqual({})
     })
 
+    it("asks for the latest closed month with period: month, and sends nothing extra for a quarter", async () => {
+      stubFetchJson(reportFixture())
+      await generateQuarterlyReport(undefined, "month")
+      expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual({ period: "month" })
+
+      stubFetchJson(reportFixture())
+      await generateQuarterlyReport(undefined, "quarter")
+      expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual({}) // a quarterly call is as it always was
+    })
+
+    it("can name a month outright", async () => {
+      stubFetchJson(reportFixture())
+      await generateQuarterlyReport("Oct 2026")
+      expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual({ quarter: "Oct 2026" })
+    })
+
     it("returns the report the backend actually generated, including whichever quarter it picked", async () => {
       const report = reportFixture({ metadata: { ...reportFixture().metadata, quarter: "Q3 2026" } })
       stubFetchJson(report)

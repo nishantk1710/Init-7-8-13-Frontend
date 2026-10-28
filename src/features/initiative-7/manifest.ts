@@ -28,7 +28,7 @@ export const initiative7Manifest: InitiativeManifest = {
         href: "/inventory-planning/adoption",
       },
       {
-        label: "Quarterly Reports",
+        label: "Reports",
         icon: "file-text",
         href: "/inventory-planning/reports",
       },

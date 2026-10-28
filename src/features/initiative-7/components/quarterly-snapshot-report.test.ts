@@ -20,7 +20,8 @@ const workspace = read(`${FEATURE}/components/quarterly-reports-workspace.tsx`)
 
 describe("the Q2 report is opened like any other quarter", () => {
   it("is offered on the landing grid and opens its own view", () => {
-    expect(workspace).toContain("landingQuarters(")
+    expect(workspace).toContain("landingReports(") // the landing list, which keeps the snapshot among the quarters
+    expect(readFileSync(join(process.cwd(), "src/features/initiative-7/utils/report-period.ts"), "utf8")).toContain("landingQuarters(")
     expect(workspace).toContain("<QuarterlySnapshotReport")
   })
 
@@ -32,7 +33,7 @@ describe("the Q2 report is opened like any other quarter", () => {
 
 describe("it has the same controls as a generated report", () => {
   it("has a way back, Refresh and Download PDF", () => {
-    expect(report).toContain("← All quarters")
+    expect(report).toContain("← All reports")
     expect(report).toContain("Refresh")
     expect(report).toContain("Download PDF")
     expect(report).toContain("window.print()")

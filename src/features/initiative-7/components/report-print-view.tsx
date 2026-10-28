@@ -264,7 +264,7 @@ export function ReportPrintView({
         subtitle="Metrics with no defined business rule in I07 today. Each states the backend's own reason; none is approximated."
       >
         <div className="print-rows">
-          <UndefinedRow label="Critical stockout risk" metric={report.management_summary.critical_stockout_risk} />
+          <UndefinedRow label="High Stockout Risk" metric={report.management_summary.critical_stockout_risk} />
           <UndefinedRow
             label="Excess inventory candidates"
             metric={report.management_summary.excess_inventory_candidates}
@@ -520,7 +520,7 @@ export function ReportPrintView({
             <span className="print-section-number">12a.</span> Charts
           </h2>
           <p className="print-section-subtitle">
-            The same charts shown on the Quarterly Reports page, drawn from the same{" "}
+            The same charts shown on the Reports page, drawn from the same{" "}
             {formatCount(chartSampleSize)}-row sample — not the full recommendation population.
           </p>
           <div className="print-section-body">

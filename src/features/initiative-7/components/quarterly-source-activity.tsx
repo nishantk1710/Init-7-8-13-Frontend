@@ -8,6 +8,7 @@ import {
   sourceMonthLabel,
   sourceStatusTone,
 } from "@/features/initiative-7/utils/source-activity"
+import type { ReportKind } from "@/features/initiative-7/utils/report-period"
 
 /**
  * Consumption by calendar month for the report's period, from the staged SAP data -- what happened in the
@@ -15,8 +16,16 @@ import {
  * month it covers with no movement shows a confirmed 0. Quantities are not shown (the note says why);
  * transaction counts are.
  */
-export function QuarterlySourceActivity({ section }: { section: ApiSourceActivitySection }) {
+export function QuarterlySourceActivity({
+  section,
+  kind = "quarterly",
+}: {
+  section: ApiSourceActivitySection
+  /** A monthly report covers one month, so its totals row would only repeat that month: it is left out. */
+  kind?: ReportKind
+}) {
   const { totals } = section
+  const monthly = kind === "monthly"
   return (
     <div className="flex flex-col gap-3">
       <Table>
@@ -45,25 +54,33 @@ export function QuarterlySourceActivity({ section }: { section: ApiSourceActivit
               <TableCell className="text-right tabular-nums">{countOrDash(month.reversal_transactions)}</TableCell>
             </TableRow>
           ))}
-          <TableRow className="font-medium">
-            <TableCell>Quarter</TableCell>
-            <TableCell className="text-xs text-muted-foreground">
-              {totals.months_available} of {section.months.length} months with data
-            </TableCell>
-            <TableCell className="text-right tabular-nums">{countOrDash(totals.material_plants_with_movements)}</TableCell>
-            <TableCell className="text-right tabular-nums">
-              {countOrDash(totals.material_plants_with_demand_in_any_month)}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">{countOrDash(totals.issue_transactions)}</TableCell>
-            <TableCell className="text-right tabular-nums">{countOrDash(totals.reversal_transactions)}</TableCell>
-          </TableRow>
+          {!monthly && (
+            <TableRow className="font-medium">
+              <TableCell>Quarter</TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {totals.months_available} of {section.months.length} months with data
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{countOrDash(totals.material_plants_with_movements)}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {countOrDash(totals.material_plants_with_demand_in_any_month)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{countOrDash(totals.issue_transactions)}</TableCell>
+              <TableCell className="text-right tabular-nums">{countOrDash(totals.reversal_transactions)}</TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
 
       <div className="flex flex-col gap-1 text-[11px] leading-relaxed text-muted-foreground">
         <p>
-          Material-plants are counted once per month; the Quarter row counts each material-plant once across the
-          quarter. &ldquo;With demand&rdquo; means issues outweighed reversals.
+          {monthly ? (
+            <>Each material-plant is counted once. &ldquo;With demand&rdquo; means issues outweighed reversals.</>
+          ) : (
+            <>
+              Material-plants are counted once per month; the Quarter row counts each material-plant once across the
+              quarter. &ldquo;With demand&rdquo; means issues outweighed reversals.
+            </>
+          )}
         </p>
         <p>{section.output_note}</p>
         <p>{section.quantity_note}</p>
