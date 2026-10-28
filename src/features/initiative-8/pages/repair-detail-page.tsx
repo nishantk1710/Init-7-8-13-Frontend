@@ -161,7 +161,10 @@ export function RepairDetailPage({
   // No PO yet: nothing to declare against, no vendor to chase, no date agreed.
   const requested = isPrOnly(chain)
   const banner = requested ? repairRequestBanner(chain) : null
-  const stockSplit = chain.usableStock !== undefined || chain.damagedStock !== undefined
+  // The split only when the backend knows it: false means only the total is
+  // known, and the total is then what the page shows.
+  const stockSplit =
+    chain.stockConditionKnown !== false && (chain.usableStock !== undefined || chain.damagedStock !== undefined)
 
   return (
     <I08Page
