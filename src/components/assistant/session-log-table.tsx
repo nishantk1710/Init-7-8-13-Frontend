@@ -192,6 +192,70 @@ export function SessionLogTable({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* One section at the top: search and export, then the filters. */}
+      <section
+        aria-label="Filter sessions"
+        className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search reference, material, requester…"
+            aria-label="Search sessions"
+            className="h-11 w-full border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30 sm:w-80"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
+            <Button
+              variant="outline"
+              size="lg"
+              className="min-h-11 border-action bg-action/10 px-4 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+              onClick={exportExcel}
+              disabled={filtered.length === 0}
+            >
+              <Download className="size-4" aria-hidden />
+              Export Excel
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border pt-3">
+          <FilterGroup
+            label="Flow"
+            value={flow}
+            onChange={setFlow}
+            options={[
+              { value: "all", label: "All" },
+              { value: "i08", label: "Repairable" },
+              { value: "i13", label: "OAR" },
+            ]}
+          />
+          <FilterGroup
+            label="Outcome"
+            value={result}
+            onChange={setResult}
+            options={[
+              { value: "all", label: "All" },
+              { value: "followed", label: "Followed" },
+              { value: "went-ahead", label: "Went ahead" },
+              { value: "not-acted", label: "Not acted on" },
+              { value: "open", label: "Still open" },
+            ]}
+          />
+          <FilterGroup
+            label="Linked in SAP"
+            value={reservation}
+            onChange={setReservation}
+            options={[
+              { value: "all", label: "All" },
+              { value: "linked", label: "Linked" },
+              { value: "not-linked", label: "Not linked" },
+            ]}
+          />
+        </div>
+      </section>
+
       {showI08Cards ? (
         <I08Cards
           sessions={sessions}
@@ -206,65 +270,6 @@ export function SessionLogTable({
       ) : (
         checks.length > 0 && <CompliancePanel checks={checks} />
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, material, requester…"
-          aria-label="Search sessions"
-          className="h-11 w-full border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30 sm:w-80"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
-          <Button
-            variant="outline"
-            size="lg"
-            className="min-h-11 border-action bg-action/10 px-4 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
-            onClick={exportExcel}
-            disabled={filtered.length === 0}
-          >
-            <Download className="size-4" aria-hidden />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      {/* One row at 1440 px: short labels on compact pills. */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <FilterGroup
-          label="Flow"
-          value={flow}
-          onChange={setFlow}
-          options={[
-            { value: "all", label: "All" },
-            { value: "i08", label: "Repairable" },
-            { value: "i13", label: "OAR" },
-          ]}
-        />
-        <FilterGroup
-          label="Outcome"
-          value={result}
-          onChange={setResult}
-          options={[
-            { value: "all", label: "All" },
-            { value: "followed", label: "Followed" },
-            { value: "went-ahead", label: "Went ahead" },
-            { value: "not-acted", label: "Not acted on" },
-            { value: "open", label: "Still open" },
-          ]}
-        />
-        <FilterGroup
-          label="Linked in SAP"
-          value={reservation}
-          onChange={setReservation}
-          options={[
-            { value: "all", label: "All" },
-            { value: "linked", label: "Linked" },
-            { value: "not-linked", label: "Not linked" },
-          ]}
-        />
-      </div>
 
       {filtered.length === 0 ? (
         <EmptyState
