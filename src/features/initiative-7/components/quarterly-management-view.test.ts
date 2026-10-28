@@ -11,11 +11,18 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import { QuarterlyManagementView, dayAfter } from "@/features/initiative-7/components/quarterly-management-view"
+import {
+  QuarterlyManagementView,
+  dayAfter,
+  stockChange,
+  stockFigure,
+} from "@/features/initiative-7/components/quarterly-management-view"
 import type { ApiKpiCard, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
+import type { Recommendation } from "@/features/initiative-7/types/inventory"
 
 const read = (file: string) => readFileSync(join(process.cwd(), file), "utf8")
 const workspace = read("src/features/initiative-7/components/quarterly-reports-workspace.tsx")
+const viewSource = read("src/features/initiative-7/components/quarterly-management-view.tsx")
 
 const MONTHS = [
   { month: "2026-10-01", label: "Oct 2026", state: "ended" as const, has_consumption_data: true, usable: true },
@@ -90,11 +97,33 @@ describe("the cards", () => {
   it("each carry what it is, when it was measured and what it is out of", () => {
     const html = render(management())
     expect(html).toContain("Title materials_assessed")
-    expect(html).toContain("Explains materials_assessed.")
+    expect(html).toContain("Materials we made a recommendation for") // the one plain line
     expect(html).toContain("18,627")
     expect(html).toContain("of 18,700 material-plants with a recommendation")
     expect(html).toContain("as of 15 Jan 2027")
-    expect(html).toContain("Status on a date")
+  })
+
+  it("have no (i) and no long explanation on the card, only the figure and one plain line", () => {
+    const html = render(management())
+    expect(html).not.toContain("is calculated") // the (i) button's label
+    expect(html).not.toContain("Explains materials_assessed.")
+    expect(html).not.toContain("Status on a date") // the old jargon badge
+    expect(html).toContain("before:bg-primary") // still the Overview's card: the accent bar down its edge
+  })
+
+  it("show the stockout card as High Stockout Risk, even from a report saved under the old title", () => {
+    const m = management({ kpis: [card("critical_stockout_risk", { title: "Critical stockout risk" })] })
+    const html = render(m)
+    expect(html).toContain("High Stockout Risk")
+    expect(html).not.toContain("Critical stockout risk")
+  })
+
+  it("say, on the card, when a measurement is worked out from current data rather than a month-end snapshot", () => {
+    const current = render(management({ kpis: [card("excess_inventory_opportunity", { kind: "MEASUREMENT", basis: "current_calculation" })] }))
+    expect(current).toContain("Current figures, no month-end snapshot")
+    const saved = render(management({ kpis: [card("excess_inventory_opportunity", { kind: "MEASUREMENT", basis: "snapshot" })] }))
+    expect(saved).not.toContain("Current figures, no month-end snapshot")
+    expect(saved).toContain("Saved month-end snapshot")
   })
 
   it("say Not available and why, never 0, when a figure has no value", () => {
@@ -102,6 +131,117 @@ describe("the cards", () => {
     const html = render(m)
     expect(html).toContain("Not available")
     expect(html).toContain("Last measured on 31 May 2026.")
+  })
+})
+
+describe("the Reports page", () => {
+  const read2 = (file: string) => readFileSync(join(process.cwd(), file), "utf8")
+
+  it("is called Reports in the sidebar, the page header and the browser tab", () => {
+    expect(read2("src/features/initiative-7/manifest.ts")).toContain('label: "Reports"')
+    expect(read2("src/features/initiative-7/manifest.ts")).not.toContain('label: "Quarterly Reports"')
+    expect(read2("src/features/initiative-7/pages/reports-page.tsx")).toContain('title="Reports"')
+    expect(read2("src/app/(live)/inventory-planning/reports/page.tsx")).toContain('title: "Reports — Inventory Planning — Spares AI"')
+  })
+
+  it("has a Monthly | Quarterly toggle in the Action Center's blue bordered style, above the list", () => {
+    expect(workspace).toContain("REPORT_KINDS.map")
+    expect(workspace).toContain("border-2 border-action/40 bg-card p-1 shadow-lg") // the same track as the Action Center's tabs
+    expect(workspace).toContain("landingReports(kind,") // the list follows the toggle
+  })
+
+  it("generates the latest closed month under the Monthly toggle and the latest closed quarter under the other", () => {
+    expect(workspace).toContain('generateQuarterlyReport(undefined, kind === "monthly" ? "month" : undefined)')
+    expect(workspace).toContain("Generate latest closed ${noun}")
+  })
+
+  it("returns from a report to the list it came from", () => {
+    expect(workspace).toContain("setKind(reportKindOf(quarter))") // opening a report sets the toggle to its kind
+    expect(workspace).toContain("← All reports")
+    expect(workspace).not.toContain("← All quarters")
+  })
+})
+
+describe("a monthly report", () => {
+  const monthly = (m: ApiQuarterManagement) => {
+    const base = report(m) as unknown as { metadata: Record<string, unknown> }
+    return { ...base, metadata: { ...base.metadata, quarter: "Oct 2026", period_start: "2026-10-01", period_end: "2026-10-31" } }
+  }
+  const renderMonthly = (m: ApiQuarterManagement) =>
+    renderToStaticMarkup(createElement(QuarterlyManagementView, { report: monthly(m) as unknown as ApiQuarterlyReport, management: m }))
+  const trends = {
+    months: [{ month: "2026-10-01", label: "Oct 2026", state: "FINAL" as const, measured_on: "2026-11-02", month_end_valid: true, stockout_valid: true,
+      population: 1, stockout_at_risk: 5, stockout_evaluated: 50, stockout_insufficient: 0, excess_count: 1, excess_opportunity: "100.00",
+      net_rop_value_impact: "-50.00", net_rop_change_from_previous: null, currency: null, revision: 1, calc_version: "1", note: null }],
+    quarter_end: { status: "NOT_AVAILABLE" as const, month: "2026-10-01", label: "Oct 2026", snapshot_state: "MISSING", measured_on: null,
+      reason: "No snapshot was captured for Oct 2026.", population: null, stock_levels: [], latest_available_month: null,
+      latest_available_label: null, latest_available_measured_on: null },
+    notes: [],
+  }
+
+  it("calls its closing position Month-end, and the total column Month total", () => {
+    const html = renderMonthly(management({ trends }))
+    expect(html).toContain("Month-end position")
+    expect(html).not.toContain("Quarter-end position")
+    expect(html).toContain("Month total")
+    expect(html).not.toContain("Quarter total")
+  })
+
+  it("draws no monthly trend charts -- one month is one point per chart", () => {
+    const html = renderMonthly(management({ trends }))
+    for (const subtitle of ["Materials at risk each month", "Stock above the recommended maximum", "Cash freed (+) or tied up (−)"]) {
+      expect(html).not.toContain(subtitle)
+    }
+    expect(render(management({ trends }))).toContain("Materials at risk each month") // a quarterly report still does
+  })
+
+  it("never shows an earlier month as its month-end, in its own words", () => {
+    const html = renderMonthly(management({ trends: { ...trends, quarter_end: { ...trends.quarter_end, latest_available_month: "2026-09-01",
+      latest_available_label: "Sep 2026", latest_available_measured_on: "2026-10-02" } } }))
+    expect(html).toContain("not shown as the month-end")
+  })
+})
+
+describe("the report's controls", () => {
+  it("offer the saved report's Excel workbook beside the PDF, from the backend's export route", () => {
+    expect(workspace).toContain("Download Excel")
+    expect(workspace).toContain("Download PDF")
+    expect(workspace).toContain("fetchQuarterlyReportExportBlob(selectedQuarter)")
+  })
+
+  it("draw both download buttons in the blue filter-button style used across the app", () => {
+    const pattern = "border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+    for (const handler of ["handleDownloadExcel", "handleDownloadPdf"]) {
+      const button = new RegExp(`<Button[^>]*?className="[^"]*${pattern.replace(/[/]/g, "\\/")}[^"]*"\\s+onClick=\\{${handler}\\}`)
+      expect(workspace).toMatch(button)
+    }
+  })
+
+  it("keep the Excel button off until there is a report to export, and while a download is out", () => {
+    expect(workspace).toMatch(/onClick=\{handleDownloadExcel\}\s+disabled=\{!report \|\| excelState === "preparing"\}/)
+  })
+})
+
+describe("the period's recommendations table", () => {
+  it("has a filter for all recommendations, OAR or stock items, in the card's header", () => {
+    expect(render(management())).toContain("Show recommendations for")
+    expect(viewSource).toContain("RECOMMENDATION_TYPE_OPTIONS") // the same OAR / Stock item groups as the Recommendations page
+    expect(viewSource).toContain('type: type === "all" ? undefined : type') // "all" sends no type, so nothing is left out
+  })
+
+  it("goes back to the first page when the group changes", () => {
+    expect(viewSource).toMatch(/setType\(next\)\s+setPage\(1\)/)
+  })
+
+  it("keeps Previous and Next on screen, switched off where there is nowhere to go", () => {
+    expect(viewSource).toContain("alwaysShowButtons")
+  })
+
+  it("shows only the recommended values, not current → recommended", () => {
+    for (const field of ["safetyStock", "rop", "maxStock"]) {
+      expect(viewSource).toContain(`rec.recommended.${field}`)
+      expect(viewSource).not.toContain(`rec.current.${field}`)
+    }
   })
 })
 
@@ -150,10 +290,46 @@ describe("the Overview's charts", () => {
 })
 
 describe("the stock level table and the coverage", () => {
-  it("says how many recommendations each average is over", () => {
+  it("keeps the Stock level / Current (SAP) / Recommended / Change table, for one material, with a search and no averages", () => {
     const html = render(management())
-    expect(html).toContain("Records")
-    expect(html).toContain("3,911")
+    expect(html).toContain("Current SAP vs I07 recommendation")
+    expect(html).toContain("Search a material")
+    expect(html).toContain("border-action bg-action/10") // the search box wears the blue filter style
+    expect(html).not.toContain("Current (SAP), average")
+    expect(html).not.toContain("Recommended, average")
+    for (const heading of ["Stock level", "Current (SAP)", "Recommended", "Change"]) {
+      expect(viewSource).toContain(`>${heading}</TableHead>`)
+    }
+    for (const level of ["Safety stock", "Reorder point", "Maximum stock"]) expect(viewSource).toContain(`label: "${level}"`)
+    expect(viewSource).toContain("search: query || undefined") // the search goes to the backend, over every material
+  })
+
+  it("opens on the period's latest recommendation, and steps through the matches one at a time", () => {
+    expect(viewSource).toContain("const COMPARE_PAGE_SIZE = 1") // one recommendation per page ...
+    expect(viewSource).toMatch(/sort: "generated_at",\s+sortDesc: true,\s+page,\s+pageSize: COMPARE_PAGE_SIZE/) // ... newest first
+  })
+
+  it("works out the change from SAP's figure to the recommended one, and none from a missing figure", () => {
+    expect(stockChange(2, 12)).toEqual({ delta: 10, percent: 500 })
+    expect(stockChange(100, 60)).toEqual({ delta: -40, percent: -40 })
+    expect(stockChange(0, 12)).toEqual({ delta: 12, percent: null }) // no percentage from a starting 0
+    expect(stockChange(null, 12)).toBeNull()
+    expect(stockChange(2, null)).toBeNull()
+  })
+
+  it("reads a figure the backend did not send as missing, never as 0 set in SAP", () => {
+    const rec = {
+      current: { rop: 2, safetyStock: 0, maxStock: 100 },
+      recommended: { rop: 12, safetyStock: 0, maxStock: 60 },
+      present: {
+        current: { rop: true, safetyStock: false, maxStock: true },
+        recommended: { rop: true, safetyStock: true, maxStock: true },
+      },
+    } as unknown as Recommendation
+    expect(stockFigure(rec, "current", "safetyStock")).toBeNull() // SAP has no safety stock for it
+    expect(stockFigure(rec, "recommended", "safetyStock")).toBe(0) // a recommended 0 is a real 0
+    expect(stockFigure(rec, "current", "rop")).toBe(2)
+    expect(stockFigure({ ...rec, present: undefined } as Recommendation, "current", "safetyStock")).toBe(0) // an older mapper
   })
 
   it("lists every warning and says whether the figures are snapshots or current calculations", () => {
@@ -204,14 +380,16 @@ describe("trends and the quarter-end position in the page", () => {
 
   it("draws the monthly trends and the quarter-end card when the report has them", () => {
     const html = render(management({ trends }))
-    expect(html).toContain("Monthly trends")
+    for (const subtitle of ["Materials at risk each month", "Stock above the recommended maximum", "Cash freed (+) or tied up (−)"]) {
+      expect(html).toContain(subtitle) // the three monthly trend cards
+    }
     expect(html).toContain("Quarter-end position")
     expect(html).toContain("No snapshot was captured for Dec 2026.")
   })
 
   it("leaves them out for a report made before snapshots, rather than showing empty cards", () => {
     const html = render(management())
-    expect(html).not.toContain("Monthly trends")
+    expect(html).not.toContain("Materials at risk each month")
     expect(html).not.toContain("Quarter-end position")
   })
 
