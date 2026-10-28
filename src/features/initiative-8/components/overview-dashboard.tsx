@@ -26,6 +26,7 @@ import {
   openExceptionCounts,
   overviewPdfTitle,
   summariseOverview,
+  type OpenExceptionItem,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
@@ -40,12 +41,15 @@ const FILTER_NOTE =
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
+  /** Repairs requested with no PO yet (PR rows): counted on their own, never
+   *  in a figure about repairs that are out. Empty on an older backend. */
+  requests?: RepairChain[]
   agingBands: string[]
   /** Null when the universe fetch failed: its tile says so. */
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
   /** Every open exception item, by the line it is on; null when the queue
    *  could not be read. */
-  exceptions: { repairId?: string; type: string }[] | null
+  exceptions: OpenExceptionItem[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
   criticalityOptions: string[]
@@ -79,6 +83,7 @@ export type OverviewDashboardProps = {
  */
 export function OverviewDashboard({
   chains,
+  requests = [],
   agingBands,
   universe,
   exceptions,
@@ -98,10 +103,13 @@ export function OverviewDashboard({
     [chains, universe, filters],
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
-  const exceptionCounts = useMemo(
-    () => (exceptions === null ? null : openExceptionCounts(slice.chains, exceptions)),
-    [slice, exceptions],
-  )
+  // The repairs requested with no PO yet, under the same filters.
+  const requestSlice = useMemo(() => filterOverview(requests, [], filters).chains, [requests, filters])
+  const exceptionCounts = useMemo(() => {
+    if (exceptions === null) return null
+    const known = new Set([...chains, ...requests].map((c) => c.id))
+    return openExceptionCounts([...slice.chains, ...requestSlice], known, exceptions, filters)
+  }, [chains, requests, slice, requestSlice, exceptions, filters])
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
@@ -164,6 +172,9 @@ export function OverviewDashboard({
 
   const figures = {
     chains: slice.chains,
+    // Shown only when the backend serves PR rows: a count it never made is
+    // not zero.
+    repairRequests: repairRequestsNote ? requestSlice.length : undefined,
     agingBands,
     metrics,
     universeLoaded: universe !== null,
@@ -190,8 +201,8 @@ export function OverviewDashboard({
             // the whole register, and the register lists them.
             <Link
               href={registerHref({ view: "notOrdered" })}
-              title="Repairs requested on a purchase requisition with no PO yet. Not counted in any figure on this page."
-              className="text-muted-foreground hover:text-i08-link hover:underline"
+              title="Open the repairs requested on a purchase requisition with no PO yet. They are counted apart from the open repair lines."
+              className="text-i08-link hover:underline"
             >
               {repairRequestsNote}
             </Link>

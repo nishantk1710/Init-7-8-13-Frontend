@@ -13,9 +13,13 @@ import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/re
 import { plural, stageLabel } from "@/features/initiative-8/utils/format"
 import {
   STAGE_ORDER,
+  declarationCounts,
+  openExceptionSummary,
   queueNote,
   stageAging,
+  stockLines,
   vendorRows,
+  type OpenExceptionCounts,
   type OverviewMetrics,
 } from "@/features/initiative-8/utils/overview-view"
 import { isOpenRepair, isRepairOverdue } from "@/features/initiative-8/utils/status"
@@ -32,7 +36,8 @@ import { cn, formatCount } from "@/lib/utils"
  * - three action cards: late repairs, lines with no condition declaration,
  *   and open exceptions, each linking to that list already filtered;
  * - three quiet tiles for context: the open lines, where they are in the
- *   process, and the repairable universe with its stock;
+ *   process (the repairs requested with no PO yet first), and the repairable
+ *   universe with its stock, usable and damaged when the backend splits it;
  * - vendors as a ranked list with short bars, each opening its repairs;
  * - FR-9's aging per stage as a stage-by-age table whose cells open exactly
  *   their lines (the register's `stageAging` filter).
@@ -47,9 +52,12 @@ export type OverviewFiguresProps = {
   agingBands: string[]
   metrics: OverviewMetrics
   universeLoaded: boolean
-  /** Open exception items on these lines, or null when the queue could not
-   *  be read -- shown as such, never as a zero. */
-  exceptions: { total: number; missing: number; overdue: number } | null
+  /** Open exception items on these lines, by type, or null when the queue
+   *  could not be read -- shown as such, never as a zero. */
+  exceptions: OpenExceptionCounts | null
+  /** Repairs requested with no PO yet under the same filters, or undefined
+   *  when the backend does not serve them. */
+  repairRequests?: number
   /** The register filters this Overview's own filters correspond to, so every
    *  link opens the same slice the figure counted. */
   linkFilters: RegisterFilters
@@ -60,6 +68,7 @@ export type OverviewFiguresProps = {
 
 export function OverviewFigures({
   chains,
+  repairRequests,
   agingBands,
   metrics,
   universeLoaded,
@@ -70,11 +79,13 @@ export function OverviewFigures({
 }: OverviewFiguresProps) {
   const open = chains.filter(isOpenRepair)
   const overdue = chains.filter(isRepairOverdue).length
-  const undeclared = chains.filter((c) => c.declarationStatus !== "Completed").length
-  const flagged = chains.filter((c) => c.declarationStatus === "Flagged").length
+  // Waiting means Required only: a Historical line was never asked for a
+  // declaration, and a Flagged one has one.
+  const { required: undeclared, historical, flagged } = declarationCounts(chains)
   const materials = new Set(open.map((c) => c.material.materialId)).size
   const vendors = new Set(open.map((c) => c.vendor ?? "none")).size
-  const stock = metrics.stock.plants.map((p) => `${p.plant} ${formatCount(p.stock)}`).join(" · ")
+  const stock = stockLines(metrics.stock.plants, formatCount)
+  const stockSplit = metrics.stock.plants.some((p) => p.usable !== undefined || p.damaged !== undefined)
   // `none` is the register's word for a line with no vendor; the queue would
   // read it as a vendor code and list nothing (see `queueNote`).
   const declarationLink = declarationsHref({
@@ -109,12 +120,10 @@ export function OverviewFigures({
           value={undeclared}
           label="Not declared"
           text={
-            undeclared === 0
-              ? "Every repair line has a condition declaration."
-              : flagged
-                ? `No condition declaration, and ${plural(flagged, "line")} sent for repair against an assessment.`
-                : "No condition declaration on record."
+            (undeclared === 0 ? "Nothing is waiting for a condition declaration." : "No condition declaration on record.") +
+            (flagged ? ` ${plural(flagged, "line")} sent for repair against an assessment.` : "")
           }
+          muted={historical ? `${formatCount(historical)} raised before declarations began` : undefined}
           href={declarationLink}
           cta="Declare"
           note={queueNote(linkFilters, "declarations")}
@@ -130,7 +139,7 @@ export function OverviewFigures({
               ? "The exception queue could not be read, so this is not a zero."
               : exceptions.total === 0
                 ? "No open exceptions on these repair lines."
-                : `${formatCount(exceptions.missing)} with no declaration · ${formatCount(exceptions.overdue)} overdue`
+                : openExceptionSummary(exceptions.byType, formatCount)
           }
           href={exceptionLink}
           cta="Open the queue"
@@ -150,7 +159,7 @@ export function OverviewFigures({
           </div>
         </Tile>
         <Tile label="Where they are in the process">
-          <StageList chains={open} linkFilters={linkFilters} print={print} />
+          <StageList chains={open} requested={repairRequests} linkFilters={linkFilters} print={print} />
         </Tile>
         <Tile label="Repairable materials monitored">
           {universeLoaded ? (
@@ -158,9 +167,18 @@ export function OverviewFigures({
               <div className="mt-1 text-[22px] font-semibold tracking-tight text-foreground">
                 {formatCount(metrics.universeMaterials)}
               </div>
-              <div className="mt-0.5 text-[13px] text-muted-foreground">
-                Stock on hand: {stock || "not recorded"}
-              </div>
+              {stockSplit ? (
+                // Usable and damaged, per plant, as the assistant shows them.
+                <ul className="mt-0.5 text-[13px] text-muted-foreground">
+                  {stock.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="mt-0.5 text-[13px] text-muted-foreground">
+                  Stock on hand: {stock.join(" · ") || "not recorded"}
+                </div>
+              )}
               {vendorFiltered && (
                 <div className="mt-2 text-[12.5px] text-i08-warn-ink">
                   Not narrowed by vendor: materials have no vendor.
@@ -199,6 +217,7 @@ function ActionCard({
   text,
   href,
   cta,
+  muted,
   note,
   print,
 }: {
@@ -210,6 +229,9 @@ function ActionCard({
   text: string
   href: string
   cta: string
+  /** A quiet fact under the text, not a call to act: "104 raised before
+   *  declarations began". Printed too. */
+  muted?: string
   /** Where the link opens something wider than the count. Not printed: the
    *  PDF has no links, and its header already names the filters. */
   note?: string
@@ -228,6 +250,7 @@ function ActionCard({
         {value === null ? "—" : formatCount(value)}
       </span>
       <span className="text-[13.5px] text-muted-foreground">{text}</span>
+      {muted && <span className="text-[12.5px] text-muted-foreground/80">{muted}</span>}
       {!print && note && <span className="mt-1 text-[12.5px] text-i08-warn-ink">{note}</span>}
       {!print && (
         <span className="mt-auto flex items-center gap-1 pt-2.5 text-[13.5px] font-medium text-i08-link">
@@ -269,19 +292,31 @@ const STAGE_KEY: Partial<Record<RepairStatus, string>> = {
   "At Vendor": "bg-i08-ord-3",
 }
 
-/** How many open lines sit in each stage: numbers, where a chart drew one bar. */
+/**
+ * How many open lines sit in each stage: numbers, where a chart drew one bar.
+ *
+ * First, when the backend serves them, the repairs requested with no PO yet:
+ * they were mentioned in the header only. Their row opens the register's "No
+ * PO yet" view; the others open their stage.
+ */
 function StageList({
   chains,
+  requested,
   linkFilters,
   print,
 }: {
   chains: RepairChain[]
+  /** Repairs requested with no PO yet; undefined when not served. */
+  requested?: number
   linkFilters: RegisterFilters
   print: boolean
 }) {
   const stages = STAGE_ORDER.map((stage) => ({
     stage,
-    count: chains.filter((c) => c.repairStatus === stage).length,
+    count:
+      stage === "PR Raised" && requested !== undefined
+        ? requested
+        : chains.filter((c) => c.repairStatus === stage).length,
   })).filter((s) => s.count > 0)
   if (stages.length === 0) {
     return <div className="mt-2 text-[13px] text-muted-foreground">No open repair lines.</div>
@@ -304,7 +339,11 @@ function StageList({
               <div className={className}>{row}</div>
             ) : (
               <Link
-                href={registerHref({ ...linkFilters, repairStatus: stage })}
+                href={
+                  stage === "PR Raised"
+                    ? registerHref({ ...linkFilters, view: "notOrdered" })
+                    : registerHref({ ...linkFilters, repairStatus: stage })
+                }
                 className={cn(className, "transition-colors hover:bg-i08-row-hover")}
               >
                 {row}

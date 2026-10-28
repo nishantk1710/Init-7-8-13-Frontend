@@ -54,6 +54,14 @@ describe("toUniverseRows", () => {
     expect(toUniverseRows([universeRow({ stockOnHand: "0" })])[0].stock).toBe(0)
   })
 
+  it("carries usable and damaged stock when the backend splits it, and leaves them unknown when not", () => {
+    const [split] = toUniverseRows([universeRow({ stockOnHand: "3", usableStock: "2.000000", damagedStock: "1.000000" })])
+    expect(split).toMatchObject({ stock: 3, usable: 2, damaged: 1 })
+    const [older] = toUniverseRows([universeRow()])
+    expect(older.usable).toBeUndefined()
+    expect(older.damaged).toBeUndefined()
+  })
+
   it("names a row with no plant rather than dropping it", () => {
     expect(toUniverseRows([universeRow({ plant: null })])[0]).toMatchObject({
       plantId: "",
