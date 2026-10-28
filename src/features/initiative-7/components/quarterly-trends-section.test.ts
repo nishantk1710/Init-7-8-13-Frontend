@@ -37,54 +37,44 @@ const trendHtml = (t: ApiQuarterTrends) => renderToStaticMarkup(createElement(Mo
 const endHtml = (t: ApiQuarterTrends) => renderToStaticMarkup(createElement(QuarterEndCard, { trends: t }))
 
 describe("the monthly trends", () => {
-  it("show what each month measured, in millions for money, with how it was measured", () => {
+  const gap = (overrides: Partial<ApiTrendMonth> = {}) =>
+    month({ month: "2026-11-01", label: "Nov 2026", state: "MISSING", measured_on: null, stockout_at_risk: null, stockout_evaluated: null,
+      excess_opportunity: null, net_rop_value_impact: null, note: "No snapshot was captured for this month, and a past month cannot be rebuilt.", ...overrides })
+
+  it("draw one card for each measure, as the Overview lays out its charts, with no table", () => {
     const html = trendHtml(trends([month()]))
-    expect(html).toContain("Oct 2026")
-    expect(html).toContain("Month-end snapshot")
-    expect(html).toContain("3 Nov 2026")
-    expect(html).toContain("1.50M")
-    expect(html).toContain("−2.00M")
-    expect(html).toContain("of 50 judged")
+    for (const title of ["At stockout risk", "Excess inventory opportunity", "Working capital impact"]) expect(html).toContain(title)
+    expect(html).not.toContain("<table")
   })
 
-  it("show a month with no snapshot as a blank row that says so -- never as zero", () => {
-    const html = trendHtml(
-      trends([month({ state: "MISSING", measured_on: null, stockout_at_risk: null, stockout_evaluated: null, excess_opportunity: null,
-        net_rop_value_impact: null, note: "No snapshot was captured for this month, and a past month cannot be rebuilt." })]),
-    )
-    expect(html).toContain("No snapshot")
-    expect(html).toContain("cannot be rebuilt")
+  it("give each card an (i) for the detail, rather than printing it on the card", () => {
+    const html = trendHtml(trends([month()], end(), ["Realised savings are not measured."]))
+    for (const title of ["At stockout risk", "Excess inventory opportunity", "Working capital impact"]) {
+      expect(html).toContain(`How &quot;${title}&quot; is calculated`) // each card's own (i)
+    }
+    expect(html).not.toContain("Realised savings are not measured") // behind the (i), in the popup
+  })
+
+  it("name a month with no figure under the chart -- it is a gap in the line, never a zero", () => {
+    const html = trendHtml(trends([month(), gap()]))
+    expect(html.match(/No figure for Nov 2026./g)).toHaveLength(3)
     expect(html).not.toContain("0.00M")
   })
 
-  it("leave a stale stockout reading out and say why, while keeping the excess and working capital figures", () => {
-    const html = trendHtml(trends([month({ stockout_valid: false, stockout_at_risk: null, stockout_evaluated: null,
-      note: "Stockout risk not shown: its usage was last built 31 May 2026, too far from this month." })]))
-    expect(html).toContain("Stockout risk not shown")
-    expect(html).toContain("31 May 2026")
-    expect(html).toContain("1.50M")
-    expect(html).not.toContain("of 50 judged")
+  it("name the month only on the card whose figure is missing: a stale stockout reading leaves the other two alone", () => {
+    const html = trendHtml(trends([month(), month({ month: "2026-11-01", label: "Nov 2026", stockout_valid: false, stockout_at_risk: null,
+      stockout_evaluated: null, note: "Stockout risk not shown: its usage was last built 31 May 2026, too far from this month." })]))
+    expect(html.match(/No figure for Nov 2026./g)).toHaveLength(1)
   })
 
-  it("mark a month still running as a rolling reading, and one captured late as not month-end", () => {
-    expect(trendHtml(trends([month({ state: "OPEN", month_end_valid: false })]))).toContain("Rolling reading")
-    expect(trendHtml(trends([month({ month_end_valid: false })]))).toContain("Snapshot, not month-end")
+  it("say nothing about gaps when every month was measured", () => {
+    expect(trendHtml(trends([month()]))).not.toContain("No figure for")
   })
 
-  it("show the change in the working capital estimate between months, and the revision when a month was re-measured", () => {
-    const html = trendHtml(trends([month({ net_rop_change_from_previous: "-200000.00", revision: 3 })]))
-    expect(html).toContain("−0.20M")
-    expect(html).toContain("revision 3")
-  })
-
-  it("say that counts are never added across months and that an estimate is not a saving", () => {
-    const html = trendHtml(trends([month()], end(), ["Realised savings are not measured: nothing records stock that was actually released."]))
-    expect(html).toContain("never added into a quarter total")
-    expect(html).toContain("Realised savings are not measured")
-  })
-
-  it("list which months have no snapshot", () => {
-    expect(trendHtml(trends([month()], end(), ["No saved snapshot for Nov 2026, Dec 2026."]))).toContain("No saved snapshot for Nov 2026, Dec 2026.")
+  it("say that no month has a value yet, rather than draw an empty chart", () => {
+    const html = trendHtml(trends([gap()]))
+    expect(html.match(/No month has a measured value yet./g)).toHaveLength(3)
+    expect(html).not.toContain("No figure for") // there is no chart to put it under
   })
 })
 

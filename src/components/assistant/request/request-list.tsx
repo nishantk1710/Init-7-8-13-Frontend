@@ -10,7 +10,7 @@ import { Chip } from "@/components/assistant/request/request-parts"
 import { useRequestList } from "@/components/assistant/request/use-requests"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageLoader } from "@/components/shared/page-loader"
 import { StatCard } from "@/components/shared/stat-card"
 import { isNotEnabled, type ApiRequestSummary } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
@@ -61,7 +61,7 @@ export function RequestList() {
       <DraftList />
 
       {loading ? (
-        <Skeleton className="h-40 w-full rounded-xl" />
+        <PageLoader label="Loading requests" className="h-48 w-full" />
       ) : error ? (
         <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
           {error instanceof ApiError ? error.detailText() : "Requests could not be loaded."}
@@ -80,7 +80,7 @@ export function RequestList() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search reference or requester"
-                className="h-11 bg-card"
+                className="h-11 border-action/40 bg-card focus-visible:border-action focus-visible:ring-action/30"
               />
             </label>
             <span className="text-sm text-muted-foreground">

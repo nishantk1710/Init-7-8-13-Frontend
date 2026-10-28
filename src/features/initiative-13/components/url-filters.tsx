@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { DELIVERY_STATE_LABELS, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
+import { UTILISATION_STATUS_LABELS } from "@/features/initiative-13/utils/issue-match"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   AGING_BAND_LABEL,
@@ -27,6 +28,7 @@ import {
   PLAN_STATUS_LABEL,
   PLAN_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
+import { LEDGER_UTILISATION_STATUSES } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -211,7 +213,7 @@ export function I13UrlFilters({
             label="All utilization statuses"
             width="sm:w-48"
             value={searchParams.get("utilisationStatus") ?? ""}
-            options={UTILISATION_STATUSES.map((value) => ({ value, label: words(value) }))}
+            options={LEDGER_UTILISATION_STATUSES.map((value) => ({ value, label: UTILISATION_STATUS_LABELS[value] }))}
             onChange={(value) => push({ utilisationStatus: value })}
           />)}
 
@@ -297,17 +299,6 @@ function FilterField({ label, className, children }: { label: string; className?
       {children}
     </div>
   )
-}
-
-const UTILISATION_STATUSES = ["NOT_ISSUED", "PARTIALLY_ISSUED", "FULLY_ISSUED"] as const
-
-/** `PARTIALLY_RECEIVED` -> "Partially Received", as the ledger's badges read. */
-function words(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((w) => (w[0]?.toUpperCase() ?? "") + w.slice(1))
-    .join(" ")
 }
 
 function labelFor(labels: Record<string, string>, value: string): string {

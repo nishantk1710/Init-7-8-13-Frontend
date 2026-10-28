@@ -189,6 +189,10 @@ export interface Recommendation {
   status: RecommendationStatus
   current: StockParameters
   recommended: StockParameters
+  /** Which of the stock figures above the backend really sent. `current` and `recommended` turn a missing figure
+   * into 0, which a side-by-side comparison must not read as "set to 0 in SAP"; this says which were there. Filled
+   * by the list mapper only. */
+  present?: { current: Record<keyof StockParameters, boolean>; recommended: Record<keyof StockParameters, boolean> }
   /** mean daily consumption used to derive expected lead-time demand */
   avgDailyConsumption: number
   leadTimeDays: number

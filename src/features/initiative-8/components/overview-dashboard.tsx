@@ -226,7 +226,7 @@ export function OverviewDashboard({
         <Button
           size="lg"
           variant="outline"
-          className="px-3.5"
+          className="px-3.5 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
           onClick={() => setPrintedAt(i08DateTime(new Date().toISOString()))}
           disabled={printing}
         >

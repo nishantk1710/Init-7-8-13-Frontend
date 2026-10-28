@@ -4,11 +4,16 @@ import type { ApiActivityRow, ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManageme
 import {
   activityCell,
   adoptionSummaryOf,
+  axisMoney,
+  cardCaption,
+  compactMoney,
+  cardTitle,
   kpiValueText,
   num,
   orderedKpis,
   plantPositionsOf,
   rowAddsUp,
+  seriesGaps,
   stockoutUsable,
 } from "./quarterly-management"
 
@@ -138,6 +143,57 @@ describe("the KPI cards", () => {
     expect(kpiValueText(card("working_capital_impact", { value: "-2397304441.43", unit: "amount (currency not stated)" }))).toBe("−2,397.30M")
     expect(kpiValueText(card("working_capital_impact", { value: "2500000", unit: "USD" }))).toBe("+USD 2.50M")
     expect(kpiValueText(card("excess_inventory_opportunity", { value: "1500000", unit: "USD" }))).toBe("USD 1.50M")
+  })
+
+  it("show a small money figure on a card in thousands or as it is, never as 0.00M", () => {
+    expect(kpiValueText(card("excess_inventory_opportunity", { value: "1200", unit: "amount (currency not stated)" }))).toBe("1.2K")
+    expect(kpiValueText(card("working_capital_impact", { value: "-300", unit: "amount (currency not stated)" }))).toBe("−300")
+    expect(kpiValueText(card("working_capital_impact", { value: "560", unit: "USD" }))).toBe("+USD 560")
+    expect(kpiValueText(card("excess_inventory_opportunity", { value: "2000", unit: "amount (currency not stated)" }))).not.toContain("0.00M")
+  })
+
+  it("write money in the unit that reads best, so a small amount is not shown as 0.00M", () => {
+    expect(compactMoney(1_500_000, null)).toBe("1.50M")
+    expect(compactMoney(-2_000_000, "USD", true)).toBe("−USD 2.00M")
+    expect(compactMoney(1_200, null)).toBe("1.2K")
+    expect(compactMoney(-560, null)).toBe("−560")
+    expect(compactMoney(560, null, true)).toBe("+560")
+    expect(compactMoney(0, null)).toBe("0")
+    expect(compactMoney(999_990, null)).toBe("1.00M") // not "1,000K"
+    expect(compactMoney(null, null)).toBe("—")
+  })
+
+  it("put short ticks on a money axis, never 0M for every tick of a small series", () => {
+    expect(axisMoney(-2_000_000)).toBe("−2M")
+    expect(axisMoney(1_500)).toBe("1.5K")
+    expect(axisMoney(250)).toBe("250")
+    expect(axisMoney(0)).toBe("0")
+  })
+
+  it("list the months a series has no figure for, in order, and none when every month has one", () => {
+    const point = (label: string, stockout: number | null) => ({ label, state: "FINAL" as const, stockout, excessOpportunity: 1, workingCapital: 1 })
+    const points = [point("Oct 2026", 3), point("Nov 2026", null), point("Dec 2026", null)]
+    expect(seriesGaps(points, "stockout")).toEqual(["Nov 2026", "Dec 2026"])
+    expect(seriesGaps(points, "excessOpportunity")).toEqual([])
+  })
+
+  it("call the stockout card High Stockout Risk, even in a report saved under its old title", () => {
+    expect(cardTitle(card("critical_stockout_risk", { title: "Critical stockout risk" }))).toBe("High Stockout Risk")
+    expect(cardTitle(card("critical_stockout_risk", { title: "High Stockout Risk" }))).toBe("High Stockout Risk")
+  })
+
+  it("keep the report's own title for a card that was not renamed", () => {
+    expect(cardTitle(card("pending_approval", { title: "Pending approval" }))).toBe("Pending approval")
+    expect(cardTitle(card("something_new", { title: "Something new" }))).toBe("Something new")
+  })
+
+  it("carry one plain line each, and fall back to the report's explanation for a card with no wording", () => {
+    for (const key of ["materials_assessed", "recommendations_generated", "critical_stockout_risk", "excess_inventory_opportunity", "working_capital_impact", "pending_approval"]) {
+      const caption = cardCaption(card(key, { explanation: "A long explanation that belongs behind the (i)." }))
+      expect(caption).not.toContain("belongs behind")
+      expect(caption.length).toBeLessThanOrEqual(50) // one line on an Overview-sized card
+    }
+    expect(cardCaption(card("something_new", { explanation: "Its own explanation." }))).toBe("Its own explanation.")
   })
 })
 

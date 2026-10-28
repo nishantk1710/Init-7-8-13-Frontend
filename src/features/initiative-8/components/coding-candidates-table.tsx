@@ -469,7 +469,7 @@ export function CodingCandidatesTable({
         <Button
           size="lg"
           variant="outline"
-          className="px-3.5 sm:ml-auto"
+          className="px-3.5 sm:ml-auto border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
           onClick={exportExcel}
           disabled={visible.length === 0}
         >

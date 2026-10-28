@@ -612,7 +612,14 @@ export function RequestBuilder({
           <Save className="size-4" aria-hidden />
           Save as draft
         </Button>
-        <Button type="button" size="lg" onClick={submit} disabled={submitting} className="min-h-11 gap-1.5 px-5 text-base font-semibold">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={submit}
+          disabled={submitting}
+          className="min-h-11 gap-1.5 border-action bg-action/10 px-5 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+        >
           {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {submitting ? "Submitting…" : "Submit request"}
           {!submitting && <ArrowRight className="size-4" aria-hidden />}

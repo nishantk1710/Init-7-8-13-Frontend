@@ -12,6 +12,12 @@ import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
 import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
+import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/components/issued-on-cell"
+import {
+  ISSUE_MATCH_EXPLANATIONS,
+  ISSUE_MATCH_LABELS,
+  UTILISATION_STATUS_LABELS,
+} from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
@@ -37,14 +43,7 @@ const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
   NOT_ISSUED: "urgent",
   PARTIALLY_ISSUED: "caution",
   FULLY_ISSUED: "healthy",
-}
-
-function label(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ")
+  BEFORE_ISSUE_HISTORY: "neutral",
 }
 
 function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
@@ -145,7 +144,13 @@ export function UtilizationLedgerTable({
               <TableHead className="text-right">Received</TableHead>
               <TableHead>Delivered on</TableHead>
               <TableHead className="text-right">Issued</TableHead>
+              <TableHead title="Goods-issue dates (MKPF-BUDAT) of the issues counted against this line">
+                Issued on
+              </TableHead>
               <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
+              <TableHead title="The earliest open reservation expected to draw on this line's stock">
+                Next planned issue
+              </TableHead>
               <TableHead>Procurement</TableHead>
               <TableHead>Utilization</TableHead>
             </TableRow>
@@ -215,19 +220,42 @@ export function UtilizationLedgerTable({
                       receivedQuantity={entry.receivedQuantity}
                     />
                     <Quantity value={entry.issuedQuantity} empty="notIssued" />
+                    <IssuedOnCell
+                      firstDate={entry.firstGiDate}
+                      lastDate={entry.latestGiDate}
+                      received={(entry.receivedQuantity ?? 0) > 0}
+                      issueMatch={entry.issueMatch}
+                    />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
+                    <NextPlannedIssueCell
+                      date={entry.nextPlannedIssueDate}
+                      quantity={entry.nextPlannedIssueQuantity}
+                      inStock={(entry.openQuantity ?? 0) > 0}
+                    />
                     <TableCell>
                       <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
                       </StatusPill>
                     </TableCell>
                     <TableCell>
-                      <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
+                          {UTILISATION_STATUS_LABELS[entry.utilisationStatus]}
+                        </StatusPill>
+                        {entry.issueMatch && (
+                          <span
+                            className="cursor-help text-[11px] whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
+                            title={ISSUE_MATCH_EXPLANATIONS[entry.issueMatch]}
+                          >
+                            {ISSUE_MATCH_LABELS[entry.issueMatch]}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                   <TableRow className="hover:bg-transparent">
                     <TableCell className="p-0" />
-                    <TableCell colSpan={11} className="p-0">
+                    <TableCell colSpan={13} className="p-0">
                       <div
                         className={cn(
                           "grid transition-[grid-template-rows] duration-300 ease-out",

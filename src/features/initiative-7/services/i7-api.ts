@@ -282,6 +282,18 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
       safetyStock: toNumber(row.recommended.safety_stock) ?? 0,
       maxStock: toNumber(row.recommended.max_stock) ?? 0,
     },
+    present: {
+      current: {
+        rop: toNumber(row.current.rop) != null,
+        safetyStock: toNumber(row.current.safety_stock) != null,
+        maxStock: toNumber(row.current.max_stock) != null,
+      },
+      recommended: {
+        rop: toNumber(row.recommended.rop) != null,
+        safetyStock: toNumber(row.recommended.safety_stock) != null,
+        maxStock: toNumber(row.recommended.max_stock) != null,
+      },
+    },
     avgDailyConsumption: 0,
     leadTimeDays: 0,
     leadTimeVarianceDays: 0,
@@ -908,10 +920,15 @@ export async function fetchQuarterlyReport(quarter: string): Promise<ApiQuarterl
  * resolve and generate the latest *closed* calendar quarter itself (see
  * `latest_closed_quarter` on the backend); the returned report's
  * `metadata.quarter` says which quarter actually ran. */
-export async function generateQuarterlyReport(quarter?: string): Promise<ApiQuarterlyReport> {
+export async function generateQuarterlyReport(
+  quarter?: string,
+  period?: "quarter" | "month",
+): Promise<ApiQuarterlyReport> {
+  // `period: "month"` asks for the latest closed *month* when no label is given. Only sent for a month, so a quarterly
+  // call is byte-for-byte what it always was (and an older backend, which does not know the field, is never sent it).
   return apiFetch<ApiQuarterlyReport>(`${I7_BASE}/reports/quarterly/generate`, {
     method: "POST",
-    body: JSON.stringify(quarter ? { quarter } : {}),
+    body: JSON.stringify({ ...(quarter ? { quarter } : {}), ...(period === "month" ? { period } : {}) }),
   })
 }
 

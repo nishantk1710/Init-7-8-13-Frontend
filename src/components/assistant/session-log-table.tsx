@@ -2,18 +2,18 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { Download } from "lucide-react"
+import { Download, RotateCcw, Search } from "lucide-react"
 
 import { CompliancePanel, type ComplianceCheck } from "@/components/assistant/compliance-panel"
 import { OutcomeChip } from "@/components/assistant/session-chips"
 import { Chip } from "@/components/assistant/request/request-parts"
-import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { MaterialName } from "@/components/shared/material-name"
 import { StatCard } from "@/components/shared/stat-card"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -44,14 +44,6 @@ import {
 import { formatClock, formatDay, formatInstant } from "@/lib/assistant/trace-format"
 import { sapPlantLabel, sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn, downloadExcel } from "@/lib/utils"
-
-/** The row's left edge, one colour per outcome (the chip says it in words). */
-const OUTCOME_EDGE: Record<SessionOutcome, string> = {
-  followed: "shadow-[inset_4px_0_0_var(--success)]",
-  "went-ahead": "shadow-[inset_4px_0_0_var(--warning)]",
-  "not-acted": "shadow-[inset_4px_0_0_var(--destructive)]",
-  open: "shadow-[inset_4px_0_0_var(--line)]",
-}
 
 /** Short flow names, the request page's: a column of "Repairable Spares" wastes width. */
 const FLOW_SHORT: Record<string, string> = { i08: "Repairable", i13: "OAR" }
@@ -192,6 +184,77 @@ export function SessionLogTable({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* One bar at the top, the same bold bordered track as the filters on Recommendations. */}
+      <section
+        aria-label="Filter sessions"
+        className="flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 bg-card p-4 shadow-lg [&>div]:min-w-[132px] [&>div]:flex-1 [&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground [&_[data-slot=select-trigger]]:font-semibold [&_[data-slot=input]]:font-semibold"
+      >
+        <FilterSelect
+          label="Flow"
+          value={flow}
+          onChange={setFlow}
+          options={[
+            { value: "all", label: "All" },
+            { value: "i08", label: "Repairable" },
+            { value: "i13", label: "OAR" },
+          ]}
+        />
+        <FilterSelect
+          label="Outcome"
+          value={result}
+          onChange={setResult}
+          options={[
+            { value: "all", label: "All" },
+            { value: "followed", label: "Followed" },
+            { value: "went-ahead", label: "Went ahead" },
+            { value: "not-acted", label: "Not acted on" },
+            { value: "open", label: "Still open" },
+          ]}
+        />
+        <FilterSelect
+          label="Linked in SAP"
+          value={reservation}
+          onChange={setReservation}
+          options={[
+            { value: "all", label: "All" },
+            { value: "linked", label: "Linked" },
+            { value: "not-linked", label: "Not linked" },
+          ]}
+        />
+        <FilterField label="Search" className="min-w-[220px]!">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search reference, material, requester…"
+              aria-label="Search sessions"
+              className="h-8 pl-7 text-sm"
+            />
+          </div>
+        </FilterField>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+          disabled={activeFilters === 0}
+          onClick={clearFilters}
+        >
+          <RotateCcw className="size-3.5" />
+          Clear filters
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+          onClick={exportExcel}
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-3.5" aria-hidden />
+          Export Excel
+        </Button>
+      </section>
+
       {showI08Cards ? (
         <I08Cards
           sessions={sessions}
@@ -206,65 +269,6 @@ export function SessionLogTable({
       ) : (
         checks.length > 0 && <CompliancePanel checks={checks} />
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search reference, material, requester…"
-          aria-label="Search sessions"
-          className="h-11 w-full bg-card sm:w-80"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <ClearFiltersButton activeCount={activeFilters} onClear={clearFilters} />
-          <Button
-            variant="outline"
-            size="lg"
-            className="min-h-11 px-4 font-semibold"
-            onClick={exportExcel}
-            disabled={filtered.length === 0}
-          >
-            <Download className="size-4" aria-hidden />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      {/* One row at 1440 px: short labels on compact pills. */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <FilterGroup
-          label="Flow"
-          value={flow}
-          onChange={setFlow}
-          options={[
-            { value: "all", label: "All" },
-            { value: "i08", label: "Repairable" },
-            { value: "i13", label: "OAR" },
-          ]}
-        />
-        <FilterGroup
-          label="Outcome"
-          value={result}
-          onChange={setResult}
-          options={[
-            { value: "all", label: "All" },
-            { value: "followed", label: "Followed" },
-            { value: "went-ahead", label: "Went ahead" },
-            { value: "not-acted", label: "Not acted on" },
-            { value: "open", label: "Still open" },
-          ]}
-        />
-        <FilterGroup
-          label="Linked in SAP"
-          value={reservation}
-          onChange={setReservation}
-          options={[
-            { value: "all", label: "All" },
-            { value: "linked", label: "Linked" },
-            { value: "not-linked", label: "Not linked" },
-          ]}
-        />
-      </div>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -303,7 +307,7 @@ export function SessionLogTable({
                 const outcome = sessionOutcome(session, wentAhead)
                 return (
                   <TableRow key={session.sessionId}>
-                    <TableCell className={cn("whitespace-nowrap", OUTCOME_EDGE[outcome])}>
+                    <TableCell className="whitespace-nowrap">
                       <span className="block text-xs font-medium text-foreground">{formatDay(session.issuedAt)}</span>
                       <span className="block text-[11px] text-muted-foreground">{formatClock(session.issuedAt)}</span>
                     </TableCell>
@@ -534,7 +538,19 @@ function ReservationCell({ session }: { session: ApiSessionSummary }) {
   )
 }
 
-function FilterGroup({
+/** A labelled field in the filter bar: the small capital-letter name over its control, as on Recommendations. */
+function FilterField({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      <span data-slot="filter-label" className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+function FilterSelect({
   label,
   value,
   onChange,
@@ -545,31 +561,22 @@ function FilterGroup({
   onChange: (value: string) => void
   options: { value: string; label: string }[]
 }) {
-  const id = `filter-${label.replaceAll(" ", "-")}`
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground" id={id}>
-        {label}
-      </span>
-      <div className="flex gap-1" role="group" aria-labelledby={id}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            aria-pressed={value === option.value}
-            className={cn(
-              "min-h-9 rounded-full border px-3 text-[13px] font-semibold whitespace-nowrap transition-colors",
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              value === option.value
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <FilterField label={label}>
+      <Select value={value} onValueChange={(v) => onChange(v ?? "all")}>
+        <SelectTrigger className="h-8 w-full" aria-label={label}>
+          <SelectValue placeholder="All">
+            {(v: string) => options.find((option) => option.value === v)?.label ?? "All"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
   )
 }

@@ -23,6 +23,7 @@ import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import {
   activityCell,
   adoptionSummaryOf,
+  cardTitle,
   kpiValueText,
   millions,
   monthBasisLabel,
@@ -102,7 +103,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
         <Table
           headers={["Figure", "Value", "Kind", "Measured", "Covers / out of", "Basis"]}
           rows={cards.map((card) => [
-            card.title,
+            cardTitle(card),
             kpiValueText(card) === NOT_AVAILABLE ? NOT_AVAILABLE : `${kpiValueText(card)}${card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact" ? "" : ` ${card.unit}`}`,
             KIND_LABEL[card.kind],
             card.measured_on ? date(card.measured_on) : "—",
@@ -112,7 +113,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
         />
         {cards.map((card) => (
           <p key={card.key} className="print-disclosure">
-            <strong>{card.title}.</strong> {card.explanation}
+            <strong>{cardTitle(card)}.</strong> {card.explanation}
             {kpiValueText(card) === NOT_AVAILABLE && card.unavailable_reason ? ` Not available: ${card.unavailable_reason}` : ""}
             {card.note ? ` ${card.note}` : ""}
           </p>
