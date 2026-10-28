@@ -61,11 +61,12 @@ export async function RefurbishableSparesOverviewPage() {
     )
   }
 
-  const { register, universe, exceptions } = live
+  const { register, requests, universe, exceptions } = live
 
   return (
     <OverviewDashboard
       chains={register.chains}
+      requests={requests}
       agingBands={register.agingBands}
       universe={universe}
       exceptions={exceptions}

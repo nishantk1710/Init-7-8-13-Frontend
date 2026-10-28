@@ -11,6 +11,7 @@ import {
   lineIssues,
   oarNeedsJustification,
   pendingLine,
+  withDeclarationOpen,
   withSuggestedWindow,
   type OarLine,
   type RepairableLine,
@@ -252,6 +253,17 @@ describe("declaring the faulty unit with the request", () => {
     expect(answersOf(declared({ evidenceReference: " Photo 12 " })).declaration?.evidenceReference).toBe("Photo 12")
   })
 
+  it("fills the typed name from the Requester when opened, and never replaces one", () => {
+    const closed = repair(false).declaration
+    expect(withDeclarationOpen(closed, true, " SSJ ")).toMatchObject({ open: true, attestorName: "SSJ" })
+    expect(withDeclarationOpen({ ...closed, attestorName: "Lynn" }, true, "SSJ").attestorName).toBe("Lynn")
+    expect(withDeclarationOpen(closed, true, "  ").attestorName).toBe("")
+    expect(withDeclarationOpen({ ...closed, open: true, attestorName: "SSJ" }, false, "SSJ")).toMatchObject({
+      open: false,
+      attestorName: "SSJ",
+    })
+  })
+
   it("survives a re-check of the row", () => {
     const typed = declared()
     const rechecked = lineFromPreview(repairPreview(false), typed.key, typed) as RepairableLine
@@ -334,7 +346,7 @@ function sampleRequest(): ApiRequest {
 describe("a recorded request", () => {
   it("says what each line decided", () => {
     const [oarLine, pump, motor] = sampleRequest().lines
-    expect(outcomeSentence(oarLine)).toBe("Procure 4 -- the suggested quantity.")
+    expect(outcomeSentence(oarLine)).toBe("Procure 4: the suggested quantity.")
     expect(outcomeSentence(pump)).toMatch(/justified/)
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)

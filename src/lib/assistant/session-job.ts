@@ -1,5 +1,7 @@
-import { formatApiDate } from "@/lib/api/format"
+import type { ApiLinkedReservation } from "@/lib/api/assistant"
 import type { ApiJobMovement, ApiSessionJob } from "@/lib/api/i8"
+import { linkedReservationsHref } from "@/lib/assistant/session-reservations"
+import { formatDay } from "@/lib/assistant/trace-format"
 
 /**
  * The job behind a repairable (I08) assistant session, as the session page
@@ -17,8 +19,9 @@ export const NOT_LINKED_TEXT = "Not linked yet: the reservation text does not ca
 export const JOB_LABELS = {
   reserved: "Reserved",
   issued: "Issued to the job",
-  returned: "Returned to stock (posted when the repaired unit came back)",
-  repairs: "Repair",
+  returned: "Returned to stock",
+  returnedNote: "Posted when the repaired unit came back.",
+  repairs: "Repair raised under this reference",
 } as const
 
 export type JobMovementRow = { date: string; quantity: string }
@@ -52,7 +55,18 @@ function qty(value: string): string {
 }
 
 function movements(list: ApiJobMovement[] | undefined): JobMovementRow[] {
-  return (list ?? []).map((m) => ({ date: formatApiDate(m.postedOn), quantity: qty(m.quantity) }))
+  return (list ?? []).map((m) => ({ date: formatDay(m.postedOn), quantity: qty(m.quantity) }))
+}
+
+/** A register stage as the Repairable Spares screens word it. */
+const STAGE_LABELS: Record<string, string> = {
+  "PR Raised": "Repair requested",
+  "PO Issued": "PO issued",
+  "At Vendor": "At vendor",
+}
+
+function stageText(status: string): string {
+  return STAGE_LABELS[status] ?? status
 }
 
 export function repairRowHref(rowId: string): string {
@@ -75,15 +89,105 @@ export function sessionJobView(job: ApiSessionJob | null): SessionJobView {
       reference: `${r.reservation}/${r.item}`,
       order: r.order || null,
       quantity: qty(r.quantity),
-      requirementDate: formatApiDate(r.requirementDate),
+      requirementDate: formatDay(r.requirementDate),
       issued: movements(r.issued),
       returned: movements(r.returned),
     })),
     repairs: repairs.map((r) => ({
       rowId: r.rowId,
       href: repairRowHref(r.rowId),
-      label: `${r.type === "PR" ? "Repair request" : "Repair order"} ${r.document}/${r.item}`,
-      status: r.status,
+      label: `${r.type === "PR" ? "Repair request PR" : "Repair PO"} ${r.document}/${r.item}`,
+      status: stageText(r.status),
     })),
   }
+}
+
+// --- Linked in SAP -----------------------------------------------------------
+
+/** One reservation item that carries the reference, with what moved against it. */
+export type LinkedReservationRow = {
+  key: string
+  /** `{reservation}/{item}`. */
+  reference: string
+  /** Where it opens: the Utilization Ledger for OAR; none for a repairable part. */
+  href: string | null
+  /** Linked through the UAT stand-in, not read from SAP. */
+  fromUat: boolean
+  order: string | null
+  /** `2 needed by 04 May 2026`, when the job read it. */
+  needed: string | null
+  /** Null when the job was not read (OAR, or an older backend): nothing to say. */
+  issued: JobMovementRow[] | null
+  returned: JobMovementRow[] | null
+}
+
+export type LinkedInSapView = {
+  linked: boolean
+  reservations: LinkedReservationRow[]
+  repairs: JobRepairRow[]
+}
+
+/** `0000123/0001` and `123/1` are the same reservation item. */
+function itemKey(reservation: string, item: string): string {
+  const trim = (v: string) => v.replace(/^0+(?=\d)/, "")
+  return `${trim(reservation)}/${trim(item)}`
+}
+
+/**
+ * ONE panel for what SAP has linked to a session: the reservation items whose
+ * text carries the reference (from the trace), merged with the job behind a
+ * repairable session (its issues to the job, returns to stock and the repair
+ * raised under the same reference). Before 28-Oct-2026 these were two panels
+ * that both said "not linked yet".
+ */
+export function linkedInSapView({
+  flow,
+  sessionId,
+  linked,
+  job,
+}: {
+  flow: string
+  sessionId: string
+  linked: readonly ApiLinkedReservation[] | undefined
+  job: SessionJobView | null
+}): LinkedInSapView {
+  const rows = new Map<string, LinkedReservationRow>()
+  const href = flow === "i13" ? linkedReservationsHref({ flow, sessionId }) : null
+  if (job?.kind === "linked") {
+    for (const r of job.reservations) {
+      const [reservation, item = ""] = r.reference.split("/")
+      rows.set(itemKey(reservation, item), {
+        key: r.key,
+        reference: r.reference,
+        href,
+        fromUat: false,
+        order: r.order,
+        needed: `${r.quantity} needed by ${r.requirementDate}`,
+        issued: r.issued,
+        returned: r.returned,
+      })
+    }
+  }
+  for (const l of linked ?? []) {
+    const key = itemKey(l.reservationNumber, l.reservationItem)
+    const existing = rows.get(key)
+    const fromUat = l.source === "UAT_SGTXT"
+    if (existing) {
+      existing.fromUat = existing.fromUat || fromUat
+      continue
+    }
+    rows.set(key, {
+      key: `linked-${l.reservationNumber}-${l.reservationItem}`,
+      reference: `${l.reservationNumber}/${l.reservationItem}`,
+      href,
+      fromUat,
+      order: null,
+      needed: null,
+      issued: null,
+      returned: null,
+    })
+  }
+  const repairs = job?.kind === "linked" ? job.repairs : []
+  const reservations = [...rows.values()]
+  return { linked: reservations.length > 0 || repairs.length > 0, reservations, repairs }
 }

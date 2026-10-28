@@ -29,14 +29,42 @@ export function declarationDisplay(status: string | undefined): { tone: Declarat
  * new record superseding that one, never a second, competing declaration --
  * the backend refuses that with a 422), Declare when none does, and nothing
  * on a Historical line with no declaration: it was never required.
+ *
+ * `voluntary` is the Declarations screen's Historical tab, where those lines
+ * are listed so that one can still be declared when its condition is known.
  */
 export function declarationAction(
   status: string | undefined,
   declarationId: string | undefined | null,
+  { voluntary = false }: { voluntary?: boolean } = {},
 ): "amend" | "declare" | null {
   if (declarationId) return "amend"
-  if (status === "Historical") return null
+  if (status === "Historical" && !voluntary) return null
   return "declare"
+}
+
+/**
+ * The queue's empty state, saying what is true. It used to say "Every repair
+ * line has a condition declaration" while 211 open lines had none, because
+ * they were raised before declarations began and nobody was asked.
+ *
+ * `historical` is undefined when that count could not be read; `cutover` is
+ * a display date, undefined when the backend does not say.
+ */
+export function emptyQueueText(
+  historical: number | undefined,
+  cutover: string | undefined,
+): { title: string; body: string } {
+  if (!historical) {
+    return { title: "Nothing to declare", body: "Nothing is waiting. New repair lines appear here when SAP raises them." }
+  }
+  const lines = historical === 1 ? "The 1 open line was" : `The ${historical.toLocaleString("en-US")} open lines were`
+  return {
+    title: "Nothing to declare",
+    body:
+      `${lines} raised before declarations began${cutover ? ` on ${cutover}` : ""}. ` +
+      "They are under Historical, where any of them can still be declared.",
+  }
 }
 
 /** "Waiting for a declaration" means Required only: a Flagged line has one. */

@@ -1,536 +1,737 @@
 import Link from "next/link"
-import {
-  ArrowLeft,
-  Calculator,
-  ClipboardList,
-  Link2,
-  MessageSquareQuote,
-  UserRound,
-} from "lucide-react"
+import { ChevronLeft, Info, Link2, TriangleAlert } from "lucide-react"
 
-import { AiEyebrow, AiIconBadge, AiOrb } from "@/components/assistant/ai-visuals"
-import {
-  AssessmentCard,
-  AssessmentCaveats,
-} from "@/components/assistant/assessment-card"
-import { SessionDownloadMenu } from "@/components/assistant/session-download-menu"
-import { SessionReference } from "@/components/assistant/session-reference"
+import { AssessmentCard, AssessmentCaveats } from "@/components/assistant/assessment-card"
+import { OutcomeChip, TonePill } from "@/components/assistant/session-chips"
+import { Chip, CopyReferenceButton } from "@/components/assistant/request/request-parts"
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
-import type {
-  ApiLinkedReservation,
-  ApiJustification,
-  ApiPlan,
-  ApiQuantitySuggestion,
-  ApiTurn,
-  SessionTraceResponse,
-} from "@/lib/api/assistant"
-import { linkedReservationsHref } from "@/lib/assistant/session-reservations"
-import { summariseAnswer } from "@/lib/assistant/transcript"
-import { formatInstant, formatWindow, planStatusLabel, sessionIdentity } from "@/lib/assistant/trace-format"
-import { cn } from "@/lib/utils"
+import type { ApiPlan, ApiQuantitySuggestion, SessionTraceResponse } from "@/lib/api/assistant"
+import { factsCaveats, factsHeadline, isI08Facts } from "@/lib/api/assistant-facts"
 import { flowLabel } from "@/lib/assistant/flow-labels"
-import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { needDateAdviceOf } from "@/lib/assistant/i08-facts-format"
 import { departmentText } from "@/lib/assistant/request/record"
+import {
+  JOB_LABELS,
+  linkedInSapView,
+  type JobMovementRow,
+  type SessionJobView,
+} from "@/lib/assistant/session-job"
+import { sessionOutcome, wentAheadSessionIds } from "@/lib/assistant/session-outcome"
+import {
+  declarationViews,
+  declaredState,
+  formatQuantity,
+  i08RepairRows,
+  i08RequestRows,
+  i08ShownFigures,
+  personLabel,
+  readableText,
+  readableTurns,
+  reasonViews,
+  referenceInstruction,
+  sessionDecision,
+  type DeclarationView,
+  type ReadableTurn,
+  type ReasonView,
+  type ShownFigure,
+} from "@/lib/assistant/session-view"
+import { formatInstant, formatWindow, planStatusLabel, sessionIdentity } from "@/lib/assistant/trace-format"
+import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { cn } from "@/lib/utils"
 
 /**
- * One session and everything it produced — the FR-8 demo surface, for both
- * initiatives.
+ * One session and everything it produced, for both initiatives.
+ *
+ * Five parts, top to bottom: the reference with ONE instruction for SAP; a
+ * summary of who, what and the decision; what the assistant showed; what was
+ * decided (the conversation in words, then the reason and the declaration
+ * recorded); and what SAP has linked so far.
  *
  * ## The advice is replayed, not recomputed
  *
- * `assessment` is the dictionary that was stored when the session was minted,
- * and it is rendered here exactly as it was served. Recomputing it would
- * answer a different question: the register and the stock both move, so a
- * recomputed card would show what is true now and quietly claim that is what
- * the planner was told. The whole value of this record is that it does not
- * change.
+ * `assessment` is what was stored when the session was minted, shown as it
+ * was served. Recomputing it would answer a different question: the register
+ * and the stock both move, and the value of this record is that it does not.
  *
- * ## It also has to show what is missing
+ * ## Words, not codes
  *
- * `linkageNote` says in words that no reservation is linked yet, because
- * `Bednr` is not exposed on `ReservationItemSet` (blocker B2). Every session
- * carries that sentence and it is rendered prominently rather than tucked
- * into a footer — a compliance screen that silently omits the one link it
- * cannot make reads as a clean bill of health.
+ * Every code on the wire (a choice value, a reason category, a quantity with
+ * SAP's padding, the placeholder actor) is read through
+ * `lib/assistant/session-view`, which is tested. The download still carries
+ * the record as stored.
  */
-export function SessionTrace({ trace }: { trace: SessionTraceResponse }) {
+export function SessionTrace({
+  trace,
+  job = null,
+}: {
+  trace: SessionTraceResponse
+  /** The job behind a repairable session; null for OAR or when it could not be read. */
+  job?: SessionJobView | null
+}) {
   const identity = sessionIdentity(trace)
+  const reference = referenceInstruction(identity)
+  const typedName = trace.requestedFor
+  const suggestion = trace.quantitySuggestions[0]
+  const pairs = readableTurns(trace.turns, {
+    suggestedQuantity: suggestion?.suggestedQuantity ?? null,
+    requestedQuantity: suggestion?.requestedQuantity ?? null,
+  })
+  const reasons = reasonViews(trace.justifications, typedName)
+  const declarations = trace.flow === "i08" ? declarationViews(trace) : []
+  const linked = linkedInSapView({
+    flow: trace.flow,
+    sessionId: trace.sessionId,
+    linked: trace.linkedReservations,
+    job,
+  })
+
   return (
-    <div className="ai-scope flex flex-col gap-5">
-      <SessionReference
-        sessionId={trace.sessionId}
-        request={identity.requestId ? identity : undefined}
-        issuedAt={trace.issuedAt}
-        expiresAt={trace.expiresAt}
-        expired={trace.expired}
-      />
+    <div className="flex flex-col gap-6">
+      <ReferenceBox trace={trace} reference={reference} />
+      <Summary trace={trace} />
 
-      <Header trace={trace} />
-
-      <Section title="Why this flow">
-        <p className="text-sm text-muted-foreground">{trace.routingReason}</p>
-      </Section>
-
-      <Section
-        title="The advice, as it was served"
-        note="Replayed from what was recorded at the time, not recomputed. Stock and repair status have moved since."
+      <Part
+        title="What the assistant showed"
+        note={`As shown on ${formatInstant(trace.issuedAt)}. Replayed from the record, not recomputed: stock and repairs have moved since.`}
       >
-        <AssessmentCard facts={trace.assessment} />
-        <AssessmentCaveats facts={trace.assessment} />
-        {/* The narrative layer is off by default and its deviation from both
-            FRSs is unsigned-off, so it is labelled wherever it does appear. */}
+        {trace.flow === "i08" && isI08Facts(trace.assessment) ? (
+          <I08Shown facts={trace.assessment} />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <AssessmentCard facts={trace.assessment} />
+            <AssessmentCaveats facts={trace.assessment} />
+          </div>
+        )}
+        {/* Off by default; labelled wherever it does appear. */}
         {trace.narrative && (
-          <div className="ai-border-gradient rounded-2xl p-4">
-            <p className="text-[11px] font-semibold tracking-[0.12em] text-ai-2 uppercase">
-              Generated narrative
-            </p>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-xs font-semibold text-muted-foreground">Generated narrative</p>
             <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
           </div>
         )}
-      </Section>
+      </Part>
 
-      <Section title={`Conversation (${trace.turns.length} turns)`}>
-        <Turns
-          turns={trace.turns}
-          // A request line's closing turn names its internal session ID; the
-          // requester only ever sees and types the request ID, so show that.
-          shownAs={identity.requestId ? { sessionId: trace.sessionId, text: identity.sapText } : undefined}
-        />
-      </Section>
-
-      {trace.plans.length > 0 && (
-        <Section title="Consumption plan">
-          {trace.plans.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
-          ))}
-        </Section>
-      )}
-
-      {trace.quantitySuggestions.length > 0 && (
-        <Section title="Quantity suggestion">
-          {trace.quantitySuggestions.map((suggestion) => (
-            <SuggestionCard key={suggestion.id} suggestion={suggestion} />
-          ))}
-        </Section>
-      )}
-
-      {trace.justifications.length > 0 && (
-        <Section title="Justification recorded">
-          {trace.justifications.map((justification) => (
-            <JustificationCard
-              key={justification.id}
-              justification={justification}
-            />
-          ))}
-        </Section>
-      )}
-
-      <Linkage
-        note={trace.linkageNote}
-        sessionId={trace.sessionId}
-        requestId={identity.requestId}
-        flow={trace.flow}
-        linked={trace.linkedReservations ?? []}
-      />
-    </div>
-  )
-}
-
-function Header({ trace }: { trace: SessionTraceResponse }) {
-  const { requestId, lineNo } = sessionIdentity(trace)
-  return (
-    <div className="animate-ai-message-in relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <span aria-hidden className="ai-gradient absolute inset-x-0 top-0 h-1" />
-      <div className="flex flex-wrap items-center gap-2">
-        <OutcomeBadge outcome={trace.outcome} />
-        <span className="ai-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
-          {flowLabel(trace.flow)}
-        </span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-          opened from {trace.origin === "BADI" ? "SAP" : "the platform"}
-        </span>
-        <SessionDownloadMenu trace={trace} className="ml-auto" />
-      </div>
-
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Field
-          label="Material"
-          value={
-            trace.materialDescription
-              ? `${trace.materialDescription} (${trace.materialId})`
-              : trace.materialId
-          }
-        />
-        <Field label="Plant" value={sapPlantLabel(trace.plant)} />
-        {/* A line of a multi-material request opens here on its own session
-            ID; without this it reads as a stand-alone session. */}
-        {requestId && (
-          <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
-            <dt className="text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
-              Request
-            </dt>
-            <dd className="text-sm font-medium break-words">
-              <Link
-                href={`/assistant/requests/${requestId}`}
-                className="font-mono text-primary underline-offset-4 hover:underline"
-                title="Open the multi-material request this line belongs to"
-              >
-                {requestId}
-              </Link>
-              {lineNo !== null && (
-                <span className="text-muted-foreground"> · line {lineNo}</span>
-              )}
-            </dd>
+      <Part
+        title="What was decided"
+        note={answeredBy(trace, typedName)}
+      >
+        <Conversation pairs={pairs} />
+        {trace.plans.map((plan) => (
+          <PlanCard key={plan.id} plan={plan} typedName={typedName} />
+        ))}
+        {trace.quantitySuggestions.map((s) => (
+          <SuggestionCard key={s.id} suggestion={s} />
+        ))}
+        {(reasons.length > 0 || declarations.length > 0) && (
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            {reasons.map((r) => (
+              <ReasonCard key={r.key} reason={r} />
+            ))}
+            {declarations.map((d) => (
+              <DeclarationCard key={d.key} declaration={d} />
+            ))}
           </div>
         )}
-        {/* Who the part was for, as typed by whoever ran the assistant. Not
-            shown here: who ran it. `trace.requester` is served, because the
-            trace is the FR-8 evidence view and an audit record without its
-            author is not one -- but one coordinator opens every session, so a
-            column holding the same value on every row tells a reader nothing
-            and crowds out the one that does. */}
-        <Field
-          label="Requester"
-          value={trace.requestedFor}
-          // A session opened from SAP carries no name. Saying so beats a blank,
-          // which reads as a rendering fault rather than as an absent answer.
-          nullNote="not stated"
-        />
-        <Field
-          label="Department"
-          value={trace.department ? departmentText(trace.department, trace.departmentName) : null}
-          nullNote="not stated"
-        />
-        {trace.departmentNote && <Field label="Department note" value={trace.departmentNote} />}
-        {/* Only where there is one. Every session minted since the entry point
-            stopped asking has none, and an empty row on all of them would
-            invite somebody to go looking for the missing number. Older
-            sessions carry a real value and still show it. */}
-        {trace.requestedQuantity !== null && (
-          <Field label="Quantity asked for" value={trace.requestedQuantity} />
-        )}
-      </dl>
+      </Part>
 
-      <p className="text-[11px] text-muted-foreground">
-        Issued {formatInstant(trace.issuedAt)}
-      </p>
+      <Part title="Linked in SAP">
+        <LinkedPanel view={linked} reference={reference.value} sessionId={trace.sessionId} />
+      </Part>
     </div>
   )
 }
 
-function Turns({
-  turns,
-  shownAs,
+/** "Answered by SSJ on 27 Oct 2026, 13:04.", or nothing when no question was answered. */
+function answeredBy(trace: SessionTraceResponse, typedName: string | null): string | undefined {
+  const first = trace.turns.find((t) => t.answer !== null)
+  if (!first) return undefined
+  return `Answered by ${personLabel(first.actor, typedName)} on ${formatInstant(first.answeredAt)}.`
+}
+
+// --- 1. the reference ---------------------------------------------------------
+
+function ReferenceBox({
+  trace,
+  reference,
 }: {
-  turns: ApiTurn[]
-  shownAs?: { sessionId: string; text: string }
+  trace: SessionTraceResponse
+  reference: ReturnType<typeof referenceInstruction>
 }) {
-  if (turns.length === 0) {
+  const outcome = sessionOutcome(trace, new Set(wentAheadSessionIds(trace.justifications)))
+  const requestId = reference.kind === "request" ? reference.value : null
+  return (
+    <section
+      aria-label={reference.title}
+      className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
+    >
+      <div className="flex flex-col justify-center gap-0.5 border-b border-dashed border-border px-5 py-4 sm:border-r sm:border-b-0">
+        <span className="text-sm text-muted-foreground">{reference.title}</span>
+        <span className="text-sm font-semibold text-foreground">Type this in SAP</span>
+      </div>
+      <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-foreground select-all">
+            {reference.value}
+          </span>
+          <span className="max-w-2xl text-sm text-muted-foreground">{reference.instruction}</span>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+            <OutcomeChip outcome={outcome} />
+            <span>Issued {formatInstant(trace.issuedAt)}</span>
+            {requestId && reference.line && (
+              <span>
+                This session is line{" "}
+                <Link
+                  href={`/assistant/requests/${requestId}`}
+                  className="font-mono font-semibold text-action underline-offset-4 hover:underline"
+                  title="Open the request this line belongs to"
+                >
+                  {reference.line}
+                </Link>
+              </span>
+            )}
+            {/* Reported, never enforced: the reservation is already in SAP. */}
+            <span>
+              {trace.expired
+                ? "Past its validity window, still worth quoting"
+                : `Valid until ${formatInstant(trace.expiresAt)}`}
+            </span>
+          </span>
+        </div>
+        <CopyReferenceButton value={reference.value} hint={reference.instruction} />
+      </div>
+    </section>
+  )
+}
+
+// --- 2. the summary -----------------------------------------------------------
+
+function Summary({ trace }: { trace: SessionTraceResponse }) {
+  const decision = sessionDecision(trace)
+  const declared = trace.flow === "i08" ? declaredState(trace) : null
+  return (
+    <section aria-label="Summary" className="overflow-hidden rounded-xl border border-border bg-card">
+      <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+        <Fact label="Material">
+          <span className="flex flex-col">
+            {trace.materialDescription && (
+              <span className="font-semibold text-foreground">{trace.materialDescription}</span>
+            )}
+            <span className={cn("font-mono", trace.materialDescription ? "text-xs text-muted-foreground" : "font-semibold")}>
+              {trace.materialId}
+            </span>
+          </span>
+        </Fact>
+        <Fact label="Plant">{sapPlantLabel(trace.plant)}</Fact>
+        <Fact label="Requester">
+          {/* A session opened from SAP carries no name: say so rather than leave a blank. */}
+          {trace.requestedFor ?? <span className="text-muted-foreground">Not stated</span>}
+        </Fact>
+        <Fact label="Department">
+          {trace.department ? (
+            departmentText(trace.department, trace.departmentName)
+          ) : (
+            <span className="text-muted-foreground">Not stated</span>
+          )}
+          {trace.departmentNote && (
+            <span className="block text-xs font-normal text-muted-foreground">{trace.departmentNote}</span>
+          )}
+        </Fact>
+        <Fact label="Decision">
+          <TonePill tone={decision.tone}>{decision.text}</TonePill>
+        </Fact>
+        {declared && (
+          <Fact label="Faulty unit declared">
+            <span className={cn(declared.state !== "yes" && "text-muted-foreground")}>{declared.text}</span>
+          </Fact>
+        )}
+        {/* Older sessions carry the quantity the entry point used to ask for. */}
+        {trace.requestedQuantity !== null && (
+          <Fact label="Quantity asked for">{formatQuantity(trace.requestedQuantity)}</Fact>
+        )}
+      </dl>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border bg-muted/30 px-5 py-2.5 text-xs text-muted-foreground">
+        <Chip tone={trace.flow === "i13" ? "muted" : "warn"}>{flowLabel(trace.flow)}</Chip>
+        <span>{readableText(trace.routingReason)}</span>
+        <span aria-hidden>·</span>
+        <span>Opened from {trace.origin === "BADI" ? "SAP" : "the platform"}</span>
+      </p>
+    </section>
+  )
+}
+
+// --- 3. what the assistant showed (I08) ---------------------------------------
+
+function I08Shown({ facts }: { facts: unknown }) {
+  const headline = factsHeadline(facts)
+  const figures = i08ShownFigures(facts)
+  const repairs = i08RepairRows(facts)
+  const requests = i08RequestRows(facts)
+  const needDate = needDateAdviceOf(facts)
+  const caveats = factsCaveats(facts)
+  return (
+    <article className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      {headline && <p className="text-sm text-foreground">{readableText(headline)}</p>}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {figures.map((figure) => (
+          <Figure key={figure.key} figure={figure} />
+        ))}
+      </dl>
+      {needDate && (
+        <p className="flex items-start gap-2 rounded-lg border border-action/25 bg-action/5 px-3 py-2.5 text-sm text-foreground">
+          <Info className="mt-0.5 size-4 shrink-0 text-action" aria-hidden />
+          {readableText(needDate)}
+        </p>
+      )}
+      {repairs.length > 0 && (
+        <ShownList
+          title="Open repair POs"
+          columns={["Repair PO", "Vendor", "Quantity", "Due back", ""]}
+          rows={repairs.map((r) => ({
+            key: r.key,
+            cells: [
+              <span key="ref" className="font-mono font-semibold text-foreground">
+                {r.reference}
+              </span>,
+              r.vendor,
+              r.quantity,
+              r.due,
+              r.late ? (
+                <Chip key="late" tone="bad">
+                  {r.late}
+                </Chip>
+              ) : (
+                ""
+              ),
+            ],
+          }))}
+        />
+      )}
+      {requests.length > 0 && (
+        <ShownList
+          title="Repairs requested, no PO yet"
+          columns={["Request", "Department", "Quantity", "Requested"]}
+          rows={requests.map((r) => ({
+            key: r.key,
+            cells: [
+              <span key="ref" className="font-mono font-semibold text-foreground">
+                {r.reference}
+              </span>,
+              r.department,
+              r.quantity,
+              r.age,
+            ],
+          }))}
+        />
+      )}
+      {caveats.length > 0 && (
+        <ul className="flex flex-col gap-1 border-t border-border pt-3">
+          {caveats.map((caveat) => (
+            <li key={caveat} className="text-xs text-muted-foreground">
+              {readableText(caveat)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  )
+}
+
+function Figure({ figure }: { figure: ShownFigure }) {
+  const warn = figure.tone === "warning"
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1 rounded-lg border p-3",
+        warn ? "border-warning/40 bg-warning/5" : "border-border bg-muted/30"
+      )}
+    >
+      <dt className="text-xs text-muted-foreground">{figure.label}</dt>
+      <dd
+        className={cn(
+          figure.value === null
+            ? "text-sm font-semibold text-muted-foreground"
+            : "text-2xl leading-tight font-semibold tracking-tight text-foreground tabular-nums"
+        )}
+      >
+        {figure.value ?? figure.empty}
+      </dd>
+      {figure.note && (
+        <span className={cn("text-xs", warn ? "font-medium text-warning" : "text-muted-foreground")}>{figure.note}</span>
+      )}
+    </div>
+  )
+}
+
+function ShownList({
+  title,
+  columns,
+  rows,
+}: {
+  title: string
+  columns: string[]
+  rows: { key: string; cells: React.ReactNode[] }[]
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h3 className="text-sm font-semibold text-foreground">
+        {title} <span className="font-normal text-muted-foreground">({rows.length})</span>
+      </h3>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+            <tr>
+              {columns.map((column, i) => (
+                <th key={`${column}-${i}`} scope="col" className="px-3 py-2 font-semibold whitespace-nowrap">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((row) => (
+              <tr key={row.key}>
+                {row.cells.map((cell, i) => (
+                  <td key={i} className="px-3 py-2 align-top text-foreground">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// --- 4. what was decided --------------------------------------------------------
+
+function Conversation({ pairs }: { pairs: ReadableTurn[] }) {
+  if (pairs.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        The assistant was opened and the advice was served, but nothing was
-        answered. That is recorded too — &ldquo;advice given, not acted
-        on&rdquo; is a thing both initiatives count.
+      <p className="rounded-xl border border-dashed border-border bg-card px-5 py-4 text-sm text-muted-foreground">
+        The advice was shown, but nothing was answered. That is recorded too: it counts as advice given, not acted on.
       </p>
     )
   }
-
+  const asked = pairs.filter((p) => !p.closing)
+  const closing = pairs.find((p) => p.closing && p.question)
   return (
-    <ol className="flex flex-col gap-4 rounded-2xl border border-border bg-muted/20 p-4">
-      {turns.map((turn, index) => (
-        <li
-          key={`${turn.sequence}-${turn.stepId}`}
-          className="animate-ai-message-in flex flex-col gap-2"
-          style={{ animationDelay: `${index * 60}ms` }}
-        >
-          <div className="flex gap-2.5">
-            <AiOrb size="sm" className="mt-0.5 hidden sm:inline-flex" />
-            <p className="w-fit max-w-[90%] rounded-2xl rounded-tl-md border border-border bg-card px-3.5 py-2.5 text-sm whitespace-pre-line text-foreground shadow-sm">
-              {shownAs ? turn.question.replaceAll(shownAs.sessionId, shownAs.text) : turn.question}
-            </p>
-          </div>
-          {turn.answer === null ? (
-            <p className="pl-0 text-xs text-muted-foreground italic sm:pl-9">
-              No answer — this was the closing message.
-            </p>
-          ) : (
-            <div className="flex items-end justify-end gap-2">
-              <p className="ai-gradient max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-sm text-white shadow-sm shadow-ai-2/20">
-                <span className="font-semibold">Answered: </span>
-                {summariseAnswer(turn.answer)}
-              </p>
-              <span
-                aria-hidden
-                className="hidden size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border sm:inline-flex"
-              >
-                <UserRound className="size-3" />
-              </span>
-            </div>
-          )}
-          <p
-            className={cn(
-              "text-[11px] text-muted-foreground",
-              turn.answer === null ? "sm:pl-9" : "text-right sm:pr-8"
-            )}
-          >
-            {turn.actor} · {formatInstant(turn.answeredAt)}
-          </p>
+    <ol className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+      {asked.map((pair) => (
+        <li key={pair.key} className="grid gap-1.5 px-5 py-3.5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-6">
+          <p className="text-sm text-muted-foreground">{pair.question}</p>
+          <Answer answer={pair.answer} />
         </li>
       ))}
+      {closing && (
+        <li className="flex flex-col gap-1 bg-muted/30 px-5 py-3.5">
+          <p className="text-xs font-semibold text-muted-foreground">The assistant closed with</p>
+          <p className="text-sm whitespace-pre-line text-foreground">{closing.question}</p>
+        </li>
+      )}
     </ol>
   )
 }
 
-function PlanCard({ plan }: { plan: ApiPlan }) {
+function Answer({ answer }: { answer: ReadableTurn["answer"] }) {
+  if (answer === null) return <p className="text-sm text-muted-foreground italic">Not answered</p>
+  if (answer.kind === "choice") return <p className="text-sm font-semibold text-foreground">{answer.text}</p>
+  if (answer.rows.length === 0) return <p className="text-sm text-muted-foreground italic">Submitted empty</p>
   return (
-    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <AiIconBadge>
-        <ClipboardList className="size-4" />
-      </AiIconBadge>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-sm font-medium text-foreground">{plan.purpose}</p>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-          <Field label="Planned quantity" value={plan.plannedQuantity} />
-          <Field
-            label="Expected use"
-            value={formatWindow(plan.windowStart, plan.windowEnd)}
-            nullNote="no window given"
-          />
-        </dl>
-        <p className="text-[11px] text-muted-foreground">
-          {planStatusLabel(plan.status)} · captured by {plan.capturedBy} ·{" "}
-          {formatInstant(plan.capturedAt)}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function SuggestionCard({
-  suggestion,
-}: {
-  suggestion: ApiQuantitySuggestion
-}) {
-  return (
-    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <AiIconBadge>
-        <Calculator className="size-4" />
-      </AiIconBadge>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-sm font-medium text-foreground">{suggestion.suggestionReason}</p>
-
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Field label="Asked for" value={suggestion.requestedQuantity} />
-          <Field
-            label="Suggested"
-            value={suggestion.suggestedQuantity}
-            // Null is NOT zero here: "we suggest nothing" and "we suggest none"
-            // are opposite instructions.
-            nullNote="no suggestion made"
-          />
-          <Field label="Recorded as" value={suggestion.acceptedQuantity} />
-          <Field
-            label="Months of cover"
-            value={suggestion.monthsOfCover}
-            nullNote="not computable"
-          />
-        </dl>
-
-        {suggestion.isOverride && (
-          <p className="w-fit rounded-full bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning">
-            The requester kept their own quantity.
-          </p>
-        )}
-
-        {/* The three parameters behind the number are all ours and none is
-            confirmed by VZI, so they travel with every suggestion. A figure that
-            carries its own assumptions can be argued with; one that does not can
-            only be disbelieved. */}
-        <p className="text-[11px] text-muted-foreground">
-          Computed against a {suggestion.coverCeilingMonths}-month cover ceiling,
-          a {suggestion.lookbackMonths}-month look-back and a minimum of{" "}
-          {suggestion.minHistoryConsumptions} consumptions —{" "}
-          {suggestion.consumptionCount} found. All three are configuration and
-          none is confirmed by VZI yet.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function JustificationCard({
-  justification,
-}: {
-  justification: ApiJustification
-}) {
-  return (
-    <div className="flex gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <AiIconBadge>
-        <MessageSquareQuote className="size-4" />
-      </AiIconBadge>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-ai-2/10 px-2 py-0.5 text-[11px] font-medium text-ai-2">
-            {justification.kind.replace(/_/g, " ").toLowerCase()}
-          </span>
-          <span className="text-sm font-medium text-foreground">
-            {justification.reasonCategory.replace(/_/g, " ")}
-          </span>
+    <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-4 gap-y-1 text-sm">
+      {answer.rows.map((row) => (
+        <div key={row.label} className="contents">
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="font-semibold break-words text-foreground">{row.value}</dd>
         </div>
-        <blockquote className="border-l-2 border-ai-2/40 pl-3 text-sm text-foreground italic">
-          {justification.freeText}
-        </blockquote>
-        <p className="text-[11px] text-muted-foreground">
-          {justification.author} · {formatInstant(justification.recordedAt)}
-        </p>
-      </div>
-    </div>
+      ))}
+    </dl>
   )
 }
 
-function Linkage({
-  note,
-  sessionId,
-  requestId,
-  flow,
-  linked,
-}: {
-  note: string
-  sessionId: string
-  requestId: string | null
-  flow: string
-  linked: ApiLinkedReservation[]
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-ai-2/30 bg-ai-2/[0.03] p-4">
-      <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <Link2 className="size-4 text-ai-2" aria-hidden />
-        Link to the reservation
-      </h2>
-      <p className="text-sm text-muted-foreground">{note}</p>
-      {linked.length > 0 ? (
-        <ul className="flex flex-col gap-1.5">
-          {linked.map((l) => (
-            <li key={`${l.reservationNumber}/${l.reservationItem}`} className="flex flex-wrap items-center gap-2 text-sm">
-              {/* The ledger lists OAR materials only: a repairable's reservation
-                  would open an empty page, so it is shown, not linked. */}
-              {flow === "i13" ? (
-                <Link
-                  href={linkedReservationsHref({ flow, sessionId })}
-                  className="font-mono text-primary underline-offset-4 hover:underline"
-                >
-                  {l.reservationNumber}/{l.reservationItem}
-                </Link>
-              ) : (
-                <span className="font-mono text-foreground">
-                  {l.reservationNumber}/{l.reservationItem}
-                </span>
-              )}
-              <span className="text-xs text-muted-foreground">
-                item text &ldquo;{l.sgtxt ?? ""}&rdquo;
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">
-          The link is read from the reservation&rsquo;s item text (SGTXT) in the loaded SAP
-          extract. Until a reservation carrying{" "}
-          {requestId ? (
-            <>
-              request <span className="font-mono">{requestId}</span> for this material
-            </>
-          ) : (
-            <>this session&rsquo;s ID</>
-          )}{" "}
-          is loaded, this session
-          stands on its own: it records what the planner was told and what they decided.
-        </p>
-      )}
-      <UatReservationTools sessionId={sessionId} sapText={requestId ?? undefined} />
-    </div>
-  )
-}
-
-// --- pieces -----------------------------------------------------------------
-
-function Section({
+function RecordCard({
   title,
-  note,
+  badge,
+  edge,
   children,
+  footer,
 }: {
   title: string
-  note?: string
+  badge?: React.ReactNode
+  edge: "warning" | "action" | "muted"
   children: React.ReactNode
+  footer: string
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2>
-        <AiEyebrow>{title}</AiEyebrow>
-      </h2>
-      {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
+    <article
+      className={cn(
+        "relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-card py-4 pr-5 pl-6",
+        "before:absolute before:inset-y-0 before:left-0 before:w-1",
+        edge === "warning" && "before:bg-warning",
+        edge === "action" && "before:bg-action",
+        edge === "muted" && "before:bg-muted-foreground/40"
+      )}
+    >
+      <header className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {badge}
+      </header>
+      {children}
+      <p className="text-xs text-muted-foreground">{footer}</p>
+    </article>
+  )
+}
+
+function ReasonCard({ reason }: { reason: ReasonView }) {
+  return (
+    <RecordCard
+      title="Reason recorded"
+      edge="warning"
+      badge={<Chip tone="warn">{reason.reason}</Chip>}
+      footer={`${reason.heading} · by ${reason.by} · ${formatInstant(reason.recordedAt)}`}
+    >
+      <blockquote className="border-l-2 border-border pl-3 text-sm whitespace-pre-line text-foreground">
+        {reason.text}
+      </blockquote>
+    </RecordCard>
+  )
+}
+
+function DeclarationCard({ declaration: d }: { declaration: DeclarationView }) {
+  return (
+    <RecordCard
+      title="Declaration recorded"
+      edge="action"
+      badge={<Chip tone={d.assessment === "Repairable" ? "ready" : "muted"}>{d.assessment}</Chip>}
+      footer={d.recordedAt ? `Recorded ${formatInstant(d.recordedAt)}` : "Recorded in this visit"}
+    >
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        <Fact label="Condition" wide>
+          {d.condition || <span className="text-muted-foreground">Not described</span>}
+        </Fact>
+        <Fact label="Fault">{d.fault}</Fact>
+        <Fact label="Quantity">{d.quantity}</Fact>
+        <Fact label="Typed name">{d.name}</Fact>
+        <Fact label="Evidence">{d.evidence ?? <span className="text-muted-foreground">None given</span>}</Fact>
+        {d.repairLine && <Fact label="Repair line">{d.repairLine}</Fact>}
+      </dl>
+    </RecordCard>
+  )
+}
+
+function PlanCard({ plan, typedName }: { plan: ApiPlan; typedName: string | null }) {
+  return (
+    <RecordCard
+      title="Plan recorded"
+      edge="action"
+      badge={<Chip tone="muted">{planStatusLabel(plan.status)}</Chip>}
+      footer={`By ${personLabel(plan.capturedBy, typedName)} · ${formatInstant(plan.capturedAt)}`}
+    >
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+        <Fact label="What it is for" wide>
+          {plan.purpose}
+        </Fact>
+        <Fact label="Planned quantity">{formatQuantity(plan.plannedQuantity)}</Fact>
+        <Fact label="Expected use">
+          {formatWindow(plan.windowStart, plan.windowEnd) ?? <span className="text-muted-foreground">No window given</span>}
+        </Fact>
+      </dl>
+    </RecordCard>
+  )
+}
+
+function SuggestionCard({ suggestion: s }: { suggestion: ApiQuantitySuggestion }) {
+  return (
+    <RecordCard
+      title="Quantity suggestion"
+      edge={s.isOverride ? "warning" : "muted"}
+      badge={s.isOverride ? <Chip tone="warn">Kept their own quantity</Chip> : undefined}
+      // The three parameters behind the number are configuration, none confirmed
+      // by VZI, so they travel with every suggestion.
+      footer={`Worked out with a ${formatQuantity(s.coverCeilingMonths)}-month cover ceiling, a ${s.lookbackMonths}-month look-back and at least ${s.minHistoryConsumptions} consumptions (${s.consumptionCount} found). All three are settings, not yet confirmed by VZI.`}
+    >
+      <p className="text-sm text-foreground">{readableText(s.suggestionReason)}</p>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        <Fact label="Asked for">{formatQuantity(s.requestedQuantity)}</Fact>
+        <Fact label="Suggested">
+          {/* Null is not zero: "we suggest nothing" and "we suggest none" differ. */}
+          {s.suggestedQuantity === null ? (
+            <span className="text-muted-foreground">No suggestion made</span>
+          ) : (
+            formatQuantity(s.suggestedQuantity)
+          )}
+        </Fact>
+        <Fact label="Recorded as">{formatQuantity(s.acceptedQuantity)}</Fact>
+        <Fact label="Months of cover">
+          {s.monthsOfCover === null ? (
+            <span className="text-muted-foreground">Not computable</span>
+          ) : (
+            formatQuantity(s.monthsOfCover)
+          )}
+        </Fact>
+      </dl>
+    </RecordCard>
+  )
+}
+
+// --- 5. linked in SAP ---------------------------------------------------------
+
+function LinkedPanel({
+  view,
+  reference,
+  sessionId,
+}: {
+  view: ReturnType<typeof linkedInSapView>
+  reference: string
+  sessionId: string
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      {!view.linked ? (
+        <div className="flex items-start gap-3">
+          <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Link2 className="size-4" />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-sm font-semibold text-foreground">Not linked yet</p>
+            <p className="text-sm text-muted-foreground">
+              The link appears here once a SAP reservation carrying{" "}
+              <span className="font-mono font-semibold text-foreground">{reference}</span> reaches the platform.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {view.reservations.length > 0 && (
+            <ul className="flex flex-col gap-3">
+              {view.reservations.map((r) => (
+                <li key={r.key} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-xs text-muted-foreground">Reservation</span>
+                    {r.href ? (
+                      <Link href={r.href} className="font-mono text-sm font-semibold text-action underline-offset-4 hover:underline">
+                        {r.reference}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-sm font-semibold text-foreground">{r.reference}</span>
+                    )}
+                    {r.order && <span className="text-xs text-muted-foreground">Order {r.order}</span>}
+                    {r.needed && <span className="text-xs text-muted-foreground">{r.needed}</span>}
+                    {r.fromUat && (
+                      <Chip tone="muted" title="Linked through the UAT test panel, not read from SAP">
+                        UAT
+                      </Chip>
+                    )}
+                  </div>
+                  {r.issued !== null && r.returned !== null && (
+                    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                      <Fact label={JOB_LABELS.issued}>
+                        <Movements rows={r.issued} />
+                      </Fact>
+                      <Fact label={JOB_LABELS.returned} hint={JOB_LABELS.returnedNote}>
+                        <Movements rows={r.returned} />
+                      </Fact>
+                    </dl>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {view.repairs.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-muted-foreground">{JOB_LABELS.repairs}</p>
+              <ul className="flex flex-col gap-1.5">
+                {view.repairs.map((r) => (
+                  <li key={r.rowId} className="flex flex-wrap items-center gap-2 text-sm">
+                    <Link href={r.href} className="font-mono font-semibold text-action underline-offset-4 hover:underline">
+                      {r.label}
+                    </Link>
+                    <Chip tone="muted">{r.status}</Chip>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+      {/* UAT only: renders nothing unless the backend's test stand-in is on. */}
+      <UatReservationTools sessionId={sessionId} sapText={reference} />
+    </section>
+  )
+}
+
+function Movements({ rows }: { rows: JobMovementRow[] }) {
+  if (rows.length === 0) return <span className="text-muted-foreground">Not yet</span>
+  return (
+    <ul>
+      {rows.map((m, i) => (
+        <li key={`${m.date}-${i}`}>
+          {m.quantity} on {m.date}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// --- pieces -------------------------------------------------------------------
+
+function Part({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        {note && <p className="text-xs text-muted-foreground">{note}</p>}
+      </div>
       {children}
     </section>
   )
 }
 
-function Field({
+function Fact({
   label,
-  value,
-  nullNote,
-  mono,
+  hint,
+  wide,
+  children,
 }: {
   label: string
-  value: string | null
-  nullNote?: string
-  mono?: boolean
+  hint?: string
+  /** Spans the whole row of its grid. */
+  wide?: boolean
+  children: React.ReactNode
 }) {
-  const missing = value === null || value === undefined || value === ""
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-muted/40 px-3 py-2">
-      <dt className="text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+    <div className={cn("flex min-w-0 flex-col gap-0.5", wide && "sm:col-span-full")}>
+      <dt className="text-xs text-muted-foreground" title={hint}>
         {label}
       </dt>
-      <dd
-        className={cn(
-          "text-sm font-medium break-words",
-          missing ? "text-muted-foreground" : "text-foreground",
-          mono && !missing && "font-mono"
-        )}
-      >
-        {missing ? (nullNote ?? "—") : value}
-      </dd>
+      <dd className="text-sm font-medium break-words text-foreground">{children}</dd>
     </div>
   )
 }
 
-function OutcomeBadge({ outcome }: { outcome: string }) {
-  return (
-    <span
-      title="AI session status"
-      className={cn(
-        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        outcome === "COMPLETED" && "bg-success/15 text-success",
-        outcome === "OPEN" && "bg-ai-2/10 text-ai-2",
-        // Abandoned is not a failure. Somebody read the advice and stopped,
-        // which is an outcome both FRSs count -- so neutral, never red.
-        outcome === "ABANDONED" && "bg-muted text-muted-foreground"
-      )}
-    >
-      {outcome.toLowerCase()}
-    </span>
-  )
-}
-
-/** Back to the log, for a trace opened directly by reference. */
+/** Back to the log, for a session opened directly by reference. */
 export function BackToSessions() {
   return (
     <Link
       href="/assistant/sessions"
-      className="group inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-ai-2"
+      className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden />
+      <ChevronLeft aria-hidden className="size-4" />
       All sessions
     </Link>
+  )
+}
+
+/** Shown in place of the record when the backend could not be read. */
+export function SessionLoadError({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+      <div>
+        <p className="text-sm text-foreground">This session could not be loaded.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{message}</p>
+      </div>
+    </div>
   )
 }

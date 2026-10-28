@@ -129,6 +129,17 @@ export interface RepairChain {
   stockOnHand?: number
 
   /**
+   * Stock on hand split by condition (since 28-Oct-2026): usable (e.g. new
+   * and refurbished) and damaged. Undefined when the backend does not say,
+   * or does not know the split for this material: the page then shows the
+   * total alone, never a 0 it was not told.
+   */
+  usableStock?: number
+  damagedStock?: number
+  /** Whether the condition split is known here. Undefined when not said. */
+  stockConditionKnown?: boolean
+
+  /**
    * Optional, and undefined far more often than you would expect: the MARC
    * extract has rows for plant 1300 only, so **every Gamsberg material has
    * no reorder point at all**. Rendering a missing one as 0 would read as
@@ -170,6 +181,9 @@ export interface RepairChain {
   /** How that declaration was matched to the line; undefined when none
    *  covers it or the backend does not say. */
   declarationLink?: "BOUND" | "REFERENCE" | "WINDOW"
+  /** The assistant session behind that declaration, when there is one: the
+   *  repair page links to it. */
+  declarationSessionId?: string
 
   /**
    * Where this line stands against its promised date. Authoritative when
@@ -326,6 +340,9 @@ export interface RepairLineException {
   /** `MISSING_ATTESTATION`, `UNJUSTIFIED_ACQUISITION`, `OVERDUE_REPAIR`, … */
   type: string
   severity: string
+  /** Raised before the control existed (go-live): nothing to act on. The
+   *  register's badge leaves these out of its count. */
+  preAutomation: boolean
 }
 
 /**

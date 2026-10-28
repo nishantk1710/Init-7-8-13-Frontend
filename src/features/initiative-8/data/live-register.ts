@@ -184,6 +184,11 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
         { plantId: "—", name: "Unknown plant" },
 
     stockOnHand: toNumber(row.stockOnHand),
+    // The condition split, when the backend knows it (28-Oct-2026). Unknown
+    // stays undefined, never 0: the page then shows the total alone.
+    usableStock: toNumber(row.usableStock),
+    damagedStock: toNumber(row.damagedStock),
+    stockConditionKnown: orUndefined(row.stockConditionKnown),
     reorderPoint: toNumber(row.reorderPoint),
     qtyUnderRepair: toNumber(row.qtyUnderRepair) ?? 0,
 
@@ -251,6 +256,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // full timestamp; the register shows its date, the way the queue did.
     declarationId: orUndefined(row.declarationId),
     declarationLink: orUndefined(row.declarationLink),
+    declarationSessionId: orUndefined(row.declarationSessionId),
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --
@@ -283,6 +289,10 @@ export function toRegisterLine(row: ApiRepairChain): RepairChain {
       id: item.id,
       type: item.type,
       severity: item.severity,
+      // The line's own exceptions carry no flag today. The checks raise an
+      // item `info` only when it predates the control (go-live, 27-Oct-2026)
+      // and every other one as a warning or worse, so the severity says it.
+      preAutomation: item.preAutomation ?? item.severity === "info",
     })),
   }
 }

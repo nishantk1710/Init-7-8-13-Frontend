@@ -46,6 +46,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
+import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
 const REQUEST_PLANTS = ["1300", "1500"] as const
@@ -174,7 +175,7 @@ export function RequestBuilder({
   async function add(picked: Picked) {
     if (requestPlant && picked.plant !== requestPlant) {
       toast.error(`This request is for plant ${requestPlant}`, {
-        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant -- start another for ${picked.plant}.`,
+        description: `${picked.materialId} is at ${picked.plant}. One request covers one plant. Start another for ${picked.plant}.`,
       })
       return
     }
@@ -513,6 +514,7 @@ export function RequestBuilder({
             reasons={reasons}
             faultCategories={faultCategories}
             recommendations={recommendations}
+            requester={requester}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}
@@ -591,7 +593,7 @@ export function RequestBuilder({
           </span>
           {savedAt && (
             <span className="text-[11px] text-muted-foreground">
-              Draft saved {new Date(savedAt).toLocaleString("en-GB")} in this browser only.
+              Draft saved {formatInstant(savedAt)} in this browser only.
             </span>
           )}
         </div>
@@ -759,7 +761,7 @@ function AddMaterials({
       <StepHeading n={2}>Add materials</StepHeading>
       <p className="-mt-2 text-xs text-muted-foreground">
         {requestPlant
-          ? `Showing plant ${requestPlant} only -- this request is for ${requestPlant}.`
+          ? `Showing plant ${requestPlant} only: this request is for ${requestPlant}.`
           : "The first material you add sets the request's plant."}{" "}
         {full && <span className="text-warning">This request is full ({maxLines} materials).</span>}
       </p>
@@ -933,7 +935,7 @@ function JustificationApplyAll({
     <div className={cn("flex flex-wrap items-center gap-2", !embedded && "rounded-xl border border-border bg-card p-4")}>
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <select
-        aria-label={`${label} -- reason`}
+        aria-label={`${label}: reason`}
         className={cn(SELECT_CLASS, "w-48")}
         value={value.reasonCategory}
         disabled={disabled}
@@ -947,7 +949,7 @@ function JustificationApplyAll({
         ))}
       </select>
       <Input
-        aria-label={`${label} -- text`}
+        aria-label={`${label}: text`}
         value={value.freeText}
         disabled={disabled}
         onChange={(e) => setValue({ ...value, freeText: e.target.value })}

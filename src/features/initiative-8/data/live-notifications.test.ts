@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  NOTIFICATION_EMAIL_NOTE,
   exceptionItemHref,
   isNotificationView,
   loadNotificationsPage,
@@ -40,7 +41,12 @@ describe("toNotificationRow", () => {
       typeLabel: "No condition declaration",
       title: "Repair line 4500000677-20 has no condition declaration",
       material: "8000005632",
+      // An older backend sends no repair line: read off the exception id,
+      // where this check writes it. The plant's name from its code.
+      repairId: "4500000677-20",
+      repairLine: "4500000677/20",
       plant: "1300",
+      plantName: "Black Mountain",
       loggedAt: "2026-10-27T08:15:00Z",
       emailed: false,
     })
@@ -49,7 +55,35 @@ describe("toNotificationRow", () => {
   it("keeps a missing plant as null and an unknown type as its code", () => {
     const row = toNotificationRow(notification({ plant: null, type: "SOMETHING_NEW" }))
     expect(row.plant).toBeNull()
+    expect(row.plantName).toBeNull()
     expect(row.typeLabel).toBe("SOMETHING_NEW")
+  })
+
+  it("takes the repair line, description and plant name the backend sends (28-Oct-2026)", () => {
+    const row = toNotificationRow(
+      notification({
+        exceptionId: "EX-UNJUSTIFIED_ACQUISITION-PR-2000028756-10-PR-1000201234-10",
+        repairLine: "PR-2000028756-10",
+        description: "BEARING ASSEMBLY OK 16",
+        plantName: "Black Mountain Mining",
+      }),
+    )
+    expect(row).toMatchObject({
+      repairId: "PR-2000028756-10",
+      repairLine: "PR 2000028756/10",
+      description: "BEARING ASSEMBLY OK 16",
+      plantName: "Black Mountain Mining",
+    })
+  })
+
+  it("names no repair line when the backend says none, or the id does not carry one", () => {
+    expect(toNotificationRow(notification({ repairLine: null })).repairLine).toBeUndefined()
+    const declared = toNotificationRow(notification({ exceptionId: "EX-DECLARED_NO_REPAIR_PR-ATT-1", type: "DECLARED_NO_REPAIR_PR" }))
+    expect(declared.repairId).toBeUndefined()
+  })
+
+  it("says email is not sent yet without a double dash", () => {
+    expect(NOTIFICATION_EMAIL_NOTE).toBe("Email is not sent yet. This is the list it will send.")
   })
 })
 

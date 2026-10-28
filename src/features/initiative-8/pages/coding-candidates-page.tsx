@@ -30,14 +30,18 @@ export async function CodingCandidatesPage() {
 
   let candidates: CodingCandidate[] = []
   let sources: string[] = []
+  let loadedAt: number | undefined
   let loadError: string | null = null
   try {
     const live = await loadLiveCodingCandidates()
     candidates = live.candidates
     sources = live.meta.sources ?? []
+    loadedAt = live.loadedAt
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
 
-  return <CodingCandidatesTable candidates={candidates} loadError={loadError} sources={sources} />
+  return (
+    <CodingCandidatesTable candidates={candidates} loadError={loadError} sources={sources} renderedAt={loadedAt} />
+  )
 }

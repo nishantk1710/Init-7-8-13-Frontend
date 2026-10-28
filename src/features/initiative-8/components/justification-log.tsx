@@ -17,12 +17,15 @@ import { UrlSearchInput, UrlSelect, useUrlFilters, withSelected } from "@/featur
 import {
   fetchAllJustifications,
   JUSTIFICATIONS_PATH,
+  justificationAuthor,
+  justificationAuthorText,
   justificationsHref,
+  purchaseLabel,
+  type I08Justification,
   type JustificationFacets,
   type JustificationFilters,
 } from "@/features/initiative-8/data/live-justifications"
-import { actorLabel, i08DateTime, plural, reasonLabel } from "@/features/initiative-8/utils/format"
-import type { ApiJustification } from "@/lib/api/assistant"
+import { i08DateTime, plural, reasonLabel } from "@/features/initiative-8/utils/format"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { downloadExcel, formatCount } from "@/lib/utils"
 
@@ -42,6 +45,10 @@ const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
  * the page for it (`url-filters.tsx`). The descriptions are looked up for the
  * page on screen by the route, best-effort -- see `loadMaterialDescriptions`.
  *
+ * "By" names the requester typed on the session when nobody signed in, and a
+ * Purchase column says which new-buy PR or PO the reason covered, or "No
+ * purchase yet" (28-Oct-2026; see `live-justifications.ts`).
+ *
  * Its own component rather than the shared one I13 renders: I13's log merges
  * two sources in the browser, so it cannot page on the server. An audit view
  * only: nothing is changed from here.
@@ -55,8 +62,9 @@ export function I08JustificationLog({
   filters,
   facets,
   descriptions = {},
+  purchasesChecked = true,
 }: {
-  items: ApiJustification[]
+  items: I08Justification[]
   /** Matching the filters. */
   total: number
   /** Every I08 justification on record. */
@@ -67,6 +75,9 @@ export function I08JustificationLog({
   facets: JustificationFacets
   /** Material descriptions for the page, by material number. */
   descriptions?: Record<string, string>
+  /** False when the backend could not match purchases yet: the column then
+   *  says "Not checked yet", not "No purchase yet". */
+  purchasesChecked?: boolean
 }) {
   const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
@@ -80,14 +91,15 @@ export function I08JustificationLog({
       const rows = await fetchAllJustifications(filters)
       const built = await downloadExcel(
         EXPORT_FILENAME,
-        ["Recorded At", "Material", "Plant", "Reason", "Note", "Recorded By", "Session", "Exception"],
+        ["Recorded At", "Material", "Plant", "Reason", "Note", "Recorded By", "Purchase", "Session", "Exception"],
         rows.map((entry) => [
           i08DateTime(entry.recordedAt, ""),
           entry.materialId,
           sapPlantName(entry.plant),
           reasonLabel(entry.reasonCategory),
           entry.freeText,
-          actorLabel(entry.author),
+          justificationAuthorText(entry),
+          purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? "",
           entry.sessionId ?? "",
           entry.exceptionId ?? "",
         ]),
@@ -200,9 +212,9 @@ export function I08JustificationLog({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[960px]">
+            <StickyScrollTable tableClassName="table-fixed min-w-[1040px]">
               <colgroup>
-                {[15, 21, 12, 14, 16, 11, 11].map((width, index) => (
+                {[14, 19, 10, 12, 13, 10, 12, 10].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -214,49 +226,75 @@ export function I08JustificationLog({
                   <Head>Reason</Head>
                   <Head>Note</Head>
                   <Head>By</Head>
+                  <Head>Purchase</Head>
                   <Head>Session</Head>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((entry) => (
-                  <TableRow key={entry.id} data-i08-row className="align-top">
-                    <Cell className="tabular-nums">{i08DateTime(entry.recordedAt)}</Cell>
-                    <Cell frozen>
-                      <MaterialCell code={entry.materialId} description={descriptions[entry.materialId]} />
-                    </Cell>
-                    <Cell wrap>{sapPlantName(entry.plant)}</Cell>
-                    <Cell wrap>{reasonLabel(entry.reasonCategory)}</Cell>
-                    <Cell wrap>
-                      {/* The part a person actually reads when this is reviewed. */}
-                      <p className="line-clamp-2 text-muted-foreground" title={entry.freeText}>
-                        {entry.freeText || "—"}
-                      </p>
-                    </Cell>
-                    <Cell>
-                      <span className="block truncate" title={actorLabel(entry.author)}>
-                        <Actor actor={entry.author} />
-                      </span>
-                    </Cell>
-                    <Cell>
-                      {entry.sessionId ? (
-                        <Link
-                          href={`/assistant/sessions/${encodeURIComponent(entry.sessionId)}`}
-                          className="font-mono text-[13px] text-i08-link hover:underline"
-                          title="Open the assistant session this was recorded in"
-                        >
-                          {entry.sessionId}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                      {entry.exceptionId && (
-                        <span className="mt-0.5 block truncate font-mono text-[12px] text-muted-foreground" title={entry.exceptionId}>
-                          {entry.exceptionId}
-                        </span>
-                      )}
-                    </Cell>
-                  </TableRow>
-                ))}
+                {items.map((entry) => {
+                  const by = justificationAuthor(entry)
+                  const purchase = purchaseLabel(entry.purchase, purchasesChecked)
+                  return (
+                    <TableRow key={entry.id} data-i08-row className="align-top">
+                      <Cell className="tabular-nums">{i08DateTime(entry.recordedAt)}</Cell>
+                      <Cell frozen>
+                        <MaterialCell code={entry.materialId} description={descriptions[entry.materialId]} />
+                      </Cell>
+                      <Cell wrap>{sapPlantName(entry.plant)}</Cell>
+                      <Cell wrap>{reasonLabel(entry.reasonCategory)}</Cell>
+                      <Cell wrap>
+                        {/* The part a person actually reads when this is reviewed. */}
+                        <p className="line-clamp-2 text-muted-foreground" title={entry.freeText}>
+                          {entry.freeText || "—"}
+                        </p>
+                      </Cell>
+                      <Cell>
+                        {by ? (
+                          // The requester typed on the session when nobody signed in.
+                          <span
+                            className="block truncate"
+                            title={by === entry.author ? by : `${by}: the requester typed on the session`}
+                          >
+                            {by}
+                          </span>
+                        ) : (
+                          <span className="block truncate">
+                            <Actor actor={entry.author} />
+                          </span>
+                        )}
+                      </Cell>
+                      <Cell wrap>
+                        {purchase === undefined ? (
+                          <span className="text-muted-foreground" title="Not known on this backend">
+                            —
+                          </span>
+                        ) : entry.purchase ? (
+                          <span className="text-[13.5px]">{purchase}</span>
+                        ) : (
+                          <span className="text-[13.5px] text-muted-foreground">{purchase}</span>
+                        )}
+                      </Cell>
+                      <Cell>
+                        {entry.sessionId ? (
+                          <Link
+                            href={`/assistant/sessions/${encodeURIComponent(entry.sessionId)}`}
+                            className="font-mono text-[13px] text-i08-link hover:underline"
+                            title="Open the assistant session this was recorded in"
+                          >
+                            {entry.sessionId}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        {entry.exceptionId && (
+                          <span className="mt-0.5 block truncate font-mono text-[12px] text-muted-foreground" title={entry.exceptionId}>
+                            {entry.exceptionId}
+                          </span>
+                        )}
+                      </Cell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </StickyScrollTable>
             <div className="border-t border-border px-4 py-2.5">

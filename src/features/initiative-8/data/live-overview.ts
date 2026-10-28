@@ -41,7 +41,8 @@ import {
   type LiveRegister,
 } from "@/features/initiative-8/data/live-register"
 import { isPrOnly } from "@/features/initiative-8/utils/status"
-import type { UniverseRow } from "@/features/initiative-8/utils/overview-view"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
+import type { OpenExceptionItem, UniverseRow } from "@/features/initiative-8/utils/overview-view"
 import type { ApiDeclarationMeta, ApiUniverseItem, ApiUniverseMeta } from "@/lib/api/i8"
 import { getDeclarations, getUniverse, toNumber } from "@/lib/api/i8"
 
@@ -62,6 +63,9 @@ export function toUniverseRows(items: ApiUniverseItem[]): UniverseRow[] {
     plantName: item.plant?.name ?? "Unknown plant",
     criticality: item.criticality ?? undefined,
     stock: toNumber(item.stockOnHand),
+    // The condition split, when the backend sends it (28-Oct-2026).
+    usable: toNumber(item.usableStock),
+    damaged: toNumber(item.damagedStock),
   }))
 }
 
@@ -84,7 +88,12 @@ async function loadUniverse(): Promise<LiveUniverse> {
 }
 
 export type LiveOverview = {
+  /** PO lines only: see `withoutRepairRequests`. */
   register: LiveRegister
+  /** The repairs requested with no PO yet (PR rows), kept apart: the
+   *  process tile counts them under the filters, and the exceptions card
+   *  matches items raised on them. Empty when the backend serves none. */
+  requests: RepairChain[]
   /** Null when that source could not be read — shown as such, never as 0. */
   universe: LiveUniverse | null
   declarations: ApiDeclarationMeta | null
@@ -93,7 +102,7 @@ export type LiveOverview = {
    * exceptions" card: counted against the lines the filters keep, so the card
    * narrows with the rest. Null when the queue could not be read.
    */
-  exceptions: { repairId?: string; type: string }[] | null
+  exceptions: OpenExceptionItem[] | null
 }
 
 /**
@@ -119,8 +128,14 @@ export async function loadLiveOverview(): Promise<LiveOverview> {
       .then((body) => body.meta)
       .catch(() => null),
     fetchAllExceptions({ status: DEFAULT_EXCEPTION_STATUS })
-      .then((rows) => rows.map((row) => ({ repairId: row.repairId, type: row.type })))
+      .then((rows) => rows.map((row) => ({ repairId: row.repairId, type: row.type, plantId: row.plant?.plantId })))
       .catch(() => null),
   ])
-  return { register: withoutRepairRequests(register), universe, declarations, exceptions }
+  return {
+    register: withoutRepairRequests(register),
+    requests: register.chains.filter(isPrOnly),
+    universe,
+    declarations,
+    exceptions,
+  }
 }

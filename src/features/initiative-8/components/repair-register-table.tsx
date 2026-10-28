@@ -34,7 +34,15 @@ import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08DateTime, plantShort, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { REGISTER_CSV_HEADERS, registerRowsToCsv } from "@/features/initiative-8/utils/register-view"
 import { DECLARATION_DISPLAY } from "@/features/initiative-8/utils/declaration"
-import { NO_PO_YET, repairRequestsNote, requestedAgo } from "@/features/initiative-8/utils/repair-request"
+import {
+  NO_PO_YET,
+  REPAIR_REQUESTED_SHORT,
+  repairRequestsNote,
+  requestedAgo,
+  requestedAgoShort,
+  requesterText,
+} from "@/features/initiative-8/utils/repair-request"
+import { repairLineLabel, splitLineExceptions } from "@/features/initiative-8/utils/repair-line"
 import {
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
@@ -85,9 +93,15 @@ const OPTIONAL_COLUMNS = [
 ] as const
 type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number]["value"]
 
-/** Widths, in %, of the eight default columns: they fit a 1366px laptop. */
-const DEFAULT_WIDTHS = [22, 11, 15, 9, 13, 9, 12, 9]
-const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 7, crit: 9, pr: 11, po: 11 }
+/**
+ * Widths, in %, of the ten default columns. They fit the page at 1440px wide;
+ * on a narrower screen the table scrolls sideways under its frozen Material
+ * column rather than cut the repair line short (`DEFAULT_MIN_WIDTH`).
+ */
+const DEFAULT_WIDTHS = [14, 13, 8.5, 10, 11.5, 8.5, 11, 6, 9.5, 8]
+const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 6, crit: 8, pr: 10, po: 10 }
+const DEFAULT_MIN_WIDTH = "min-w-[1120px]"
+const WIDE_MIN_WIDTH = "min-w-[1440px]"
 
 /** Shared with the queue and the repair page; Historical reads muted. */
 const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; label: string; hint?: string }> =
@@ -99,12 +113,18 @@ const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging", "e
 /**
  * The Repair Register (FR-10) -- I08_Live_UI_Redesign_Plan.md, L2.
  *
- * One row per repair PO line SAP still has open. Eight columns by default, so
- * the table fits a 1366px laptop: it was fourteen across 2,125px, and the
- * sideways scrollbar sat under the 25th row. The material number comes first
- * and the description once (it was shown twice per row). Lateness is said
- * once, as "113 days late" under the expected date. Colour only where it asks
- * for something: "PO issued" is plain text.
+ * One row per repair PO line SAP still has open. Ten columns by default: it
+ * was fourteen across 2,125px, and the sideways scrollbar sat under the 25th
+ * row. The material number comes first and the description once (it was shown
+ * twice per row). The repair line (`4500001719/10`, or `PR 2000028756/10`)
+ * and the department that asked tell rows of the same part apart (28-Oct-2026:
+ * seven lines for one material looked identical). Lateness is said once, as
+ * "113 days late" under the expected date. Colour only where it asks for
+ * something: "PO issued" is plain text.
+ *
+ * The Exceptions badge counts what is to act on. An item raised before
+ * go-live (27-Oct-2026) needs nothing, so it is named on hover only: the
+ * badge then agrees with the exception queue, which lists those apart.
  *
  * Quick views (Overdue, Not declared, At vendor, With exceptions) sit above
  * four filters; the rest are under "More filters", and every filter that is
@@ -310,8 +330,8 @@ export function RepairRegisterTable({
           )}
           <PopoverButton label="Columns" icon={<Columns3 />} badge={columns.length || undefined} align="end">
             <p className="mb-2 text-[12.5px] text-muted-foreground">
-              Always shown: material, plant, vendor, stage, expected back, days open, declaration and
-              exceptions.
+              Always shown: material, repair line, plant, vendor, department, stage, expected back, days open,
+              declaration and exceptions.
             </p>
             {OPTIONAL_COLUMNS.map((column) => (
               <label key={column.value} className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-sm hover:bg-muted">
@@ -436,7 +456,7 @@ export function RepairRegisterTable({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName={cn("table-fixed", columns.length > 0 && "min-w-[1320px]")}>
+            <StickyScrollTable tableClassName={cn("table-fixed", columns.length > 0 ? WIDE_MIN_WIDTH : DEFAULT_MIN_WIDTH)}>
               <colgroup>
                 {widths.map((width, index) => (
                   <col key={index} style={{ width: `${((width / widthTotal) * 100).toFixed(2)}%` }} />
@@ -445,11 +465,15 @@ export function RepairRegisterTable({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <Head frozen>Material</Head>
+                  <Head>Repair line</Head>
                   <Head>Plant</Head>
                   <Head>Vendor</Head>
+                  <Head>Department</Head>
                   <Head>Stage</Head>
                   <Head>Expected back</Head>
-                  <Head right>Days open</Head>
+                  <Head right wrap>
+                    Days open
+                  </Head>
                   <Head>Declaration</Head>
                   <Head>Exceptions</Head>
                   {columns.includes("qty") && <Head right>Qty</Head>}
@@ -466,6 +490,8 @@ export function RepairRegisterTable({
                   const declaration = DECLARATION[c.declarationStatus] ?? { tone: "warn" as const, label: c.declarationStatus }
                   // A repair requested with no PO yet: no vendor and no date.
                   const requested = isPrOnly(c)
+                  const department = requesterText(c)
+                  const raised = c.exceptions ? splitLineExceptions(c.exceptions) : undefined
                   return (
                     <TableRow
                       key={c.id}
@@ -491,6 +517,14 @@ export function RepairRegisterTable({
                           }
                         />
                       </Cell>
+                      <Cell>
+                        <span
+                          className="font-mono text-[12.5px] whitespace-nowrap"
+                          title={requested ? "Repair requested on this PR, no PO yet" : "Repair PO and item"}
+                        >
+                          {repairLineLabel(c)}
+                        </span>
+                      </Cell>
                       <Cell wrap>
                         <span title={c.plant.name}>{plantShort(c.plant.name)}</span>
                       </Cell>
@@ -505,13 +539,30 @@ export function RepairRegisterTable({
                           </span>
                         )}
                       </Cell>
-                      <Cell>{stageLabel(c.repairStatus)}</Cell>
+                      <Cell wrap>
+                        {/* Who asked: the department code, with its name when the
+                            department list knows it. */}
+                        {department ? (
+                          <span className="line-clamp-2 text-[13px] leading-snug" title={department}>
+                            {department}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </Cell>
                       <Cell>
                         {requested ? (
-                          <div className="flex flex-col gap-0.5 leading-snug">
+                          <span title={stageLabel(c.repairStatus)}>{REPAIR_REQUESTED_SHORT}</span>
+                        ) : (
+                          stageLabel(c.repairStatus)
+                        )}
+                      </Cell>
+                      <Cell>
+                        {requested ? (
+                          <div className="flex flex-col gap-0.5 leading-snug" title={`Repair ${requestedAgo(c.daysOpen)}`}>
                             <span className="text-muted-foreground">{NO_PO_YET}</span>
                             <StatusDot tone="muted" small>
-                              {requestedAgo(c.daysOpen)}
+                              {requestedAgoShort(c.daysOpen)}
                             </StatusDot>
                           </div>
                         ) : (
@@ -534,7 +585,7 @@ export function RepairRegisterTable({
                         )}
                       </Cell>
                       <Cell right>{formatCount(c.daysOpen)}</Cell>
-                      <Cell>
+                      <Cell wrap>
                         {/* A repair request is declared on its PR since 27-Oct-2026,
                             so it shows its status like a PO line. */}
                         <span
@@ -544,26 +595,35 @@ export function RepairRegisterTable({
                               : declaration.hint
                           }
                         >
-                          <StatusDot tone={declaration.tone}>{declaration.label}</StatusDot>
+                          <StatusDot tone={declaration.tone} wrap>
+                            {declaration.label}
+                          </StatusDot>
                         </span>
                       </Cell>
                       <Cell>
-                        {c.exceptions === undefined ? (
+                        {raised === undefined ? (
                           <span className="text-[12.5px] text-muted-foreground" title="The checks were not read for this line, so its findings are unknown.">
                             Not checked
                           </span>
-                        ) : c.exceptions.length === 0 ? (
-                          <span className="text-muted-foreground">—</span>
+                        ) : raised.toAct.length === 0 ? (
+                          <span className="text-muted-foreground" title={earlierNote(raised.earlier)}>
+                            —
+                          </span>
                         ) : (
                           <Link
                             href={exceptionsHref({ status: DEFAULT_EXCEPTION_STATUS, repair: c.id })}
-                            title={c.exceptions.map((e) => exceptionTypeLabel(e.type)).join(" · ")}
-                            aria-label={`${plural(c.exceptions.length, "exception")}: ${c.exceptions
+                            title={[
+                              raised.toAct.map((e) => exceptionTypeLabel(e.type)).join(" · "),
+                              earlierNote(raised.earlier),
+                            ]
+                              .filter(Boolean)
+                              .join(". ")}
+                            aria-label={`${plural(raised.toAct.length, "exception")} to act on: ${raised.toAct
                               .map((e) => exceptionTypeLabel(e.type))
                               .join(", ")}`}
                             className="inline-grid h-[22px] min-w-[26px] place-items-center rounded-full border border-i08-warn-border bg-i08-warn-tint px-2 text-[12.5px] font-semibold text-i08-warn-ink transition-[filter] hover:brightness-95"
                           >
-                            {c.exceptions.length}
+                            {raised.toAct.length}
                           </Link>
                         )}
                       </Cell>
@@ -621,6 +681,18 @@ export function RepairRegisterTable({
       </ResultsCard>
     </I08Page>
   )
+}
+
+/**
+ * What a badge says on hover about the items raised before go-live, which it
+ * does not count: "Also 1 raised before go-live, no action needed: No
+ * condition declaration". Undefined when there are none.
+ */
+function earlierNote(earlier: { type: string }[]): string | undefined {
+  if (earlier.length === 0) return undefined
+  return `Also ${formatCount(earlier.length)} raised before go-live, no action needed: ${earlier
+    .map((e) => exceptionTypeLabel(e.type))
+    .join(", ")}`
 }
 
 /** Keeps the extra columns on when moving between pages. */

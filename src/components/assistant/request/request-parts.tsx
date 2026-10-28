@@ -80,14 +80,14 @@ export function JustificationFields({
   reasons: readonly ApiReasonCategory[]
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
+    <div className="@container flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
       <span className="text-xs font-medium text-foreground">{prompt}</span>
       {note && <span className="text-[11px] text-muted-foreground">{note}</span>}
-      <div className="grid gap-2 sm:grid-cols-[14rem_1fr]">
+      <div className="grid gap-2 @xl:grid-cols-[14rem_minmax(0,1fr)]">
         <label htmlFor={`${idPrefix}-reason`} className="text-[11px] font-medium text-muted-foreground">
           Reason <RequiredMark />
         </label>
-        <label htmlFor={`${idPrefix}-text`} className="hidden text-[11px] font-medium text-muted-foreground sm:block">
+        <label htmlFor={`${idPrefix}-text`} className="hidden text-[11px] font-medium text-muted-foreground @xl:block">
           In your own words <RequiredMark />
         </label>
         <select
@@ -106,7 +106,7 @@ export function JustificationFields({
             </option>
           ))}
         </select>
-        <label htmlFor={`${idPrefix}-text`} className="text-[11px] font-medium text-muted-foreground sm:hidden">
+        <label htmlFor={`${idPrefix}-text`} className="text-[11px] font-medium text-muted-foreground @xl:hidden">
           In your own words <RequiredMark />
         </label>
         <Textarea
@@ -114,7 +114,7 @@ export function JustificationFields({
           aria-label="In your own words"
           aria-required
           rows={1}
-          placeholder="In your own words -- the part a reviewer actually reads"
+          placeholder="In your own words: the part a reviewer actually reads"
           value={value.freeText}
           aria-invalid={showErrors && !value.freeText.trim()}
           onChange={(e) => onChange({ ...value, freeText: e.target.value })}
