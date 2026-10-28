@@ -92,6 +92,10 @@ export function toCodingCandidate(row: ApiCodingCandidateItem): CodingCandidate 
 export type LiveCodingCandidates = {
   candidates: CodingCandidate[]
   meta: ApiCodingCandidateMeta
+  /** When the list was read (epoch ms): what "Screened 15 days ago" counts
+   *  to, read once on the server so the server's text and the browser's
+   *  agree. */
+  loadedAt: number
 }
 
 /**
@@ -110,5 +114,5 @@ export async function loadLiveCodingCandidates(
   query: CodingCandidatesQuery = {},
 ): Promise<LiveCodingCandidates> {
   const body = await getCodingCandidates(query)
-  return { candidates: body.items.map(toCodingCandidate), meta: body.meta }
+  return { candidates: body.items.map(toCodingCandidate), meta: body.meta, loadedAt: Date.now() }
 }
