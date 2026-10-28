@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { repairLineFromId, repairLineLabel, splitLineExceptions } from "@/features/initiative-8/utils/repair-line"
+import {
+  lineExceptionState,
+  repairLineFromId,
+  repairLineLabel,
+  splitLineExceptions,
+} from "@/features/initiative-8/utils/repair-line"
 import { requestedAgoShort } from "@/features/initiative-8/utils/repair-request"
 
 /**
@@ -71,5 +76,17 @@ describe("requestedAgoShort", () => {
     expect(requestedAgoShort(1500)).toBe("1,500 d ago")
     expect(requestedAgoShort(0)).toBe("today")
     expect(requestedAgoShort(-3)).toBe("today")
+  })
+})
+
+describe("lineExceptionState", () => {
+  it("says an item raised before go-live needs nothing, whatever its status", () => {
+    expect(lineExceptionState({ preAutomation: true, status: "OPEN" })).toBe("Raised before go-live · no action needed")
+  })
+
+  it("names the owner of open work, and says closed", () => {
+    expect(lineExceptionState({ preAutomation: false, status: "OPEN" })).toBe("Open · unassigned")
+    expect(lineExceptionState({ preAutomation: false, status: "OPEN", owner: "Thandi" })).toBe("Open · Thandi")
+    expect(lineExceptionState({ preAutomation: false, status: "CLOSED" })).toBe("Closed")
   })
 })

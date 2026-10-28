@@ -1,4 +1,4 @@
-import type { RepairChain, RepairLineException } from "@/features/initiative-8/types/repair"
+import type { ExceptionQueueRow, RepairChain, RepairLineException } from "@/features/initiative-8/types/repair"
 import { isPrOnly } from "@/features/initiative-8/utils/status"
 
 /**
@@ -51,4 +51,14 @@ export function splitLineExceptions(exceptions: RepairLineException[]): {
     toAct: exceptions.filter((item) => !item.preAutomation),
     earlier: exceptions.filter((item) => item.preAutomation),
   }
+}
+
+/**
+ * Where an item on a repair page stands. One raised before go-live is
+ * nobody's work, so it says so rather than "Open · unassigned".
+ */
+export function lineExceptionState(item: Pick<ExceptionQueueRow, "preAutomation" | "status" | "owner">): string {
+  if (item.preAutomation) return "Raised before go-live · no action needed"
+  if (item.status !== "OPEN") return "Closed"
+  return item.owner ? `Open · ${item.owner}` : "Open · unassigned"
 }
