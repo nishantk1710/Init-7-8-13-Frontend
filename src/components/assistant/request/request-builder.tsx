@@ -120,9 +120,14 @@ function newDraftKey(): string {
 export function RequestBuilder({
   entry = null,
   draftId = null,
+  completeFlow,
 }: {
   entry?: RequestEntry | null
   draftId?: string | null
+  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
+   *  Off: no declaring the faulty unit with the request, and no note on
+   *  what a reason does. */
+  completeFlow: boolean
 }) {
   const router = useRouter()
   const [origin, setOrigin] = useState<"BADI" | "PLATFORM">(entry?.origin === "BADI" ? "BADI" : "PLATFORM")
@@ -512,9 +517,12 @@ export function RequestBuilder({
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
-            faultCategories={faultCategories}
+            // Off, the backend sends no categories and refuses a declaration;
+            // none here keeps the section away even if one arrives.
+            faultCategories={completeFlow ? faultCategories : []}
             recommendations={recommendations}
             requester={requester}
+            completeFlow={completeFlow}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}

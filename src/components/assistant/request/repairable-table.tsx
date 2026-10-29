@@ -55,6 +55,7 @@ export function RepairableTable({
   faultCategories = [],
   recommendations = [],
   requester = "",
+  completeFlow,
   refusedKey,
   onChange,
   onRemove,
@@ -68,6 +69,9 @@ export function RepairableTable({
   recommendations?: readonly ApiReasonCategory[]
   /** The request's Requester: the declaration's typed name starts from it. */
   requester?: string
+  /** The I08 complete-flow switch (`lib/i08-features`): off hides what a
+   *  reason does, said under the justification prompt. */
+  completeFlow: boolean
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -84,6 +88,7 @@ export function RepairableTable({
             faultCategories={faultCategories}
             recommendations={recommendations}
             requester={requester}
+            completeFlow={completeFlow}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -103,6 +108,7 @@ function RepairableCard({
   faultCategories,
   recommendations,
   requester,
+  completeFlow,
   refused,
   onChange,
   onRemove,
@@ -114,6 +120,7 @@ function RepairableCard({
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
   requester: string
+  completeFlow: boolean
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -216,7 +223,7 @@ function RepairableCard({
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
-              note={I08_WANT_NEW_NOTE}
+              note={completeFlow ? I08_WANT_NEW_NOTE : undefined}
               value={row.justification}
               showErrors={showErrors}
               reasons={reasons}
