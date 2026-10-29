@@ -38,6 +38,7 @@ import {
   pendingLine,
   repairableNeedsJustification,
   withSuggestedWindow,
+  withoutDeclarations,
   type DraftLine,
   type Justification,
   type NoSessionLine,
@@ -244,7 +245,7 @@ export function RequestBuilder({
     setRequester(draft.requester)
     setPicked({ plant: draft.departmentPlant, code: draft.department })
     setDepartmentNote(draft.departmentNote)
-    setRows(result.rows)
+    setRows(completeFlow ? result.rows : withoutDeclarations(result.rows))
   }
 
   /** The link's material is line 1 -- unless a draft is being resumed. Once: a ref survives Strict Mode's re-run. */
