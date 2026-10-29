@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
+import {
+  issuedUnknownReason,
+  lifecycleView,
+  reservationStatusOption,
+  reservationStatusQuery,
+} from "@/features/initiative-13/utils/reservation-lifecycle"
 
 describe("lifecycleView", () => {
   it("reads as five stages in the order things happen", () => {
@@ -53,5 +58,37 @@ describe("issuedUnknownReason", () => {
       /^Not known: .*before the goods-movement history .*2023/
     )
     expect(issuedUnknownReason({ issuedBeforeHistory: true, movementHistoryStart: null })).toMatch(/^Not known: /)
+  })
+})
+
+describe("reservationStatusOption", () => {
+  it("tells the two unknown-PR statuses apart, where the pills cannot", () => {
+    expect(reservationStatusOption("PR_NOT_FOUND")).not.toBe(reservationStatusOption("PR_SHARED"))
+    expect(reservationStatusOption("RESERVED")).toBe("Reserved")
+  })
+})
+
+describe("reservationStatusQuery", () => {
+  it("asks for nothing when neither filter is set", () => {
+    expect(reservationStatusQuery()).toBeUndefined()
+    expect(reservationStatusQuery("bogus", "bogus")).toBeUndefined()
+  })
+
+  it("sends one status as it is", () => {
+    expect(reservationStatusQuery("ORDERED")).toBe("ORDERED")
+    expect(reservationStatusQuery(undefined, "FULLY_ISSUED")).toBe("ISSUED")
+  })
+
+  it("reads Not issued as every status before an issue", () => {
+    const sent = reservationStatusQuery(undefined, "NOT_ISSUED")!.split(",")
+    expect(sent).toContain("RESERVED")
+    expect(sent).toContain("RECEIVED")
+    expect(sent).not.toContain("PARTIALLY_ISSUED")
+    expect(sent).not.toContain("ISSUED")
+  })
+
+  it("keeps what both filters allow, and matches nothing when they disagree", () => {
+    expect(reservationStatusQuery("RESERVED", "NOT_ISSUED")).toBe("RESERVED")
+    expect(reservationStatusQuery("RESERVED", "FULLY_ISSUED")).toBe("NONE")
   })
 })

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TableCell } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
@@ -16,11 +18,14 @@ export function IssuedOnCell({
   lastDate,
   received,
   issueMatch,
+  lead,
 }: {
   firstDate: string | null
   lastDate: string | null
   received: boolean
   issueMatch: IssueMatch | null
+  /** Drawn above the date -- the issued quantity, where the table folds it into this cell. */
+  lead?: ReactNode
 }) {
   if (issueMatch === "BEFORE_ISSUE_HISTORY") {
     return (
@@ -32,7 +37,10 @@ export function IssuedOnCell({
   if (!lastDate) {
     return (
       <TableCell>
-        <span className="text-xs text-muted-foreground">{received ? "Not issued yet" : "Nothing received"}</span>
+        <div className="flex flex-col items-start gap-0.5">
+          {lead}
+          <span className="text-xs text-muted-foreground">{received ? "Not issued yet" : "Nothing received"}</span>
+        </div>
       </TableCell>
     )
   }
@@ -40,6 +48,7 @@ export function IssuedOnCell({
   return (
     <TableCell title={several ? `First issued ${formatApiDate(firstDate)}, latest ${formatApiDate(lastDate)}` : undefined}>
       <div className="flex flex-col items-start gap-0.5">
+        {lead}
         <span className="whitespace-nowrap text-foreground">{formatApiDate(lastDate)}</span>
         {several && (
           <span className="whitespace-nowrap text-xs text-muted-foreground">First {formatApiDate(firstDate)}</span>

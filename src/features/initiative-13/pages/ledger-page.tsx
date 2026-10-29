@@ -130,6 +130,8 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         material: searchParams.material,
         session: searchParams.session,
         reservation: searchParams.reservation,
+        reservationStatus: searchParams.reservationStatus,
+        issued: searchParams.issued,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
     )
@@ -172,7 +174,11 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
 
         <ToolbarRow>
           <ViewToggle searchParams={searchParams} active="reservations" />
-          <I13UrlFilters className="flex-1" fields={["plant", "material", "reservation"]} plants={live?.plantOptions} />
+          <I13UrlFilters
+            className="flex-1"
+            fields={["plant", "material", "reservation", "reservationStatus", "issued"]}
+            plants={live?.plantOptions}
+          />
         </ToolbarRow>
 
         {live === null ? (
