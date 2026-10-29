@@ -125,6 +125,7 @@ describe("withoutRepairRequests", () => {
       referenceDate: "2026-06-09",
       sourceLoadedAt: null,
       repairRequestsEnabled: true,
+      completeFlowEnabled: true,
     }
   }
 
