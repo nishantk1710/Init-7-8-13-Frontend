@@ -15,6 +15,7 @@ import {
   type ExceptionFilters,
 } from "@/features/initiative-8/data/live-exceptions"
 import type { ExceptionQueueRow, ExceptionQueueSummary } from "@/features/initiative-8/types/repair"
+import { CHECKS_BEFORE_COMPLETE_FLOW, exceptionTypesShown } from "@/features/initiative-8/utils/complete-flow"
 import { i08Date, plural } from "@/features/initiative-8/utils/format"
 import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
@@ -82,6 +83,7 @@ export function ExceptionsScreen({
   typeCounts,
   initialItem,
   faultCategories,
+  completeFlow,
 }: {
   rows: ExceptionQueueRow[]
   total: number
@@ -93,6 +95,10 @@ export function ExceptionsScreen({
   typeCounts?: Record<string, number>
   initialItem?: ExceptionQueueRow
   faultCategories: string[]
+  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
+   *  Off: the checks raised before it, no "Raised before go-live", no
+   *  notification log. */
+  completeFlow: boolean
 }) {
   const { push, isPending } = useUrlFilters(EXCEPTIONS_PATH)
   /** A filter change also ends a `?id=` link, which would otherwise re-open
@@ -100,13 +106,17 @@ export function ExceptionsScreen({
   const update = (patch: Record<string, string | undefined>) => push({ ...patch, id: undefined })
 
   const known: readonly string[] = ALL_CHECKS
-  const types = [
-    ...ALL_CHECKS.filter((type) => facets.types.includes(type)),
-    // A type this build has never heard of still gets a tab, and so does a
-    // stale link's, so the selected tab always exists.
-    ...facets.types.filter((type) => !known.includes(type)),
-    ...(filters.type && !facets.types.includes(filters.type) ? [filters.type] : []),
-  ]
+  const types = exceptionTypesShown(
+    [
+      ...ALL_CHECKS.filter((type) => facets.types.includes(type)),
+      // A type this build has never heard of still gets a tab, and so does a
+      // stale link's, so the selected tab always exists.
+      ...facets.types.filter((type) => !known.includes(type)),
+      ...(filters.type && !facets.types.includes(filters.type) ? [filters.type] : []),
+    ],
+    completeFlow,
+    { counts: typeCounts, selected: filters.type },
+  )
   const countOf = (type?: string) =>
     typeCounts === undefined
       ? undefined
@@ -114,18 +124,20 @@ export function ExceptionsScreen({
         ? (typeCounts[type] ?? 0)
         : Object.values(typeCounts).reduce((sum, n) => sum + n, 0)
 
-  const running = (type: string) => summary.typesRaised.includes(type)
+  // Off, only the checks from before the complete flow are explained.
+  const running = (type: string) =>
+    summary.typesRaised.includes(type) && (completeFlow || CHECKS_BEFORE_COMPLETE_FLOW.includes(type))
 
   return (
     <I08Page
       crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Exceptions" }]}
       title="Repair Exceptions"
       // FR-11's notification log, 27-Oct-2026: what email will send.
-      actions={<NotificationLogLink />}
+      actions={completeFlow ? <NotificationLogLink /> : undefined}
       summary={
         <>
           <span>{formatCount(summary.actionable)} to act on</span>
-          {summary.preAutomation > 0 && (
+          {completeFlow && summary.preAutomation > 0 && (
             <>
               <Dot />
               <span>{formatCount(summary.preAutomation)} raised before go-live</span>
@@ -195,13 +207,15 @@ export function ExceptionsScreen({
             <p>
               An item closes itself when the check stops finding it. Someone can also close it, with a note saying why.
             </p>
-            <p>
-              <strong className="font-semibold text-foreground">Raised before go-live.</strong> A repair line or
-              purchase from before the checks began
-              {summary.attestationCutoverDate ? ` on ${i08Date(summary.attestationCutoverDate)}` : ""}. Nobody was
-              asked for a declaration or a reason then, so nothing needs doing. They are listed apart, under their
-              own switch.
-            </p>
+            {completeFlow && (
+              <p>
+                <strong className="font-semibold text-foreground">Raised before go-live.</strong> A repair line or
+                purchase from before the checks began
+                {summary.attestationCutoverDate ? ` on ${i08Date(summary.attestationCutoverDate)}` : ""}. Nobody was
+                asked for a declaration or a reason then, so nothing needs doing. They are listed apart, under their
+                own switch.
+              </p>
+            )}
           </InfoPopover>
         </>
       }
@@ -243,7 +257,7 @@ export function ExceptionsScreen({
               { value: "OPEN", label: "Open" },
               { value: "CLOSED", label: "Closed" },
               { value: ALL_STATUSES, label: "All" },
-              { value: BEFORE_GO_LIVE, label: "Raised before go-live" },
+              ...(completeFlow ? [{ value: BEFORE_GO_LIVE, label: "Raised before go-live" }] : []),
             ]}
           />
         }
