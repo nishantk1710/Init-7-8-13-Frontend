@@ -238,6 +238,10 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // Undefined when the repair line carries no net price -- never 0, which
     // would render as R 0.00 and read as a free repair.
     repairCost: toNumber(row.repairCost),
+    // Passed through as sent: null (no currency on the PO) and undefined (a
+    // backend without the field) render differently -- see formatMoney.
+    repairCostCurrency: row.repairCostCurrency,
+    repairCostPlaceholder: toNumber(row.repairCostPlaceholder),
     // Undefined on 357 of 1,225 — every Gamsberg line, since the July MARC
     // extract has rows for plant 1300 only.
     newUnitLeadTimeDays: orUndefined(row.newUnitLeadTimeDays),

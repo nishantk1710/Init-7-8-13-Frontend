@@ -112,6 +112,20 @@ describe("toRepairChain", () => {
     expect(chain.repairCost).toBeUndefined()
   })
 
+  it("keeps the repair cost's currency as SAP states it", () => {
+    // A PO is priced in the vendor's currency; formatMoney tells the three apart.
+    expect(toRepairChain(apiRow({ repairCostCurrency: "USD" })).repairCostCurrency).toBe("USD")
+    expect(toRepairChain(apiRow({ repairCostCurrency: null })).repairCostCurrency).toBeNull()
+    expect(toRepairChain(apiRow()).repairCostCurrency).toBeUndefined()
+  })
+
+  it("carries a placeholder price separately from the cost", () => {
+    const chain = toRepairChain(apiRow({ repairCost: null, repairCostPlaceholder: "1.000000" }))
+    expect(chain.repairCost).toBeUndefined()
+    expect(chain.repairCostPlaceholder).toBe(1)
+    expect(toRepairChain(apiRow()).repairCostPlaceholder).toBeUndefined()
+  })
+
   it("does not accept In Transit Return, which is not an FRS stage", () => {
     // Since 27-Oct-2026 the fallback is what the row's documents prove: this
     // line has a PO, so it is at least "PO Issued" -- not "PR Raised".
