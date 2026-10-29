@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
  * backend still decides every next step; an id this map does not know simply
  * hides the strip rather than guessing.
  */
+const DECLARE_STEP_IDS = ["i08_declare_choice", "i08_declaration"]
+
 const FLOWS: { prefix: string; stages: { label: string; ids: string[] }[] }[] = [
   {
     prefix: "i08_",
@@ -17,7 +19,8 @@ const FLOWS: { prefix: string; stages: { label: string; ids: string[] }[] }[] = 
       { label: "Justify", ids: ["i08_justification"] },
       // Option B (27-Oct): the faulty unit coming out is declared in the same
       // visit. A visit with no unit to decide on skips straight to this stage.
-      { label: "Declare", ids: ["i08_declare_choice", "i08_declaration"] },
+      // Part of the I08 complete flow: shown only while it is switched on.
+      { label: "Declare", ids: DECLARE_STEP_IDS },
       { label: "Done", ids: ["i08_done"] },
     ],
   },
@@ -35,15 +38,22 @@ const FLOWS: { prefix: string; stages: { label: string; ids: string[] }[] }[] = 
 export function ConversationProgress({
   stepId,
   finished,
+  completeFlow,
   className,
 }: {
   /** Id of the most recent step in the transcript. */
   stepId: string | null
   /** True once the conversation has reached its terminal step. */
   finished: boolean
+  /** The I08 complete-flow switch (`lib/i08-features`). Off: no Declare stage. */
+  completeFlow: boolean
   className?: string
 }) {
-  const flow = stepId ? FLOWS.find((f) => stepId.startsWith(f.prefix)) : undefined
+  const known = stepId ? FLOWS.find((f) => stepId.startsWith(f.prefix)) : undefined
+  const flow = known && {
+    ...known,
+    stages: known.stages.filter((stage) => completeFlow || stage.ids !== DECLARE_STEP_IDS),
+  }
   if (!flow || !stepId) return null
   const found = flow.stages.findIndex((stage) => stage.ids.includes(stepId))
   if (found === -1) return null

@@ -305,6 +305,16 @@ export function lineIssues(line: DraftLine): string[] {
   }
 }
 
+/**
+ * Rows with any declaration closed: what a resumed draft holds while the
+ * complete-flow switch is off (29-Oct-2026). A draft saved while it was on can
+ * carry an open declaration; its section is hidden then, so the declaration
+ * could neither be finished nor removed, and the backend refuses it.
+ */
+export function withoutDeclarations(rows: readonly DraftLine[]): DraftLine[] {
+  return rows.map((row) => (row.kind === "i08" && row.declaration?.open ? { ...row, declaration: EMPTY_DECLARATION } : row))
+}
+
 export function isReady(line: DraftLine): boolean {
   return lineIssues(line).length === 0
 }

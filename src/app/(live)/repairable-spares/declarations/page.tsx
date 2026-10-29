@@ -18,6 +18,7 @@ import {
 } from "@/features/initiative-8/data/live-declarations"
 import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
 import { getAttestations, getSnapshot } from "@/lib/api/i8"
+import { completeFlowFromRules } from "@/lib/i08-features"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
@@ -75,6 +76,10 @@ export const metadata: Metadata = {
  * (I08_Live_UI_Redesign_Plan.md, L4). The counts of all three are loaded
  * either way: the tab strip shows them, and the queue's empty state says how
  * many lines are Historical and since when (the snapshot's cutover date).
+ *
+ * Historical belongs to the I08 complete flow (`lib/i08-features`): with the
+ * switch off there is no Historical tab, count or note, and `?tab=historical`
+ * reads as the queue.
  */
 export default async function I08DeclarationsPage({
   searchParams,
@@ -87,7 +92,12 @@ export default async function I08DeclarationsPage({
 
   const raw = await searchParams
   const { filters, page } = parseDeclarationParams(raw)
-  const tab = parseDeclarationTab(raw)
+
+  // The snapshot's rules, best-effort: the complete-flow switch (off when
+  // unknown) and the day declarations began.
+  const rules = getSnapshot()
+    .then((snapshot) => snapshot.rules)
+    .catch(() => undefined)
 
   let data: DeclarationsPage | null = null
   let loadError: string | null = null
@@ -98,12 +108,15 @@ export default async function I08DeclarationsPage({
     .catch(() => [] as string[])
   // Null on failure, which the log section reports as such.
   const declarationLog = loadDeclarationLog()
+  // Needed before the list: it decides which list the tab may name.
+  const completeFlow = completeFlowFromRules(await rules)
+  const parsedTab = parseDeclarationTab(raw)
+  const tab = !completeFlow && parsedTab === "historical" ? "queue" : parsedTab
   // Best-effort, both: the Historical tab's count, and the day declarations
-  // began, for the queue's empty state. Without them it says less.
-  const historicalLines = loadHistoricalLines()
-  const cutoverDate = getSnapshot()
-    .then((snapshot) => cutoverFromRules(snapshot.rules))
-    .catch(() => undefined)
+  // began, for the queue's empty state. Without them it says less. Neither
+  // with the complete flow off.
+  const historicalLines = completeFlow ? loadHistoricalLines() : Promise.resolve(null)
+  const cutoverDate = completeFlow ? rules.then(cutoverFromRules) : Promise.resolve(undefined)
   try {
     data = await loadDeclarationsPage(filters, page, { list: tab === "historical" ? "historical" : "queue" })
   } catch (error) {

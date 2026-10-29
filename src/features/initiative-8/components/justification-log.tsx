@@ -27,7 +27,7 @@ import {
 } from "@/features/initiative-8/data/live-justifications"
 import { i08DateTime, plural, reasonLabel } from "@/features/initiative-8/utils/format"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
-import { downloadExcel, formatCount } from "@/lib/utils"
+import { cn, downloadExcel, formatCount } from "@/lib/utils"
 
 const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
 
@@ -47,7 +47,9 @@ const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
  *
  * "By" names the requester typed on the session when nobody signed in, and a
  * Purchase column says which new-buy PR or PO the reason covered, or "No
- * purchase yet" (28-Oct-2026; see `live-justifications.ts`).
+ * purchase yet" (28-Oct-2026; see `live-justifications.ts`). The Purchase
+ * column is part of the I08 complete flow, shown only while it is switched on
+ * (`completeFlow`, `lib/i08-features`).
  *
  * Its own component rather than the shared one I13 renders: I13's log merges
  * two sources in the browser, so it cannot page on the server. An audit view
@@ -63,6 +65,7 @@ export function I08JustificationLog({
   facets,
   descriptions = {},
   purchasesChecked = true,
+  completeFlow,
 }: {
   items: I08Justification[]
   /** Matching the filters. */
@@ -78,6 +81,8 @@ export function I08JustificationLog({
   /** False when the backend could not match purchases yet: the column then
    *  says "Not checked yet", not "No purchase yet". */
   purchasesChecked?: boolean
+  /** The I08 complete-flow switch, read by the page. Off: no Purchase column. */
+  completeFlow: boolean
 }) {
   const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
@@ -91,7 +96,17 @@ export function I08JustificationLog({
       const rows = await fetchAllJustifications(filters)
       const built = await downloadExcel(
         EXPORT_FILENAME,
-        ["Recorded At", "Material", "Plant", "Reason", "Note", "Recorded By", "Purchase", "Session", "Exception"],
+        [
+          "Recorded At",
+          "Material",
+          "Plant",
+          "Reason",
+          "Note",
+          "Recorded By",
+          ...(completeFlow ? ["Purchase"] : []),
+          "Session",
+          "Exception",
+        ],
         rows.map((entry) => [
           i08DateTime(entry.recordedAt, ""),
           entry.materialId,
@@ -99,7 +114,7 @@ export function I08JustificationLog({
           reasonLabel(entry.reasonCategory),
           entry.freeText,
           justificationAuthorText(entry),
-          purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? "",
+          ...(completeFlow ? [purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? ""] : []),
           entry.sessionId ?? "",
           entry.exceptionId ?? "",
         ]),
@@ -212,9 +227,9 @@ export function I08JustificationLog({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[1040px]">
+            <StickyScrollTable tableClassName={cn("table-fixed", completeFlow ? "min-w-[1040px]" : "min-w-[960px]")}>
               <colgroup>
-                {[14, 19, 10, 12, 13, 10, 12, 10].map((width, index) => (
+                {(completeFlow ? [14, 19, 10, 12, 13, 10, 12, 10] : [15, 21, 12, 14, 16, 11, 11]).map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -226,7 +241,7 @@ export function I08JustificationLog({
                   <Head>Reason</Head>
                   <Head>Note</Head>
                   <Head>By</Head>
-                  <Head>Purchase</Head>
+                  {completeFlow && <Head>Purchase</Head>}
                   <Head>Session</Head>
                 </TableRow>
               </TableHeader>
@@ -263,17 +278,19 @@ export function I08JustificationLog({
                           </span>
                         )}
                       </Cell>
-                      <Cell wrap>
-                        {purchase === undefined ? (
-                          <span className="text-muted-foreground" title="Not known on this backend">
-                            —
-                          </span>
-                        ) : entry.purchase ? (
-                          <span className="text-[13.5px]">{purchase}</span>
-                        ) : (
-                          <span className="text-[13.5px] text-muted-foreground">{purchase}</span>
-                        )}
-                      </Cell>
+                      {completeFlow && (
+                        <Cell wrap>
+                          {purchase === undefined ? (
+                            <span className="text-muted-foreground" title="Not known on this backend">
+                              —
+                            </span>
+                          ) : entry.purchase ? (
+                            <span className="text-[13.5px]">{purchase}</span>
+                          ) : (
+                            <span className="text-[13.5px] text-muted-foreground">{purchase}</span>
+                          )}
+                        </Cell>
+                      )}
                       <Cell>
                         {entry.sessionId ? (
                           <Link

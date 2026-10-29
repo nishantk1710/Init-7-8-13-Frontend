@@ -74,6 +74,9 @@ export type RepairRegisterTableProps = {
   /** The backend serves repairs requested with no PO yet as rows. False on an
    *  older backend, or when its settings could not be read. */
   repairRequestsEnabled?: boolean
+  /** The I08 complete-flow switch (`lib/i08-features`). Off: no "No PO yet"
+   *  quick view. */
+  completeFlow: boolean
 }
 
 /** The repair detail page for one register line. */
@@ -155,6 +158,7 @@ export function RepairRegisterTable({
   viewCounts,
   sourceLoadedAt,
   repairRequestsEnabled = false,
+  completeFlow,
 }: RepairRegisterTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -354,7 +358,7 @@ export function RepairRegisterTable({
     >
       {viewsWork && (
         <QuickViews
-          choices={registerViewChoices(viewCounts, { repairRequestsEnabled, selected: filters.view })}
+          choices={registerViewChoices(viewCounts, { repairRequestsEnabled, selected: filters.view, completeFlow })}
           value={filters.view ?? ""}
           onSelect={(value) => push({ view: value || undefined })}
         />

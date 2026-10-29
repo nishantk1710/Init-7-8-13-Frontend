@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
 
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { RequestBuilder } from "@/components/assistant/request/request-builder"
 import { entryFromParams } from "@/lib/assistant/request/entry"
+import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "New request — Spares AI",
@@ -21,7 +23,10 @@ export default async function NewRequestPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // The complete-flow switch is read per request, never frozen at build time.
+  await connection()
   const params = await searchParams
+  const completeFlow = await loadCompleteFlowFromFeatures()
   const entry = entryFromParams(params)
   const draftId = typeof params.draft === "string" && params.draft ? params.draft : null
   return (
@@ -33,7 +38,7 @@ export default async function NewRequestPage({
           description="Add the material you need, or several. Each one is checked as it is added, and you answer only what it needs."
         />
         {/* Keyed by draft: opening another draft from this page starts a fresh builder. */}
-        <RequestBuilder key={draftId ?? "new"} entry={entry} draftId={draftId} />
+        <RequestBuilder key={draftId ?? "new"} entry={entry} draftId={draftId} completeFlow={completeFlow} />
       </div>
     </div>
   )

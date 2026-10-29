@@ -62,11 +62,15 @@ export async function RefurbishableSparesOverviewPage() {
   }
 
   const { register, requests, universe, exceptions } = live
+  // The I08 complete-flow switch, from the same snapshot the register's
+  // settings came from. Off: no repairs requested with no PO yet (neither the
+  // header note nor the "Repair requested" stage), no usable/damaged split.
+  const completeFlow = register.completeFlowEnabled
 
   return (
     <OverviewDashboard
       chains={register.chains}
-      requests={requests}
+      requests={completeFlow ? requests : []}
       agingBands={register.agingBands}
       universe={universe}
       exceptions={exceptions}
@@ -75,7 +79,11 @@ export async function RefurbishableSparesOverviewPage() {
       criticalityOptions={register.criticalityOptions}
       referenceDate={register.referenceDate}
       sourceLoadedAt={register.sourceLoadedAt}
-      repairRequestsNote={repairRequestsNote(register.repairRequestsEnabled, register.meta.openRepairRequests)}
+      repairRequestsNote={repairRequestsNote(
+        completeFlow && register.repairRequestsEnabled,
+        register.meta.openRepairRequests,
+      )}
+      completeFlow={completeFlow}
     />
   )
 }

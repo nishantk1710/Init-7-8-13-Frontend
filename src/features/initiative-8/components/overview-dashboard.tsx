@@ -59,6 +59,8 @@ export type OverviewDashboardProps = {
    *  serve them or has none. Never part of any figure: `chains` holds PO lines
    *  only (see `withoutRepairRequests`). */
   repairRequestsNote?: string
+  /** The I08 complete-flow switch, read by the page (`lib/i08-features`). */
+  completeFlow: boolean
 }
 
 /**
@@ -93,6 +95,7 @@ export function OverviewDashboard({
   referenceDate,
   sourceLoadedAt,
   repairRequestsNote,
+  completeFlow,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
   const [printedAt, setPrintedAt] = useState<string | null>(null)
@@ -181,6 +184,7 @@ export function OverviewDashboard({
     exceptions: exceptionCounts,
     linkFilters,
     vendorFiltered: filters.vendor !== ALL,
+    completeFlow,
   }
   const plants = new Set(chains.map((c) => c.plant.plantId)).size
   const loaded = sourceLoadedAt ? `SAP data loaded ${i08DateTime(sourceLoadedAt)}` : null

@@ -9,6 +9,7 @@ import { getSession } from "@/lib/api/assistant"
 import { ApiError } from "@/lib/api/client"
 import { getSessionJob, type ApiSessionJob } from "@/lib/api/i8"
 import { sessionJobView, type SessionJobView } from "@/lib/assistant/session-job"
+import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 /** No ID in the tab title: a request line's internal session ID is not
  *  something the requester ever sees or types. */
@@ -37,6 +38,9 @@ export default async function AssistantSessionPage({
   let trace: Awaited<ReturnType<typeof getSession>> | null = null
   let notFound: string | null = null
   let loadError: string | null = null
+  // Best-effort and in parallel: the I08 complete-flow switch (off on any
+  // failure). Off, the page shows no declaration and no job behind the session.
+  const completeFlowLoad = loadCompleteFlowFromFeatures()
 
   try {
     trace = await getSession(sessionId)
@@ -48,11 +52,14 @@ export default async function AssistantSessionPage({
     }
   }
 
-  // Repairable sessions only: the job behind the session, read from the
-  // reservation text. A 404 (or any failure) reads as "not linked yet": the
-  // session page must not fail because the job cannot be read.
+  const completeFlow = await completeFlowLoad
+
+  // Repairable sessions only, with the complete flow on: the job behind the
+  // session, read from the reservation text. A 404 (or any failure) reads as
+  // "not linked yet": the session page must not fail because the job cannot be
+  // read. Off, "Linked in SAP" shows the linked reservations alone.
   let jobView: SessionJobView | null = null
-  if (trace?.flow === "i08") {
+  if (completeFlow && trace?.flow === "i08") {
     let job: ApiSessionJob | null = null
     try {
       job = await getSessionJob(trace.sessionId)
@@ -77,7 +84,7 @@ export default async function AssistantSessionPage({
 
         {notFound !== null && <SessionNotFoundNotice sessionId={sessionId} message={notFound} />}
         {loadError !== null && <SessionLoadError message={loadError} />}
-        {trace !== null && <SessionTrace trace={trace} job={jobView} />}
+        {trace !== null && <SessionTrace trace={trace} job={jobView} completeFlow={completeFlow} />}
       </div>
     </div>
   )

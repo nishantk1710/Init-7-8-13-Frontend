@@ -63,6 +63,9 @@ export type OverviewFiguresProps = {
   linkFilters: RegisterFilters
   /** A vendor is chosen: the universe tile says it is not narrowed by one. */
   vendorFiltered: boolean
+  /** The I08 complete-flow switch (`lib/i08-features`). Off: the stock tile
+   *  shows the total only, and no "raised before declarations began". */
+  completeFlow: boolean
   print?: boolean
 }
 
@@ -75,6 +78,7 @@ export function OverviewFigures({
   exceptions,
   linkFilters,
   vendorFiltered,
+  completeFlow,
   print = false,
 }: OverviewFiguresProps) {
   const open = chains.filter(isOpenRepair)
@@ -84,8 +88,13 @@ export function OverviewFigures({
   const { required: undeclared, historical, flagged } = declarationCounts(chains)
   const materials = new Set(open.map((c) => c.material.materialId)).size
   const vendors = new Set(open.map((c) => c.vendor ?? "none")).size
-  const stock = stockLines(metrics.stock.plants, formatCount)
-  const stockSplit = metrics.stock.plants.some((p) => p.usable !== undefined || p.damaged !== undefined)
+  // Usable and damaged only with the complete flow on; the total otherwise.
+  const stockSplit =
+    completeFlow && metrics.stock.plants.some((p) => p.usable !== undefined || p.damaged !== undefined)
+  const stock = stockLines(
+    stockSplit ? metrics.stock.plants : metrics.stock.plants.map((p) => ({ ...p, usable: undefined, damaged: undefined })),
+    formatCount,
+  )
   // `none` is the register's word for a line with no vendor; the queue would
   // read it as a vendor code and list nothing (see `queueNote`).
   const declarationLink = declarationsHref({
@@ -123,7 +132,7 @@ export function OverviewFigures({
             (undeclared === 0 ? "Nothing is waiting for a condition declaration." : "No condition declaration on record.") +
             (flagged ? ` ${plural(flagged, "line")} sent for repair against an assessment.` : "")
           }
-          muted={historical ? `${formatCount(historical)} raised before declarations began` : undefined}
+          muted={completeFlow && historical ? `${formatCount(historical)} raised before declarations began` : undefined}
           href={declarationLink}
           cta="Declare"
           note={queueNote(linkFilters, "declarations")}
