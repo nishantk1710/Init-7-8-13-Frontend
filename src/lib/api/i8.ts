@@ -488,6 +488,14 @@ export type ApiSnapshotRules = Record<string, string | number | boolean> & {
   usableStockConditions?: string
   /** Conditions counted as damaged, comma-separated (e.g. `DAMAGED`). */
   damagedStockConditions?: string
+  /** The I08 complete-flow switch (29-Oct-2026): off until the flow is
+   *  approved. Read it through `completeFlowFromRules` in `lib/i08-features`. */
+  completeFlowEnabled?: boolean | number | string
+}
+
+/** `GET /api/i8/features`: the I08 feature switches, without the snapshot. */
+export type ApiI8Features = {
+  completeFlowEnabled?: boolean | number | string
 }
 
 // --- W5.3: attestations, declarations and exceptions ----------------------
@@ -909,6 +917,15 @@ export function getRepairLine(
  */
 export function getSnapshot(): Promise<ApiSnapshot> {
   return apiFetch("/i8/snapshot")
+}
+
+/**
+ * `GET /api/i8/features` -- which I08 features are switched on. Never waits
+ * for the snapshot, so the assistant pages can ask it. An older backend
+ * answers 404, which reads as "off" (see `lib/i08-features`).
+ */
+export function getI8Features(): Promise<ApiI8Features> {
+  return apiFetch("/i8/features")
 }
 
 export type DeclarationQuery = {

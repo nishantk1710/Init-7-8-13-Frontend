@@ -1035,6 +1035,33 @@ describe("registerViewChoices", () => {
       const choices = registerViewChoices(counts, { repairRequestsEnabled: true, selected: "notOrdered" })
       expect(values(choices)).not.toContain("notOrdered")
     })
+
+    describe("with the complete flow switched off", () => {
+      it("hides the No PO yet pill whatever it counts and whatever the PR-rows rule says", () => {
+        for (const notOrdered of [0, 4]) {
+          const choices = registerViewChoices(
+            { ...counts, notOrdered },
+            { repairRequestsEnabled: true, completeFlow: false },
+          )
+          expect(values(choices)).toEqual(["", "overdue", "undeclared", "atVendor", "withExceptions"])
+        }
+      })
+
+      it("keeps it only while a stale link has it selected", () => {
+        const choices = registerViewChoices(
+          { ...counts, notOrdered: 0 },
+          { repairRequestsEnabled: false, selected: "notOrdered", completeFlow: false },
+        )
+        expect(values(choices)).toContain("notOrdered")
+      })
+
+      it("changes nothing when on", () => {
+        const on = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true, completeFlow: true })
+        const unset = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true })
+        expect(on).toEqual(unset)
+        expect(values(on)).toContain("notOrdered")
+      })
+    })
   })
 })
 
@@ -1068,5 +1095,34 @@ describe("ruleIsOn", () => {
       fetchSnapshot: vi.fn().mockRejectedValue(new Error("down")),
     })
     expect(failed.repairRequestsEnabled).toBe(false)
+  })
+
+  it("reads the complete-flow switch beside it: on only when the snapshot says so", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
+    const on = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { completeFlowEnabled: true, repairRequestsEnabled: 1 } }),
+    })
+    expect(on.completeFlowEnabled).toBe(true)
+
+    const off = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { completeFlowEnabled: false, repairRequestsEnabled: 1 } }),
+    })
+    expect(off.completeFlowEnabled).toBe(false)
+    // The PR-rows rule is still reported as sent; the screen ANDs the two.
+    expect(off.repairRequestsEnabled).toBe(true)
+
+    const older = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { repairRequestsEnabled: 1 } }),
+    })
+    expect(older.completeFlowEnabled).toBe(false)
+
+    const failed = await loadRegisterPage({}, 1, {
+      fetchPage,
+      fetchSnapshot: vi.fn().mockRejectedValue(new Error("down")),
+    })
+    expect(failed.completeFlowEnabled).toBe(false)
   })
 })

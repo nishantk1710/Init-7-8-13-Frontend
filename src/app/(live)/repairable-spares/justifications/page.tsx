@@ -12,6 +12,7 @@ import {
   type JustificationsPage,
   type RawSearchParams,
 } from "@/features/initiative-8/data/live-justifications"
+import { loadCompleteFlowFromSnapshot } from "@/lib/i08-features"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
@@ -71,6 +72,9 @@ export default async function I08JustificationsPage({
   await connection()
 
   const { filters, page } = parseJustificationParams(await searchParams)
+  // Best-effort and in parallel: the I08 complete-flow switch (off on any
+  // failure), which decides the Purchase column.
+  const completeFlowLoad = loadCompleteFlowFromSnapshot()
 
   let data: JustificationsPage | null = null
   let loadError: string | null = null
@@ -107,6 +111,7 @@ export default async function I08JustificationsPage({
 
   // Best-effort: a description that does not arrive leaves its number alone.
   const descriptions = await loadMaterialDescriptions(data.items.map((entry) => entry.materialId))
+  const completeFlow = await completeFlowLoad
 
   return (
     <I08JustificationLog
@@ -119,6 +124,7 @@ export default async function I08JustificationsPage({
       facets={data.facets}
       descriptions={descriptions}
       purchasesChecked={data.purchasesChecked}
+      completeFlow={completeFlow}
     />
   )
 }

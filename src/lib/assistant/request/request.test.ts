@@ -13,6 +13,7 @@ import {
   pendingLine,
   withDeclarationOpen,
   withSuggestedWindow,
+  withoutDeclarations,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
@@ -262,6 +263,16 @@ describe("declaring the faulty unit with the request", () => {
       open: false,
       attestorName: "SSJ",
     })
+  })
+
+  it("is dropped from a resumed draft while the complete flow is off", () => {
+    const untouched = repair(true)
+    const [cleared, plain] = withoutDeclarations([declared(), untouched])
+    expect((cleared as RepairableLine).declaration.open).toBe(false)
+    expect(answersOf(cleared)).not.toHaveProperty("declaration")
+    expect(isReady(declared({ conditionDescription: "" }))).toBe(false)
+    expect(isReady(withoutDeclarations([declared({ conditionDescription: "" })])[0])).toBe(true)
+    expect(plain).toBe(untouched)
   })
 
   it("survives a re-check of the row", () => {

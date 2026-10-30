@@ -6,6 +6,7 @@ import { ExceptionsScreen } from "@/features/initiative-8/components/exceptions-
 import { I08Page } from "@/features/initiative-8/components/kit/page"
 import { NotificationLogScreen } from "@/features/initiative-8/components/notification-log"
 import {
+  DEFAULT_EXCEPTION_STATUS,
   exceptionsHref,
   loadExceptionsPage,
   parseExceptionParams,
@@ -21,6 +22,7 @@ import {
 } from "@/features/initiative-8/data/live-notifications"
 import type { RawSearchParams } from "@/features/initiative-8/data/url-params"
 import { getAttestations, getException } from "@/lib/api/i8"
+import { loadCompleteFlowFromSnapshot } from "@/lib/i08-features"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 
 export const metadata: Metadata = {
@@ -84,6 +86,13 @@ export const metadata: Metadata = {
  *
  * `?type=` is a tab and `?status=` the Open / Closed / All switch beside the
  * tabs (I08_Live_UI_Redesign_Plan.md, L5); see `ExceptionsScreen`.
+ *
+ * ## Behind the complete-flow switch
+ *
+ * With the I08 complete flow switched off (`lib/i08-features`, read from the
+ * snapshot) the screen offers only the checks raised before it, no "Raised
+ * before go-live" view (`?status=before-go-live` reads as the default) and no
+ * notification log: `?view=log` says the log is not available.
  */
 /**
  * `?id=EX-…` opens that item's drawer; `?repair=4500000677-20` narrows the
@@ -102,9 +111,18 @@ export default async function I08ExceptionsPage({
   await connection()
 
   const raw = await searchParams
-  if (isNotificationView(raw)) return <NotificationLog raw={raw} />
+  const completeFlow = await loadCompleteFlowFromSnapshot()
+  if (isNotificationView(raw)) {
+    return completeFlow ? <NotificationLog raw={raw} /> : <NotificationLogOff raw={raw} />
+  }
 
-  const { filters, page, id } = parseExceptionParams(raw)
+  const parsed = parseExceptionParams(raw)
+  const { page, id } = parsed
+  // Off, the before-go-live view does not exist: an old link gets the queue.
+  const filters =
+    !completeFlow && parsed.filters.preAutomation
+      ? { ...parsed.filters, preAutomation: undefined, status: DEFAULT_EXCEPTION_STATUS }
+      : parsed.filters
 
   // Best-effort and in parallel, for the drawer's Declare button: a failure
   // costs the form its category list (it then says so), never the queue.
@@ -169,6 +187,21 @@ export default async function I08ExceptionsPage({
       typeCounts={data.typeCounts}
       initialItem={initialItem}
       faultCategories={categories}
+      completeFlow={completeFlow}
+    />
+  )
+}
+
+/** `?view=log` with the complete flow off: the log is not available, said
+ *  rather than fetched. */
+function NotificationLogOff({ raw }: { raw: RawSearchParams }) {
+  const { filters, page } = parseNotificationParams(raw)
+  return (
+    <NotificationLogScreen
+      data={{ available: false }}
+      filters={filters}
+      page={page}
+      pageSize={DEFAULT_PAGE_SIZE}
     />
   )
 }
