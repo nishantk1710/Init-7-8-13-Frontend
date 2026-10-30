@@ -161,6 +161,12 @@ export interface UtilisationLedgerEntry {
   receivedQuantity: number | null
   issuedQuantity: number | null
   openQuantity: number | null
+  /**
+   * EKPO-MENGE of the PO line: "0 of 6 received". Ordered minus received on
+   * an open line is what the assistant's Open PO adds up. Null without a PO
+   * line, or from a backend that does not send it yet.
+   */
+  orderedQuantity: number | null
 
   firstGrDate: string | null
   latestGrDate: string | null
