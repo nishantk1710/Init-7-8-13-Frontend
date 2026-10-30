@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { auth } from "@/auth"
+import { AuthLink } from "@/components/auth/auth-field"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { LoginForm } from "@/components/auth/login-form"
 import { MicrosoftSignIn } from "@/components/auth/microsoft-sign-in"
@@ -46,13 +46,7 @@ export default async function LoginPage({
       description="Sign in to Spares AI to continue."
       footer={
         <>
-          Don&apos;t have an account?{" "}
-          <Link
-            href={`/signup?next=${encodeURIComponent(target)}`}
-            className="font-medium text-brand-link underline-offset-4 hover:underline"
-          >
-            Create an account
-          </Link>
+          Don&apos;t have an account? <AuthLink href={`/signup?next=${encodeURIComponent(target)}`}>Create an account</AuthLink>
         </>
       }
     >

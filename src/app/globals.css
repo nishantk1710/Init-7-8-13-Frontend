@@ -793,3 +793,233 @@ tr[data-state="selected"] > [data-frozen-column] {
     animation-duration: 3s;
   }
 }
+
+/* Aurora: the sign-in pages (components/auth/auth-shell.tsx and the forms in
+   it), after the "A · Aurora (desktop)" design. One look in both themes -- a
+   navy canvas with a white card -- so these colours are fixed, not theme
+   tokens, and the card's text never follows dark mode onto a white ground. */
+@theme {
+  --color-aurora-ink: #0b1b33;
+  --color-aurora-body: #33435a;
+  --color-aurora-muted: #52627a;
+  --color-aurora-faint: #6b7a90;
+  --color-aurora-line: #d5deea;
+  --color-aurora-field: #f7f9fc;
+  --color-aurora-blue: #0b5cad;
+  --color-aurora-blue-hover: #083f78;
+  --color-aurora-lime: #8dc63f;
+  --color-aurora-lime-soft: #a8d66a;
+  --color-aurora-lime-pale: #d8f0b4;
+  --color-aurora-mist: #c3d2ea;
+  --color-aurora-haze: #b3c4de;
+  --color-aurora-fog: #8fa6c8;
+  --color-aurora-success: #3e7a12;
+  --color-aurora-success-tint: #eaf6da;
+  --color-aurora-error: #b42318;
+  --color-aurora-error-tint: #fef3f2;
+  --color-aurora-error-line: #fecdca;
+}
+
+.aurora {
+  background: radial-gradient(120% 90% at 20% 10%, #0a3a7a 0%, #062654 45%, #031330 100%);
+  color: #ffffff;
+  font-family: var(--font-aurora-text), Inter, system-ui, sans-serif;
+}
+
+.aurora-display {
+  font-family: var(--font-aurora-display), var(--font-aurora-text), sans-serif;
+}
+
+@keyframes aurora-rise {
+  from { opacity: 0; transform: translateY(28px); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(120px, -60px) scale(1.15); }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1.1); }
+  50% { transform: translate(-140px, 80px) scale(0.9); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(60px, 90px); }
+}
+@keyframes aurora-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes aurora-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes aurora-pulse {
+  0% { box-shadow: 0 0 0 0 rgb(141 198 63 / 0.7); }
+  70% { box-shadow: 0 0 0 10px rgb(141 198 63 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(141 198 63 / 0); }
+}
+@keyframes aurora-sheen {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  60%, 100% { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes aurora-float {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translateY(-220px); opacity: 0; }
+}
+@keyframes aurora-globe {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-18px) rotate(2deg); }
+}
+@keyframes aurora-waves {
+  to { transform: translateX(200px); }
+}
+@keyframes aurora-beam {
+  0%, 100% { opacity: 0.25; transform: rotate(-18deg) translateX(-40px); }
+  50% { opacity: 0.5; transform: rotate(-14deg) translateX(40px); }
+}
+@keyframes aurora-card-in {
+  from { opacity: 0; transform: perspective(1200px) rotateY(-14deg) translateX(60px) scale(0.96); }
+  to { opacity: 1; transform: perspective(1200px) rotateY(0) translateX(0) scale(1); }
+}
+@keyframes aurora-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Comes in once, after the delay set on the element. */
+.aurora-rise {
+  opacity: 0;
+  animation: aurora-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.aurora-blob-1 { animation: aurora-drift-1 18s ease-in-out infinite; }
+.aurora-blob-2 { animation: aurora-drift-2 22s ease-in-out infinite; }
+.aurora-blob-3 { animation: aurora-drift-3 16s ease-in-out infinite; }
+.aurora-beam {
+  transform-origin: top left;
+  animation: aurora-beam 9s ease-in-out infinite;
+}
+.aurora-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.12) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse at 40% 50%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 40% 50%, #000 20%, transparent 75%);
+}
+.aurora-particle {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  background: #b8e07a;
+  animation: aurora-float linear infinite;
+}
+.aurora-globe { animation: aurora-globe 14s ease-in-out infinite; }
+/* The globe's stripes, one wavelength at a time. */
+.aurora-waves { animation: aurora-waves 7s linear infinite; }
+.aurora-pulse { animation: aurora-pulse 2s infinite; }
+
+/* Inside a .aurora-rise wrapper: one element cannot run both animations. */
+.aurora-gradient-text {
+  background: linear-gradient(90deg, #8dc63f, #c7ea7a, #5fd0c4, #8dc63f);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: aurora-shimmer 6s linear infinite;
+}
+
+/* Inside a .aurora-rise wrapper too: the finished rise would hold the transform. */
+.aurora-tile {
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.35s,
+    background-color 0.35s;
+}
+.aurora-tile:hover {
+  transform: translateY(-4px);
+  border-color: rgb(141 198 63 / 0.55);
+  background-color: rgb(255 255 255 / 0.09);
+}
+
+/* The card's edge: a light that runs round it. */
+.aurora-ring {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 1.5px;
+  animation: aurora-card-in 1.2s 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aurora-ring::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(from 0deg, transparent 0 62%, #8dc63f 74%, #3fa9f5 86%, transparent 96%);
+  animation: aurora-spin 7s linear infinite;
+}
+/* Once signed in, the card shows the confirmation alone. */
+.aurora-card:has([data-auth-done]) [data-auth-footer] {
+  display: none;
+}
+
+.aurora-field {
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+.aurora-field:focus-within {
+  border-color: #0b5cad;
+  box-shadow: 0 0 0 4px rgb(11 92 173 / 0.14);
+}
+.aurora-field[data-invalid] {
+  border-color: #d92d20;
+}
+.aurora-field[data-invalid]:focus-within {
+  box-shadow: 0 0 0 4px rgb(217 45 32 / 0.12);
+}
+
+.aurora-cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0b5cad, #0a4a8e);
+  transition:
+    transform 0.2s,
+    box-shadow 0.3s;
+}
+.aurora-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -10px rgb(11 92 173 / 0.75);
+}
+.aurora-cta::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.35), transparent);
+  pointer-events: none;
+  animation: aurora-sheen 3.2s 2s ease-in-out infinite;
+}
+
+.aurora-pop { animation: aurora-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Less motion: everything still, and shown at once. Spinners keep turning,
+   slowly, because they say something is happening. */
+@media (prefers-reduced-motion: reduce) {
+  .aurora *:not(.animate-spin),
+  .aurora *::before,
+  .aurora *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .aurora .animate-spin {
+    animation-duration: 3s;
+  }
+  .aurora-rise,
+  .aurora-ring,
+  .aurora-pop {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

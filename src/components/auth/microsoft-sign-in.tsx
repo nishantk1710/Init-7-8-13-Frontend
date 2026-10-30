@@ -1,8 +1,5 @@
-import { ArrowRight } from "lucide-react"
-
 import { signIn } from "@/auth"
-import { FormError } from "@/components/auth/auth-field"
-import { Button } from "@/components/ui/button"
+import { AuthSubmit, FormError } from "@/components/auth/auth-field"
 
 /** What Auth.js's ?error= codes mean to the person at the sign-in page. */
 const ERROR_TEXT: Record<string, string> = {
@@ -51,14 +48,14 @@ export function MicrosoftSignIn({
   }
 
   return (
-    <form action={start} className="flex flex-col gap-4">
+    <form action={start} className="flex flex-col gap-[18px]">
       {error && (
         <FormError>{ERROR_TEXT[error] ?? "Sign-in did not complete. Try again, or contact the Spares AI support team."}</FormError>
       )}
-      <Button type="submit" size="lg" className="h-10 w-full">
-        <MicrosoftLogo /> Sign in with Microsoft <ArrowRight />
-      </Button>
-      <p className="text-center text-xs text-muted-foreground">Use your VZI Microsoft account.</p>
+      <AuthSubmit icon={<MicrosoftLogo />} pendingLabel="Opening Microsoft sign-in…">
+        Sign in with Microsoft
+      </AuthSubmit>
+      <p className="m-0 text-center text-[13px] text-aurora-muted">Use your VZI Microsoft account.</p>
     </form>
   )
 }
