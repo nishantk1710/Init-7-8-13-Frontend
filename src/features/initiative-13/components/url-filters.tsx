@@ -123,7 +123,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Status","issued":"Issued"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -234,7 +234,7 @@ export function I13UrlFilters({
           />)}
 
         {fields.includes("reservationStatus") && wrap("reservationStatus", <UrlSelect
-            label="All statuses"
+            label="All stages"
             width="sm:w-52"
             value={searchParams.get("reservationStatus") ?? ""}
             options={RESERVATION_STATUSES.map((value) => ({ value, label: reservationStatusOption(value) }))}

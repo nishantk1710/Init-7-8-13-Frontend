@@ -78,6 +78,15 @@ export default async function AssistantSessionsPage({
       label: "Went ahead anyway",
       description:
         "Told a usable unit exists, or offered a smaller quantity, and went ahead. Each one carries a recorded reason.",
+      info: {
+        summary: "Requests where the assistant gave advice, the requester chose not to follow it, and gave a reason.",
+        points: [
+          "Repairable available: the assistant said a repairable unit of the part exists, and the requester still asked for a new one.",
+          "Quantity kept: the assistant suggested a smaller quantity, and the requester kept their own.",
+          "Each one is saved with a reason category and the requester's own words.",
+          "Going ahead is allowed; this card makes those decisions visible. Pick \"Went ahead\" in the Outcome filter below to list them.",
+        ],
+      },
       state: "counted",
       count:
         justifications?.items.filter(
@@ -97,6 +106,15 @@ export default async function AssistantSessionsPage({
           id: "missing-session",
           label: "Reservations with no session",
           description: `OAR reservations needed since ${formatDay(compliance.goLiveDate)} whose text carries no valid session reference.`,
+          info: {
+            summary: "OAR reservations saved in SAP without the assistant's session or request ID.",
+            points: [
+              `Which reservations: OAR items whose requirement date is on or after ${formatDay(compliance.goLiveDate)}, when the assistant went live.`,
+              "What is read: the reservation's item text in SAP, where the requester types the ID the assistant gave them.",
+              "Counted here: no ID at all, or an ID that is mistyped or belongs to a different material or plant.",
+              "Not counted: an ID for a session that captured no plan. Those are listed separately in the line below the number.",
+            ],
+          },
           state: "counted",
           count: compliance.missingSession + compliance.invalidSession,
           detail:

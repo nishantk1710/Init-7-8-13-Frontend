@@ -54,8 +54,6 @@ export type I13ExceptionType = "PLAN_BREACH" | "NO_PLAN" | "GR_NOT_ISSUED_30_DAY
 
 export type I13ExceptionStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED"
 
-export type SourceMode = "LIVE" | "MOCK" | "UNAVAILABLE" | string
-
 export type MaterialScope = "OAR" | "MIN_MAX" | "EXCLUDED"
 
 export type ActExceptionType =
@@ -133,14 +131,6 @@ export const ROUTING_STATUSES: readonly RoutingStatus[] = [
   "NOT_APPLICABLE",
 ]
 export const MATERIAL_SCOPES: readonly MaterialScope[] = ["OAR", "MIN_MAX", "EXCLUDED"]
-
-export interface DataSourceStatus {
-  entitySet: string
-  mode: SourceMode
-  rowCount: number
-  available: boolean
-  fetchedAt: string
-}
 
 export interface UtilisationLedgerEntry {
   ledgerId: string
