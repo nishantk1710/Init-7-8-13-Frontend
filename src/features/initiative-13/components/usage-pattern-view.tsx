@@ -5,7 +5,7 @@ import { LayoutGrid, Rows3 } from "lucide-react"
 
 import { KIND_DOT, UsagePatternCards } from "@/features/initiative-13/components/usage-pattern-cards"
 import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
-import { USAGE_KIND_LABEL, type UsageKind } from "@/features/initiative-13/utils/usage-pattern"
+import { USAGE_KIND_LABEL, USAGE_KIND_MEANING, type UsageKind } from "@/features/initiative-13/utils/usage-pattern"
 import type { UsagePattern } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 
@@ -52,12 +52,15 @@ export function UsagePatternView({ rows }: { rows: UsagePattern[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ul aria-label="Pattern key" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
           {KEY_ORDER.map((kind) => (
-            <li key={kind} className="flex items-center gap-1.5">
+            <li
+              key={kind}
+              title={USAGE_KIND_MEANING[kind]}
+              className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-4"
+            >
               <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[kind])} />
               {USAGE_KIND_LABEL[kind]}
             </li>
           ))}
-          <li className="text-muted-foreground/80">Gone quiet: nothing issued in the last 6 months of history. Steady: issued in at least half the months.</li>
         </ul>
         <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-border bg-card p-1">
           {(

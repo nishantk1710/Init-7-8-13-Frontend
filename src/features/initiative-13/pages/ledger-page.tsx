@@ -3,7 +3,6 @@ import { connection } from "next/server"
 import { ListChecks, MessagesSquare, Rows3, Unlink } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
-import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
@@ -130,6 +129,8 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         material: searchParams.material,
         session: searchParams.session,
         reservation: searchParams.reservation,
+        reservationStatus: searchParams.reservationStatus,
+        issued: searchParams.issued,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
     )
@@ -172,7 +173,11 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
 
         <ToolbarRow>
           <ViewToggle searchParams={searchParams} active="reservations" />
-          <I13UrlFilters className="flex-1" fields={["plant", "material", "reservation"]} plants={live?.plantOptions} />
+          <I13UrlFilters
+            className="flex-1"
+            fields={["plant", "material", "reservation", "reservationStatus", "issued"]}
+            plants={live?.plantOptions}
+          />
         </ToolbarRow>
 
         {live === null ? (
@@ -190,8 +195,6 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
             />
           </>
         )}
-
-        <DataSourcePanel />
     </OarScope>
   )
 }
@@ -289,8 +292,6 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
             />
           </>
         )}
-
-        <DataSourcePanel />
     </OarScope>
   )
 }

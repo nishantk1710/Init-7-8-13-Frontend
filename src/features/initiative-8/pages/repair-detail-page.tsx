@@ -42,7 +42,7 @@ import {
   purchaseSummary,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import { cn, formatZAR } from "@/lib/utils"
+import { cn, formatMoney } from "@/lib/utils"
 
 export type RepairDetailPageProps = {
   repairId: string
@@ -286,10 +286,15 @@ export function RepairDetailPage({
                 {chain.reorderPoint !== undefined ? i08Quantity(chain.reorderPoint) : <Faint>Not recorded</Faint>}
               </Fact>
               <Fact label="Under repair">{i08Quantity(chain.qtyUnderRepair)}</Fact>
-              {/* Unknown when the PO line has no net price: R 0.00 would read as a free repair. */}
+              {/* Unknown when the PO line has no net price: R 0.00 would read as a free repair.
+                  In the PO's own currency, and a placeholder price is named as one. */}
               <Fact label="Repair cost">
                 {chain.repairCost !== undefined ? (
-                  formatZAR(chain.repairCost)
+                  formatMoney(chain.repairCost, chain.repairCostCurrency)
+                ) : chain.repairCostPlaceholder !== undefined ? (
+                  <Faint>
+                    Placeholder price on the PO ({formatMoney(chain.repairCostPlaceholder, chain.repairCostCurrency)})
+                  </Faint>
                 ) : (
                   <Faint>{requested ? NO_PO_YET : "No price on the PO"}</Faint>
                 )}

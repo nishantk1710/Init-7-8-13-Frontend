@@ -10,15 +10,15 @@ import type { IssueMatch, LedgerUtilisationStatus } from "@/lib/api/i13"
  */
 export const ISSUE_MATCH_LABELS: Record<IssueMatch, string> = {
   RESERVATION: "Matched to reservation",
-  OLDEST_DELIVERY_FIRST: "Oldest delivery first",
+  OLDEST_DELIVERY_FIRST: "Estimated",
   BEFORE_ISSUE_HISTORY: "Before issue history",
 }
 
 export const ISSUE_MATCH_EXPLANATIONS: Record<IssueMatch, string> = {
-  RESERVATION: "SAP records these issues against the reservation that raised this PR (RESB-BANFN).",
+  RESERVATION: "Exact: SAP links these issues to the reservation that raised this PR (RESB-BANFN).",
   OLDEST_DELIVERY_FIRST:
-    "SAP doesn't record which PO a stock issue came from. Issues of this material at this plant " +
-    "(MSEG 201/261) are counted against the oldest delivery still in stock first.",
+    "Estimated: SAP doesn't record which purchase an issue came from, so this material's issues at this " +
+    "plant (MSEG 201/261) are counted against the oldest delivery first.",
   BEFORE_ISSUE_HISTORY:
     "Delivered before the earliest goods movement the system holds, so what was issued from it cannot be seen.",
 }

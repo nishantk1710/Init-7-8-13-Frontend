@@ -54,8 +54,6 @@ export type I13ExceptionType = "PLAN_BREACH" | "NO_PLAN" | "GR_NOT_ISSUED_30_DAY
 
 export type I13ExceptionStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED"
 
-export type SourceMode = "LIVE" | "MOCK" | "UNAVAILABLE" | string
-
 export type MaterialScope = "OAR" | "MIN_MAX" | "EXCLUDED"
 
 export type ActExceptionType =
@@ -134,14 +132,6 @@ export const ROUTING_STATUSES: readonly RoutingStatus[] = [
 ]
 export const MATERIAL_SCOPES: readonly MaterialScope[] = ["OAR", "MIN_MAX", "EXCLUDED"]
 
-export interface DataSourceStatus {
-  entitySet: string
-  mode: SourceMode
-  rowCount: number
-  available: boolean
-  fetchedAt: string
-}
-
 export interface UtilisationLedgerEntry {
   ledgerId: string
   material: string
@@ -161,6 +151,12 @@ export interface UtilisationLedgerEntry {
   receivedQuantity: number | null
   issuedQuantity: number | null
   openQuantity: number | null
+  /**
+   * EKPO-MENGE of the PO line: "0 of 6 received". Ordered minus received on
+   * an open line is what the assistant's Open PO adds up. Null without a PO
+   * line, or from a backend that does not send it yet.
+   */
+  orderedQuantity: number | null
 
   firstGrDate: string | null
   latestGrDate: string | null

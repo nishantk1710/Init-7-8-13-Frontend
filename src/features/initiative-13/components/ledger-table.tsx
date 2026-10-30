@@ -46,6 +46,28 @@ const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
   BEFORE_ISSUE_HISTORY: "neutral",
 }
 
+/** The quantity drawn on top of a date cell (Received, Issued); nothing when there is none to show. */
+function QuantityLead({ value }: { value: number | null }) {
+  if (!value) return null
+  return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
+}
+
+/**
+ * Received against ordered -- "0 of 6", "4 of 10" -- when the backend sent the
+ * PO line's quantity (EKPO-MENGE). What is still to come on an open line adds
+ * up to the assistant's Open PO. A line ordering nothing (a contract) or with
+ * no quantity sent falls back to the received quantity alone.
+ */
+function ReceivedLead({ received, ordered }: { received: number | null; ordered: number | null }) {
+  if (!ordered) return <QuantityLead value={received} />
+  return (
+    <span className="tabular-nums" title="Received of ordered (EKPO-MENGE)">
+      <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
+      <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
+    </span>
+  )
+}
+
 function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
   return (
     <TableCell className="text-right text-foreground">
@@ -137,16 +159,9 @@ export function UtilizationLedgerTable({
                 <span className="sr-only">Details</span>
               </TableHead>
               <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead>Reservation</TableHead>
-              <TableHead>PR</TableHead>
-              <TableHead>PO</TableHead>
-              <TableHead className="text-right">Received</TableHead>
-              <TableHead>Delivered on</TableHead>
-              <TableHead className="text-right">Issued</TableHead>
-              <TableHead title="Goods-issue dates (MKPF-BUDAT) of the issues counted against this line">
-                Issued on
-              </TableHead>
+              <TableHead>PO / PR</TableHead>
+              <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
+              <TableHead title="Quantity issued, with the goods-issue date (MKPF-BUDAT) underneath">Issued</TableHead>
               <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead title="The earliest open reservation expected to draw on this line's stock">
                 Next planned issue
@@ -184,47 +199,42 @@ export function UtilizationLedgerTable({
                         ) : (
                           <span className="font-medium">{entry.material}</span>
                         )}
+                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">
+                          {sapPlantLabel(entry.plant)}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {sapPlantLabel(entry.plant)}
-                    </TableCell>
                     <TableCell>
-                      {entry.reservationNumber ? (
-                        <DocNo number={entry.reservationNumber} item={entry.reservationItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
+                      <div className="flex flex-col items-start gap-1">
+                        {entry.poNumber ? (
+                          <DocNo number={entry.poNumber} item={entry.poItem} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No PO yet</span>
+                        )}
+                        {entry.prNumber && (
+                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            PR <DocNo number={entry.prNumber} item={entry.prItem} />
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {entry.prNumber ? (
-                        <DocNo number={entry.prNumber} item={entry.prItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {entry.poNumber ? (
-                        <DocNo number={entry.poNumber} item={entry.poItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
-                    </TableCell>
-                    {/* A label where the backend recorded nothing, not a
-                        zero. "No goods receipt was recorded" and "zero units
-                        arrived" are different findings on this table, and the
-                        adapter keeps them apart precisely so this cell can. */}
-                    <Quantity value={entry.receivedQuantity} empty="noGrYet" />
+                    {/* The quantity sits on top only when something arrived or
+                        went out: underneath, the date cell already says "No PO
+                        yet", "Not delivered" or "Not issued yet" -- a label
+                        where the backend recorded nothing, never a bare zero.
+                        Received is the exception once the ordered quantity is
+                        known: "0 of 6" says how much is still to come. */}
                     <DeliveredOnCell
                       status={deliveryOf(entry)}
                       receivedQuantity={entry.receivedQuantity}
+                      lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
                     />
-                    <Quantity value={entry.issuedQuantity} empty="notIssued" />
                     <IssuedOnCell
                       firstDate={entry.firstGiDate}
                       lastDate={entry.latestGiDate}
                       received={(entry.receivedQuantity ?? 0) > 0}
                       issueMatch={entry.issueMatch}
+                      lead={<QuantityLead value={entry.issuedQuantity} />}
                     />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
                     <NextPlannedIssueCell
@@ -242,12 +252,15 @@ export function UtilizationLedgerTable({
                         <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                           {UTILISATION_STATUS_LABELS[entry.utilisationStatus]}
                         </StatusPill>
-                        {entry.issueMatch && (
+                        {entry.issueMatch && entry.issueMatch !== "BEFORE_ISSUE_HISTORY" && (
                           <span
                             className="cursor-help text-[11px] whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
                             title={ISSUE_MATCH_EXPLANATIONS[entry.issueMatch]}
                           >
                             {ISSUE_MATCH_LABELS[entry.issueMatch]}
+                            {entry.issueMatch === "RESERVATION" && entry.reservationNumber
+                              ? ` ${entry.reservationNumber}${entry.reservationItem ? `/${entry.reservationItem}` : ""}`
+                              : ""}
                           </span>
                         )}
                       </div>
@@ -255,7 +268,7 @@ export function UtilizationLedgerTable({
                   </TableRow>
                   <TableRow className="hover:bg-transparent">
                     <TableCell className="p-0" />
-                    <TableCell colSpan={13} className="p-0">
+                    <TableCell colSpan={8} className="p-0">
                       <div
                         className={cn(
                           "grid transition-[grid-template-rows] duration-300 ease-out",

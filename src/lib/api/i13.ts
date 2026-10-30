@@ -52,7 +52,6 @@ import {
   type ConsumptionAttribution,
   type ConsumptionPlan,
   type CrossPlantStock,
-  type DataSourceStatus,
   type GrniEntry,
   type I13SnapshotStatus,
   type I13Exception,
@@ -99,19 +98,6 @@ function str(value: unknown): string | null {
 
 // --- Adapters -------------------------------------------------------------
 
-function toDataSourceStatus(raw: RawRecord): DataSourceStatus {
-  return {
-    entitySet: String(raw.entity_set ?? ""),
-    // Deliberately NOT guarded: SourceMode is an open union (the backend may
-    // name an entity set's mode anything), and the component already handles
-    // an unrecognised value by falling through to its "danger" tone.
-    mode: String(raw.mode ?? "UNAVAILABLE"),
-    rowCount: toCount(raw.row_count as number),
-    available: Boolean(raw.available),
-    fetchedAt: String(raw.fetched_at ?? ""),
-  }
-}
-
 function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
@@ -129,6 +115,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
     receivedQuantity: toNumber(raw.received_quantity as string) ?? null,
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? null,
     openQuantity: toNumber(raw.open_quantity as string) ?? null,
+    orderedQuantity: toNumber(raw.ordered_quantity as string) ?? null,
     firstGrDate: str(raw.first_gr_date),
     latestGrDate: str(raw.latest_gr_date),
     expectedDeliveryDate: str(raw.expected_delivery_date),
@@ -484,12 +471,6 @@ function toSummary(raw: RawRecord): I13Summary {
 export function getI13Summary(params?: { plant?: string; material?: string }): Promise<I13Summary> {
   const query = buildQuery({ plant: params?.plant, material: params?.material })
   return apiFetch<RawRecord>(`/i13/summary${query}`).then(toSummary)
-}
-
-export function getI13DataSources(): Promise<DataSourceStatus[]> {
-  return apiFetch<RawRecord[]>("/i13/data-sources").then((rows) =>
-    rows.map(toDataSourceStatus)
-  )
 }
 
 /**
@@ -1256,6 +1237,8 @@ export function getI13ReservationLedgerList(params?: {
   sessionId?: string
   /** Exact match on the reservation number, as the backend stores it. */
   reservationNumber?: string
+  /** One lifecycle value, or several comma-separated: any of them matches. */
+  lifecycleStatus?: string
   limit?: number
   offset?: number
 }): Promise<ApiList<ReservationLedgerRow>> {
@@ -1264,6 +1247,7 @@ export function getI13ReservationLedgerList(params?: {
     material: params?.material,
     session_id: params?.sessionId,
     reservation_number: params?.reservationNumber,
+    lifecycle_status: params?.lifecycleStatus,
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })

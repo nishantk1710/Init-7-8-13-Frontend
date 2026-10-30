@@ -272,9 +272,23 @@ export interface RepairChain {
   /**
    * Net order price of the repair PO line (EKPO). Undefined when the line
    * carries none — shown as unknown, never as R 0.00, which would read as a
-   * free repair.
+   * free repair. In `repairCostCurrency`, never converted.
    */
   repairCost?: number
+
+  /**
+   * EKKO.WAERS: the currency `repairCost` is in. A PO is priced in the
+   * vendor's currency, so a USD price shown as rand would be ~18x too low.
+   * Null when SAP gives none (shown with no symbol); undefined from a backend
+   * that predates the field (shown as rand, which every open line is).
+   */
+  repairCostCurrency?: string | null
+
+  /**
+   * The PO's net price when it is only a placeholder (R 1.00), which
+   * `repairCost` then leaves undefined: "R 1" would read as a free repair.
+   */
+  repairCostPlaceholder?: number
 
   /**
    * Lead time to buy a NEW one — the number that makes waiting for a repair

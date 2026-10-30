@@ -9,6 +9,7 @@ import type { ComplianceCheck } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
 import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
 import { formatDay } from "@/lib/assistant/trace-format"
+import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -53,6 +54,9 @@ export default async function AssistantSessionsPage({
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
   let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
+  // Best-effort and in parallel: the I08 complete-flow switch (off on any
+  // failure), which decides the repairable cards and the Declared column.
+  const completeFlowLoad = loadCompleteFlowFromFeatures()
   // Best-effort: the log is the page; this count is one card on it.
   const compliance: SessionCompliance | null = await getSessionCompliance().catch(() => null)
   try {
@@ -66,6 +70,7 @@ export default async function AssistantSessionsPage({
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+  const completeFlow = await completeFlowLoad
 
   const checks: ComplianceCheck[] = [
     {
@@ -73,6 +78,15 @@ export default async function AssistantSessionsPage({
       label: "Went ahead anyway",
       description:
         "Told a usable unit exists, or offered a smaller quantity, and went ahead. Each one carries a recorded reason.",
+      info: {
+        summary: "Requests where the assistant gave advice, the requester chose not to follow it, and gave a reason.",
+        points: [
+          "Repairable available: the assistant said a repairable unit of the part exists, and the requester still asked for a new one.",
+          "Quantity kept: the assistant suggested a smaller quantity, and the requester kept their own.",
+          "Each one is saved with a reason category and the requester's own words.",
+          "Going ahead is allowed; this card makes those decisions visible. Pick \"Went ahead\" in the Outcome filter below to list them.",
+        ],
+      },
       state: "counted",
       count:
         justifications?.items.filter(
@@ -92,6 +106,15 @@ export default async function AssistantSessionsPage({
           id: "missing-session",
           label: "Reservations with no session",
           description: `OAR reservations needed since ${formatDay(compliance.goLiveDate)} whose text carries no valid session reference.`,
+          info: {
+            summary: "OAR reservations saved in SAP without the assistant's session or request ID.",
+            points: [
+              `Which reservations: OAR items whose requirement date is on or after ${formatDay(compliance.goLiveDate)}, when the assistant went live.`,
+              "What is read: the reservation's item text in SAP, where the requester types the ID the assistant gave them.",
+              "Counted here: no ID at all, or an ID that is mistyped or belongs to a different material or plant.",
+              "Not counted: an ID for a session that captured no plan. Those are listed separately in the line below the number.",
+            ],
+          },
           state: "counted",
           count: compliance.missingSession + compliance.invalidSession,
           detail:
@@ -138,12 +161,14 @@ export default async function AssistantSessionsPage({
           </div>
         ) : (
           // The cards live in the table: with Flow set to Repairable Spares they
-          // become the repairable ones, and that choice is the table's state.
+          // become the repairable ones (complete flow on), and that choice is
+          // the table's state.
           <SessionLogTable
             sessions={sessions.items}
             total={sessions.total}
             checks={checks}
             wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
+            completeFlow={completeFlow}
           />
         )}
       </div>

@@ -90,6 +90,7 @@ const entry: UtilisationLedgerEntry = {
   receivedQuantity: 2,
   issuedQuantity: null,
   openQuantity: 2,
+  orderedQuantity: null,
   firstGrDate: "2026-10-01",
   latestGrDate: "2026-10-05",
   firstGiDate: null,

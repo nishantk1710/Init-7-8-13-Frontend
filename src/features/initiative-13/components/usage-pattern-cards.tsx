@@ -12,6 +12,7 @@ import {
   monthLabel,
   monthNote,
   readUsage,
+  USAGE_KIND_MEANING,
   yearGrid,
   type UsageKind,
   type UsageReading,
@@ -147,7 +148,10 @@ function UsageCard({
           </span>
         </div>
         <div className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1">
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <span
+            title={USAGE_KIND_MEANING[reading.kind]}
+            className="flex w-fit cursor-help items-center gap-1.5 text-sm font-semibold text-foreground"
+          >
             <span aria-hidden className={cn("size-2 shrink-0 rounded-full", KIND_DOT[reading.kind])} />
             {reading.label}
           </span>
@@ -220,7 +224,10 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
     >
       <div className="flex flex-col gap-3">
         <div className={cn("flex flex-col gap-2 rounded-xl p-4", KIND_PANEL[reading.kind])}>
-          <span className="flex items-center gap-2 text-[13px] font-semibold tracking-wide text-foreground uppercase">
+          <span
+            title={USAGE_KIND_MEANING[reading.kind]}
+            className="flex w-fit cursor-help items-center gap-2 text-[13px] font-semibold tracking-wide text-foreground uppercase"
+          >
             <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[reading.kind])} />
             {reading.label}
           </span>

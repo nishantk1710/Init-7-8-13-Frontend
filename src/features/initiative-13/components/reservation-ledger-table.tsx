@@ -4,12 +4,10 @@ import Link from "next/link"
 import { MessagesSquare } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
 import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
-import { deliveryStatus } from "@/features/initiative-13/utils/delivery-status"
 import type { DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
 import {
@@ -23,7 +21,7 @@ import {
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 
 function qty(value: number | null) {
   return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
@@ -47,6 +45,12 @@ const LIFECYCLE_EDGE: Record<"default" | "success" | "warning", string> = {
  * One row per reservation item, and the assistant session its item text names.
  * Drawn like the Procurement lines table: the same fitted frame, compact document numbers and status pills.
  *
+ * No PR / PO or receipt columns: an OAR reservation is met from the store's
+ * stock, and SAP links it to no purchase (RESB-BANFN is empty) -- the PR that
+ * refills the shelf is raised by MRP for the material, not for this
+ * reservation. Those columns were empty on nearly every row. The few
+ * reservations that did raise their own PR show it under the Stage pill.
+ *
  * The **Session** column is the link FR-4 asks for: the requester typed the
  * session ID into the reservation's item text (SGTXT) in SAP, the extract
  * carried it here, and the backend matched it to a real session for the same
@@ -67,63 +71,46 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Reservation</TableHead>
             <TableHead>Material</TableHead>
-            <TableHead>Plant</TableHead>
-            <TableHead>Required</TableHead>
+            <TableHead>Reservation</TableHead>
+            <TableHead title="Requirement date (RESB-BDTER)">Required</TableHead>
             <TableHead className="text-right">Qty</TableHead>
-            <TableHead>PR / PO</TableHead>
-            <TableHead className="text-right">Received</TableHead>
-            <TableHead>Delivered on</TableHead>
-            <TableHead className="text-right">Issued</TableHead>
-            <TableHead>Lifecycle</TableHead>
+            <TableHead title="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)">
+              Issued
+            </TableHead>
+            <TableHead title="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued">Stage</TableHead>
             <TableHead>Session (item text)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
-              <TableCell className={LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone]}>
-                <DocNo number={row.reservationNumber} item={row.reservationItem} />
-              </TableCell>
-              <TableCell className="text-foreground">
-                {row.materialDescription ? (
-                  <div className="flex max-w-[200px] flex-col gap-0.5">
-                    <span className="truncate font-semibold" title={row.materialDescription}>
-                      {row.materialDescription}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">{row.material}</span>
-                  </div>
-                ) : (
-                  <span className="font-medium">{row.material}</span>
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
-              <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
-              <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
-              <TableCell>
-                <div className="flex flex-col items-start gap-1">
-                  {row.prNumber && <DocNo number={row.prNumber} />}
-                  {row.poNumber && <DocNo number={row.poNumber} item={row.poItem} />}
-                  {!row.prNumber && !row.poNumber && <EmptyValue kind="noPrOrPo" />}
+              <TableCell className={cn("text-foreground", LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone])}>
+                <div className="flex max-w-[200px] flex-col gap-0.5">
+                  {row.materialDescription ? (
+                    <>
+                      <span className="truncate font-semibold" title={row.materialDescription}>
+                        {row.materialDescription}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{row.material}</span>
+                    </>
+                  ) : (
+                    <span className="font-medium">{row.material}</span>
+                  )}
+                  <span className="text-[11px] whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</span>
                 </div>
               </TableCell>
-              <TableCell className="text-right text-foreground">{qty(row.receivedQuantity)}</TableCell>
-              <DeliveredOnCell
-                status={deliveryStatus({
-                  hasPo: Boolean(row.poNumber),
-                  receivedQuantity: row.receivedQuantity,
-                  orderedQuantity: row.orderedQuantity,
-                  firstGrDate: row.firstGrDate,
-                  latestGrDate: row.lastGrDate,
-                  expectedDeliveryDate: row.expectedDeliveryDate,
-                })}
-                receivedQuantity={row.receivedQuantity}
-                orderedQuantity={row.orderedQuantity}
-              />
+              <TableCell>
+                <DocNo number={row.reservationNumber} item={row.reservationItem} />
+              </TableCell>
+              <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
+              <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
               <IssuedCell row={row} />
               <TableCell>
-                <LifecyclePill status={row.lifecycleStatus} />
+                <div className="flex flex-col items-start gap-1">
+                  <LifecyclePill status={row.lifecycleStatus} />
+                  <OwnProcurement row={row} />
+                </div>
               </TableCell>
               <TableCell>
                 {row.sessionId ? (
@@ -135,8 +122,11 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                     {row.sessionId}
                   </Link>
                 ) : row.sgtxt ? (
-                  <span className="text-[11px] text-muted-foreground" title="Item text with no recognisable session ID">
-                    &ldquo;{row.sgtxt}&rdquo;
+                  <span
+                    className="text-[11px] text-muted-foreground"
+                    title="The reservation's item text (RESB-SGTXT), as typed in SAP. It names no session ID."
+                  >
+                    Item text: &ldquo;{row.sgtxt}&rdquo;
                   </span>
                 ) : (
                   <span className="text-[11px] text-muted-foreground">No session</span>
@@ -150,17 +140,63 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   )
 }
 
-/** Issued, or "Before history" when it cannot be known (the reservation predates the movement history). */
+/**
+ * Issued, with the latest issue date underneath -- or "Before history" when it
+ * cannot be known (the reservation predates the movement history). Exact: SAP
+ * records every issue against its reservation (MSEG-RSNUM/RSPOS).
+ */
 function IssuedCell({ row }: { row: ReservationLedgerRow }) {
   const unknown = issuedUnknownReason(row)
   if (unknown) {
     return (
-      <TableCell className="text-right">
+      <TableCell>
         <EmptyValue kind="beforeHistory" title={unknown} />
       </TableCell>
     )
   }
-  return <TableCell className="text-right font-semibold text-foreground">{qty(row.issuedQuantity)}</TableCell>
+  return (
+    <TableCell>
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="font-semibold tabular-nums text-foreground">{qty(row.issuedQuantity)}</span>
+        {row.lastIssueDate ? (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">{formatApiDate(row.lastIssueDate)}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Not issued yet</span>
+        )}
+      </div>
+    </TableCell>
+  )
+}
+
+/**
+ * The PR this reservation raised itself, its PO and what arrived on it --
+ * only for the few that have one (RESB-BANFN filled). A stock reservation
+ * shows nothing here: it never needed a purchase.
+ */
+function OwnProcurement({ row }: { row: ReservationLedgerRow }) {
+  if (!row.prNumber && !row.poNumber) return null
+  const received = row.receivedQuantity ?? 0
+  return (
+    <div className="flex flex-col items-start gap-0.5 text-[11px] text-muted-foreground">
+      <span className="flex flex-wrap items-center gap-1">
+        {row.prNumber && (
+          <>
+            PR <DocNo number={row.prNumber} />
+          </>
+        )}
+        {row.poNumber && (
+          <>
+            PO <DocNo number={row.poNumber} item={row.poItem} />
+          </>
+        )}
+      </span>
+      {received > 0 && (
+        <span className="whitespace-nowrap">
+          {formatCount(received)} received{row.lastGrDate ? ` · ${formatApiDate(row.lastGrDate)}` : ""}
+        </span>
+      )}
+    </div>
+  )
 }
 
 /** The lifecycle as a label that never claims more than the data shows, explained on hover. */

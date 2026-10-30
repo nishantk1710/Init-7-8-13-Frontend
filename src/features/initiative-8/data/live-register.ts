@@ -78,6 +78,7 @@ import type {
 import { getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import { formatApiDateTime } from "@/lib/api/format"
+import { completeFlowFromRules, switchIsOn } from "@/lib/i08-features"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
@@ -238,6 +239,10 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     // Undefined when the repair line carries no net price -- never 0, which
     // would render as R 0.00 and read as a free repair.
     repairCost: toNumber(row.repairCost),
+    // Passed through as sent: null (no currency on the PO) and undefined (a
+    // backend without the field) render differently -- see formatMoney.
+    repairCostCurrency: row.repairCostCurrency,
+    repairCostPlaceholder: toNumber(row.repairCostPlaceholder),
     // Undefined on 357 of 1,225 — every Gamsberg line, since the July MARC
     // extract has rows for plant 1300 only.
     newUnitLeadTimeDays: orUndefined(row.newUnitLeadTimeDays),
@@ -416,10 +421,7 @@ function listed(parts: string[]): string {
  * on.
  */
 export function ruleIsOn(value: string | number | boolean | undefined | null): boolean {
-  if (typeof value === "boolean") return value
-  if (typeof value === "number") return value !== 0
-  if (typeof value === "string") return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase())
-  return false
+  return switchIsOn(value)
 }
 
 type RegisterSettings = {
@@ -429,6 +431,9 @@ type RegisterSettings = {
    *  `repairRequestsEnabled` rule). False when it does not, when it is older
    *  than that rule, or when the snapshot could not be read. */
   repairRequestsEnabled: boolean
+  /** The I08 complete-flow switch (`lib/i08-features`). False when the
+   *  backend does not send it or the snapshot could not be read. */
+  completeFlowEnabled: boolean
 }
 
 /**
@@ -451,11 +456,17 @@ async function loadRegisterSettings(
       agingBands: parsed.length > 0 ? parsed : DEFAULT_AGING_BUCKETS,
       sourceLoadedAt: snapshot.sourceLoadedAt ?? null,
       repairRequestsEnabled: ruleIsOn(snapshot.rules.repairRequestsEnabled),
+      completeFlowEnabled: completeFlowFromRules(snapshot.rules),
     }
   } catch {
     // Keep the defaults silently -- this is presentation, not data integrity.
     // The caption drops its freshness clause rather than guessing at one.
-    return { agingBands: DEFAULT_AGING_BUCKETS, sourceLoadedAt: null, repairRequestsEnabled: false }
+    return {
+      agingBands: DEFAULT_AGING_BUCKETS,
+      sourceLoadedAt: null,
+      repairRequestsEnabled: false,
+      completeFlowEnabled: false,
+    }
   }
 }
 
@@ -477,6 +488,8 @@ export type LiveRegister = RegisterOptions & {
   /** The backend serves repair PRs with no PO yet as rows. False on an older
    *  backend or when the snapshot could not be read. */
   repairRequestsEnabled: boolean
+  /** The I08 complete-flow switch; false when unknown. */
+  completeFlowEnabled: boolean
 }
 
 /**
@@ -504,7 +517,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     page += 1
   }
 
-  const { agingBands, sourceLoadedAt, repairRequestsEnabled } = await loadRegisterSettings()
+  const { agingBands, sourceLoadedAt, repairRequestsEnabled, completeFlowEnabled } = await loadRegisterSettings()
 
   return {
     chains,
@@ -514,6 +527,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     referenceDate,
     sourceLoadedAt,
     repairRequestsEnabled,
+    completeFlowEnabled,
   }
 }
 
@@ -581,7 +595,7 @@ export const REGISTER_VIEWS = [
  */
 export function registerViewChoices(
   viewCounts: ApiRegisterViewCounts,
-  screen?: { repairRequestsEnabled: boolean; selected?: string },
+  screen?: { repairRequestsEnabled: boolean; selected?: string; completeFlow?: boolean },
 ): { value: string; label: string; count: number }[] {
   return REGISTER_VIEWS.flatMap((view) => {
     const count = viewCounts[view.value === "" ? "all" : view.value]
@@ -589,9 +603,10 @@ export function registerViewChoices(
     if (
       screen &&
       view.value === "notOrdered" &&
-      !screen.repairRequestsEnabled &&
-      count === 0 &&
-      screen.selected !== view.value
+      screen.selected !== view.value &&
+      // With the complete flow off there are no repair PRs to list, whatever
+      // the count says.
+      (screen.completeFlow === false || (!screen.repairRequestsEnabled && count === 0))
     ) {
       return []
     }
@@ -622,6 +637,8 @@ export type RegisterPage = {
   sourceLoadedAt: string | null
   /** The backend serves repair PRs with no PO yet as rows. */
   repairRequestsEnabled: boolean
+  /** The I08 complete-flow switch; false when unknown. */
+  completeFlowEnabled: boolean
   /** Each quick view's count over the filtered lines; null from a backend
    *  older than the quick views, when the buttons show no numbers. */
   viewCounts: ApiRegisterViewCounts | null

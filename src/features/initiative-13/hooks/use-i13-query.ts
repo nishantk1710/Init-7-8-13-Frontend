@@ -9,13 +9,11 @@ interface QueryState<T> {
 }
 
 /**
- * Fetch-on-mount for the one Initiative 13 component that still needs it.
+ * Fetch-on-mount for the client components that still need it.
  *
  * Every OAR *page* is a server component now and fetches through
  * `data/live-loaders.ts` before it renders, so none of them uses this. What is
- * left is `DataSourcePanel`: a collapsed-by-default diagnostic aside whose
- * content nobody needs until they open it, and which would otherwise make every
- * page wait on an entity-set status read it may never show.
+ * left is the assistant workspace's own client-side reads.
  *
  * Its sibling `use-i13-optional-query` is gone. The 404-means-unavailable rule
  * it existed for did not disappear — it moved to the server, into

@@ -13,10 +13,18 @@ export const QUIET_AFTER_MONTHS = 6
 export const STEADY_SHARE = 0.5
 
 export const USAGE_KIND_LABEL: Record<UsageKind, string> = {
-  never: "Never issued",
-  quiet: "Gone quiet",
-  steady: "Steady",
-  bursts: "In bursts",
+  never: "Never used",
+  quiet: "Not used lately",
+  steady: "Used regularly",
+  bursts: "Used now and then",
+}
+
+/** What each label means, in plain words -- the hover on the key and on every card. */
+export const USAGE_KIND_MEANING: Record<UsageKind, string> = {
+  never: "Never taken out of the store in the history we hold.",
+  quiet: `Nothing taken out of the store in the last ${QUIET_AFTER_MONTHS} months of the history.`,
+  steady: "Taken out of the store in at least half of the months.",
+  bursts: "Taken out of the store in some months, with gaps in between.",
 }
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

@@ -151,8 +151,8 @@ export function ActExceptionsBoard({
               <TableHead className="w-12">
                 <span className="sr-only">Details</span>
               </TableHead>
-              <TableHead>Type</TableHead>
               <TableHead>Material</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead>Reservation</TableHead>
               <TableHead>Owner</TableHead>
@@ -185,15 +185,6 @@ export function ActExceptionsBoard({
                         label={`${EXCEPTION_TYPE_LABEL[exception.exceptionType]} exception on material ${exception.material}`}
                       />
                     </TableCell>
-                    <TableCell>
-                      <StatusPill
-                        tone={TYPE_TONE[exception.exceptionType]}
-                        title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
-                        className="h-auto py-0.5 leading-tight whitespace-normal"
-                      >
-                        {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
-                      </StatusPill>
-                    </TableCell>
                     <TableCell className="font-medium text-foreground">
                       <div className="flex flex-col gap-0.5">
                         <MaterialName material={exception.material} description={exception.materialDescription} />
@@ -222,6 +213,15 @@ export function ActExceptionsBoard({
                           )}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill
+                        tone={TYPE_TONE[exception.exceptionType]}
+                        title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
+                        className="h-auto py-0.5 leading-tight whitespace-normal"
+                      >
+                        {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
+                      </StatusPill>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {sapPlantLabel(exception.plant)}

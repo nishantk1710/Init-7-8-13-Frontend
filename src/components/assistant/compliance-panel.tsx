@@ -1,5 +1,6 @@
 import { CircleCheck, CircleHelp, TriangleAlert } from "lucide-react"
 
+import { InfoPopup, type InfoTone } from "@/components/shared/info-popup"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,6 +30,8 @@ export type ComplianceCheck = {
   label: string
   /** What this check is looking for, in a planner's words. */
   description: string
+  /** The (i) beside the label: what is counted, and what is not. */
+  info?: { summary: string; points: string[] }
 } & (
   | { state: "counted"; count: number; detail?: string }
   | { state: "blocked"; reason: string; dependency: string }
@@ -52,6 +55,24 @@ const EDGE_BY_ID: Record<string, string> = {
   "advice-not-taken": "before:bg-warning",
   abandoned: "before:bg-destructive",
   "missing-session": "before:bg-destructive",
+}
+
+const INFO_TONE_BY_ID: Record<string, InfoTone> = {
+  "advice-not-taken": "warning",
+  abandoned: "danger",
+  "missing-session": "danger",
+}
+
+function CheckInfo({ check, info }: { check: ComplianceCheck; info: NonNullable<ComplianceCheck["info"]> }) {
+  return (
+    <InfoPopup title={check.label} description={info.summary} tone={INFO_TONE_BY_ID[check.id] ?? "info"}>
+      <ul className="list-disc space-y-1.5 pl-4 text-sm text-foreground marker:text-muted-foreground">
+        {info.points.map((point) => (
+          <li key={point}>{point}</li>
+        ))}
+      </ul>
+    </InfoPopup>
+  )
 }
 
 function CheckCard({ check }: { check: ComplianceCheck }) {
@@ -84,6 +105,7 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
               <TriangleAlert className="size-4 text-muted-foreground" aria-hidden />
             )}
             {check.label}
+            {check.info && <CheckInfo check={check} info={check.info} />}
           </p>
           <p className="text-sm text-muted-foreground">{check.description}</p>
           {check.detail && <p className="text-xs text-muted-foreground">{check.detail}</p>}

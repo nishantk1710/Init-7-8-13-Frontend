@@ -18,6 +18,12 @@ import {
 import { DELIVERY_STATE_LABELS, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
 import { UTILISATION_STATUS_LABELS } from "@/features/initiative-13/utils/issue-match"
+import {
+  ISSUED_FILTER_LABELS,
+  ISSUED_FILTERS,
+  RESERVATION_STATUSES,
+  reservationStatusOption,
+} from "@/features/initiative-13/utils/reservation-lifecycle"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   AGING_BAND_LABEL,
@@ -78,6 +84,8 @@ export function I13UrlFilters({
     | "procurementStatus"
     | "utilisationStatus"
     | "deliveryStatus"
+    | "reservationStatus"
+    | "issued"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -115,7 +123,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -223,6 +231,22 @@ export function I13UrlFilters({
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ deliveryStatus: value })}
+          />)}
+
+        {fields.includes("reservationStatus") && wrap("reservationStatus", <UrlSelect
+            label="All stages"
+            width="sm:w-52"
+            value={searchParams.get("reservationStatus") ?? ""}
+            options={RESERVATION_STATUSES.map((value) => ({ value, label: reservationStatusOption(value) }))}
+            onChange={(value) => push({ reservationStatus: value })}
+          />)}
+
+        {fields.includes("issued") && wrap("issued", <UrlSelect
+            label="Issued: any"
+            width="sm:w-40"
+            value={searchParams.get("issued") ?? ""}
+            options={ISSUED_FILTERS.map((value) => ({ value, label: ISSUED_FILTER_LABELS[value] }))}
+            onChange={(value) => push({ issued: value })}
           />)}
 
         {panel ? (
