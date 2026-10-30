@@ -217,7 +217,7 @@ export async function UtilisationDashboardPage({
         <Card>
           <CardHeading
             title="Consumption Plan Coverage"
-            subtitle="Received quantity against the consumption plan, per material"
+            subtitle="Quantity issued against the consumption plan, per material"
           />
           <div className="mt-4">
             {watchCounts ? (
@@ -327,7 +327,7 @@ export async function UtilisationDashboardPage({
                 {watch ? (
                   <div className="flex flex-col gap-3">
                     <TabIntro info="acquiredVsPlanTab">
-                      Received quantity against the consumption plan, per material and plant.
+                      Quantity issued on the reservations of each consumption plan, per material and plant.
                     </TabIntro>
                     <AcquiredVsPlanPanel
                       rows={watch.rows}

@@ -28,8 +28,10 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** Acquired vs. Plan (§9): backend-computed `acquired_vs_plan_status` and
  * variance, rendered as-is — no tolerance/comparison rule is recreated
- * here. One server page of 25, most recent activity first; the export fetches
- * every position the filters match. */
+ * here. Planned is measured against what was issued on the plans' own
+ * reservations; received (GR on a reservation's PO) is not shown, since an
+ * OAR reservation is filled from stock. One server page of 25, most recent
+ * activity first; the export fetches every position the filters match. */
 export function AcquiredVsPlanPanel({
   rows,
   total,
@@ -50,7 +52,7 @@ export function AcquiredVsPlanPanel({
   async function exportExcel() {
     downloadExcel(
       "i13-acquired-vs-plan.xlsx",
-      ["Material", "Plant", "Planned qty", "Received (acquired) qty", "Issued qty", "Variance qty", "Variance %", "Status"],
+      ["Material", "Plant", "Planned qty", "Issued against plans qty", "Variance qty", "Variance %", "Status"],
       acquiredVsPlanRowsToCsv(await exportWatchRows(filters))
     )
   }
@@ -75,8 +77,12 @@ export function AcquiredVsPlanPanel({
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead className="text-right">Planned</TableHead>
-              <TableHead className="text-right">Received</TableHead>
-              <TableHead className="text-right">Issued</TableHead>
+              <TableHead
+                className="text-right"
+                title="Issued against the reservations the plans stand for (MSEG by reservation, reversals netted)"
+              >
+                Issued
+              </TableHead>
               <TableHead className="text-right">Variance</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -91,14 +97,18 @@ export function AcquiredVsPlanPanel({
                 <TableCell className="text-right text-foreground">
                   {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : <EmptyValue kind="noPlanCaptured" />}
                 </TableCell>
-                {/* A label, not zero. A null received quantity means nothing
-                    was recorded; zero means nothing arrived. On a variance
-                    table the two point at different problems. */}
+                {/* A label, not zero, when there is nothing to have issued
+                    against: no plan, or no reservation for it yet. */}
                 <TableCell className="text-right text-foreground">
-                  {r.receivedQuantity !== null ? formatCount(r.receivedQuantity) : <EmptyValue kind="noneRecorded" />}
-                </TableCell>
-                <TableCell className="text-right text-foreground">
-                  {r.issuedQuantity !== null ? formatCount(r.issuedQuantity) : <EmptyValue kind="noneRecorded" />}
+                  {r.acquiredVsPlanStatus === "NO_PLAN" ? (
+                    <EmptyValue kind="noPlanToCompare" />
+                  ) : r.acquiredVsPlanStatus === "NO_RESERVATION" ? (
+                    <EmptyValue kind="noReservationYet" />
+                  ) : r.issuedQuantity !== null ? (
+                    formatCount(r.issuedQuantity)
+                  ) : (
+                    <EmptyValue kind="noneRecorded" />
+                  )}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
                   {r.acquiredVsPlanVarianceQuantity !== null ? (
@@ -109,7 +119,9 @@ export function AcquiredVsPlanPanel({
                       )}
                     </>
                   ) : (
-                    <EmptyValue kind="noPlanToCompare" />
+                    <EmptyValue
+                      kind={r.acquiredVsPlanStatus === "NO_RESERVATION" ? "noReservationYet" : "noPlanToCompare"}
+                    />
                   )}
                 </TableCell>
                 <TableCell>

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/table"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
 import type { ConsumptionPlan } from "@/lib/api/i13"
+import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { badgeTone, PLAN_STATUS_LABEL, PLAN_STATUS_TONE } from "@/features/initiative-13/utils/status-labels"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -41,7 +43,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
     return (
       <EmptyState
         title="No consumption plans have been captured yet."
-        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every acquired-versus-plan figure on these screens rests on generated reference data."
+        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every material and plant reads Non-AI on Acquired vs plan."
       />
     )
   }
@@ -56,6 +58,13 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             <TableHead>Purpose</TableHead>
             <TableHead className="text-right">Planned qty</TableHead>
             <TableHead>Window</TableHead>
+            <TableHead
+              className="text-right"
+              title="Goods issued against the reservations this plan stands for (its session or request ID in the item text, else required inside its window)"
+            >
+              Issued
+            </TableHead>
+            <TableHead>Acquired vs plan</TableHead>
             <TableHead>Reservation</TableHead>
             <TableHead>Session</TableHead>
             <TableHead>Captured</TableHead>
@@ -88,6 +97,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                   </span>
                 )}
               </TableCell>
+              <PlanOutcomeCells plan={plan} />
               <TableCell>
                 {plan.reservationNumber ? (
                   <SAPDocumentChip
@@ -126,6 +136,56 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+/**
+ * Issued and status for one plan, as the backend measured them. The issued
+ * cell names the reservations it was counted on: a plan matched by its window
+ * has none in the Reservation column, which shows SGTXT links only.
+ */
+function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
+  const status = plan.acquiredVsPlanStatus
+  if (!status) {
+    return (
+      <>
+        <TableCell className="text-right">
+          <EmptyValue kind="notMeasured" />
+        </TableCell>
+        <TableCell>
+          <EmptyValue kind="notMeasured" />
+        </TableCell>
+      </>
+    )
+  }
+  const reservations = plan.matchedReservations ?? []
+  const variance = plan.acquiredVsPlanVarianceQuantity
+  return (
+    <>
+      <TableCell className="text-right text-foreground">
+        {status === "NO_RESERVATION" ? (
+          <EmptyValue kind="noReservationYet" />
+        ) : (
+          <div className="flex flex-col items-end gap-0.5">
+            <span>{plan.issuedQuantity}</span>
+            <span className="text-[11px] text-muted-foreground" title={reservations.join(", ")}>
+              on {reservations.length === 1 ? reservations[0] : `${reservations.length} reservations`}
+            </span>
+          </div>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col items-start gap-0.5">
+          <StatusBadge tone={badgeTone(PLAN_STATUS_TONE[status])}>{PLAN_STATUS_LABEL[status]}</StatusBadge>
+          {variance !== null && variance !== undefined && Number(variance) !== 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              {Number(variance) > 0 ? "+" : ""}
+              {variance}
+            </span>
+          )}
+        </div>
+      </TableCell>
+    </>
   )
 }
 
