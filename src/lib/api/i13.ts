@@ -1256,6 +1256,8 @@ export function getI13ReservationLedgerList(params?: {
   sessionId?: string
   /** Exact match on the reservation number, as the backend stores it. */
   reservationNumber?: string
+  /** One lifecycle value, or several comma-separated: any of them matches. */
+  lifecycleStatus?: string
   limit?: number
   offset?: number
 }): Promise<ApiList<ReservationLedgerRow>> {
@@ -1264,6 +1266,7 @@ export function getI13ReservationLedgerList(params?: {
     material: params?.material,
     session_id: params?.sessionId,
     reservation_number: params?.reservationNumber,
+    lifecycle_status: params?.lifecycleStatus,
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })

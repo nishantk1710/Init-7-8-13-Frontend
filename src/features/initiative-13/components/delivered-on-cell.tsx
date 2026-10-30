@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { TableCell } from "@/components/ui/table"
@@ -35,16 +37,22 @@ export function DeliveredOnCell({
   status,
   receivedQuantity,
   orderedQuantity,
+  lead,
 }: {
   status: DeliveryStatus
   receivedQuantity: number | null
   /** Shown as "5 of 10" when known; the lines view does not receive it. */
   orderedQuantity?: number | null
+  /** Drawn above the date -- the received quantity, where the table folds it into this cell. */
+  lead?: ReactNode
 }) {
   if (status.state === "NO_PO") {
     return (
       <TableCell>
-        <EmptyValue kind="noPoYet" />
+        <div className="flex flex-col items-start gap-1">
+          {lead}
+          <EmptyValue kind="noPoYet" />
+        </div>
       </TableCell>
     )
   }
@@ -53,6 +61,7 @@ export function DeliveredOnCell({
     return (
       <TableCell title={DELIVERY_STATE_EXPLANATIONS[status.state]}>
         <div className="flex flex-col items-start gap-1">
+          {lead}
           {received > 0 && status.date && (
             <span className="whitespace-nowrap text-foreground">{formatApiDate(status.date)}</span>
           )}
@@ -68,6 +77,7 @@ export function DeliveredOnCell({
     return (
       <TableCell>
         <div className="flex flex-col items-start gap-1">
+          {lead}
           {status.expectedDate ? (
             <ExpectedLine date={status.expectedDate} overdue={status.overdue} prefix="Expected" />
           ) : (
@@ -93,6 +103,7 @@ export function DeliveredOnCell({
   return (
     <TableCell title={title}>
       <div className="flex flex-col items-start gap-1">
+        {lead}
         <span className="whitespace-nowrap text-foreground">{formatApiDate(status.date)}</span>
         {status.state === "DELIVERED" ? (
           <StatusBadge tone="success">Delivered</StatusBadge>
