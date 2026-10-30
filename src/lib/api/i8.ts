@@ -174,8 +174,15 @@ export type ApiRepairChain = {
 
   orderedQty: string
   unit: string | null
-  /** Net order price of the repair line. Decimal, sent as a string. */
+  /** Net order price of the repair line, in `repairCostCurrency`. Decimal, sent
+   *  as a string. Null when there is no price, a zero, or a placeholder. */
   repairCost: string | null
+  /** EKKO.WAERS (`ZAR`, `USD`); null when the PO has no currency. Absent from
+   *  a backend older than 29-Oct-2026. */
+  repairCostCurrency?: string | null
+  /** The PO's net price when it is only a placeholder (R 1.00); null otherwise.
+   *  Absent from a backend older than 29-Oct-2026. */
+  repairCostPlaceholder?: string | null
   newUnitLeadTimeDays: number | null
 
   // Provenance — how solid this row is.
