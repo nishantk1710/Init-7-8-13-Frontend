@@ -62,6 +62,9 @@ export interface ApiOarInfo {
   conversion_detail: string | null
   demand_class: string | null
   consumption_count_12m: number | null
+  /** The months `consumption_count_12m` was counted over (the field's name is historical). Optional
+   * so an older backend that does not send it still works; absent or null means "not recorded". */
+  consumption_count_months?: number | null
   consumption_count_threshold: number | null
   production_impact: boolean | null
   i13_hod_approved: boolean | null

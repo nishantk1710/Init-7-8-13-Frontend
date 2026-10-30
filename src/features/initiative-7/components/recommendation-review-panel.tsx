@@ -97,6 +97,12 @@ function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?
   // nothing the Reason below does not already ("It was used 0 times..."), and "Not enough history"
   // is the stand-in for a usage pattern that was never worked out.
   const timesIssued = oar.consumptionCount12m != null && oar.consumptionCount12m > 0 ? oar.consumptionCount12m : null
+  // The window the count covers comes with the recommendation (the policy's, 6 months at present).
+  // One made before it was recorded has none, and then no period is claimed -- never a guessed 12.
+  const issuedMonths =
+    oar.consumptionCountMonths != null && oar.consumptionCountMonths > 0 ? oar.consumptionCountMonths : null
+  const timesIssuedLabel =
+    issuedMonths !== null ? `Times issued, last ${issuedMonths} ${issuedMonths === 1 ? "month" : "months"}` : "Times issued"
   const usagePattern = oar.demandClass && oar.demandClass !== "UNCLASSIFIED" ? oar.demandClass : null
   const hasFacts = timesIssued !== null || usagePattern !== null
 
@@ -121,7 +127,7 @@ function OarConversionSection({ oar, reason }: { oar: OarConversionInfo; reason?
           {/* A count of issue transactions -- the Min-Max rule's measure -- not units: one issue
               of 2 units is 1 here and 2 on the chart and in Annual consumption. */}
           {timesIssued !== null && (
-            <Fact label="Times issued, last 12 months">
+            <Fact label={timesIssuedLabel}>
               {timesIssued}
               {oar.consumptionCountThreshold != null && (
                 <span className="text-muted-foreground"> (needs more than {oar.consumptionCountThreshold})</span>
