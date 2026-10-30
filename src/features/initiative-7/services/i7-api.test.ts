@@ -500,9 +500,10 @@ describe("mapDetailToRecommendation", () => {
           confidence: null,
           conversion_eligibility: "ELIGIBLE",
           conversion_trigger: "CONSUMPTION_FREQUENCY",
-          conversion_detail: "7 consumptions in the trailing 12 months exceeds the threshold of 4.",
+          conversion_detail: "7 consumptions in the trailing 6 months exceeds the threshold of 4.",
           demand_class: "INTERMITTENT",
           consumption_count_12m: 7,
+          consumption_count_months: 6,
           consumption_count_threshold: 4,
           production_impact: null,
           i13_hod_approved: null,
@@ -513,13 +514,39 @@ describe("mapDetailToRecommendation", () => {
       isOar: true,
       conversionEligibility: "ELIGIBLE",
       conversionTrigger: "CONSUMPTION_FREQUENCY",
-      conversionDetail: "7 consumptions in the trailing 12 months exceeds the threshold of 4.",
+      conversionDetail: "7 consumptions in the trailing 6 months exceeds the threshold of 4.",
       demandClass: "INTERMITTENT",
       consumptionCount12m: 7,
+      consumptionCountMonths: 6,
       consumptionCountThreshold: 4,
       productionImpact: null,
       i13HodApproved: null,
     })
+  })
+
+  it("reads the window as unrecorded when the backend does not send the months", () => {
+    // An older backend (or a recommendation made before the window was recorded) sends no months:
+    // the screen then claims no period, rather than assuming one.
+    const detail = detailFixture({
+      oar: {
+        is_oar: true,
+        similarity_status: null,
+        estimate_status: null,
+        neighbour_count: null,
+        best_similarity: null,
+        confidence: null,
+        conversion_eligibility: "ELIGIBLE",
+        conversion_trigger: "CONSUMPTION_FREQUENCY",
+        conversion_detail: "It was used 7 times.",
+        demand_class: "INTERMITTENT",
+        consumption_count_12m: 7,
+        consumption_count_threshold: 4,
+        production_impact: null,
+        i13_hod_approved: null,
+      },
+    })
+
+    expect(mapDetailToRecommendation(detail).oarConversion?.consumptionCountMonths).toBeNull()
   })
 
   it("annual consumption is actual usage over the last 12 months, with or without a forecast", () => {

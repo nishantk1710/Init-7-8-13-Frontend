@@ -133,9 +133,10 @@ export interface OarColdStartGuidance {
  * non-OAR (Min-Max) recommendation has no conversion decision to show.
  * `demandClass` is FR-2's pattern, carried here purely as supporting/
  * confidence context -- it plays no part in eligibility. The backend's rule is
- * now an AND of usage (> 4 issues in 12 months) and a CRITICAL/IMPACT tier, so
- * an eligible decision carries `CONSUMPTION_AND_CRITICALITY`; the two older
- * single-condition values can still arrive on recommendations made before it. */
+ * now an AND of usage (more than `consumptionCountThreshold` issues in the last
+ * `consumptionCountMonths` months) and a CRITICAL/IMPACT tier, so an eligible
+ * decision carries `CONSUMPTION_AND_CRITICALITY`; the two older single-condition
+ * values can still arrive on recommendations made before it. */
 export interface OarConversionInfo {
   isOar: boolean | null
   conversionEligibility: "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN" | null
@@ -148,7 +149,12 @@ export interface OarConversionInfo {
     | null
   conversionDetail: string | null
   demandClass: string | null
+  /** Issue transactions over the window below. The name says 12 for historical reasons; label it
+   * with `consumptionCountMonths`, never with a fixed period. */
   consumptionCount12m: number | null
+  /** How many months `consumptionCount12m` covers, as recorded when the recommendation was made.
+   * Null/absent for one made before it was recorded: then no period is claimed. */
+  consumptionCountMonths?: number | null
   consumptionCountThreshold: number | null
   /** Whether the criticality condition (CRITICAL/IMPACT) held -- null when it
    * could not be determined. */

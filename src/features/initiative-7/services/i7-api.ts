@@ -415,6 +415,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
           conversionDetail: detail.oar.conversion_detail,
           demandClass: detail.oar.demand_class,
           consumptionCount12m: detail.oar.consumption_count_12m,
+          consumptionCountMonths: detail.oar.consumption_count_months ?? null,
           consumptionCountThreshold: detail.oar.consumption_count_threshold,
           productionImpact: detail.oar.production_impact,
           i13HodApproved: detail.oar.i13_hod_approved,
@@ -444,8 +445,8 @@ export interface RecommendationListParams {
   confidence?: string
   /** ELIGIBLE | NOT_ELIGIBLE -- the OAR -> Min-Max conversion decision, applied in SQL. */
   conversionEligibility?: string
-  /** Only recommendations issued more than the policy threshold in the last 12 months -- drops
-   * zero-consumption materials too. Applied in SQL. */
+  /** Only recommendations issued more than the policy threshold in the policy's window (the last
+   * 6 months at present) -- drops zero-consumption materials too. Applied in SQL. */
   consumptionAboveThreshold?: boolean
   /** Only recommendations with something to adopt in SAP: an OAR one eligible for the Min-Max
    * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
