@@ -172,7 +172,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
             usable ? formatCount(entry.figures.stockout.evaluated) : NOT_AVAILABLE,
             formatCount(entry.figures.excess_count),
             millions(num(entry.figures.excess_opportunity), entry.figures.currency),
-            millions(num(entry.figures.net_rop_value_impact), entry.figures.currency, true),
+            millions(num(entry.figures.net_rop_value_impact), entry.figures.working_capital_currency ?? entry.figures.currency, true),
           ])}
         />
         <p className="print-disclosure">

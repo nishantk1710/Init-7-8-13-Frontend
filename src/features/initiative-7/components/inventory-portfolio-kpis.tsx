@@ -251,7 +251,14 @@ export function InventoryPortfolioKpis({
    * recommendation has a unit price, a current and a recommended reorder point together -- shown as
    * "Not available". Without this, the KPI sums only the rows that happen to be on
    * the fetched page, which is a handful of the newest rows and not the portfolio. */
-  workingCapitalOverride?: { amount: number | null; currency: string | null; estimated?: boolean }
+  workingCapitalOverride?: {
+    amount: number | null
+    currency: string | null
+    estimated?: boolean
+    /** Material-plants the amount is over, and the ones left out (another currency, no valid price, no reorder point). */
+    includedCount?: number | null
+    excludedCount?: number | null
+  }
   /** Which cards are waiting for their figure. A card that is loading shows a loader, whatever else it was given. */
   loading?: Partial<Record<"stockout" | "excess" | "workingCapital" | "adopted", boolean>>
 }) {
@@ -286,6 +293,13 @@ export function InventoryPortfolioKpis({
   const impactCurrency = workingCapitalOverride
     ? workingCapitalOverride.currency
     : commonCurrency(recommendations.map((r) => r.currency))
+  // How much of the portfolio the amount covers: included and left-out material-plants (only when the backend says).
+  const wcIncluded = workingCapitalOverride?.includedCount
+  const wcExcluded = workingCapitalOverride?.excludedCount
+  const workingCapitalCoverage =
+    wcIncluded == null || wcExcluded == null
+      ? undefined
+      : `${formatCount(wcIncluded)} included · ${formatCount(wcExcluded)} excluded`
 
   return (
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
@@ -328,6 +342,7 @@ export function InventoryPortfolioKpis({
             : `${netImpact >= 0 ? "Net release" : "Net additional investment"}${workingCapitalOverride?.estimated ? " · estimate" : ""}`
         }
         captionMuted={netImpact === null}
+        note={workingCapitalCoverage}
       />
       <PortfolioKpiCard
         title="Adopted recommendation"

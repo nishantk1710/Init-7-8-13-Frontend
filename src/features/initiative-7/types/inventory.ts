@@ -224,6 +224,16 @@ export interface Recommendation {
    * Positive releases working capital (reorder point reduced), negative is additional investment. `null` when it
    * could not be calculated (blocked, no price, no reorder point): not 0, which would claim "no change". */
   workingCapitalImpact: number | null
+  /** "ZAR" when `workingCapitalImpact` is stated in ZAR (a ZAR price, or NAD at 1:1); null when there is no figure
+   * or the price's currency cannot be stated in ZAR. Format the figure with this, falling back to `currency`. */
+  workingCapitalCurrency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. `conversionEligibility` still
+   * holds the rule's verdict: the two together say "the rule said no, and somebody asked anyway". */
+  manuallyConverted?: boolean
+  requestedBy?: string | null
+  requestedAt?: string | null
+  /** Why it was rejected: the comment of the newest REJECT in the approval ledger. Live rows with status Rejected. */
+  rejectionReason?: string | null
   consumptionHistory: ConsumptionPoint[]
   factors: RecommendationFactor[]
   championChallenger: ChampionChallenger

@@ -177,6 +177,7 @@ export const getInitiative7LiveActions = cache(async (): Promise<LiveActions> =>
 
 const APPROVAL_LABEL: Record<string, string> = {
   SUBMIT: "Submitted for approval",
+  RESUBMIT: "Resubmitted for approval",
   APPROVE: "Approved",
   REJECT: "Rejected",
   SEND_BACK: "Sent back",

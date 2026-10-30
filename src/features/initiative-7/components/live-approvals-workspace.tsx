@@ -333,7 +333,13 @@ export function LiveApprovalsWorkspace({
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                             <StatusBadge tone="default">{rec.criticality}</StatusBadge>
+                            {rec.manuallyConverted && <StatusBadge tone="warning">Manual conversion</StatusBadge>}
                           </div>
+                          {rec.status === "Rejected" && rec.rejectionReason && (
+                            <p className="mt-1 max-w-[210px] text-[11px] leading-snug text-destructive">
+                              Rejected: {rec.rejectionReason}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell>
                           <ChangeSummary rec={rec} />
@@ -349,7 +355,7 @@ export function LiveApprovalsWorkspace({
                           ) : (
                             <>
                               {releases ? "−" : "+"}
-                              {formatMoney(Math.abs(impact), rec.currency)}
+                              {formatMoney(Math.abs(impact), rec.workingCapitalCurrency ?? rec.currency)}
                             </>
                           )}
                         </TableCell>

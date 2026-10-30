@@ -273,7 +273,10 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
           summary
             ? {
                 amount: summary.netRopValueImpact,
-                currency: summary.currency,
+                // ZAR from MBEW's price (ZAR, and NAD at 1:1); the portfolio currency only for an older backend.
+                currency: summary.workingCapitalCurrency ?? summary.currency,
+                includedCount: summary.workingCapitalIncludedCount,
+                excludedCount: summary.workingCapitalExcludedCount,
               }
             : undefined
         }
