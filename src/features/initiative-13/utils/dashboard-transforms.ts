@@ -86,11 +86,12 @@ export function acquiredVsPlanRowsToCsv(rows: WatchMetric[]): (string | number)[
     r.material,
     r.plant,
     r.plannedQuantity ?? "",
-    // Empty, not 0. An exported cell reading 0 asserts that nothing arrived;
-    // an empty one says nobody recorded what did. This file is the boundary
-    // where that distinction would quietly be lost.
-    r.receivedQuantity ?? "",
-    r.issuedQuantity ?? "",
+    // Empty, not 0, when there was nothing to issue against (no plan, or no
+    // reservation for it yet). An exported 0 would assert nothing was issued;
+    // this file is the boundary where that distinction would quietly be lost.
+    r.acquiredVsPlanStatus === "NO_PLAN" || r.acquiredVsPlanStatus === "NO_RESERVATION"
+      ? ""
+      : (r.issuedQuantity ?? ""),
     r.acquiredVsPlanVarianceQuantity ?? "",
     r.acquiredVsPlanVariancePercentage ?? "",
     r.acquiredVsPlanStatus,

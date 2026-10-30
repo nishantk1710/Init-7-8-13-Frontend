@@ -55,6 +55,7 @@ function CoverCell({ months }: { months: number | null }) {
 
 const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
   NO_PLAN: "Non-AI",
+  NO_RESERVATION: "Awaiting reservation",
   BELOW_PLAN: "Below plan",
   ON_PLAN: "On plan",
   ABOVE_PLAN: "Above plan",
@@ -62,6 +63,7 @@ const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
 
 const PLAN_TONE: Record<AcquiredVsPlanStatus, "neutral" | "healthy" | "caution" | "urgent"> = {
   NO_PLAN: "neutral",
+  NO_RESERVATION: "neutral",
   BELOW_PLAN: "caution",
   ON_PLAN: "healthy",
   ABOVE_PLAN: "urgent",
@@ -168,9 +170,10 @@ export function WatchTable({
                     </StatusPill>
                     {m.acquiredVsPlanStatus !== "NO_PLAN" && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        planned {formatCount(m.plannedQuantity ?? 0)} · received{" "}
-                        {formatCount(m.receivedQuantity ?? 0)} · issued{" "}
-                        {formatCount(m.issuedQuantity ?? 0)}
+                        planned {formatCount(m.plannedQuantity ?? 0)} ·{" "}
+                        {m.acquiredVsPlanStatus === "NO_RESERVATION"
+                          ? "no reservation yet"
+                          : `issued ${formatCount(m.issuedQuantity ?? 0)}`}
                       </div>
                     )}
                   </TableCell>

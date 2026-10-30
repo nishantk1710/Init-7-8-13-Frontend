@@ -9,7 +9,8 @@
 //   GR not issued    oldest receipt still not issued >= 30 days, per material and plant (watch.py)
 //   plan overdue     planned usage window end + 14 days passed, nothing issued (exceptions.py)
 //   non-AI           OAR reservation line, not deleted, no consumption plan matched (exceptions.py)
-//   acquired vs plan received vs planned, exact comparison, per material and plant (watch.py)
+//   acquired vs plan issued on each plan's own reservations vs planned, exact comparison, rolled up per
+//                    material and plant (plans.py plan_outcomes, watch.py); read again 30 Oct 2026
 // The thresholds are backend settings; if one changes, change its text here. dashboard-info.test.ts
 // checks each example lands in the band its text claims.
 import type { InfoTone } from "@/components/shared/info-popup"
@@ -270,22 +271,26 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   acquiredVsPlanTab: {
     title: "Acquired vs plan",
     tone: "warning",
-    summary: "Received quantity against the consumption plan, per material and plant.",
+    summary: "What was issued to requesters against what they planned, per material and plant.",
     rule: [
-      "Planned = the planned quantities of the position's consumption plans, added up",
-      "Received = goods received for the position's reservations",
-      "On plan: received = planned · Below: received < planned · Above: received > planned",
+      "Each plan's reservations: the ones carrying its session or request ID in the item text, else the ones required inside its usage window",
+      "Issued = goods issued against those reservations, reversals taken off; each reservation counts for one plan",
+      "Planned and issued are each added up over the position's plans",
+      "On plan: issued = planned · Below: issued < planned · Above: issued > planned",
+      "Awaiting reservation: there is a plan, but no reservation for it yet",
       "Non-AI: no plan, so nothing to compare",
     ],
     steps: [
+      "Issued, not received: an OAR reservation is usually filled from stock, so no purchase order or goods receipt sits behind it.",
       "The comparison is exact: no tolerance band is configured, so 9 against a plan of 10 is Below plan.",
-      "Variance = received − planned, also shown as a percentage of planned.",
+      "Variance = issued − planned, also shown as a percentage of planned.",
+      "Each plan's own figures are on the Captured plans tab.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",
       inputs: [
         { label: "Planned (two plans: 4 + 6)", value: "10" },
-        { label: "Received", value: "12" },
+        { label: "Issued on their reservations, from stock", value: "12" },
         { label: "Variance", value: "+2 (+20%)" },
       ],
       result: "12 > 10, so it is Above plan.",
@@ -298,6 +303,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     rule: [
       "One row per plan captured in an assistant session",
       "Material, plant, planned quantity, usage window and purpose, as the requester gave them",
+      "Issued = goods issued against the plan's reservations; status compares it with the planned quantity",
     ],
     steps: [
       "Generated reference plans are not shown here.",

@@ -27,6 +27,7 @@ export const PLAN_STATUS_ORDER: AcquiredVsPlanStatus[] = [
   "ON_PLAN",
   "BELOW_PLAN",
   "ABOVE_PLAN",
+  "NO_RESERVATION",
   "NO_PLAN",
 ]
 
@@ -34,6 +35,7 @@ export const PLAN_STATUS_LABEL: Record<AcquiredVsPlanStatus, string> = {
   ON_PLAN: "On plan",
   BELOW_PLAN: "Below plan",
   ABOVE_PLAN: "Above plan",
+  NO_RESERVATION: "Awaiting reservation",
   NO_PLAN: "Non-AI",
 }
 
@@ -41,6 +43,7 @@ export const PLAN_STATUS_TONE: Record<AcquiredVsPlanStatus, Tone> = {
   ON_PLAN: "success",
   BELOW_PLAN: "warning",
   ABOVE_PLAN: "danger",
+  NO_RESERVATION: "info",
   NO_PLAN: "neutral",
 }
 

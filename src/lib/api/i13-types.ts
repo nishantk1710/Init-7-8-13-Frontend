@@ -48,7 +48,7 @@ export type AttributionStatus =
   | "PROCUREMENT_LINK"
   | "UNATTRIBUTED"
 
-export type AcquiredVsPlanStatus = "NO_PLAN" | "BELOW_PLAN" | "ON_PLAN" | "ABOVE_PLAN"
+export type AcquiredVsPlanStatus = "NO_PLAN" | "NO_RESERVATION" | "BELOW_PLAN" | "ON_PLAN" | "ABOVE_PLAN"
 
 export type I13ExceptionType = "PLAN_BREACH" | "NO_PLAN" | "GR_NOT_ISSUED_30_DAY"
 
@@ -107,6 +107,7 @@ export const ATTRIBUTION_STATUSES: readonly AttributionStatus[] = [
 ]
 export const ACQUIRED_VS_PLAN_STATUSES: readonly AcquiredVsPlanStatus[] = [
   "NO_PLAN",
+  "NO_RESERVATION",
   "BELOW_PLAN",
   "ON_PLAN",
   "ABOVE_PLAN",
@@ -399,6 +400,15 @@ export interface ConsumptionPlan {
     source: string
     sgtxt: string | null
   }[]
+  // Acquired vs plan for this one plan, sent by `GET /i13/consumption-plans`.
+  // Null while the I13 snapshot is unavailable: "not measured", not "nothing
+  // issued".
+  /** `rsnum/rspos` of each reservation item counted for this plan. */
+  matchedReservations?: string[] | null
+  /** Issued against `matchedReservations`, as the backend's decimal string. */
+  issuedQuantity?: string | null
+  acquiredVsPlanStatus?: AcquiredVsPlanStatus | null
+  acquiredVsPlanVarianceQuantity?: string | null
 }
 
 /** FR-3's answer, computed on demand for one material, plant and quantity. */
