@@ -1,6 +1,13 @@
 import Image from "next/image"
-import type { ReactNode } from "react"
+import { Inter, Plus_Jakarta_Sans } from "next/font/google"
+import type { CSSProperties, ReactNode } from "react"
 import { Gauge, MessageCircle, TrendingUp, Wrench, type LucideIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+// The design's two faces, loaded for these pages only (the app itself is in Geist).
+const display = Plus_Jakarta_Sans({ variable: "--font-aurora-display", subsets: ["latin"] })
+const text = Inter({ variable: "--font-aurora-text", subsets: ["latin"] })
 
 const HIGHLIGHTS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: TrendingUp, title: "Inventory Planning", text: "Right max levels and reorder points" },
@@ -9,40 +16,108 @@ const HIGHLIGHTS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: MessageCircle, title: "Reservation Assistant", text: "Stock checked before you reserve" },
 ]
 
-/** The striped globe from the Vedanta mark, as a large backdrop. */
-function GlobeStripes({ className }: { className?: string }) {
+/** Sparks rising from the bottom edge: where, how big (px), how long and when (s). */
+const PARTICLES = [
+  { left: "8%", size: 4, duration: 9, delay: 0 },
+  { left: "18%", size: 3, duration: 12, delay: 2 },
+  { left: "27%", size: 5, duration: 10, delay: 4 },
+  { left: "41%", size: 3, duration: 13, delay: 1 },
+  { left: "55%", size: 4, duration: 11, delay: 5 },
+  { left: "66%", size: 3, duration: 9, delay: 3 },
+  { left: "78%", size: 5, duration: 14, delay: 6 },
+  { left: "90%", size: 3, duration: 10, delay: 2.5 },
+]
+
+/** The globe's stripes, top to bottom; the pattern repeats every seven. */
+const WAVES = [
+  { color: "#3B7BD0", opacity: 0.35 },
+  { color: "#8DC63F", opacity: 0.85 },
+  { color: "#3B7BD0", opacity: 0.35 },
+  { color: "#3B7BD0", opacity: 0.28 },
+  { color: "#3B7BD0", opacity: 0.35 },
+  { color: "#3B7BD0", opacity: 0.28 },
+  { color: "#3B7BD0", opacity: 0.35 },
+]
+
+function delay(seconds: number): CSSProperties {
+  return { animationDelay: `${seconds}s` }
+}
+
+/**
+ * The striped globe from the Vedanta mark. Each stripe is a wave one 200-unit
+ * wavelength longer than the globe on the left, so sliding the stripes right
+ * by one wavelength (.aurora-waves) loops without a seam.
+ */
+function Globe() {
   return (
-    <svg viewBox="0 0 400 400" aria-hidden className={className}>
+    <svg
+      viewBox="0 0 700 700"
+      className="aurora-globe absolute -right-[180px] -bottom-[260px] size-[760px] opacity-90"
+    >
       <defs>
-        <clipPath id="auth-globe">
-          <circle cx="200" cy="200" r="196" />
+        <clipPath id="aurora-globe-clip">
+          <circle cx="350" cy="350" r="330" />
         </clipPath>
+        <radialGradient id="aurora-globe-shade" cx="35%" cy="30%" r="75%">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+          <stop offset="1" stopColor="#021029" stopOpacity="0.75" />
+        </radialGradient>
       </defs>
-      <g clipPath="url(#auth-globe)" fill="none" strokeLinecap="round" strokeWidth="15">
-        {Array.from({ length: 12 }, (_, i) => {
-          const y = 8 + i * 34
-          const green = i % 4 === 1
-          return (
-            <path
-              key={i}
-              d={`M-20 ${y + 30} C 90 ${y - 25}, 200 ${y + 55}, 420 ${y - 10}`}
-              stroke={green ? "#73b522" : "#ffffff"}
-              strokeOpacity={green ? 0.45 : 0.08}
-            />
-          )
-        })}
+      <circle cx="350" cy="350" r="330" fill="#0A2E63" />
+      <g clipPath="url(#aurora-globe-clip)">
+        <g className="aurora-waves" fill="none" strokeWidth="22">
+          {Array.from({ length: 14 }, (_, i) => {
+            const wave = WAVES[i % WAVES.length]
+            return (
+              <path
+                key={i}
+                d={`M-200 ${26 + i * 52} q50 -16 100 0${" t100 0".repeat(10)}`}
+                stroke={wave.color}
+                strokeOpacity={wave.opacity}
+              />
+            )
+          })}
+        </g>
       </g>
-      <circle cx="200" cy="200" r="196" fill="none" stroke="#ffffff" strokeOpacity="0.12" strokeWidth="2" />
+      <circle cx="350" cy="350" r="330" fill="url(#aurora-globe-shade)" />
+      <circle cx="350" cy="350" r="330" fill="none" stroke="#8DC63F" strokeOpacity="0.25" strokeWidth="1.5" />
     </svg>
   )
 }
 
+/** Everything behind the content: light, dots, a beam, sparks and the globe. */
+function Atmosphere() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="aurora-blob-1 absolute top-[30%] -left-[10%] size-[560px] rounded-full bg-[#2E8B57] opacity-[0.32] blur-[110px]" />
+      <div className="aurora-blob-2 absolute -top-[15%] right-[5%] size-[620px] rounded-full bg-[#1E6FD9] opacity-40 blur-[120px]" />
+      <div className="aurora-blob-3 absolute -bottom-[25%] left-[35%] size-[520px] rounded-full bg-[#5FD0C4] opacity-[0.18] blur-[120px]" />
+      <div className="aurora-dots absolute inset-0" />
+      <div className="aurora-beam absolute -top-[30%] left-[20%] h-[160%] w-[220px] bg-linear-to-b from-[rgba(180,220,255,0.22)] to-transparent to-70% blur-[30px]" />
+      {PARTICLES.map((p) => (
+        <span
+          key={p.left}
+          className="aurora-particle"
+          style={{
+            left: p.left,
+            width: p.size,
+            height: p.size,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
+      <Globe />
+    </div>
+  )
+}
+
 /**
- * The frame around /login and /signup: one brand canvas in the Vedanta
- * palette (`.brand-scope` in globals.css), the pitch on the left and the form
- * in a card on the right; the card alone on narrow screens. Sized to fit a
- * laptop screen at 100% without scrolling. These pages sit outside both app
- * trees; src/proxy.ts lets them through without a session.
+ * The frame around /login, /signup and /forgot-password, after the "Aurora"
+ * design: the pitch on the left and the form in a white card on the right; the
+ * card alone below the lg breakpoint. Sized to fit a laptop screen at 100%
+ * without scrolling. These pages sit outside both app trees; src/proxy.ts lets
+ * them through without a session.
  */
 export function AuthShell({
   title,
@@ -56,74 +131,97 @@ export function AuthShell({
   footer?: ReactNode
 }) {
   return (
-    <main className="brand-scope relative min-h-0 flex-1 overflow-y-auto bg-linear-to-br from-brand via-brand-deep to-brand-navy">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-50"
-          style={{
-            backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-        />
-        <div className="absolute top-1/4 -left-40 size-[28rem] rounded-full bg-brand-green/20 blur-3xl" />
-        <div className="absolute -top-40 right-1/4 size-[26rem] rounded-full bg-sky-400/15 blur-3xl" />
-        <GlobeStripes className="absolute -right-36 -bottom-56 w-[40rem]" />
-      </div>
+    <main
+      className={cn(
+        display.variable,
+        text.variable,
+        "aurora relative isolate flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto"
+      )}
+    >
+      <Atmosphere />
 
-      <div className="relative mx-auto flex min-h-full w-full max-w-6xl items-center gap-12 px-5 py-4 sm:px-8 lg:gap-16 lg:px-10">
-        <section className="hidden min-w-0 flex-1 text-white lg:block">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-[0.12em] uppercase ring-1 ring-white/20">
-            <span className="size-1.5 rounded-full bg-brand-green-light" />
-            Spares AI
+      <div className="relative mx-auto flex w-full max-w-[1180px] flex-1 items-center justify-between gap-14 px-4 py-8 sm:px-8 lg:py-10">
+        <section className="hidden max-w-[600px] min-w-0 flex-[1_1_520px] flex-col gap-[22px] lg:flex">
+          <span
+            className="aurora-rise inline-flex items-center gap-2.5 self-start rounded-full border border-aurora-lime/40 bg-aurora-lime/10 px-3.5 py-[7px] text-xs font-semibold tracking-[0.18em] text-aurora-lime-pale"
+            style={delay(0.1)}
+          >
+            <span className="aurora-pulse size-[7px] rounded-full bg-aurora-lime" />
+            SPARES AI
           </span>
 
-          <h2 className="mt-5 max-w-xl text-[2rem] leading-[1.15] font-semibold tracking-tight xl:text-[2.5rem]">
-            Smarter spares decisions,{" "}
-            <span className="text-brand-green-light">from reservation to repair.</span>
+          {/* 60px as designed on a tall screen; smaller on a short laptop screen, so nothing scrolls. */}
+          <h2 className="aurora-display m-0 text-[44px] leading-[1.04] font-extrabold tracking-[-0.035em] xl:text-[clamp(44px,7.4vh,60px)]">
+            <span className="aurora-rise inline-block" style={delay(0.2)}>
+              Smarter&nbsp;
+            </span>
+            <span className="aurora-rise inline-block" style={delay(0.3)}>
+              spares&nbsp;
+            </span>
+            <span className="aurora-rise inline-block" style={delay(0.4)}>
+              decisions,
+            </span>
+            <br />
+            <span className="aurora-rise inline-block" style={delay(0.55)}>
+              <span className="aurora-gradient-text">from reservation</span>
+            </span>
+            <br />
+            <span className="aurora-rise inline-block" style={delay(0.7)}>
+              <span className="aurora-gradient-text">to repair.</span>
+            </span>
           </h2>
-          <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/75">
+
+          <p className="aurora-rise m-0 max-w-[480px] text-lg leading-[1.6] text-aurora-mist" style={delay(0.85)}>
             Planning, repairs and utilisation of spares, together in one place.
           </p>
 
-          <ul className="mt-7 grid max-w-xl grid-cols-2 gap-2.5">
-            {HIGHLIGHTS.map(({ icon: Icon, title, text }) => (
-              <li
-                key={title}
-                className="flex items-start gap-3 rounded-xl bg-white/[0.07] p-3.5 ring-1 ring-white/10 backdrop-blur-sm"
-              >
-                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/15 ring-1 ring-brand-green-light/30">
-                  <Icon className="size-4 text-brand-green-light" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">{title}</span>
-                  <span className="block text-[13px] leading-snug text-white/70">{text}</span>
-                </span>
+          <ul className="mt-2.5 grid grid-cols-2 gap-3">
+            {HIGHLIGHTS.map(({ icon: Icon, title: name, text: line }, i) => (
+              <li key={name} className="aurora-rise" style={delay(1 + i * 0.1)}>
+                <div className="aurora-tile flex h-full items-start gap-3.5 rounded-2xl border border-white/12 bg-white/5 p-4 backdrop-blur-[10px]">
+                  <span className="flex size-[38px] flex-none items-center justify-center rounded-[11px] bg-aurora-lime/16 text-aurora-lime-soft">
+                    <Icon aria-hidden className="size-[18px]" />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-[3px]">
+                    <strong className="text-[15px] font-semibold">{name}</strong>
+                    <span className="text-[13px] text-aurora-haze">{line}</span>
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
         </section>
 
-        <section className="mx-auto w-full max-w-[420px] shrink-0 rounded-2xl bg-card p-7 shadow-2xl ring-1 shadow-black/30 ring-black/5 sm:p-8 lg:mx-0">
-          {/* The logo has a white ground, so in dark mode it sits on a white chip. */}
-          <div className="inline-flex dark:rounded-lg dark:bg-white dark:px-2.5 dark:py-1.5">
+        <div className="aurora-ring mx-auto w-full max-w-[440px] shrink-0 shadow-[0_40px_100px_-30px_rgba(0,0,0,0.6)] lg:mx-0">
+          <section className="aurora-card relative flex flex-col gap-[22px] rounded-[27px] bg-white px-6 pt-8 pb-7 text-aurora-ink sm:px-9 sm:pt-10 sm:pb-8">
             <Image
               src="/brand/vedanta-zinc-logo.png"
               alt="Vedanta Zinc International"
               width={245}
               height={70}
               priority
-              className="h-10 w-auto"
+              className="h-10 w-auto self-start"
             />
-          </div>
 
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            <div className="flex flex-col gap-1.5">
+              <h1 className="aurora-display m-0 text-[28px] leading-tight font-bold tracking-[-0.02em]">{title}</h1>
+              <p className="m-0 text-sm text-aurora-muted">{description}</p>
+            </div>
 
-          <div className="mt-6">{children}</div>
+            <div>{children}</div>
 
-          {footer && <p className="mt-6 text-center text-sm text-muted-foreground">{footer}</p>}
-        </section>
+            {footer && (
+              <p data-auth-footer className="m-0 text-center text-sm text-aurora-muted">
+                {footer}
+              </p>
+            )}
+          </section>
+        </div>
       </div>
+
+      <p className="aurora-rise relative m-0 pb-5 text-center text-xs text-aurora-fog" style={delay(1.6)}>
+        © Vedanta Zinc International · Spares AI
+      </p>
     </main>
   )
 }

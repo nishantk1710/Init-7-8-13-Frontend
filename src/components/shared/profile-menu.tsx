@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { signOut } from "@/lib/auth/mock-auth"
+import { signOutEverywhere } from "@/lib/auth/sign-out"
 import { SHARED_ROLES, type SharedRole } from "@/lib/shared-data/users"
 
 /**
@@ -96,7 +96,7 @@ export function ProfileMenu() {
           <DropdownMenuItem disabled className="px-2 py-2">
             <Settings /> Settings
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={signOut} variant="destructive" className="px-2 py-2">
+          <DropdownMenuItem onClick={() => void signOutEverywhere()} variant="destructive" className="px-2 py-2">
             <LogOut /> Sign out
           </DropdownMenuItem>
         </div>

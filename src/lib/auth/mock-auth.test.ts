@@ -10,9 +10,10 @@ import {
 } from "./mock-auth"
 
 describe("isPublicPath", () => {
-  it("lets the login and sign-up pages through", () => {
+  it("lets the login, sign-up and forgot-password pages through", () => {
     expect(isPublicPath("/login")).toBe(true)
     expect(isPublicPath("/signup")).toBe(true)
+    expect(isPublicPath("/forgot-password")).toBe(true)
   })
 
   it("gates everything else, including look-alikes", () => {
@@ -38,6 +39,7 @@ describe("safeNext", () => {
     expect(safeNext(undefined)).toBe(DEFAULT_LANDING)
     expect(safeNext("")).toBe(DEFAULT_LANDING)
     expect(safeNext("/login?next=/home")).toBe(DEFAULT_LANDING)
+    expect(safeNext("/forgot-password")).toBe(DEFAULT_LANDING)
   })
 })
 
