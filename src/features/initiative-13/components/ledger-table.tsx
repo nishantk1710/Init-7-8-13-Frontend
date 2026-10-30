@@ -52,6 +52,22 @@ function QuantityLead({ value }: { value: number | null }) {
   return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
 }
 
+/**
+ * Received against ordered -- "0 of 6", "4 of 10" -- when the backend sent the
+ * PO line's quantity (EKPO-MENGE). What is still to come on an open line adds
+ * up to the assistant's Open PO. A line ordering nothing (a contract) or with
+ * no quantity sent falls back to the received quantity alone.
+ */
+function ReceivedLead({ received, ordered }: { received: number | null; ordered: number | null }) {
+  if (!ordered) return <QuantityLead value={received} />
+  return (
+    <span className="tabular-nums" title="Received of ordered (EKPO-MENGE)">
+      <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
+      <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
+    </span>
+  )
+}
+
 function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
   return (
     <TableCell className="text-right text-foreground">
@@ -205,11 +221,13 @@ export function UtilizationLedgerTable({
                     {/* The quantity sits on top only when something arrived or
                         went out: underneath, the date cell already says "No PO
                         yet", "Not delivered" or "Not issued yet" -- a label
-                        where the backend recorded nothing, never a bare zero. */}
+                        where the backend recorded nothing, never a bare zero.
+                        Received is the exception once the ordered quantity is
+                        known: "0 of 6" says how much is still to come. */}
                     <DeliveredOnCell
                       status={deliveryOf(entry)}
                       receivedQuantity={entry.receivedQuantity}
-                      lead={<QuantityLead value={entry.receivedQuantity} />}
+                      lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
                     />
                     <IssuedOnCell
                       firstDate={entry.firstGiDate}

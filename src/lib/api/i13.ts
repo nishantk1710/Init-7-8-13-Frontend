@@ -129,6 +129,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
     receivedQuantity: toNumber(raw.received_quantity as string) ?? null,
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? null,
     openQuantity: toNumber(raw.open_quantity as string) ?? null,
+    orderedQuantity: toNumber(raw.ordered_quantity as string) ?? null,
     firstGrDate: str(raw.first_gr_date),
     latestGrDate: str(raw.latest_gr_date),
     expectedDeliveryDate: str(raw.expected_delivery_date),
