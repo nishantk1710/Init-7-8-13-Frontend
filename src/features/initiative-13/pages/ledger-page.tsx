@@ -3,7 +3,6 @@ import { connection } from "next/server"
 import { ListChecks, MessagesSquare, Rows3, Unlink } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
-import { DataSourcePanel } from "@/features/initiative-13/components/data-source-panel"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
@@ -196,8 +195,6 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
             />
           </>
         )}
-
-        <DataSourcePanel />
     </OarScope>
   )
 }
@@ -295,8 +292,6 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
             />
           </>
         )}
-
-        <DataSourcePanel />
     </OarScope>
   )
 }

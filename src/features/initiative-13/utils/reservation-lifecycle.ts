@@ -63,12 +63,14 @@ const VIEWS: Record<string, LifecycleView> = {
   },
   PARTIALLY_ISSUED: {
     label: "Partly issued",
-    explanation: "Part of the quantity has been issued to the job.",
+    explanation:
+      "Part of the quantity has been issued to the job. With no PR on the reservation, it came straight from stock: no purchase was needed.",
     tone: "warning",
   },
   ISSUED: {
     label: "Issued",
-    explanation: "Fully issued to the job (from a receipt, or straight from stock).",
+    explanation:
+      "Fully issued to the job. With no PR on the reservation, it came straight from stock: no purchase was needed.",
     tone: "success",
   },
 }

@@ -21,7 +21,7 @@ import {
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { formatCount } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 
 function qty(value: number | null) {
   return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
@@ -49,7 +49,7 @@ const LIFECYCLE_EDGE: Record<"default" | "success" | "warning", string> = {
  * stock, and SAP links it to no purchase (RESB-BANFN is empty) -- the PR that
  * refills the shelf is raised by MRP for the material, not for this
  * reservation. Those columns were empty on nearly every row. The few
- * reservations that did raise their own PR show it under the Status pill.
+ * reservations that did raise their own PR show it under the Stage pill.
  *
  * The **Session** column is the link FR-4 asks for: the requester typed the
  * session ID into the reservation's item text (SGTXT) in SAP, the extract
@@ -71,24 +71,21 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Reservation</TableHead>
             <TableHead>Material</TableHead>
+            <TableHead>Reservation</TableHead>
             <TableHead title="Requirement date (RESB-BDTER)">Required</TableHead>
             <TableHead className="text-right">Qty</TableHead>
-            <TableHead title="Quantity issued against this reservation (MSEG 201/261), with the latest issue date (MKPF-BUDAT)">
+            <TableHead title="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)">
               Issued
             </TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead title="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued">Stage</TableHead>
             <TableHead>Session (item text)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
-              <TableCell className={LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone]}>
-                <DocNo number={row.reservationNumber} item={row.reservationItem} />
-              </TableCell>
-              <TableCell className="text-foreground">
+              <TableCell className={cn("text-foreground", LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone])}>
                 <div className="flex max-w-[200px] flex-col gap-0.5">
                   {row.materialDescription ? (
                     <>
@@ -102,6 +99,9 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   )}
                   <span className="text-[11px] whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</span>
                 </div>
+              </TableCell>
+              <TableCell>
+                <DocNo number={row.reservationNumber} item={row.reservationItem} />
               </TableCell>
               <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
               <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>

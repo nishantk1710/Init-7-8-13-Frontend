@@ -52,7 +52,6 @@ import {
   type ConsumptionAttribution,
   type ConsumptionPlan,
   type CrossPlantStock,
-  type DataSourceStatus,
   type GrniEntry,
   type I13SnapshotStatus,
   type I13Exception,
@@ -98,19 +97,6 @@ function str(value: unknown): string | null {
 }
 
 // --- Adapters -------------------------------------------------------------
-
-function toDataSourceStatus(raw: RawRecord): DataSourceStatus {
-  return {
-    entitySet: String(raw.entity_set ?? ""),
-    // Deliberately NOT guarded: SourceMode is an open union (the backend may
-    // name an entity set's mode anything), and the component already handles
-    // an unrecognised value by falling through to its "danger" tone.
-    mode: String(raw.mode ?? "UNAVAILABLE"),
-    rowCount: toCount(raw.row_count as number),
-    available: Boolean(raw.available),
-    fetchedAt: String(raw.fetched_at ?? ""),
-  }
-}
 
 function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   return {
@@ -485,12 +471,6 @@ function toSummary(raw: RawRecord): I13Summary {
 export function getI13Summary(params?: { plant?: string; material?: string }): Promise<I13Summary> {
   const query = buildQuery({ plant: params?.plant, material: params?.material })
   return apiFetch<RawRecord>(`/i13/summary${query}`).then(toSummary)
-}
-
-export function getI13DataSources(): Promise<DataSourceStatus[]> {
-  return apiFetch<RawRecord[]>("/i13/data-sources").then((rows) =>
-    rows.map(toDataSourceStatus)
-  )
 }
 
 /**
