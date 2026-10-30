@@ -126,6 +126,15 @@ export interface ApiRecommendationSummary {
   working_capital_impact?: ApiDecimal | null
   /** ISO code unit_price is in (SAP MBEW WAERS); null when SAP supplied none. */
   currency?: string | null
+  /** "ZAR" when working_capital_impact is stated in ZAR (a ZAR price, or NAD at 1:1); null otherwise. */
+  working_capital_currency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. conversion_eligibility
+   * still holds the rule's verdict. Absent from a backend that predates the field. */
+  manually_converted?: boolean
+  requested_by?: string | null
+  requested_at?: string | null
+  /** The comment of the newest REJECT in the approval ledger, on a REJECTED row. */
+  rejection_reason?: string | null
 }
 
 export interface ApiRecommendationListResponse {
@@ -180,6 +189,11 @@ export interface ApiRecommendationSummaryStats {
   net_safety_stock_value_impact: ApiDecimal
   /** SUM(unit_price * (current_rop - recommended_rop)) -- the Overview's Working Capital Impact. */
   net_rop_value_impact?: ApiDecimal
+  /** The currency `net_rop_value_impact` is stated in (ZAR: MBEW's price, ZAR and NAD at 1:1 only). */
+  working_capital_currency?: string | null
+  /** Material-plants the working-capital figure is over, and the ones of the same population left out. */
+  working_capital_included_count?: number
+  working_capital_excluded_count?: number
   critical_stockout_risk_count: number
   /** Fast / Slow material-plants that could be judged -- the denominator of the stockout share. */
   stockout_risk_evaluated_count?: number
@@ -202,6 +216,15 @@ export interface ApiRecommendationDetail {
   unit_price: ApiDecimal
   working_capital_impact?: ApiDecimal | null
   currency?: string | null
+  /** "ZAR" when working_capital_impact is stated in ZAR (a ZAR price, or NAD at 1:1); null otherwise. */
+  working_capital_currency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. conversion_eligibility
+   * still holds the rule's verdict. Absent from a backend that predates the field. */
+  manually_converted?: boolean
+  requested_by?: string | null
+  requested_at?: string | null
+  /** The comment of the newest REJECT in the approval ledger, on a REJECTED row. */
+  rejection_reason?: string | null
   current: ApiStockParameters
   recommended: ApiStockParameters
   demand: ApiDemandInfo
@@ -858,8 +881,13 @@ export interface ApiPositionFigures {
   excess_count: number
   excess_opportunity: ApiDecimal
   net_rop_value_impact: ApiDecimal
+  /** Material-plants the working-capital impact includes. */
   priced_count: number
   currency: string | null
+  /** Currency of `net_rop_value_impact` (ZAR); absent in snapshots saved before it existed. */
+  working_capital_currency?: string | null
+  /** Material-plants of the population left out of `net_rop_value_impact`. */
+  working_capital_excluded_count?: number
 }
 
 export interface ApiPlantPosition {

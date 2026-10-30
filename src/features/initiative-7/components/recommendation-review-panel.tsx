@@ -310,7 +310,7 @@ export function RecommendationReviewPanel({
             ) : (
               <span className={capital > 0 ? "font-medium text-success" : "font-medium text-warning"}>
                 {capital > 0 ? "−" : "+"}
-                {formatMoney(Math.abs(capital), rec.currency)}
+                {formatMoney(Math.abs(capital), rec.workingCapitalCurrency ?? rec.currency)}
                 {capital > 0 ? " released" : " tied up"}
               </span>
             )}

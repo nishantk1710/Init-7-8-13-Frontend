@@ -15,6 +15,7 @@
 import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api/client"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
+import { blockingReasonText } from "@/features/initiative-7/utils/blocking-reason"
 import type {
   ApiAdoptionListItem,
   ApiForecastVsActualResponse,
@@ -306,6 +307,11 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     // Worked out by the backend (unit_price x ROP change), so the row and the Working Capital Impact
     // card share one rule. Null stays null: it was not calculable, which is not "no change".
     workingCapitalImpact: toNumber(row.working_capital_impact),
+    workingCapitalCurrency: row.working_capital_currency ?? null,
+    manuallyConverted: row.manually_converted ?? false,
+    requestedBy: row.requested_by ?? null,
+    requestedAt: row.requested_at ?? null,
+    rejectionReason: row.rejection_reason ?? null,
     consumptionHistory: [],
     factors,
     championChallenger: {
@@ -337,7 +343,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
   const lastTwelveMonthsUsage = history.slice(-12).reduce((sum, point) => sum + (toNumber(point.quantity) ?? 0), 0)
   const criticality = mapCriticality(detail.criticality.value)
   const factors: RecommendationFactor[] = detail.blocking_reason
-    ? [{ label: "Blocked", detail: detail.blocking_reason }]
+    ? [{ label: "Blocked", detail: blockingReasonText(detail.blocking_reason) }]
     : []
 
   return {
@@ -374,6 +380,11 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     currency: detail.currency ?? null,
     annualConsumption: lastTwelveMonthsUsage,
     workingCapitalImpact: toNumber(detail.working_capital_impact),
+    workingCapitalCurrency: detail.working_capital_currency ?? null,
+    manuallyConverted: detail.manually_converted ?? false,
+    requestedBy: detail.requested_by ?? null,
+    requestedAt: detail.requested_at ?? null,
+    rejectionReason: detail.rejection_reason ?? null,
     consumptionHistory: detail.demand.consumption_history.map((point) => ({
       period: formatConsumptionPeriod(point.period),
       qty: toNumber(point.quantity) ?? 0,
@@ -540,6 +551,11 @@ export interface RecommendationSummaryStats {
   /** Net working-capital impact of the recommended reorder points (unit price x current - recommended
    * ROP): positive releases, negative ties up. null when no row has all three; never 0. */
   netRopValueImpact: number | null
+  /** Currency `netRopValueImpact` is stated in (ZAR); null from a backend that does not send it. */
+  workingCapitalCurrency?: string | null
+  /** Material-plants the working-capital figure covers, and those left out of it. */
+  workingCapitalIncludedCount?: number | null
+  workingCapitalExcludedCount?: number | null
   /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
    * consumption x lead time. */
   criticalStockoutRiskCount: number
@@ -581,6 +597,9 @@ export async function fetchRecommendationSummary(
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
     netRopValueImpact: toNumber(response.net_rop_value_impact ?? null),
+    workingCapitalCurrency: response.working_capital_currency ?? null,
+    workingCapitalIncludedCount: response.working_capital_included_count ?? null,
+    workingCapitalExcludedCount: response.working_capital_excluded_count ?? null,
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
     stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,

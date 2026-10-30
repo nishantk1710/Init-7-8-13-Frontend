@@ -127,6 +127,8 @@ function RecommendationDetailView({
                   onChanged={() => onLiveChanged?.()}
                   surface={decide ? "action-center" : "recommendation"}
                   convertToMinMax={Boolean(recommendation.oarConversion)}
+                  canRequestAgain={recommendation.oarConversion?.conversionEligibility === "NOT_ELIGIBLE"}
+                  rejectionReason={recommendation.rejectionReason}
                 />
               }
             />

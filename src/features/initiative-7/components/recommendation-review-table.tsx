@@ -91,7 +91,7 @@ function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?
   return (
     <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
-      {formatMoney(view.amount, source.currency)}
+      {formatMoney(view.amount, source.workingCapitalCurrency ?? source.currency)}
       {view.ropPercent !== null && (
         <span className="font-normal text-muted-foreground">
           ({view.ropPercent > 0 ? "+" : ""}
@@ -162,6 +162,8 @@ function LiveExpandedRecommendationPanel({
           recommendationId={detail.id}
           onChanged={refetch}
           convertToMinMax={Boolean(detail.oarConversion)}
+          canRequestAgain={detail.oarConversion?.conversionEligibility === "NOT_ELIGIBLE"}
+          rejectionReason={detail.rejectionReason}
         />
       }
     />
