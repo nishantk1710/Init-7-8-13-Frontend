@@ -33,8 +33,11 @@ import {
   EXCEPTION_TYPE_LABEL,
   PLAN_STATUS_LABEL,
   PLAN_STATUS_ORDER,
+  PLAN_VS_ISSUED_SOURCE_LABEL,
+  PLAN_VS_ISSUED_STATUS_LABEL,
+  PLAN_VS_ISSUED_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
-import { LEDGER_UTILISATION_STATUSES } from "@/lib/api/i13"
+import { LEDGER_UTILISATION_STATUSES, PLAN_VS_ISSUED_SOURCES } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -71,6 +74,7 @@ export function I13UrlFilters({
   exceptionStatuses,
   className,
   layout = "bar",
+  pin,
 }: {
   /** Which controls this screen wants. Not every screen filters by everything. */
   fields: readonly (
@@ -86,6 +90,8 @@ export function I13UrlFilters({
     | "deliveryStatus"
     | "reservationStatus"
     | "issued"
+    | "source"
+    | "planStatus"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -98,6 +104,9 @@ export function I13UrlFilters({
   className?: string
   /** `panel` is the labelled, bordered bar the Initiative 7 dashboards put above their content; `bar` is the compact row. */
   layout?: "bar" | "panel"
+  /** Parameters every change also sets -- a bar inside a tab keeps that tab
+   * open (`{ tab: "plan" }`) when the page re-renders. */
+  pin?: Record<string, string>
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -107,7 +116,7 @@ export function I13UrlFilters({
   function push(patch: Record<string, string | undefined>) {
     // Any filter change starts the result over at page 1: page 40 of the old
     // filter means nothing in the new one.
-    const query = mergeSearchParams(searchParams, { ...patch, page: undefined })
+    const query = mergeSearchParams(searchParams, { ...pin, ...patch, page: undefined })
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     })
@@ -123,7 +132,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -183,6 +192,22 @@ export function I13UrlFilters({
               searchParams.get("acquiredVsPlanStatus")
             ).map((value) => ({ value, label: labelFor(PLAN_STATUS_LABEL, value) }))}
             onChange={(value) => push({ acquiredVsPlanStatus: value })}
+          />)}
+
+        {fields.includes("source") && wrap("source", <UrlSelect
+            label="All sources"
+            width="sm:w-44"
+            value={searchParams.get("source") ?? ""}
+            options={PLAN_VS_ISSUED_SOURCES.map((value) => ({ value, label: PLAN_VS_ISSUED_SOURCE_LABEL[value] }))}
+            onChange={(value) => push({ source: value })}
+          />)}
+
+        {fields.includes("planStatus") && wrap("planStatus", <UrlSelect
+            label="All statuses"
+            width="sm:w-48"
+            value={searchParams.get("planStatus") ?? ""}
+            options={PLAN_VS_ISSUED_STATUS_ORDER.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
+            onChange={(value) => push({ planStatus: value })}
           />)}
 
         {fields.includes("type") && wrap("type", <UrlSelect

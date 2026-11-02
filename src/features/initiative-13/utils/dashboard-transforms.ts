@@ -6,7 +6,8 @@
 // `pages/utilisation-dashboard-page.tsx` for how these compose with the API
 // client.
 
-import type { JustificationEntry, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { JustificationEntry, PlanVsIssuedRow, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import { PLAN_VS_ISSUED_SOURCE_LABEL, PLAN_VS_ISSUED_STATUS_LABEL } from "@/features/initiative-13/utils/status-labels"
 
 /** Generic "count rows by a key" grouping, used for every distribution chart
  * on the dashboard (aging, acquired-vs-plan, exception status/type). */
@@ -81,20 +82,21 @@ export function nonMoverRowsToCsv(rows: NonMoverRow[]): (string | number)[][] {
   ])
 }
 
-export function acquiredVsPlanRowsToCsv(rows: WatchMetric[]): (string | number)[][] {
+export function planVsIssuedRowsToCsv(rows: PlanVsIssuedRow[]): (string | number)[][] {
   return rows.map((r) => [
+    PLAN_VS_ISSUED_SOURCE_LABEL[r.source],
     r.material,
     r.plant,
-    r.plannedQuantity ?? "",
-    // Empty, not 0, when there was nothing to issue against (no plan, or no
-    // reservation for it yet). An exported 0 would assert nothing was issued;
-    // this file is the boundary where that distinction would quietly be lost.
-    r.acquiredVsPlanStatus === "NO_PLAN" || r.acquiredVsPlanStatus === "NO_RESERVATION"
-      ? ""
-      : (r.issuedQuantity ?? ""),
-    r.acquiredVsPlanVarianceQuantity ?? "",
-    r.acquiredVsPlanVariancePercentage ?? "",
-    r.acquiredVsPlanStatus,
+    r.reservations.join(", "),
+    r.sessionId ?? "",
+    r.plannedQuantity,
+    // Empty, not 0, for a plan no reservation stands for yet: an exported 0
+    // would assert nothing was issued, when there was nothing to issue on.
+    r.status === "NO_RESERVATION" ? "" : r.issuedQuantity,
+    r.varianceQuantity ?? "",
+    r.variancePercentage ?? "",
+    PLAN_VS_ISSUED_STATUS_LABEL[r.status],
+    r.dueDate ?? "",
   ])
 }
 
