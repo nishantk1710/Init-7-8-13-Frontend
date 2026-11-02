@@ -56,6 +56,7 @@ export type IconKey =
   | "inbox"
   | "cancel"
   | "upload"
+  | "bell"
 
 // ---------------------------------------------------------------------------
 // The chat-domain types that used to live here are gone (WS7 phase 5).
