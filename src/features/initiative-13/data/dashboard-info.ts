@@ -275,7 +275,9 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     rule: [
       "Planned = what was asked for: the plan's quantity in the assistant, or the reserved quantity in SAP",
       "Issued = what was used: goods issued against the reservation(s), reversals taken off",
-      "On plan: issued = planned · Below plan: issued < planned · Above plan: issued > planned",
+      "Awaiting reservation: a plan from the assistant that no reservation stands for yet",
+      "Not due yet: nothing issued, and the Required by date is still ahead",
+      "Otherwise On plan: issued = planned · Below plan: issued < planned · Above plan: issued > planned",
       "Overdue: below plan, and the Required by date has passed",
       "Via assistant: the plan's reservations carry its session or request ID, else are required inside its usage window",
       "Direct from SAP: an OAR reservation no plan owns; a reservation a plan owns is on the plan's row only",
@@ -283,7 +285,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     steps: [
       "Issued, not received: OAR is issued from stock on the shelf, so no goods receipt is linked to the reservation.",
       "The comparison is exact: no tolerance band is configured, so 9 against 10 is Below plan.",
-      "A plan with no reservation yet has issued 0, so it reads Below plan; its Reservation column says No reservation yet.",
+      "Something partly issued is Below plan even before its date: only nothing issued at all waits as Not due yet.",
       "Variance = issued − planned, also shown as a percentage of planned.",
       "Required by is the plan's window end or the reservation's requirement date. Filter by Source, Status and Overdue above the table.",
     ],

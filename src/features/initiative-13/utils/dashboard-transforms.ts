@@ -91,7 +91,7 @@ export function planVsIssuedRowsToCsv(rows: PlanVsIssuedRow[]): (string | number
     r.sessionId ?? "",
     r.plannedQuantity,
     r.issuedQuantity,
-    r.varianceQuantity,
+    r.varianceQuantity ?? "",
     r.variancePercentage ?? "",
     PLAN_VS_ISSUED_STATUS_LABEL[r.status],
     r.dueDate ?? "",

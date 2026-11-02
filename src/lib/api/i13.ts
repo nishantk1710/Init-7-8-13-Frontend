@@ -863,7 +863,7 @@ function toPlanVsIssuedRow(raw: RawRecord): PlanVsIssuedRow {
     plannedQuantity: String(raw.planned_quantity ?? "0"),
     issuedQuantity: String(raw.issued_quantity ?? "0"),
     status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "BELOW_PLAN"),
-    varianceQuantity: String(raw.variance_quantity ?? "0"),
+    varianceQuantity: str(raw.variance_quantity),
     variancePercentage: toNumber(raw.variance_percentage as string) ?? null,
     dueDate: str(raw.due_date),
     windowStart: str(raw.window_start),

@@ -60,15 +60,25 @@ export const PLAN_VS_ISSUED_SOURCE_LABEL: Record<PlanVsIssuedSource, string> = {
   SAP: "Direct from SAP",
 }
 
-export const PLAN_VS_ISSUED_STATUS_ORDER: PlanVsIssuedStatus[] = ["ON_PLAN", "BELOW_PLAN", "ABOVE_PLAN"]
+export const PLAN_VS_ISSUED_STATUS_ORDER: PlanVsIssuedStatus[] = [
+  "NO_RESERVATION",
+  "NOT_DUE",
+  "ON_PLAN",
+  "BELOW_PLAN",
+  "ABOVE_PLAN",
+]
 
 export const PLAN_VS_ISSUED_STATUS_LABEL: Record<PlanVsIssuedStatus, string> = {
+  NO_RESERVATION: "Awaiting reservation",
+  NOT_DUE: "Not due yet",
   ON_PLAN: "On plan",
   BELOW_PLAN: "Below plan",
   ABOVE_PLAN: "Above plan",
 }
 
 export const PLAN_VS_ISSUED_STATUS_TONE: Record<PlanVsIssuedStatus, Tone> = {
+  NO_RESERVATION: "info",
+  NOT_DUE: "neutral",
   ON_PLAN: "success",
   BELOW_PLAN: "warning",
   ABOVE_PLAN: "danger",

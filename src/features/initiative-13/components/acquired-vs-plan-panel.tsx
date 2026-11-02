@@ -37,8 +37,9 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * same way -- planned (asked for: the plan's quantity, or the reservation's
  * reserved one) against issued (used). A reservation a plan owns is on that
  * plan's row only. Issued is the goods issue, never a receipt -- OAR is issued
- * from stock. On, below or above plan, and Overdue on a below-plan row whose
- * date has passed -- all the backend's, rendered as-is. One server page of 25,
+ * from stock. Awaiting reservation, not due yet, or on, below or above plan,
+ * and Overdue on a below-plan row whose date has passed -- all the backend's,
+ * rendered as-is. One server page of 25,
  * latest due date first; the export fetches every row the filters match. */
 export function AcquiredVsPlanPanel({
   rows,
@@ -202,8 +203,10 @@ function Reservations({ reservations }: { reservations: string[] }) {
   return <SAPDocumentChip doc={{ type: "RESERVATION", documentNumber: number, line: item }} />
 }
 
-/** Issued − planned, signed, with its percentage of planned. */
+/** Issued − planned, signed, with its percentage of planned -- or why there is none yet. */
 function Variance({ row }: { row: PlanVsIssuedRow }) {
+  if (row.status === "NO_RESERVATION") return <EmptyValue kind="noReservationYet" />
+  if (row.varianceQuantity === null) return <EmptyValue kind="notDueYet" />
   const n = Number(row.varianceQuantity)
   return (
     <>
