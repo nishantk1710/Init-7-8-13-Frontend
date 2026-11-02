@@ -26,11 +26,12 @@ export function countAwaitingApproval(recs: Recommendation[]): number {
 }
 
 /** Net ZAR working-capital impact across every recommendation except
- * rejected ones (a rejected recommendation was never applied). */
+ * rejected ones (a rejected recommendation was never applied). One whose impact
+ * could not be calculated (null) is left out of the sum, not read as 0. */
 export function netWorkingCapitalImpact(recs: Recommendation[]): number {
   return recs
     .filter((r) => r.status !== "Rejected")
-    .reduce((sum, r) => sum + r.workingCapitalImpact, 0)
+    .reduce((sum, r) => sum + (r.workingCapitalImpact ?? 0), 0)
 }
 
 export function formatSignedZAR(amount: number): string {

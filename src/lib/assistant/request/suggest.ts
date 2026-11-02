@@ -62,7 +62,7 @@ export function suggestQuantity(facts: OarFacts): QuantitySuggestion {
       quantity: null,
       explanation:
         `Only ${facts.consumptionCount12m} issue${facts.consumptionCount12m === 1 ? "" : "s"} in the last ` +
-        `12 months -- too few (minimum ${MIN_HISTORY_CONSUMPTIONS}) for a quantity worth suggesting.`,
+        `12 months: too few (minimum ${MIN_HISTORY_CONSUMPTIONS}) for a quantity worth suggesting.`,
     }
   }
 

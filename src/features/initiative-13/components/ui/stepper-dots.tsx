@@ -23,20 +23,20 @@ export function StepperDots({ steps, className }: { steps: Step[]; className?: s
             {i > 0 && (
               <span
                 aria-hidden
-                className={cn("h-0.5 w-3", step.reached && steps[i - 1].reached ? "bg-healthy" : "bg-line")}
+                className={cn("h-0.5 w-3", step.reached && steps[i - 1].reached ? "bg-success" : "bg-border")}
               />
             )}
             <span
               aria-hidden
               className={cn(
                 "flex size-3.5 items-center justify-center rounded-full border-2",
-                step.reached ? "border-healthy bg-healthy" : "border-ink-muted/40 bg-card"
+                step.reached ? "border-success bg-success" : "border-muted-foreground/40 bg-card"
               )}
             />
           </li>
         ))}
       </ol>
-      <span className="text-xs font-semibold text-ink-muted tabular-nums">
+      <span className="text-xs font-semibold text-muted-foreground tabular-nums">
         {reached}/{steps.length}
       </span>
     </div>
@@ -55,28 +55,28 @@ export function Stepper({ steps, className }: { steps: Step[]; className?: strin
                 aria-hidden
                 className={cn(
                   "absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2",
-                  step.reached && steps[i - 1].reached ? "bg-healthy" : "bg-line"
+                  step.reached && steps[i - 1].reached ? "bg-success" : "bg-border"
                 )}
               />
             )}
             <span
               className={cn(
                 "relative flex size-7 items-center justify-center rounded-full border-2",
-                step.reached ? "border-healthy bg-healthy text-white" : "border-ink-muted/40 bg-card text-ink-muted"
+                step.reached ? "border-success bg-success text-white" : "border-muted-foreground/40 bg-card text-muted-foreground"
               )}
             >
               {step.reached ? (
                 <Check aria-hidden className="size-4" strokeWidth={3} />
               ) : (
-                <span aria-hidden className="text-xs font-bold">
+                <span aria-hidden className="text-xs font-semibold">
                   {i + 1}
                 </span>
               )}
             </span>
-            <span className="text-sm font-bold text-ink">{step.label}</span>
+            <span className="text-sm font-semibold text-foreground">{step.label}</span>
             <span className="sr-only">{step.reached ? "Reached." : "Not reached."}</span>
             {step.detail && (
-              <span className={cn("text-xs", step.reached ? "text-ink" : "text-ink-muted")}>{step.detail}</span>
+              <span className={cn("text-xs", step.reached ? "text-foreground" : "text-muted-foreground")}>{step.detail}</span>
             )}
           </li>
         ))}

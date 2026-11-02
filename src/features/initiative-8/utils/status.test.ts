@@ -2,13 +2,22 @@ import { describe, expect, it } from "vitest"
 
 import type { RepairChain } from "../types/repair"
 import {
+  EXCEPTION_TYPE_LABEL,
+  JUSTIFICATION_CELL_NOTE,
   UNKNOWN,
+  exceptionTypeLabel,
   formatDaysRemaining,
   hasNoDueDate,
+  OVERDUE_STATUSES,
+  OVERDUE_STATUS_LABEL,
+  OVERDUE_STATUS_TONE,
   hasNoLeadTime,
   isBeyondLeadTime,
+  isPrOnly,
   isRepairOverdue,
   orUnknown,
+  purchaseFactLabel,
+  purchaseSummary,
   vendorLabel,
 } from "./status"
 
@@ -21,6 +30,7 @@ import {
 function chain(overrides: Partial<RepairChain> = {}): RepairChain {
   return {
     id: "RC-TEST",
+    lineKind: "PO",
     material: { materialId: "8000005632", materialCode: "8000005632", description: "Motor" },
     plant: { plantId: "1300", name: "Black Mountain" },
     qtyUnderRepair: 1,
@@ -167,5 +177,91 @@ describe("lead time, as a signal of its own", () => {
     const chain = base({ leadTimeStatus: "WITHIN_LEAD_TIME" })
     expect(isBeyondLeadTime(chain)).toBe(false)
     expect(hasNoLeadTime(chain)).toBe(false)
+  })
+})
+
+describe("isPrOnly", () => {
+  const po = { type: "PO" as const, documentNumber: "4500001052", line: "1310" }
+
+  it("is false for a PO line", () => {
+    expect(isPrOnly(chain({ repairPO: po }))).toBe(false)
+  })
+
+  it("is true for a row the backend marked PR", () => {
+    expect(isPrOnly(chain({ lineKind: "PR", repairPO: po }))).toBe(true)
+  })
+
+  it("fails closed: a row with no PO is a PR row whatever it is marked", () => {
+    expect(isPrOnly(chain({ lineKind: "PO", repairPO: undefined }))).toBe(true)
+  })
+})
+
+describe("NOT_ORDERED", () => {
+  it("reads No PO yet, in the muted tone", () => {
+    expect(OVERDUE_STATUS_LABEL.NOT_ORDERED).toBe("No PO yet")
+    expect(OVERDUE_STATUS_TONE.NOT_ORDERED).toBe("default")
+  })
+
+  it("is offered by the due-date filter", () => {
+    expect(OVERDUE_STATUSES).toContain("NOT_ORDERED")
+  })
+
+  it("is neither overdue nor undated", () => {
+    const requested = chain({ overdueStatus: "NOT_ORDERED", expectedReturn: undefined })
+    expect(isRepairOverdue(requested)).toBe(false)
+    expect(hasNoDueDate(requested)).toBe(false)
+  })
+})
+
+describe("bought new while a repair was open", () => {
+  it("names the check the way the queue's tab and drawer read it", () => {
+    expect(exceptionTypeLabel("UNJUSTIFIED_ACQUISITION")).toBe("Bought new while a repair was open")
+    expect(EXCEPTION_TYPE_LABEL.UNJUSTIFIED_ACQUISITION).toBe("Bought new while a repair was open")
+  })
+
+  it("says a new-buy PR requested a unit, not that it bought one", () => {
+    expect(
+      purchaseSummary({
+        purchase: { type: "PR", documentNumber: "1000201234", line: "10" },
+        raisedAt: "14 Mar 2026",
+      }),
+    ).toBe("New unit requested 14 Mar 2026 (PR 1000201234/10)")
+  })
+
+  it("keeps the PO wording for a PO ordered directly", () => {
+    expect(
+      purchaseSummary({
+        purchase: { type: "PO", documentNumber: "4100100001", line: "10" },
+        raisedAt: "14 Mar 2026",
+      }),
+    ).toBe("4100100001/10 bought 14 Mar 2026")
+  })
+
+  it("says so when the date is not known", () => {
+    expect(purchaseSummary({ purchase: { type: "PR", documentNumber: "1000201234" } })).toBe(
+      "New unit requested on an unknown date (PR 1000201234)",
+    )
+  })
+
+  it("calls a PR a purchase request in the drawer, anything else a purchase line", () => {
+    expect(purchaseFactLabel("PR")).toBe("Purchase request")
+    expect(purchaseFactLabel("PO")).toBe("Purchase line")
+    // An older backend's row, which carries no type.
+    expect(purchaseFactLabel(undefined)).toBe("Purchase line")
+  })
+
+  it("words the justification notes for a request as well as a purchase", () => {
+    expect(JUSTIFICATION_CELL_NOTE.MISSING).toBe(
+      "A new unit was requested or bought while this repair was out, and no reason was recorded.",
+    )
+  })
+})
+
+describe("the declaration and reservation checks (27-Oct-2026)", () => {
+  it("names each new check the way the queue and the drawer read it", () => {
+    expect(exceptionTypeLabel("REPAIRED_AGAINST_ASSESSMENT")).toBe("Repaired against the assessment")
+    expect(exceptionTypeLabel("REPAIR_PR_NOT_DECLARED")).toBe("Repair PR not declared")
+    expect(exceptionTypeLabel("DECLARED_NO_REPAIR_PR")).toBe("Declared, no repair PR yet")
+    expect(exceptionTypeLabel("MISSING_SESSION_ID")).toBe("Reservation with no R-reference")
   })
 })

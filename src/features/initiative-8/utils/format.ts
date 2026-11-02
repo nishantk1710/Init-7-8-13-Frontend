@@ -122,15 +122,21 @@ export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`
 }
 
+/**
+ * "PR Raised" reads "Repair requested" since 27-Oct-2026: it is the stage of a
+ * repair asked for on a purchase requisition with no PO yet, and "PR raised"
+ * meant nothing to the stores and maintenance people who raise them.
+ */
 const STAGES: Record<string, string> = {
-  "PR Raised": "PR raised",
+  "PR Raised": "Repair requested",
   "PO Issued": "PO issued",
   "At Vendor": "At vendor",
   Received: "Received",
   Closed: "Closed",
 }
 
-/** A repair stage in sentence case: "PO Issued" -> "PO issued". */
+/** A repair stage in sentence case: "PO Issued" -> "PO issued", "PR Raised" ->
+ *  "Repair requested". */
 export function stageLabel(status: string | null | undefined): string {
   return status ? (STAGES[status] ?? status) : "—"
 }

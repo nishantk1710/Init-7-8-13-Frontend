@@ -8,6 +8,7 @@ vi.mock("@/lib/api/i8", async (importOriginal) => ({
 }))
 
 import {
+  BEFORE_GO_LIVE,
   activeExceptionFilters,
   exceptionsHref,
   fetchAllExceptions,
@@ -19,13 +20,12 @@ import {
 import type { ApiExceptionItem } from "@/lib/api/i8"
 
 /**
- * What this loader must not let through: `UNJUSTIFIED_ACQUISITION`.
+ * `UNJUSTIFIED_ACQUISITION` is back in the queue since 27-Oct-2026.
  *
- * The check came off the queue on 14-Oct-2026 — FR-5b asks for the reason at
- * the reservation, so it is a control rather than a queue item — and these
- * tests are here because dropping rows without dropping their counts is the
- * failure mode that matters. A band reading "5,973 raised" over a table
- * holding 5,153 is worse than either number alone.
+ * It was dropped (rows and counts) from 14-Oct because it never fired; the
+ * backend now checks the new-buy purchase request, so the finding is real
+ * work. These tests pin that it is carried like any other check, counts
+ * included, and that a purchase or a repair on a PR says so.
  */
 
 function item(overrides: Record<string, unknown> = {}) {
@@ -88,34 +88,20 @@ beforeEach(() => {
 })
 
 describe("loadLiveExceptions", () => {
-  it("drops unjustified-acquisition rows and the counts that came with them", async () => {
+  it("keeps bought-new rows and the counts that came with them", async () => {
     api.getExceptions.mockResolvedValue(page([item(), unjustified()]))
 
     const { rows, summary } = await loadLiveExceptions()
 
-    expect(rows.map((r) => r.type)).toEqual(["MISSING_ATTESTATION"])
-    expect(summary.total).toBe(1)
-    expect(summary.actionable).toBe(1)
-    expect(summary.byType).toEqual({ MISSING_ATTESTATION: 1 })
-    expect(summary.bySeverity).toEqual({ info: 1, warning: 0 })
+    expect(rows.map((r) => r.type)).toEqual(["MISSING_ATTESTATION", "UNJUSTIFIED_ACQUISITION"])
+    expect(summary.total).toBe(2)
+    expect(summary.actionable).toBe(2)
+    expect(summary.byType).toEqual({ MISSING_ATTESTATION: 1, UNJUSTIFIED_ACQUISITION: 1 })
+    expect(summary.bySeverity).toEqual({ info: 1, warning: 1 })
+    expect(summary.typesRaised).toEqual(["MISSING_ATTESTATION", "UNJUSTIFIED_ACQUISITION", "OVERDUE_REPAIR"])
   })
 
-  it("takes the type out of typesRaised, so no filter offers it", async () => {
-    // The half that shows on the deployed backend today: it raises none of
-    // these and still declares the check, which put the type in the filter
-    // dropdown and in "How each check works" with nothing behind it.
-    api.getExceptions.mockResolvedValue(
-      page([item()], { byType: { MISSING_ATTESTATION: 1 }, bySeverity: { info: 1 } }),
-    )
-
-    const { summary } = await loadLiveExceptions()
-
-    expect(summary.typesRaised).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR"])
-  })
-
-  it("leaves the justification check's own measurements alone", async () => {
-    // The check still runs and the Justifications screen still reports it.
-    // Only the queue stops carrying its findings.
+  it("passes the justification check's own measurements through", async () => {
     api.getExceptions.mockResolvedValue(page([item(), unjustified()]))
 
     const { summary } = await loadLiveExceptions()
@@ -126,27 +112,91 @@ describe("loadLiveExceptions", () => {
     expect(summary.linesCovered).toBe(2)
   })
 
-  it("subtracts a dropped pre-automation row from preAutomation, not from actionable", async () => {
-    api.getExceptions.mockResolvedValue(
-      page([item(), unjustified({ preAutomation: true })], {
-        actionable: 1,
-        preAutomation: 1,
-      }),
-    )
+  it("asks for every type: nothing is excluded", async () => {
+    api.getExceptions.mockResolvedValue(page([item()]))
 
-    const { summary } = await loadLiveExceptions()
+    await loadLiveExceptions({ repair: "PR-2000029113-10" })
 
-    expect(summary.total).toBe(1)
-    expect(summary.preAutomation).toBe(0)
-    expect(summary.actionable).toBe(1)
+    expect(api.getExceptions).toHaveBeenCalledWith({ repair: "PR-2000029113-10", page: 1, pageSize: 500 })
   })
 
-  it("does not raise the partial-queue banner over rows it dropped itself", async () => {
-    // `truncated` asks whether the fetch stopped short of the backend's total.
-    // The dropped rows arrived; they are simply not shown.
+  it("is complete when it fetched the backend's total", async () => {
     api.getExceptions.mockResolvedValue(page([item(), unjustified()]))
 
     expect((await loadLiveExceptions()).truncated).toBe(false)
+  })
+})
+
+describe("toExceptionRow: bought new while a repair was open", () => {
+  it("reads a purchase on a new-buy PR, and a repair still on its PR", () => {
+    const row = toExceptionRow(
+      unjustified({
+        id: "EX-UNJUSTIFIED_ACQUISITION-PR-1000201234-10",
+        acquisitionLine: { type: "PR", documentNumber: "1000201234", line: "10" },
+        repairLine: { type: "PR", documentNumber: "2000029113", line: "10" },
+      }) as ApiExceptionItem,
+    )
+
+    expect(row.acquisitionType).toBe("PR")
+    expect(row.acquisitionLine).toBe("1000201234-10")
+    expect(row.repairLineType).toBe("PR")
+    // The register's id for a repair with no PO yet, so the link lands on it.
+    expect(row.repairId).toBe("PR-2000029113-10")
+    expect(row.repairLine).toBe("PR-2000029113-10")
+  })
+
+  it("reads a direct PO purchase against a repair PO line as before", () => {
+    const row = toExceptionRow(unjustified() as ApiExceptionItem)
+
+    expect(row.acquisitionType).toBe("PO")
+    expect(row.acquisitionLine).toBe("4100100001-10")
+    expect(row.repairLineType).toBe("PO")
+    expect(row.repairId).toBe("4100067718-10")
+    expect(row.repairLine).toBe("4100067718-10")
+  })
+
+  it("has no purchase type on an item with no purchase", () => {
+    expect(toExceptionRow(item() as ApiExceptionItem).acquisitionType).toBeUndefined()
+  })
+
+  it("leaves a repair with no item unlinked, PR or PO", () => {
+    const row = toExceptionRow(
+      unjustified({ repairLine: { type: "PR", documentNumber: "2000029113", line: null } }) as ApiExceptionItem,
+    )
+
+    expect(row.repairId).toBeUndefined()
+    expect(row.repairLine).toBe("2000029113")
+  })
+})
+
+describe("toExceptionRow: the declaration and reservation checks", () => {
+  it("carries the reservation line of a reservation with no R-reference", () => {
+    const row = toExceptionRow(
+      item({
+        id: "EX-MISSING_SESSION_ID-R-0000123456-0001",
+        type: "MISSING_SESSION_ID",
+        reservationLine: { type: "RESERVATION", documentNumber: "0000123456", line: "0001" },
+      }) as ApiExceptionItem,
+    )
+
+    expect(row.reservationLine).toBe("0000123456-0001")
+    expect(row.declarationId).toBeUndefined()
+  })
+
+  it("carries the declaration a declaration-based item is about", () => {
+    const row = toExceptionRow(
+      item({ type: "REPAIRED_AGAINST_ASSESSMENT", declarationId: "att-42" }) as ApiExceptionItem,
+    )
+
+    expect(row.declarationId).toBe("att-42")
+    expect(row.reservationLine).toBeUndefined()
+  })
+
+  it("reads an older backend's item, which sends neither", () => {
+    const row = toExceptionRow(item() as ApiExceptionItem)
+
+    expect(row.reservationLine).toBeUndefined()
+    expect(row.declarationId).toBeUndefined()
   })
 })
 
@@ -294,15 +344,16 @@ describe("loadExceptionsPage", () => {
     })
 
     expect(fetchPage).toHaveBeenCalledTimes(1)
+    // No excludeType since 27-Oct-2026: the queue carries every check.
     expect(fetchPage).toHaveBeenCalledWith({
       q: "pump",
       plant: "1300",
       status: "OPEN",
       actionableOnly: true,
-      excludeType: "UNJUSTIFIED_ACQUISITION",
       page: 3,
       pageSize: 25,
     })
+    expect(fetchPage.mock.calls[0][0]).not.toHaveProperty("excludeType")
   })
 
   it("counts every match, not the page", async () => {
@@ -327,9 +378,9 @@ describe("loadExceptionsPage", () => {
 
     // Choosing 1300 must not take 1500 out of the list.
     expect(facets.plants.map((p) => p.plantId)).toEqual(["1300", "1500"])
-    // OVERDUE_REPAIR runs and found nothing on this page: still a choice. The
-    // dropped type is not, though the backend declares it.
-    expect(facets.types).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR"])
+    // OVERDUE_REPAIR and UNJUSTIFIED_ACQUISITION run and found nothing on
+    // this page: still choices.
+    expect(facets.types).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR", "UNJUSTIFIED_ACQUISITION"])
   })
 
   it("falls back to the page's rows when the backend sends no facets", async () => {
@@ -345,14 +396,26 @@ describe("loadExceptionsPage", () => {
     ])
   })
 
-  it("keeps a dropped type off the screen even from a backend that ignores excludeType", async () => {
-    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified()]))
+  it("shows bought-new items, with their tab count", async () => {
+    const fetchPage = vi.fn().mockResolvedValue({
+      ...page([item(), unjustified()]),
+      typeCounts: { MISSING_ATTESTATION: 1, UNJUSTIFIED_ACQUISITION: 1 },
+    })
 
-    const { rows, summary } = await loadExceptionsPage({}, 1, { fetchPage })
+    const { rows, summary, typeCounts } = await loadExceptionsPage({}, 1, { fetchPage })
+
+    expect(rows.map((r) => r.type)).toEqual(["MISSING_ATTESTATION", "UNJUSTIFIED_ACQUISITION"])
+    expect(summary.typesRaised).toContain("UNJUSTIFIED_ACQUISITION")
+    expect(summary.byType).toEqual({ MISSING_ATTESTATION: 1, UNJUSTIFIED_ACQUISITION: 1 })
+    expect(typeCounts).toEqual({ MISSING_ATTESTATION: 1, UNJUSTIFIED_ACQUISITION: 1 })
+  })
+
+  it("still keeps pre-automation items off, from a backend that ignores actionableOnly", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified({ preAutomation: true })]))
+
+    const { rows } = await loadExceptionsPage({}, 1, { fetchPage })
 
     expect(rows.map((r) => r.type)).toEqual(["MISSING_ATTESTATION"])
-    expect(summary.typesRaised).toEqual(["MISSING_ATTESTATION", "OVERDUE_REPAIR"])
-    expect(summary.byType).toEqual({ MISSING_ATTESTATION: 1 })
   })
 })
 
@@ -373,7 +436,7 @@ describe("fetchAllExceptions", () => {
     expect(fetchPage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: "OVERDUE_REPAIR",
-        excludeType: "UNJUSTIFIED_ACQUISITION",
+        actionableOnly: true,
         page: 2,
         pageSize: 500,
       }),
@@ -399,5 +462,42 @@ describe("fetchAllExceptions", () => {
 
     expect(await fetchAllExceptions({}, fetchPage)).toHaveLength(3)
     expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("raised before go-live (28-Oct-2026)", () => {
+  it("reads and writes its own status value, every status included", () => {
+    const { filters } = parseExceptionParams({ status: BEFORE_GO_LIVE, type: "UNJUSTIFIED_ACQUISITION" })
+    expect(filters).toMatchObject({ status: undefined, preAutomation: true, type: "UNJUSTIFIED_ACQUISITION" })
+    expect(exceptionsHref(filters)).toBe("/repairable-spares/exceptions?type=UNJUSTIFIED_ACQUISITION&status=before-go-live")
+    expect(parseExceptionParams({ status: "OPEN" }).filters.preAutomation).toBeUndefined()
+  })
+
+  it("asks for those items alone, not the ones to act on", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([unjustified({ preAutomation: true })]))
+
+    const { rows } = await loadExceptionsPage({ preAutomation: true, plant: "1300" }, 1, { pageSize: 25, fetchPage })
+
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ preAutomationOnly: true, plant: "1300" }))
+    expect(fetchPage.mock.calls[0][0]).not.toHaveProperty("actionableOnly")
+    expect(fetchPage.mock.calls[0][0].status).toBeUndefined()
+    expect(rows).toHaveLength(1)
+  })
+
+  it("keeps the items to act on off, from a backend that ignores preAutomationOnly", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified({ preAutomation: true })]))
+
+    const { rows } = await loadExceptionsPage({ preAutomation: true }, 1, { fetchPage })
+
+    expect(rows.map((r) => r.type)).toEqual(["UNJUSTIFIED_ACQUISITION"])
+  })
+
+  it("exports the same view", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([item(), unjustified({ preAutomation: true })]))
+
+    const rows = await fetchAllExceptions({ preAutomation: true }, fetchPage)
+
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ preAutomationOnly: true }))
+    expect(rows.map((r) => r.type)).toEqual(["UNJUSTIFIED_ACQUISITION"])
   })
 })

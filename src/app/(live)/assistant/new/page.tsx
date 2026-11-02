@@ -1,12 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { connection } from "next/server"
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
 import { buttonVariants } from "@/components/ui/button"
 import { entryFromParams, requestHref } from "@/lib/assistant/request/entry"
 import { SINGLE_AS_REQUEST } from "@/lib/assistant/request/flag"
+import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "Reservation assistant — Spares AI",
@@ -108,6 +110,10 @@ export default async function NewAssistantSessionPage({
     )
   }
 
+  // The I08 complete-flow switch, read per request (off on any failure).
+  await connection()
+  const completeFlow = await loadCompleteFlowFromFeatures()
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       {/* This is the page that hosts the live conversation
@@ -128,6 +134,7 @@ export default async function NewAssistantSessionPage({
           department={department}
           requestedFor={requestedFor}
           origin={origin}
+          completeFlow={completeFlow}
         />
       </div>
     </div>

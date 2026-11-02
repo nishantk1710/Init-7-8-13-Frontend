@@ -14,8 +14,9 @@ import { StatusDot } from "@/features/initiative-8/components/kit/status"
 import { repairHref } from "@/features/initiative-8/components/repair-register-table"
 import { toExceptionRow } from "@/features/initiative-8/data/live-exceptions"
 import type { ExceptionEvent, ExceptionQueueRow, ExceptionStatus } from "@/features/initiative-8/types/repair"
+import { exceptionDeclarationAction, repairLineOfId } from "@/features/initiative-8/utils/declaration"
 import { actorLabel, isUnsigned, plantShort } from "@/features/initiative-8/utils/format"
-import { EXCEPTION_STATUS_LABEL, exceptionTypeLabel } from "@/features/initiative-8/utils/status"
+import { EXCEPTION_STATUS_LABEL, exceptionTypeLabel, purchaseFactLabel } from "@/features/initiative-8/utils/status"
 import { ApiError } from "@/lib/api/client"
 import { appendExceptionEvent, getException, type ApiExceptionItem } from "@/lib/api/i8"
 
@@ -52,16 +53,6 @@ function historyLine(event: ExceptionEvent): {
     default:
       return { text: `${who(event.actor)} commented`, tone: "neutral" }
   }
-}
-
-/** "4500001635-10" as the document and item the declaration form sends. */
-function repairKey(repairId: string | undefined): {
-  document?: string
-  item?: string
-} {
-  if (!repairId) return {}
-  const cut = repairId.lastIndexOf("-")
-  return cut > 0 ? { document: repairId.slice(0, cut), item: repairId.slice(cut + 1) } : {}
 }
 
 export type ExceptionDetailDrawerProps = {
@@ -171,8 +162,10 @@ export function ExceptionDetailDrawer({
   }
 
   const autoResolved = [...item.history].reverse().find((e) => e.kind === "AUTO_RESOLVED")
-  const { document: repairDocument, item: repairItem } = repairKey(item.repairId)
-  const canDeclare = item.type === "MISSING_ATTESTATION" && item.stillDetected && Boolean(item.plant?.plantId)
+  // The line the declaration binds to: a repair PO line, or (since
+  // 27-Oct-2026) a repair PR with no PO yet.
+  const boundLine = repairLineOfId(item.repairId)
+  const declareAction = exceptionDeclarationAction(item)
   const lineLink = item.repairId ? (
     <Link href={repairHref({ id: item.repairId })} className="font-mono text-i08-link hover:underline">
       {item.repairLine}
@@ -231,18 +224,46 @@ export function ExceptionDetailDrawer({
                     A condition declaration for repair line {lineLink}. Once it is recorded the check stops finding this
                     item, and it leaves the queue.
                   </>
+                ) : item.type === "REPAIR_PR_NOT_DECLARED" ? (
+                  <>
+                    A condition declaration for the repair requested on {lineLink}. Once it is recorded the check
+                    stops finding this item.
+                  </>
+                ) : item.type === "REPAIRED_AGAINST_ASSESSMENT" ? (
+                  <>
+                    The unit was declared beyond repair or scrap, yet repair line {lineLink} sent it for repair. If the
+                    declaration was wrong, amend it; if the repair was a mistake, cancel it in SAP. Otherwise close the
+                    item with a note saying why the repair went ahead.
+                  </>
+                ) : item.type === "DECLARED_NO_REPAIR_PR" ? (
+                  <>
+                    A repair requested for this part and plant on or after the declaration. If the unit was not
+                    repairable after all, amend the declaration.
+                  </>
+                ) : item.type === "MISSING_SESSION_ID" ? (
+                  <>
+                    The R-reference of the Spares Assistant session, typed correctly in the reservation&apos;s item
+                    text. Once it is there the check stops finding this item.
+                  </>
                 ) : item.type === "OVERDUE_REPAIR" ? (
                   <>
                     SAP marking repair line {lineLink} delivery completed, or a later delivery date agreed with the
                     vendor and entered on the PO in SAP. Either one stops the check finding this item.
                   </>
+                ) : item.type === "UNJUSTIFIED_ACQUISITION" ? (
+                  <>
+                    A reason for buying new, recorded in the Spares Assistant for this part and plant near the date
+                    the new unit was requested. Once it is recorded the check stops finding this item. If the new unit was needed for a reason the assistant
+                    was never asked about, close the item with a note saying why.
+                  </>
                 ) : (
                   "The item clears itself when the data it was raised on changes."
                 )}
               </p>
-              {canDeclare && (
+              {declareAction && (
                 <Button
                   size="lg"
+                  variant={declareAction === "amend" ? "outline" : "default"}
                   className="mt-3 px-3.5"
                   onClick={() => {
                     setFormKey((k) => k + 1)
@@ -250,7 +271,7 @@ export function ExceptionDetailDrawer({
                   }}
                 >
                   <SquarePen className="size-4" />
-                  Declare condition
+                  {declareAction === "amend" ? "Amend declaration" : "Declare condition"}
                 </Button>
               )}
             </section>
@@ -271,8 +292,18 @@ export function ExceptionDetailDrawer({
             <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-[13.5px]">
               <Fact label="Plant">{item.plant ? plantShort(item.plant.name ?? item.plant.plantId) : "Not known"}</Fact>
               <Fact label="Repair line">{lineLink}</Fact>
+              {item.reservationLine && (
+                <Fact label="Reservation line">
+                  <span className="font-mono">{item.reservationLine}</span>
+                </Fact>
+              )}
+              {item.declarationId && (
+                <Fact label="Declaration">
+                  <span className="font-mono">{item.declarationId}</span>
+                </Fact>
+              )}
               {item.acquisitionLine && (
-                <Fact label="Purchase line">
+                <Fact label={purchaseFactLabel(item.acquisitionType)}>
                   <span className="font-mono">{item.acquisitionLine}</span>
                 </Fact>
               )}
@@ -332,9 +363,10 @@ export function ExceptionDetailDrawer({
               plantId: item.plant?.plantId,
               label: `${item.material.materialCode} · ${item.material.description} · ${item.plant?.name ?? "an unknown plant"} · repair line ${item.repairLine}`,
               defaultQuantity: "1",
-              // FR-4's link to the repair PO: declaring from here declares THAT line.
-              repairDocument,
-              repairItem,
+              // FR-4's link to the repair line: declaring from here declares THAT
+              // line, a PO line or a repair PR.
+              ...boundLine,
+              supersedes: declareAction === "amend" ? item.declarationId : undefined,
             }}
             faultCategories={faultCategories}
           />

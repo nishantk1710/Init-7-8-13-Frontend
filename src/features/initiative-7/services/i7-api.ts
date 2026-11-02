@@ -15,6 +15,7 @@
 import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api/client"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
+import { blockingReasonText } from "@/features/initiative-7/utils/blocking-reason"
 import type {
   ApiAdoptionListItem,
   ApiForecastVsActualResponse,
@@ -58,7 +59,7 @@ export { ApiError }
  * -- confirmed against the live API. Every ApiDecimal field passes through
  * this before use; `null`/undefined/an unparsable string all become `null`
  * rather than 0, so a genuinely-absent value is never displayed as zero. */
-function toNumber(value: ApiDecimal): number | null {
+function toNumber(value: ApiDecimal | undefined): number | null {
   if (value === null || value === undefined) return null
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
@@ -282,6 +283,18 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
       safetyStock: toNumber(row.recommended.safety_stock) ?? 0,
       maxStock: toNumber(row.recommended.max_stock) ?? 0,
     },
+    present: {
+      current: {
+        rop: toNumber(row.current.rop) != null,
+        safetyStock: toNumber(row.current.safety_stock) != null,
+        maxStock: toNumber(row.current.max_stock) != null,
+      },
+      recommended: {
+        rop: toNumber(row.recommended.rop) != null,
+        safetyStock: toNumber(row.recommended.safety_stock) != null,
+        maxStock: toNumber(row.recommended.max_stock) != null,
+      },
+    },
     avgDailyConsumption: 0,
     leadTimeDays: 0,
     leadTimeVarianceDays: 0,
@@ -291,13 +304,14 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     unitPrice: toNumber(row.unit_price) ?? 0,
     currency: row.currency ?? null,
     annualConsumption: 0,
-    // Same formula as the detail mapper's own workingCapitalImpact -- unit_price
-    // is now carried on the list endpoint too (Part 34), so this no longer has
-    // to wait for a row to be expanded.
-    workingCapitalImpact:
-      row.impact.status === "AVAILABLE"
-        ? -(toNumber(row.impact.safety_stock_delta) ?? 0) * (toNumber(row.unit_price) ?? 0)
-        : 0,
+    // Worked out by the backend (unit_price x ROP change), so the row and the Working Capital Impact
+    // card share one rule. Null stays null: it was not calculable, which is not "no change".
+    workingCapitalImpact: toNumber(row.working_capital_impact),
+    workingCapitalCurrency: row.working_capital_currency ?? null,
+    manuallyConverted: row.manually_converted ?? false,
+    requestedBy: row.requested_by ?? null,
+    requestedAt: row.requested_at ?? null,
+    rejectionReason: row.rejection_reason ?? null,
     consumptionHistory: [],
     factors,
     championChallenger: {
@@ -329,7 +343,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
   const lastTwelveMonthsUsage = history.slice(-12).reduce((sum, point) => sum + (toNumber(point.quantity) ?? 0), 0)
   const criticality = mapCriticality(detail.criticality.value)
   const factors: RecommendationFactor[] = detail.blocking_reason
-    ? [{ label: "Blocked", detail: detail.blocking_reason }]
+    ? [{ label: "Blocked", detail: blockingReasonText(detail.blocking_reason) }]
     : []
 
   return {
@@ -365,10 +379,12 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     unitPrice: toNumber(detail.unit_price) ?? 0,
     currency: detail.currency ?? null,
     annualConsumption: lastTwelveMonthsUsage,
-    workingCapitalImpact:
-      detail.impact.status === "AVAILABLE"
-        ? -(toNumber(detail.impact.safety_stock_delta) ?? 0) * (toNumber(detail.unit_price) ?? 0)
-        : 0,
+    workingCapitalImpact: toNumber(detail.working_capital_impact),
+    workingCapitalCurrency: detail.working_capital_currency ?? null,
+    manuallyConverted: detail.manually_converted ?? false,
+    requestedBy: detail.requested_by ?? null,
+    requestedAt: detail.requested_at ?? null,
+    rejectionReason: detail.rejection_reason ?? null,
     consumptionHistory: detail.demand.consumption_history.map((point) => ({
       period: formatConsumptionPeriod(point.period),
       qty: toNumber(point.quantity) ?? 0,
@@ -410,6 +426,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
           conversionDetail: detail.oar.conversion_detail,
           demandClass: detail.oar.demand_class,
           consumptionCount12m: detail.oar.consumption_count_12m,
+          consumptionCountMonths: detail.oar.consumption_count_months ?? null,
           consumptionCountThreshold: detail.oar.consumption_count_threshold,
           productionImpact: detail.oar.production_impact,
           i13HodApproved: detail.oar.i13_hod_approved,
@@ -439,8 +456,8 @@ export interface RecommendationListParams {
   confidence?: string
   /** ELIGIBLE | NOT_ELIGIBLE -- the OAR -> Min-Max conversion decision, applied in SQL. */
   conversionEligibility?: string
-  /** Only recommendations issued more than the policy threshold in the last 12 months -- drops
-   * zero-consumption materials too. Applied in SQL. */
+  /** Only recommendations issued more than the policy threshold in the policy's window (the last
+   * 6 months at present) -- drops zero-consumption materials too. Applied in SQL. */
   consumptionAboveThreshold?: boolean
   /** Only recommendations with something to adopt in SAP: an OAR one eligible for the Min-Max
    * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
@@ -534,6 +551,11 @@ export interface RecommendationSummaryStats {
   /** Net working-capital impact of the recommended reorder points (unit price x current - recommended
    * ROP): positive releases, negative ties up. null when no row has all three; never 0. */
   netRopValueImpact: number | null
+  /** Currency `netRopValueImpact` is stated in (ZAR); null from a backend that does not send it. */
+  workingCapitalCurrency?: string | null
+  /** Material-plants the working-capital figure covers, and those left out of it. */
+  workingCapitalIncludedCount?: number | null
+  workingCapitalExcludedCount?: number | null
   /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
    * consumption x lead time. */
   criticalStockoutRiskCount: number
@@ -575,6 +597,9 @@ export async function fetchRecommendationSummary(
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
     netRopValueImpact: toNumber(response.net_rop_value_impact ?? null),
+    workingCapitalCurrency: response.working_capital_currency ?? null,
+    workingCapitalIncludedCount: response.working_capital_included_count ?? null,
+    workingCapitalExcludedCount: response.working_capital_excluded_count ?? null,
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
     stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,
@@ -915,10 +940,15 @@ export async function fetchQuarterlyReport(quarter: string): Promise<ApiQuarterl
  * resolve and generate the latest *closed* calendar quarter itself (see
  * `latest_closed_quarter` on the backend); the returned report's
  * `metadata.quarter` says which quarter actually ran. */
-export async function generateQuarterlyReport(quarter?: string): Promise<ApiQuarterlyReport> {
+export async function generateQuarterlyReport(
+  quarter?: string,
+  period?: "quarter" | "month",
+): Promise<ApiQuarterlyReport> {
+  // `period: "month"` asks for the latest closed *month* when no label is given. Only sent for a month, so a quarterly
+  // call is byte-for-byte what it always was (and an older backend, which does not know the field, is never sent it).
   return apiFetch<ApiQuarterlyReport>(`${I7_BASE}/reports/quarterly/generate`, {
     method: "POST",
-    body: JSON.stringify(quarter ? { quarter } : {}),
+    body: JSON.stringify({ ...(quarter ? { quarter } : {}), ...(period === "month" ? { period } : {}) }),
   })
 }
 
@@ -1122,6 +1152,9 @@ export interface AdoptionSummaryResult {
    * from the denominator) -- null when every evaluated row is still
    * UNKNOWN, never a fabricated 0%. See ApiAdoptionSummary's own docstring. */
   adoptionRatePercentage: number | null
+  /** What the Adopted card counts. `adoptedCount` unless the Calculation page changed the rule; absent or null
+   * means use `adoptedCount`. */
+  countedAsAdopted?: number | null
 }
 
 /** What the adoption summary can be narrowed by. All optional; none means the whole portfolio. */
@@ -1161,6 +1194,7 @@ export async function fetchAdoptionSummary(params: AdoptionSummaryParams = {}): 
     notAdoptedCount: response.not_adopted_count,
     unknownCount: response.unknown_count,
     adoptionRatePercentage: response.adoption_rate_percentage,
+    countedAsAdopted: response.counted_as_adopted ?? null,
   }
 }
 

@@ -1,7 +1,9 @@
 import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
+import { humanize } from "@/features/initiative-8/utils/format"
 import { ALL } from "@/features/initiative-8/utils/register-view"
 import {
   NO_CRITICALITY,
+  exceptionTypeLabel,
   hasNoDueDate,
   isOpenRepair,
   isRepairOverdue,
@@ -66,6 +68,10 @@ export type UniverseRow = {
   criticality?: string
   /** Undefined where no MARD row exists — unknown, never 0. */
   stock?: number
+  /** Usable and damaged stock (28-Oct-2026), when the backend knows the
+   *  split. Undefined otherwise: unknown, never 0. */
+  usable?: number
+  damaged?: number
 }
 
 export type OverviewSlice = {
@@ -116,6 +122,10 @@ export type PlantStock = {
   plant: string
   /** Summed over rows that have a stock record. Never padded with zeroes. */
   stock: number
+  /** Summed over the rows whose condition split is known. Undefined when no
+   *  row at this plant has one: an older backend, or no split known. */
+  usable?: number
+  damaged?: number
 }
 
 export type StockByPlant = {
@@ -127,8 +137,10 @@ export type StockByPlant = {
 
 /** Stock on hand by plant, over whichever universe rows were handed in. */
 export function stockByPlant(rows: UniverseRow[]): StockByPlant {
-  const byPlant = new Map<string, number>()
+  const byPlant = new Map<string, PlantStock>()
   let unknownRows = 0
+  const add = (sum: number | undefined, value: number | undefined) =>
+    value === undefined ? sum : (sum ?? 0) + value
   for (const row of rows) {
     // Unknown is not zero: counted separately so the footnote can say how much
     // is missing, rather than a bar quietly implying none.
@@ -137,14 +149,36 @@ export function stockByPlant(rows: UniverseRow[]): StockByPlant {
       continue
     }
     const plant = row.plantName || "Unknown plant"
-    byPlant.set(plant, (byPlant.get(plant) ?? 0) + row.stock)
+    const total = byPlant.get(plant) ?? { plant, stock: 0 }
+    total.stock += row.stock
+    // The condition split only where the backend sent one: a plant whose
+    // rows carry none keeps it undefined rather than summing to 0.
+    const usable = add(total.usable, row.usable)
+    const damaged = add(total.damaged, row.damaged)
+    if (usable !== undefined) total.usable = usable
+    if (damaged !== undefined) total.damaged = damaged
+    byPlant.set(plant, total)
   }
   return {
-    plants: [...byPlant]
-      .map(([plant, stock]) => ({ plant, stock }))
-      .sort((a, b) => a.plant.localeCompare(b.plant)),
+    plants: [...byPlant.values()].sort((a, b) => a.plant.localeCompare(b.plant)),
     unknownRows,
   }
+}
+
+/**
+ * The stock tile's words, one line per plant: "Black Mountain Mining 855"
+ * on a backend that does not split stock by condition, and "Black Mountain
+ * Mining: 800 usable · 55 damaged" on one that does (28-Oct-2026), as the
+ * assistant now shows it.
+ */
+export function stockLines(plants: PlantStock[], count: (value: number) => string): string[] {
+  return plants.map((p) => {
+    const split = [
+      p.usable !== undefined ? `${count(p.usable)} usable` : undefined,
+      p.damaged !== undefined ? `${count(p.damaged)} damaged` : undefined,
+    ].filter(Boolean)
+    return split.length > 0 ? `${p.plant}: ${split.join(" · ")}` : `${p.plant} ${count(p.stock)}`
+  })
 }
 
 export type VendorLines = {
@@ -365,17 +399,83 @@ export function vendorRows(chains: RepairChain[]): VendorRow[] {
   return [...byVendor.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name))
 }
 
-/** The open exception items raised against these lines, by type. */
+/** One open exception, as the Overview's card counts it. */
+export type OpenExceptionItem = { repairId?: string; type: string; plantId?: string }
+
+export type OpenExceptionCounts = { total: number; byType: Record<string, number> }
+
+/**
+ * The open exception items the card counts, by type: the same items the
+ * queue lists under Open, narrowed the way the Overview is.
+ *
+ * An item on a register line counts when that line is in the slice -- a
+ * repair PO line or a repair requested with no PO yet. An item on no line
+ * the register lists (a part declared repairable with no repair PR since, for
+ * one) has only a plant: it counts while no vendor or criticality filter is
+ * set, and the plant filter narrows it. Until 28-Oct-2026 the card counted
+ * only items on PO lines, and said 105 where the queue said 109.
+ */
 export function openExceptionCounts(
-  chains: RepairChain[],
-  items: { repairId?: string; type: string }[],
-): { total: number; missing: number; overdue: number } {
-  const ids = new Set(chains.map((c) => c.id))
-  const mine = items.filter((item) => item.repairId && ids.has(item.repairId))
+  slice: RepairChain[],
+  knownLineIds: ReadonlySet<string>,
+  items: OpenExceptionItem[],
+  filters: OverviewFilters,
+): OpenExceptionCounts {
+  const inSlice = new Set(slice.map((c) => c.id))
+  const lineless = filters.vendor === ALL && filters.criticality === ALL
+  const counted = items.filter((item) =>
+    item.repairId && knownLineIds.has(item.repairId)
+      ? inSlice.has(item.repairId)
+      : lineless && (filters.plant === ALL || item.plantId === filters.plant),
+  )
+  const byType: Record<string, number> = {}
+  for (const item of counted) byType[item.type] = (byType[item.type] ?? 0) + 1
+  return { total: counted.length, byType }
+}
+
+/** Each check's open items, as the card names them after a count. */
+const OPEN_EXCEPTION_WORDS: Record<string, string> = {
+  OVERDUE_REPAIR: "overdue",
+  MISSING_ATTESTATION: "with no declaration",
+  REPAIR_PR_NOT_DECLARED: "repair PR not declared",
+  REPAIRED_AGAINST_ASSESSMENT: "against the assessment",
+  DECLARED_NO_REPAIR_PR: "no repair PR",
+  UNJUSTIFIED_ACQUISITION: "bought new with no reason",
+  MISSING_SESSION_ID: "no R-reference",
+}
+
+/**
+ * Every open type with its count, most first: "104 overdue · 4 no repair PR
+ * · 1 against the assessment". The card used to name two types only, and hid
+ * five of 105. A type this build does not know is named by the queue's label.
+ */
+export function openExceptionSummary(byType: Record<string, number>, count: (value: number) => string): string {
+  return Object.entries(byType)
+    .filter(([, n]) => n > 0)
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([type, n]) => {
+      const words = OPEN_EXCEPTION_WORDS[type] ?? humanize(exceptionTypeLabel(type)).toLowerCase()
+      return `${count(n)} ${words}`
+    })
+    .join(" · ")
+}
+
+/**
+ * The "Not declared" card's counts. Only `Required` is waiting: a line raised
+ * before declarations began (`Historical`) was never asked for one, and a
+ * `Flagged` line has a declaration -- against the assessment. Until
+ * 28-Oct-2026 the card counted every line not `Completed`, and said 104 not
+ * declared while the queue said 0 waiting.
+ */
+export function declarationCounts(chains: Pick<RepairChain, "declarationStatus">[]): {
+  required: number
+  historical: number
+  flagged: number
+} {
   return {
-    total: mine.length,
-    missing: mine.filter((item) => item.type === "MISSING_ATTESTATION").length,
-    overdue: mine.filter((item) => item.type === "OVERDUE_REPAIR").length,
+    required: chains.filter((c) => c.declarationStatus === "Required").length,
+    historical: chains.filter((c) => c.declarationStatus === "Historical").length,
+    flagged: chains.filter((c) => c.declarationStatus === "Flagged").length,
   }
 }
 

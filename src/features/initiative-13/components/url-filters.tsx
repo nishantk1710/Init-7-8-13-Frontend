@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/select"
 import { DELIVERY_STATE_LABELS, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
+import { UTILISATION_STATUS_LABELS } from "@/features/initiative-13/utils/issue-match"
+import {
+  ISSUED_FILTER_LABELS,
+  ISSUED_FILTERS,
+  RESERVATION_STATUSES,
+  reservationStatusOption,
+} from "@/features/initiative-13/utils/reservation-lifecycle"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   AGING_BAND_LABEL,
@@ -27,6 +34,7 @@ import {
   PLAN_STATUS_LABEL,
   PLAN_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
+import { LEDGER_UTILISATION_STATUSES } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -76,6 +84,8 @@ export function I13UrlFilters({
     | "procurementStatus"
     | "utilisationStatus"
     | "deliveryStatus"
+    | "reservationStatus"
+    | "issued"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -113,7 +123,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -211,7 +221,7 @@ export function I13UrlFilters({
             label="All utilization statuses"
             width="sm:w-48"
             value={searchParams.get("utilisationStatus") ?? ""}
-            options={UTILISATION_STATUSES.map((value) => ({ value, label: words(value) }))}
+            options={LEDGER_UTILISATION_STATUSES.map((value) => ({ value, label: UTILISATION_STATUS_LABELS[value] }))}
             onChange={(value) => push({ utilisationStatus: value })}
           />)}
 
@@ -221,6 +231,22 @@ export function I13UrlFilters({
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ deliveryStatus: value })}
+          />)}
+
+        {fields.includes("reservationStatus") && wrap("reservationStatus", <UrlSelect
+            label="All stages"
+            width="sm:w-52"
+            value={searchParams.get("reservationStatus") ?? ""}
+            options={RESERVATION_STATUSES.map((value) => ({ value, label: reservationStatusOption(value) }))}
+            onChange={(value) => push({ reservationStatus: value })}
+          />)}
+
+        {fields.includes("issued") && wrap("issued", <UrlSelect
+            label="Issued: any"
+            width="sm:w-40"
+            value={searchParams.get("issued") ?? ""}
+            options={ISSUED_FILTERS.map((value) => ({ value, label: ISSUED_FILTER_LABELS[value] }))}
+            onChange={(value) => push({ issued: value })}
           />)}
 
         {panel ? (
@@ -276,7 +302,7 @@ function PanelBar({ className, children }: { className?: string; children: React
       className={cn(
         "flex flex-wrap items-end gap-3 rounded-lg border-2 border-action/40 bg-card p-4 shadow-lg",
         "[&>div]:min-w-[132px] [&>div]:flex-1",
-        "[&_[data-slot=filter-label]]:font-bold [&_[data-slot=filter-label]]:text-foreground",
+        "[&_[data-slot=filter-label]]:font-semibold [&_[data-slot=filter-label]]:text-foreground",
         "[&_[data-slot=select-trigger]]:min-h-8! [&_[data-slot=select-trigger]]:font-semibold",
         "[&_[data-slot=input]]:min-h-8! [&_[data-slot=input]]:font-semibold",
         "[&_[data-slot=button]]:min-h-8!",
@@ -297,17 +323,6 @@ function FilterField({ label, className, children }: { label: string; className?
       {children}
     </div>
   )
-}
-
-const UTILISATION_STATUSES = ["NOT_ISSUED", "PARTIALLY_ISSUED", "FULLY_ISSUED"] as const
-
-/** `PARTIALLY_RECEIVED` -> "Partially Received", as the ledger's badges read. */
-function words(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((w) => (w[0]?.toUpperCase() ?? "") + w.slice(1))
-    .join(" ")
 }
 
 function labelFor(labels: Record<string, string>, value: string): string {

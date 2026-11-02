@@ -4,44 +4,65 @@ import { ExceptionsTable } from "@/features/initiative-8/components/exceptions-t
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
 import { Segmented, Tabs } from "@/features/initiative-8/components/kit/list"
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
+import { NotificationLogLink } from "@/features/initiative-8/components/notification-log"
 import { useUrlFilters } from "@/features/initiative-8/components/url-filters"
 import {
   ALL_STATUSES,
+  BEFORE_GO_LIVE,
   DEFAULT_EXCEPTION_STATUS,
   EXCEPTIONS_PATH,
   type ExceptionFacets,
   type ExceptionFilters,
 } from "@/features/initiative-8/data/live-exceptions"
 import type { ExceptionQueueRow, ExceptionQueueSummary } from "@/features/initiative-8/types/repair"
-import { plural } from "@/features/initiative-8/utils/format"
+import { CHECKS_BEFORE_COMPLETE_FLOW, exceptionTypesShown } from "@/features/initiative-8/utils/complete-flow"
+import { i08Date, plural } from "@/features/initiative-8/utils/format"
 import { exceptionTypeLabel } from "@/features/initiative-8/utils/status"
 import { formatCount } from "@/lib/utils"
 
 /**
- * The FR-8 checks this queue carries, in the order their tabs read.
+ * The FR-8 checks this queue carries, in the order their tabs read. Each gets
+ * a tab only once the backend runs it.
  *
- * `UNJUSTIFIED_ACQUISITION` is deliberately not among them since 14-Oct-2026:
- * the reason for a new purchase is asked for at the reservation, by the Spares
- * Assistant (FR-5b), so it is a control rather than a queue item -- see
- * `DROPPED_TYPES` in `live-exceptions.ts`. `MISSING_SESSION_ID` gets a tab
- * only once the backend raises it.
+ * `UNJUSTIFIED_ACQUISITION` is back since 27-Oct-2026. It was left out from
+ * 14-Oct because it never fired (it dated a purchase from a PO-line date the
+ * live data does not carry); the backend now checks the new-buy purchase
+ * request, so it finds real work. See the header of `live-exceptions.ts`.
  */
-const ALL_CHECKS = ["MISSING_ATTESTATION", "OVERDUE_REPAIR", "MISSING_SESSION_ID"] as const
+const ALL_CHECKS = [
+  "MISSING_ATTESTATION",
+  "REPAIR_PR_NOT_DECLARED",
+  "REPAIRED_AGAINST_ASSESSMENT",
+  "DECLARED_NO_REPAIR_PR",
+  "OVERDUE_REPAIR",
+  "UNJUSTIFIED_ACQUISITION",
+  "MISSING_SESSION_ID",
+] as const
 
-/** The tabs' short names; the drawer and the rows keep the full ones. */
+/** The tabs' short names; the drawer and the rows keep the full ones. Short
+ *  enough that every type fits one row at 1440px. */
 const TAB_LABEL: Record<string, string> = {
-  MISSING_ATTESTATION: "No declaration",
+  MISSING_ATTESTATION: "Not declared",
   OVERDUE_REPAIR: "Overdue",
-  MISSING_SESSION_ID: "No assistant session",
+  UNJUSTIFIED_ACQUISITION: "Bought new",
+  MISSING_SESSION_ID: "No R-reference",
+  REPAIR_PR_NOT_DECLARED: "PR not declared",
+  REPAIRED_AGAINST_ASSESSMENT: "Against assessment",
+  DECLARED_NO_REPAIR_PR: "No repair PR",
 }
 
 /**
  * Repair Exceptions (FR-8, FR-9, FR-11) -- I08_Live_UI_Redesign_Plan.md, L5.
  *
- * Type tabs -- All, No declaration, Overdue -- with an Open / Closed / All
- * switch beside them, in place of a type dropdown, a status dropdown, a
- * summary band and a "How each check works" box above the table. All comes
- * first so the Overview's "open exceptions" card lands on the same number.
+ * Type tabs -- All, Not declared, Overdue, Bought new and the rest -- on one
+ * row, with an Open / Closed / All / Raised before go-live switch in the
+ * filter bar, in place of a type dropdown, a status dropdown, a summary band
+ * and a "How each check works" box above the table. All comes first so the
+ * Overview's "open exceptions" card lands on the same number.
+ *
+ * "Raised before go-live" (28-Oct-2026) lists the items from before the
+ * checks began, which need nothing; the header counts them apart from the
+ * ones to act on, so the two numbers add up to what the checks found.
  *
  * The tab counts are the backend's `typeCounts`: every filter applied but the
  * type, so a tab's number is the rows it opens on. Without them (an older
@@ -62,6 +83,7 @@ export function ExceptionsScreen({
   typeCounts,
   initialItem,
   faultCategories,
+  completeFlow,
 }: {
   rows: ExceptionQueueRow[]
   total: number
@@ -73,6 +95,10 @@ export function ExceptionsScreen({
   typeCounts?: Record<string, number>
   initialItem?: ExceptionQueueRow
   faultCategories: string[]
+  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
+   *  Off: the checks raised before it, no "Raised before go-live", no
+   *  notification log. */
+  completeFlow: boolean
 }) {
   const { push, isPending } = useUrlFilters(EXCEPTIONS_PATH)
   /** A filter change also ends a `?id=` link, which would otherwise re-open
@@ -80,13 +106,17 @@ export function ExceptionsScreen({
   const update = (patch: Record<string, string | undefined>) => push({ ...patch, id: undefined })
 
   const known: readonly string[] = ALL_CHECKS
-  const types = [
-    ...ALL_CHECKS.filter((type) => facets.types.includes(type)),
-    // A type this build has never heard of still gets a tab, and so does a
-    // stale link's, so the selected tab always exists.
-    ...facets.types.filter((type) => !known.includes(type)),
-    ...(filters.type && !facets.types.includes(filters.type) ? [filters.type] : []),
-  ]
+  const types = exceptionTypesShown(
+    [
+      ...ALL_CHECKS.filter((type) => facets.types.includes(type)),
+      // A type this build has never heard of still gets a tab, and so does a
+      // stale link's, so the selected tab always exists.
+      ...facets.types.filter((type) => !known.includes(type)),
+      ...(filters.type && !facets.types.includes(filters.type) ? [filters.type] : []),
+    ],
+    completeFlow,
+    { counts: typeCounts, selected: filters.type },
+  )
   const countOf = (type?: string) =>
     typeCounts === undefined
       ? undefined
@@ -94,15 +124,25 @@ export function ExceptionsScreen({
         ? (typeCounts[type] ?? 0)
         : Object.values(typeCounts).reduce((sum, n) => sum + n, 0)
 
-  const running = (type: string) => summary.typesRaised.includes(type)
+  // Off, only the checks from before the complete flow are explained.
+  const running = (type: string) =>
+    summary.typesRaised.includes(type) && (completeFlow || CHECKS_BEFORE_COMPLETE_FLOW.includes(type))
 
   return (
     <I08Page
       crumbs={[{ label: "Repairable Spares", href: "/repairable-spares" }, { label: "Repair Exceptions" }]}
       title="Repair Exceptions"
+      // FR-11's notification log, 27-Oct-2026: what email will send.
+      actions={completeFlow ? <NotificationLogLink /> : undefined}
       summary={
         <>
-          <span>{plural(summary.total, "item")} found by the checks</span>
+          <span>{formatCount(summary.actionable)} to act on</span>
+          {completeFlow && summary.preAutomation > 0 && (
+            <>
+              <Dot />
+              <span>{formatCount(summary.preAutomation)} raised before go-live</span>
+            </>
+          )}
           {summary.linesChecked > 0 && (
             <>
               <Dot />
@@ -119,16 +159,44 @@ export function ExceptionsScreen({
                 {summary.attestationWindowDays} days of the line being raised.
               </p>
             )}
+            {running("REPAIR_PR_NOT_DECLARED") && (
+              <p>
+                <strong className="font-semibold text-foreground">Repair PR not declared.</strong> A repair requested
+                on a purchase requisition, open longer than the grace period, with no condition declaration for it.
+              </p>
+            )}
+            {running("REPAIRED_AGAINST_ASSESSMENT") && (
+              <p>
+                <strong className="font-semibold text-foreground">Repaired against the assessment.</strong> A unit
+                declared beyond economical repair or scrap was sent for repair anyway.
+              </p>
+            )}
+            {running("DECLARED_NO_REPAIR_PR") && (
+              <p>
+                <strong className="font-semibold text-foreground">Declared, no repair PR yet.</strong> A unit declared
+                repairable longer ago than the grace period, with no repair requested for the same part and plant
+                since.
+              </p>
+            )}
             {running("OVERDUE_REPAIR") && (
               <p>
                 <strong className="font-semibold text-foreground">Repair overdue.</strong> A repair line SAP still has
                 open, more than the grace period past the delivery date on its PO.
               </p>
             )}
+            {running("UNJUSTIFIED_ACQUISITION") && (
+              <p>
+                <strong className="font-semibold text-foreground">Bought new while a repair was open.</strong> A new
+                unit of a part was requested (or ordered directly) while a repair of the same part at the same plant
+                was still open, and no reason for buying new was recorded
+                {summary.justificationWindowDays ? ` within ${plural(summary.justificationWindowDays, "day")}` : ""}.
+              </p>
+            )}
             {running("MISSING_SESSION_ID") ? (
               <p>
-                <strong className="font-semibold text-foreground">No assistant session.</strong> A reservation for an
-                80-series part whose item text names no valid Spares Assistant session.
+                <strong className="font-semibold text-foreground">Reservation with no R-reference.</strong> A
+                reservation for an 80-series part whose item text carries no valid Spares Assistant R-reference, or
+                carries one that is mistyped.
               </p>
             ) : (
               <p>
@@ -139,12 +207,22 @@ export function ExceptionsScreen({
             <p>
               An item closes itself when the check stops finding it. Someone can also close it, with a note saying why.
             </p>
+            {completeFlow && (
+              <p>
+                <strong className="font-semibold text-foreground">Raised before go-live.</strong> A repair line or
+                purchase from before the checks began
+                {summary.attestationCutoverDate ? ` on ${i08Date(summary.attestationCutoverDate)}` : ""}. Nobody was
+                asked for a declaration or a reason then, so nothing needs doing. They are listed apart, under their
+                own switch.
+              </p>
+            )}
           </InfoPopover>
         </>
       }
     >
       <Tabs
         label="Exception type"
+        oneRow
         value={filters.type ?? ""}
         onSelect={(value) => update({ type: value || undefined })}
         choices={[
@@ -155,18 +233,6 @@ export function ExceptionsScreen({
             count: countOf(type),
           })),
         ]}
-        end={
-          <Segmented
-            label="Status"
-            value={filters.status ?? ALL_STATUSES}
-            onSelect={(value) => update({ status: value === DEFAULT_EXCEPTION_STATUS ? undefined : value })}
-            choices={[
-              { value: "OPEN", label: "Open" },
-              { value: "CLOSED", label: "Closed" },
-              { value: ALL_STATUSES, label: "All" },
-            ]}
-          />
-        }
       />
       <ExceptionsTable
         // Keyed by the linked item, so following a second item link while
@@ -182,6 +248,19 @@ export function ExceptionsScreen({
         faultCategories={faultCategories}
         update={update}
         pending={isPending}
+        stateSwitch={
+          <Segmented
+            label="Status"
+            value={filters.preAutomation ? BEFORE_GO_LIVE : (filters.status ?? ALL_STATUSES)}
+            onSelect={(value) => update({ status: value === DEFAULT_EXCEPTION_STATUS ? undefined : value })}
+            choices={[
+              { value: "OPEN", label: "Open" },
+              { value: "CLOSED", label: "Closed" },
+              { value: ALL_STATUSES, label: "All" },
+              ...(completeFlow ? [{ value: BEFORE_GO_LIVE, label: "Raised before go-live" }] : []),
+            ]}
+          />
+        }
       />
     </I08Page>
   )

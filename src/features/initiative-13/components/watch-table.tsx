@@ -42,19 +42,20 @@ const AGING_TONE: Record<AgingBand, "healthy" | "caution" | "urgent"> = {
 function CoverCell({ months }: { months: number | null }) {
   if (months === null) {
     return (
-      <span className="text-sm text-ink-muted" title={EMPTY_LABEL.noConsumptionHistory.title}>
+      <span className="text-sm text-muted-foreground" title={EMPTY_LABEL.noConsumptionHistory.title}>
         Insufficient consumption history
       </span>
     )
   }
   const tone = coverTone(months)
   return (
-    <span className={cn("block text-right font-bold tabular-nums", TONE_INK[tone])}>{months.toFixed(1)}</span>
+    <span className={cn("block text-right font-semibold tabular-nums", TONE_INK[tone])}>{months.toFixed(1)}</span>
   )
 }
 
 const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
   NO_PLAN: "Non-AI",
+  NO_RESERVATION: "Awaiting reservation",
   BELOW_PLAN: "Below plan",
   ON_PLAN: "On plan",
   ABOVE_PLAN: "Above plan",
@@ -62,6 +63,7 @@ const PLAN_LABEL: Record<AcquiredVsPlanStatus, string> = {
 
 const PLAN_TONE: Record<AcquiredVsPlanStatus, "neutral" | "healthy" | "caution" | "urgent"> = {
   NO_PLAN: "neutral",
+  NO_RESERVATION: "neutral",
   BELOW_PLAN: "caution",
   ON_PLAN: "healthy",
   ABOVE_PLAN: "urgent",
@@ -132,7 +134,7 @@ export function WatchTable({
                       <span
                         className={cn(
                           "tabular-nums",
-                          isLongIdle(m.daysSinceLastMovement) ? "font-bold text-urgent-ink" : "font-semibold"
+                          isLongIdle(m.daysSinceLastMovement) ? "font-semibold text-destructive" : "font-semibold"
                         )}
                       >
                         {m.daysSinceLastMovement}d
@@ -144,7 +146,7 @@ export function WatchTable({
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     <span className="font-semibold tabular-nums">{formatCount(m.consumptionCount12m)}</span>{" "}
-                    <span className="text-ink-muted">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
+                    <span className="text-muted-foreground">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
                   </TableCell>
                   <TableCell className="text-right text-foreground">
                     {m.inventoryTurns !== null ? (
@@ -168,9 +170,10 @@ export function WatchTable({
                     </StatusPill>
                     {m.acquiredVsPlanStatus !== "NO_PLAN" && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        planned {formatCount(m.plannedQuantity ?? 0)} · received{" "}
-                        {formatCount(m.receivedQuantity ?? 0)} · issued{" "}
-                        {formatCount(m.issuedQuantity ?? 0)}
+                        planned {formatCount(m.plannedQuantity ?? 0)} ·{" "}
+                        {m.acquiredVsPlanStatus === "NO_RESERVATION"
+                          ? "no reservation yet"
+                          : `issued ${formatCount(m.issuedQuantity ?? 0)}`}
                       </div>
                     )}
                   </TableCell>

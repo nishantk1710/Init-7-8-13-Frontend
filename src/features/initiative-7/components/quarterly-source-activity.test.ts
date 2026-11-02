@@ -123,6 +123,36 @@ describe("a quarter with no source data at all", () => {
   })
 })
 
+describe("a monthly report's source activity", () => {
+  const october: ApiSourceActivitySection = sourceActivityFixture({
+    months: [
+      {
+        month: "2026-10-01", status: "AVAILABLE", material_plants_with_movements: 3, material_plants_with_demand: 3,
+        materials_with_movements: 3, issue_transactions: 6, reversal_transactions: 0,
+      },
+    ],
+  })
+  const monthly = renderToStaticMarkup(createElement(QuarterlySourceActivity, { section: october, kind: "monthly" }))
+  const quarterly = renderToStaticMarkup(createElement(QuarterlySourceActivity, { section: october }))
+
+  it("lists its month and has no Quarter row, which would only repeat it", () => {
+    expect(monthly).toContain("October 2026")
+    expect(monthly).not.toContain("Quarter")
+    expect(monthly).not.toContain("months with data")
+  })
+
+  it("explains the counts without talking about a quarter row", () => {
+    expect(monthly).toContain("Each material-plant is counted once.")
+    expect(monthly).toContain("issues outweighed reversals")
+  })
+
+  it("leaves a quarterly report exactly as it was: the Quarter row and its footnote stay", () => {
+    expect(quarterly).toContain("Quarter")
+    expect(quarterly).toContain("months with data")
+    expect(quarterly).toContain("the Quarter row counts each material-plant once across the")
+  })
+})
+
 describe("the formatting helpers", () => {
   it("labels months and leaves a non-date alone", () => {
     expect(sourceMonthLabel("2026-07-01")).toBe("July 2026")

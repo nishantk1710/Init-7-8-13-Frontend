@@ -4,6 +4,10 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 import { DataModeBanner } from "@/components/shared/data-mode";
+import { AuthBridge } from "@/components/auth/auth-bridge";
+// Registers the server's access-token provider for lib/api/client.ts, so
+// server components call the backend as the signed-in user (AUTH_MODE=entra).
+import "@/auth";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -43,6 +47,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AuthBridge />
           <DataModeBanner />
           <div className="flex min-h-0 flex-1">{children}</div>
         </ThemeProvider>

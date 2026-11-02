@@ -6,6 +6,7 @@
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
+import { formatInstant } from "@/lib/assistant/trace-format"
 import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
 import {
   downloadDocument,
@@ -74,20 +75,20 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
   return {
     title: `Request ${request.requestId}`,
     subtitle: "What was decided for each material, and how to quote it in SAP.",
-    generatedAt: now.toLocaleString("en-GB"),
+    generatedAt: formatInstant(now.toISOString()),
     details: [
       ["Type in SAP", request.requestId],
       ["Requested for", request.requestedFor ?? "—"],
       ["Plant", request.plant],
       ["Department", departmentLabel(request)],
       ["Department note", request.departmentNote ?? "—"],
-      ["Issued", new Date(request.issuedAt).toLocaleString("en-GB")],
+      ["Issued", formatInstant(request.issuedAt)],
       ["Lines", String(request.lines.length)],
       ["To reserve", String(toReserve)],
       ["No session", String(request.skipped.length)],
     ],
     note:
-      `Create one SAP reservation for this request and type ${request.requestId} into its header text -- without /1, /2. ` +
+      `Create one SAP reservation for this request and type ${request.requestId} into its header text, without /1, /2. ` +
       "SAP copies it to every item's text (SGTXT), and each item is matched to its line by material and plant.",
     lines: request.lines.map(lineCells),
     skipped: request.skipped.map((s) => ({ materialId: s.materialId, plant: s.plant, reason: s.reason })),
@@ -111,7 +112,7 @@ export function requestDocument(model: RequestExportModel): ExportDocument {
       { kind: "table", columns: [...LINE_COLUMNS], rows: model.lines },
       ...(model.skipped.length > 0
         ? ([
-            { kind: "heading", text: "No session -- reserve as usual" },
+            { kind: "heading", text: "No session: reserve as usual" },
             {
               kind: "table",
               columns: ["Material", "Plant", "Reason"],

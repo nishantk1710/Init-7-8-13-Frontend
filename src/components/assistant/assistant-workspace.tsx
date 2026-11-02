@@ -51,9 +51,12 @@ import {
  */
 export function AssistantWorkspace({
   start,
+  completeFlow,
 }: {
   /** The already-opened session. Routing is resolved before this renders. */
   start: StartSessionResponse & { sessionId: string; step: ApiStep }
+  /** The I08 complete-flow switch, read by the page (`lib/i08-features`). */
+  completeFlow: boolean
 }) {
   const [transcript, setTranscript] = useState<Transcript>(() =>
     startTranscript(start.step)
@@ -163,6 +166,7 @@ export function AssistantWorkspace({
         <ConversationProgress
           stepId={latestStepId(transcript)}
           finished={transcript.current === null}
+          completeFlow={completeFlow}
         />
       </SessionReference>
 

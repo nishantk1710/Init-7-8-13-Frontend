@@ -21,7 +21,7 @@ export function RecentEventsFeed({
   failedModules?: number
 }) {
   return (
-    <ChartCard title="Recent events" subtitle="See the full history in Audit Trail.">
+    <ChartCard title="Recent events" subtitle="See the full history in Audit Trail." className="p-5 shadow-sm">
       {events.length === 0 ? (
         failedModules > 0 ? (
           <EmptyState

@@ -62,6 +62,9 @@ export interface ApiOarInfo {
   conversion_detail: string | null
   demand_class: string | null
   consumption_count_12m: number | null
+  /** The months `consumption_count_12m` was counted over (the field's name is historical). Optional
+   * so an older backend that does not send it still works; absent or null means "not recorded". */
+  consumption_count_months?: number | null
   consumption_count_threshold: number | null
   production_impact: boolean | null
   i13_hod_approved: boolean | null
@@ -118,8 +121,20 @@ export interface ApiRecommendationSummary {
   recommended: ApiStockParameters
   impact: ApiImpactInfo
   unit_price: ApiDecimal
+  /** Value change: unit_price * (current_rop - recommended_rop), worked out by the backend. null: could not be
+   * calculated (blocked, no price, no reorder point); absent: a backend that predates the field. Never 0 for those. */
+  working_capital_impact?: ApiDecimal | null
   /** ISO code unit_price is in (SAP MBEW WAERS); null when SAP supplied none. */
   currency?: string | null
+  /** "ZAR" when working_capital_impact is stated in ZAR (a ZAR price, or NAD at 1:1); null otherwise. */
+  working_capital_currency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. conversion_eligibility
+   * still holds the rule's verdict. Absent from a backend that predates the field. */
+  manually_converted?: boolean
+  requested_by?: string | null
+  requested_at?: string | null
+  /** The comment of the newest REJECT in the approval ledger, on a REJECTED row. */
+  rejection_reason?: string | null
 }
 
 export interface ApiRecommendationListResponse {
@@ -174,6 +189,11 @@ export interface ApiRecommendationSummaryStats {
   net_safety_stock_value_impact: ApiDecimal
   /** SUM(unit_price * (current_rop - recommended_rop)) -- the Overview's Working Capital Impact. */
   net_rop_value_impact?: ApiDecimal
+  /** The currency `net_rop_value_impact` is stated in (ZAR: MBEW's price, ZAR and NAD at 1:1 only). */
+  working_capital_currency?: string | null
+  /** Material-plants the working-capital figure is over, and the ones of the same population left out. */
+  working_capital_included_count?: number
+  working_capital_excluded_count?: number
   critical_stockout_risk_count: number
   /** Fast / Slow material-plants that could be judged -- the denominator of the stockout share. */
   stockout_risk_evaluated_count?: number
@@ -194,7 +214,17 @@ export interface ApiRecommendationDetail {
   plant: string
   circuit: string | null
   unit_price: ApiDecimal
+  working_capital_impact?: ApiDecimal | null
   currency?: string | null
+  /** "ZAR" when working_capital_impact is stated in ZAR (a ZAR price, or NAD at 1:1); null otherwise. */
+  working_capital_currency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. conversion_eligibility
+   * still holds the rule's verdict. Absent from a backend that predates the field. */
+  manually_converted?: boolean
+  requested_by?: string | null
+  requested_at?: string | null
+  /** The comment of the newest REJECT in the approval ledger, on a REJECTED row. */
+  rejection_reason?: string | null
   current: ApiStockParameters
   recommended: ApiStockParameters
   demand: ApiDemandInfo
@@ -434,6 +464,9 @@ export interface ApiAdoptionSummary {
   not_adopted_count: number
   unknown_count: number
   adoption_rate_percentage: number | null
+  /** What the Adopted card counts: `adopted_count` unless the Calculation page changed it. Absent from a
+   * backend that predates editable calculations. */
+  counted_as_adopted?: number | null
 }
 
 export interface ApiAdoptionResponse {
@@ -848,8 +881,13 @@ export interface ApiPositionFigures {
   excess_count: number
   excess_opportunity: ApiDecimal
   net_rop_value_impact: ApiDecimal
+  /** Material-plants the working-capital impact includes. */
   priced_count: number
   currency: string | null
+  /** Currency of `net_rop_value_impact` (ZAR); absent in snapshots saved before it existed. */
+  working_capital_currency?: string | null
+  /** Material-plants of the population left out of `net_rop_value_impact`. */
+  working_capital_excluded_count?: number
 }
 
 export interface ApiPlantPosition {

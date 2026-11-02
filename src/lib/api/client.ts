@@ -1,9 +1,17 @@
 /**
  * Minimal client for the FastAPI backend.
  *
- * One base URL, one place that adds the identity header, one place that parses
- * an error body. Configure the base URL with NEXT_PUBLIC_API_BASE_URL (see
+ * One base URL, one place that adds the identity, one place that parses an
+ * error body. Configure the base URL with NEXT_PUBLIC_API_BASE_URL (see
  * .env.example).
+ *
+ * ## Identity
+ *
+ * With Microsoft sign-in on (AUTH_MODE=entra) every request carries the user's
+ * access token as `Authorization: Bearer`, from the server and from the browser
+ * alike (see lib/api/token.ts); the backend takes the user and their roles from
+ * it. Otherwise -- the test sign-in -- it carries the `X-Actor-Id` header as it
+ * always has. Feature code never sets either.
  *
  * ## The error shape, which is not what you would guess
  *
@@ -24,6 +32,7 @@
  */
 
 import { ACTOR_ID_HEADER, currentActorId } from "@/lib/api/actor"
+import { currentAccessToken } from "@/lib/api/token"
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"
@@ -263,6 +272,7 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
   const timeoutMs = init?.timeoutMs ?? (method === "GET" ? API_GET_TIMEOUT_MS : 0)
   const signal =
     init?.signal ?? (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
+  const token = await currentAccessToken()
 
   let response: Response
   try {
@@ -272,7 +282,9 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
       headers: {
         // A multipart body sets its own Content-Type, boundary included.
         ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-        [ACTOR_ID_HEADER]: currentActorId(),
+        // Signed in with Microsoft: the token says who this is, and the backend
+        // ignores X-Actor-Id. Test sign-in: the header, as before.
+        ...(token ? { Authorization: `Bearer ${token}` } : { [ACTOR_ID_HEADER]: currentActorId() }),
         ...init?.headers,
       },
     })
@@ -287,6 +299,13 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
   }
 
   if (!response.ok) {
+    // A token the backend no longer accepts (expired session, revoked access):
+    // send the browser to sign in again and come back here, rather than show
+    // an error the user can do nothing about.
+    if (response.status === 401 && token && typeof window !== "undefined") {
+      const here = `${window.location.pathname}${window.location.search}`
+      window.location.assign(`/login?next=${encodeURIComponent(here)}`)
+    }
     const body = await readErrorBody(response)
     throw new ApiError(
       response.status === 503 && response.headers.get("Retry-After")
@@ -304,9 +323,10 @@ async function request(path: string, init?: ApiRequestInit): Promise<Response> {
 /**
  * Fetch a JSON resource from the backend. Throws ApiError on a non-2xx response.
  *
- * Sends the identity header on every request, including GETs — the backend reads
- * it on read routes too (the ACT routes log who looked), and a header that is
- * only sometimes present is harder to reason about than one that always is.
+ * Sends the identity (token or header) on every request, including GETs — the
+ * backend reads it on read routes too (with sign-in on, every read needs it; the
+ * ACT routes log who looked), and an identity that is only sometimes present is
+ * harder to reason about than one that always is.
  */
 export async function apiFetch<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const response = await request(path, init)

@@ -14,12 +14,16 @@ export function I08Head({
   right,
   frozen,
   sort,
+  wrap,
 }: {
   children?: ReactNode
   right?: boolean
   frozen?: boolean
   /** For a sortable column: its order, as `aria-sort` on the header cell. */
   sort?: "ascending" | "descending" | "none"
+  /** A two-word header in a narrow column wraps onto two lines rather than
+   *  running into the next one. */
+  wrap?: boolean
 }) {
   return (
     <TableHead
@@ -28,6 +32,7 @@ export function I08Head({
       className={cn(
         "h-[42px] bg-(--i08-head) px-3 text-[13px] font-medium text-muted-foreground",
         right && "text-right",
+        wrap && "leading-tight whitespace-normal",
       )}
     >
       {children}

@@ -12,6 +12,12 @@ import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
 import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
+import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/components/issued-on-cell"
+import {
+  ISSUE_MATCH_EXPLANATIONS,
+  ISSUE_MATCH_LABELS,
+  UTILISATION_STATUS_LABELS,
+} from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
@@ -26,7 +32,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
 const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
-  OPEN: "neutral",
+  OPEN: "primary",
   PARTIALLY_RECEIVED: "caution",
   RECEIVED: "healthy",
   CLOSED: "neutral",
@@ -34,17 +40,32 @@ const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
 }
 
 const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
-  NOT_ISSUED: "neutral",
+  NOT_ISSUED: "urgent",
   PARTIALLY_ISSUED: "caution",
   FULLY_ISSUED: "healthy",
+  BEFORE_ISSUE_HISTORY: "neutral",
 }
 
-function label(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ")
+/** The quantity drawn on top of a date cell (Received, Issued); nothing when there is none to show. */
+function QuantityLead({ value }: { value: number | null }) {
+  if (!value) return null
+  return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
+}
+
+/**
+ * Received against ordered -- "0 of 6", "4 of 10" -- when the backend sent the
+ * PO line's quantity (EKPO-MENGE). What is still to come on an open line adds
+ * up to the assistant's Open PO. A line ordering nothing (a contract) or with
+ * no quantity sent falls back to the received quantity alone.
+ */
+function ReceivedLead({ received, ordered }: { received: number | null; ordered: number | null }) {
+  if (!ordered) return <QuantityLead value={received} />
+  return (
+    <span className="tabular-nums" title="Received of ordered (EKPO-MENGE)">
+      <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
+      <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
+    </span>
+  )
 }
 
 function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
@@ -86,17 +107,17 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
     <div className="flex flex-col gap-4">
       <Stepper steps={steps} />
       {stop && (
-        <p className="flex items-start gap-2 rounded-lg bg-caution-tint px-3 py-2 text-sm text-caution-ink">
+        <p className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             {stop.after ? (
               <>
-                Stops at <span className="font-bold">{stop.after.label}</span>
+                Stops at <span className="font-semibold">{stop.after.label}</span>
               </>
             ) : (
               <>Nothing linked yet</>
             )}{" "}
-            — next is <span className="font-bold">{stop.next.label}</span>: {stop.next.detail.toLowerCase()}.
+            — next is <span className="font-semibold">{stop.next.label}</span>: {stop.next.detail.toLowerCase()}.
           </span>
         </p>
       )}
@@ -138,14 +159,13 @@ export function UtilizationLedgerTable({
                 <span className="sr-only">Details</span>
               </TableHead>
               <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead>Reservation</TableHead>
-              <TableHead>PR</TableHead>
-              <TableHead>PO</TableHead>
-              <TableHead className="text-right">Received</TableHead>
-              <TableHead>Delivered on</TableHead>
-              <TableHead className="text-right">Issued</TableHead>
-              <TableHead className="text-right">Open</TableHead>
+              <TableHead>PO / PR</TableHead>
+              <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
+              <TableHead title="Quantity issued, with the goods-issue date (MKPF-BUDAT) underneath">Issued</TableHead>
+              <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
+              <TableHead title="The earliest open reservation expected to draw on this line's stock">
+                Next planned issue
+              </TableHead>
               <TableHead>Procurement</TableHead>
               <TableHead>Utilization</TableHead>
             </TableRow>
@@ -179,55 +199,76 @@ export function UtilizationLedgerTable({
                         ) : (
                           <span className="font-medium">{entry.material}</span>
                         )}
+                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">
+                          {sapPlantLabel(entry.plant)}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {sapPlantLabel(entry.plant)}
-                    </TableCell>
                     <TableCell>
-                      {entry.reservationNumber ? (
-                        <DocNo number={entry.reservationNumber} item={entry.reservationItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
+                      <div className="flex flex-col items-start gap-1">
+                        {entry.poNumber ? (
+                          <DocNo number={entry.poNumber} item={entry.poItem} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No PO yet</span>
+                        )}
+                        {entry.prNumber && (
+                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            PR <DocNo number={entry.prNumber} item={entry.prItem} />
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {entry.prNumber ? (
-                        <DocNo number={entry.prNumber} item={entry.prItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {entry.poNumber ? (
-                        <DocNo number={entry.poNumber} item={entry.poItem} />
-                      ) : (
-                        <span className="text-muted-foreground">Not linked</span>
-                      )}
-                    </TableCell>
-                    {/* A label where the backend recorded nothing, not a
-                        zero. "No goods receipt was recorded" and "zero units
-                        arrived" are different findings on this table, and the
-                        adapter keeps them apart precisely so this cell can. */}
-                    <Quantity value={entry.receivedQuantity} empty="noGrYet" />
+                    {/* The quantity sits on top only when something arrived or
+                        went out: underneath, the date cell already says "No PO
+                        yet", "Not delivered" or "Not issued yet" -- a label
+                        where the backend recorded nothing, never a bare zero.
+                        Received is the exception once the ordered quantity is
+                        known: "0 of 6" says how much is still to come. */}
                     <DeliveredOnCell
                       status={deliveryOf(entry)}
                       receivedQuantity={entry.receivedQuantity}
+                      lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
                     />
-                    <Quantity value={entry.issuedQuantity} empty="notIssued" />
+                    <IssuedOnCell
+                      firstDate={entry.firstGiDate}
+                      lastDate={entry.latestGiDate}
+                      received={(entry.receivedQuantity ?? 0) > 0}
+                      issueMatch={entry.issueMatch}
+                      lead={<QuantityLead value={entry.issuedQuantity} />}
+                    />
                     <Quantity value={entry.openQuantity} empty="notRecorded" />
+                    <NextPlannedIssueCell
+                      date={entry.nextPlannedIssueDate}
+                      quantity={entry.nextPlannedIssueQuantity}
+                      inStock={(entry.openQuantity ?? 0) > 0}
+                    />
                     <TableCell>
                       <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
                       </StatusPill>
                     </TableCell>
                     <TableCell>
-                      <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">{label(entry.utilisationStatus)}</StatusPill>
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
+                          {UTILISATION_STATUS_LABELS[entry.utilisationStatus]}
+                        </StatusPill>
+                        {entry.issueMatch && entry.issueMatch !== "BEFORE_ISSUE_HISTORY" && (
+                          <span
+                            className="cursor-help text-[11px] whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
+                            title={ISSUE_MATCH_EXPLANATIONS[entry.issueMatch]}
+                          >
+                            {ISSUE_MATCH_LABELS[entry.issueMatch]}
+                            {entry.issueMatch === "RESERVATION" && entry.reservationNumber
+                              ? ` ${entry.reservationNumber}${entry.reservationItem ? `/${entry.reservationItem}` : ""}`
+                              : ""}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                   <TableRow className="hover:bg-transparent">
                     <TableCell className="p-0" />
-                    <TableCell colSpan={11} className="p-0">
+                    <TableCell colSpan={8} className="p-0">
                       <div
                         className={cn(
                           "grid transition-[grid-template-rows] duration-300 ease-out",
@@ -235,7 +276,7 @@ export function UtilizationLedgerTable({
                         )}
                       >
                         <div className="min-h-0 overflow-hidden">
-                          <div className="bg-page px-4 py-5">
+                          <div className="bg-muted/40 px-4 py-5">
                             {/* Rendered from the row we already have.
                                 This used to call GET /i13/ledger/{id} on
                                 every expansion -- which returns the SAME

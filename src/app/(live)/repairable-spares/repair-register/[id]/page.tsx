@@ -5,7 +5,9 @@ import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions
 import { loadLiveRepairDetail } from "@/features/initiative-8/data/live-repair-detail"
 import { RepairDetailPage } from "@/features/initiative-8/pages/repair-detail-page"
 import type { ExceptionQueueRow } from "@/features/initiative-8/types/repair"
+import { withoutCompleteFlow } from "@/features/initiative-8/utils/complete-flow"
 import { getAttestations } from "@/lib/api/i8"
+import { loadCompleteFlowFromSnapshot } from "@/lib/i08-features"
 
 export async function generateMetadata({
   params,
@@ -49,7 +51,12 @@ export default async function Page({
     // The exception fetch asks the backend for this ONE line rather than
     // pulling the whole queue and filtering: the queue runs to thousands of
     // items and this page needs the handful raised against one repair.
-    const [line, attestations, raised] = await Promise.all([
+    //
+    // The I08 complete-flow switch comes from the snapshot, best-effort (off on
+    // any failure). Off, the line is shown without what only the complete flow
+    // adds: the usable/damaged split, the assistant session behind the
+    // declaration, and a link made through the R-reference.
+    const [line, attestations, raised, completeFlow] = await Promise.all([
       loadLiveRepairDetail(id),
       getAttestations().catch(() => null),
       loadLiveExceptions({ repair: id })
@@ -59,8 +66,9 @@ export default async function Page({
         // them as raised against this line.
         .then((data) => data.rows.filter((row) => row.repairId === id))
         .catch(() => null),
+      loadCompleteFlowFromSnapshot(),
     ])
-    detail = line
+    detail = line && !completeFlow ? { ...line, chain: withoutCompleteFlow(line.chain) } : line
     faultCategories = attestations?.faultCategories ?? []
     exceptions = raised
   } catch (error) {

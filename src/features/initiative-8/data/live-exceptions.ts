@@ -40,6 +40,17 @@
  * the browser required. Removed 13-Oct-2026 for the same reason it came out
  * of the declaration queue: a cap with a caption still shows a partial queue,
  * and the caption does not make that true.
+ *
+ * ## Every check the backend raises
+ *
+ * From 14-Oct to 27-Oct-2026 this loader dropped `UNJUSTIFIED_ACQUISITION`
+ * ("bought new while a repair was open, with no reason recorded"), rows and
+ * counts, and asked the backend to leave it out. It never fired: it dated a
+ * new purchase from a PO-line creation date the live data does not carry, so
+ * 0 of 6,837 purchases were ever checked. Since 27-Oct the backend checks the
+ * new-buy purchase request instead -- that is where a new unit is asked for --
+ * so the finding is real work again and the queue carries it like any other.
+ * A purchase or a repair can now be a PR as well as a PO; the row says which.
  */
 
 import type {
@@ -55,10 +66,11 @@ import type {
   ApiExceptionItem,
   ApiExceptionMeta,
   ApiExceptionPage,
+  ApiSAPDocumentReference,
   ExceptionQuery,
 } from "@/lib/api/i8"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
-import { formatApiDate, getExceptions } from "@/lib/api/i8"
+import { getExceptions } from "@/lib/api/i8"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -66,10 +78,25 @@ function orUndefined<T>(value: T | null | undefined): T | undefined {
 }
 
 /**
+ * A repair as the register keys it. A repair PO line is `{EBELN}-{EBELP}`; a
+ * repair requested on a PR with no PO yet is `PR-{BANFN}-{BNFPO}`, the id of
+ * its register row, so the link from the queue lands on that row's page and
+ * the repair detail page's own list finds it. Undefined without an item: the
+ * detail route is keyed {document}-{item}, and a link to a page that will 404
+ * is worse than none.
+ */
+function repairKeyOf(line: ApiSAPDocumentReference): string | undefined {
+  if (!line.line) return undefined
+  const document = line.type === "PR" ? `PR-${line.documentNumber}` : line.documentNumber
+  return `${document}-${line.line}`
+}
+
+/**
  * One wire item as the row the screens render. Exported for the exception
  * drawer, which shows the item a write sends back.
  */
 export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
+  const repairId = repairKeyOf(row.repairLine)
   return {
     id: row.id,
     // A plain string, never switched over exhaustively: the backend declares
@@ -85,20 +112,24 @@ export function toExceptionRow(row: ApiExceptionItem): ExceptionQueueRow {
     plant: row.plant
       ? { plantId: row.plant.plantId, name: row.plant.name }
       : undefined,
-    repairLine: row.repairLine.line
-      ? `${row.repairLine.documentNumber}-${row.repairLine.line}`
-      : row.repairLine.documentNumber,
-    // The register's detail route is keyed {document}-{item}, so a line
-    // without an item cannot be linked -- and is served unlinked rather than
-    // linked to a page that will 404.
-    repairId: row.repairLine.line
-      ? `${row.repairLine.documentNumber}-${row.repairLine.line}`
-      : undefined,
+    repairLine: repairId ?? row.repairLine.documentNumber,
+    // A line without an item cannot be linked -- see `repairKeyOf`.
+    repairId,
+    // The wire's own type, so the screens can tell a PR from a PO. An older
+    // backend always said PO; it still does for a repair PO line.
+    repairLineType: row.repairLine.type,
     acquisitionLine: row.acquisitionLine
       ? row.acquisitionLine.line
         ? `${row.acquisitionLine.documentNumber}-${row.acquisitionLine.line}`
         : row.acquisitionLine.documentNumber
       : undefined,
+    acquisitionType: row.acquisitionLine?.type,
+    reservationLine: row.reservationLine
+      ? row.reservationLine.line
+        ? `${row.reservationLine.documentNumber}-${row.reservationLine.line}`
+        : row.reservationLine.documentNumber
+      : undefined,
+    declarationId: row.declarationId ?? undefined,
     title: row.title,
     detail: row.detail,
     raisedAt: row.raisedAt ? i08Date(row.raisedAt) : undefined,
@@ -154,69 +185,6 @@ export type LiveExceptions = {
 const PAGE_SIZE = 500
 
 /**
- * Checks the queue no longer carries.
- *
- * `UNJUSTIFIED_ACQUISITION` — "bought new while a repair was open, with no
- * justification" — came out on 14-Oct-2026. FR-5b asks the requester for that
- * reason at the moment of the reservation, and the Spares Assistant is where
- * it is asked, so a purchase that reaches this queue unjustified is the case
- * the control upstream exists to prevent. Raising it again afterwards gives
- * nobody work they do not already have.
- *
- * The backend still runs the check and still serves its count. The
- * Justifications screen is where that number belongs — beside the reasons
- * themselves and the share of purchases that carry one — rather than in a
- * queue somebody is meant to work through.
- *
- * Dropped here rather than in the table so that everything reading this
- * loader agrees about what the queue holds: the summary band, the type
- * filter and the CSV export. The register sends the same list with its own
- * request (`excludeExceptionType`), so its per-line chips agree too.
- */
-export const DROPPED_TYPES: ReadonlySet<string> = new Set(["UNJUSTIFIED_ACQUISITION"])
-
-/**
- * The summary, describing the rows that are left.
- *
- * Subtracted from the backend's own counts rather than recomputed from the
- * rows: `linesChecked`, `linesCovered` and the window settings are facts about
- * the run that no amount of row counting reproduces, and `total` has to keep
- * meaning what the band above the table says it means.
- *
- * `acquisitionsChecked` and `justificationWindowDays` are left alone. They
- * describe the justification check, which still runs — the Justifications
- * screen reads them from the same meta and reports them there.
- */
-function withoutDroppedTypes(
-  summary: ExceptionQueueSummary,
-  dropped: ExceptionQueueRow[],
-): ExceptionQueueSummary {
-  const preAutomation = dropped.filter((row) => row.preAutomation).length
-  const bySeverity = { ...summary.bySeverity }
-  for (const row of dropped) {
-    if (bySeverity[row.severity] !== undefined) {
-      bySeverity[row.severity] = Math.max(0, bySeverity[row.severity] - 1)
-    }
-  }
-
-  return {
-    ...summary,
-    total: Math.max(0, summary.total - dropped.length),
-    actionable: Math.max(0, summary.actionable - (dropped.length - preAutomation)),
-    preAutomation: Math.max(0, summary.preAutomation - preAutomation),
-    byType: Object.fromEntries(
-      Object.entries(summary.byType).filter(([type]) => !DROPPED_TYPES.has(type)),
-    ),
-    bySeverity,
-    // Out of `typesRaised` too, and this is the half that shows today: the
-    // deployed backend raises none of these but still declares the check, so
-    // the type sat in the filter dropdown and in "How each check works" with
-    // nothing behind it either way.
-    typesRaised: summary.typesRaised.filter((type) => !DROPPED_TYPES.has(type)),
-  }
-}
-
-/**
  * Fetch the exception queue, following pages.
  *
  * Throws on failure — a failed request is not an empty queue, and on this
@@ -236,7 +204,7 @@ export async function loadLiveExceptions(
     const body = await getExceptions({ ...query, page, pageSize: PAGE_SIZE })
     summary ??= toSummary(body.meta)
     referenceDate ??= body.referenceDate
-      ? formatApiDate(body.referenceDate)
+      ? i08Date(body.referenceDate)
       : undefined
     total = body.total
 
@@ -248,32 +216,22 @@ export async function loadLiveExceptions(
     page += 1
   }
 
-  // Truncation is measured on what was FETCHED against what the backend said
-  // it had, before anything is dropped -- the dropped rows arrived, they are
-  // just not shown, and counting them as missing would raise the partial-queue
-  // banner on a complete queue.
-  const truncated = rows.length < total
-  const kept = rows.filter((row) => !DROPPED_TYPES.has(row.type))
-  const dropped = rows.filter((row) => DROPPED_TYPES.has(row.type))
-
   return {
-    rows: kept,
-    summary: withoutDroppedTypes(
-      summary ?? {
-        total: 0,
-        actionable: 0,
-        preAutomation: 0,
-        byType: {},
-        bySeverity: {},
-        linesChecked: 0,
-        linesCovered: 0,
-        typesRaised: [],
-        attestationWindowDays: 0,
-      },
-      dropped,
-    ),
+    rows,
+    summary: summary ?? {
+      total: 0,
+      actionable: 0,
+      preAutomation: 0,
+      byType: {},
+      bySeverity: {},
+      linesChecked: 0,
+      linesCovered: 0,
+      typesRaised: [],
+      attestationWindowDays: 0,
+    },
     referenceDate,
-    truncated,
+    // Measured on what was fetched against what the backend said it had.
+    truncated: rows.length < total,
   }
 }
 
@@ -295,6 +253,14 @@ export const DEFAULT_EXCEPTION_STATUS: ExceptionStatus = "OPEN"
 /** `?status=` for every status. */
 export const ALL_STATUSES = "all"
 
+/**
+ * `?status=` for the items raised before go-live (28-Oct-2026): the lines and
+ * purchases from before the checks began, which need nothing. They were
+ * counted in the header (242 found) and visible nowhere, so the tabs added up
+ * to 109 and "Bought new" read 0 while 30 existed.
+ */
+export const BEFORE_GO_LIVE = "before-go-live"
+
 /** A ceiling on export requests, so a backend that ignored `page` and kept
  *  returning full pages could never loop forever. 200 x 500 rows. */
 const MAX_EXPORT_PAGES = 200
@@ -311,6 +277,9 @@ export type ExceptionFilters = {
   plant?: string
   /** One status, or undefined for every status (`?status=all`). */
   status?: string
+  /** The items raised before go-live, instead of the ones to act on
+   *  (`?status=before-go-live`). Every status: none of them is work. */
+  preAutomation?: boolean
   /** One repair line, as the register keys it: the link its Exceptions
    *  column and the repair detail page follow. */
   repair?: string
@@ -353,9 +322,10 @@ export function parseExceptionParams(raw: RawSearchParams): {
       status:
         status === undefined
           ? DEFAULT_EXCEPTION_STATUS
-          : status.toLowerCase() === ALL_STATUSES
+          : status.toLowerCase() === ALL_STATUSES || status.toLowerCase() === BEFORE_GO_LIVE
             ? undefined
             : (toExceptionStatus(status) ?? status.toUpperCase()),
+      ...(status?.toLowerCase() === BEFORE_GO_LIVE ? { preAutomation: true } : {}),
       repair: single(raw.repair),
     },
     page: parsePage(raw.page) ?? 1,
@@ -384,7 +354,8 @@ export function exceptionsHref(filters: ExceptionFilters, page = 1): string {
   if (filters.q) params.set("q", filters.q)
   if (filters.type) params.set("type", filters.type)
   if (filters.plant) params.set("plant", filters.plant)
-  if (filters.status === undefined) params.set("status", ALL_STATUSES)
+  if (filters.preAutomation) params.set("status", BEFORE_GO_LIVE)
+  else if (filters.status === undefined) params.set("status", ALL_STATUSES)
   else if (filters.status !== DEFAULT_EXCEPTION_STATUS) params.set("status", filters.status)
   if (filters.repair) params.set("repair", filters.repair)
   if (page > 1) params.set("page", String(page))
@@ -395,29 +366,25 @@ export function exceptionsHref(filters: ExceptionFilters, page = 1): string {
 /**
  * The request for what the screen shows.
  *
- * Two parameters are always on, because they say what this queue is rather
- * than narrow it: `excludeType` takes out the checks it no longer carries
- * (`DROPPED_TYPES`), counts included, and `actionableOnly` leaves out lines
- * raised before the control existed, which are a reason rather than work. The
- * second filters nothing until VZI supplies the cutover date.
+ * `actionableOnly` is on unless the screen asks for the items raised before
+ * go-live, because it says what this queue is rather than narrows it: lines
+ * raised before the control existed are a reason rather than work. Those
+ * have their own view since 28-Oct-2026 (`preAutomationOnly`, every status).
+ * No `excludeType` since 27-Oct-2026: the queue carries every check the
+ * backend raises (see the header).
  */
 function exceptionQuery(filters: ExceptionFilters): ExceptionQuery {
-  return {
-    q: filters.q,
-    type: filters.type,
-    plant: filters.plant,
-    status: filters.status,
-    repair: filters.repair,
-    actionableOnly: true,
-    excludeType: [...DROPPED_TYPES].join(","),
-  }
+  const base = { q: filters.q, type: filters.type, plant: filters.plant, repair: filters.repair }
+  return filters.preAutomation
+    ? { ...base, preAutomationOnly: true }
+    : { ...base, status: filters.status, actionableOnly: true }
 }
 
-/** Neither a dropped type nor a pre-automation line. The backend leaves both
- *  out already; this guards one older than paging, which ignores the two
- *  parameters. On the current one it removes nothing. */
-function shown(row: ExceptionQueueRow): boolean {
-  return !DROPPED_TYPES.has(row.type) && !row.preAutomation
+/** The rows the view is about. The backend leaves the others out already;
+ *  this guards one that ignores the parameter -- older than paging, or (for
+ *  the before-go-live view) older than 28-Oct-2026. */
+function shownIn(filters: ExceptionFilters): (row: ExceptionQueueRow) => boolean {
+  return filters.preAutomation ? (row) => row.preAutomation : (row) => !row.preAutomation
 }
 
 /**
@@ -439,7 +406,7 @@ function facetsOf(
         ).values(),
       ].sort((a, b) => a.plantId.localeCompare(b.plantId))
   const types = new Set([...typesRaised, ...(body.facets?.types ?? rows.map((r) => r.type))])
-  return { plants, types: [...types].filter((t) => !DROPPED_TYPES.has(t)).sort() }
+  return { plants, types: [...types].sort() }
 }
 
 /**
@@ -458,14 +425,15 @@ export async function loadExceptionsPage(
   }: { pageSize?: number; fetchPage?: FetchExceptions } = {},
 ): Promise<ExceptionsPage> {
   const body = await fetchPage({ ...exceptionQuery(filters), page, pageSize })
-  const rows = body.items.map(toExceptionRow).filter(shown)
-  // The backend has taken the dropped types off the counts already. This
-  // takes them out of `typesRaised` and `byType` for one that has not.
-  const summary = withoutDroppedTypes(toSummary(body.meta), [])
-  const typeCounts = body.typeCounts
-    ? Object.fromEntries(Object.entries(body.typeCounts).filter(([type]) => !DROPPED_TYPES.has(type)))
-    : undefined
-  return { rows, total: body.total, summary, facets: facetsOf(body, rows, summary.typesRaised), typeCounts }
+  const rows = body.items.map(toExceptionRow).filter(shownIn(filters))
+  const summary = toSummary(body.meta)
+  return {
+    rows,
+    total: body.total,
+    summary,
+    facets: facetsOf(body, rows, summary.typesRaised),
+    typeCounts: body.typeCounts ?? undefined,
+  }
 }
 
 /**
@@ -481,6 +449,7 @@ export async function fetchAllExceptions(
   fetchPage: FetchExceptions = getExceptions,
 ): Promise<ExceptionQueueRow[]> {
   const byId = new Map<string, ExceptionQueueRow>()
+  const shown = shownIn(filters)
   for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
     const body = await fetchPage({ ...exceptionQuery(filters), page, pageSize: PAGE_SIZE })
     for (const row of body.items.map(toExceptionRow)) {

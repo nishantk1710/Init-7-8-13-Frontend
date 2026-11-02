@@ -183,11 +183,9 @@ export function pageCount(total: number, pageSize: number): number {
 
 // --- Which quarters the landing grid offers ----------------------------------------------------------
 
-/** Quarters kept off the landing grid. Q3 2026's and Q4 2026's generated reports are not shown. */
-export const HIDDEN_QUARTERS: readonly string[] = ["Q3 2026", "Q4 2026"]
-
 /**
- * The generated reports' quarters plus the Q2 snapshot, newest first, without the hidden ones. The snapshot is
+ * The generated reports' quarters plus the Q2 snapshot, newest first. Every generated quarter is listed: a report
+ * appears as soon as it exists (Q4 2026's, for one, once it is generated), and nothing is held back. The snapshot is
  * always offered: it is not generated, so it is not in the list the backend returns.
  */
 export function landingQuarters(generated: string[]): string[] {
@@ -195,7 +193,5 @@ export function landingQuarters(generated: string[]): string[] {
     const [q, year] = quarter.replace("Q", "").split(" ")
     return Number(year) * 10 + Number(q)
   }
-  return Array.from(new Set([...generated, SNAPSHOT_QUARTER]))
-    .filter((quarter) => !HIDDEN_QUARTERS.includes(quarter))
-    .sort((a, b) => key(b) - key(a))
+  return Array.from(new Set([...generated, SNAPSHOT_QUARTER])).sort((a, b) => key(b) - key(a))
 }

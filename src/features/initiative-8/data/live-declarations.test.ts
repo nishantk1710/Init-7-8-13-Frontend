@@ -1,12 +1,20 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  DECLARABLE_PLANTS,
+  cutoverFromRules,
+  declarablePlants,
   declarationsHref,
   fetchAllDeclarations,
   isDeclarationFiltered,
   loadDeclarationsPage,
+  loadHistoricalLines,
   parseDeclarationParams,
+  parseDeclarationTab,
+  registerPlants,
+  toLogRow,
 } from "@/features/initiative-8/data/live-declarations"
+import type { ApiAttestation } from "@/lib/api/i8"
 
 /**
  * The declaration queue pages on the server. What these pin: the counts above
@@ -225,5 +233,160 @@ describe("fetchAllDeclarations", () => {
 
     expect(await fetchAllDeclarations({}, fetchPage)).toHaveLength(3)
     expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("queue rows carry the declaration and the requester's name", () => {
+  it("a covered row keeps its declaration id, so it offers Amend", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue(
+        response([item(1, { status: "Flagged", declarationId: "ATT-7", requesterName: "Engineering" })]),
+      )
+    const page = await loadDeclarationsPage({}, 1, { fetchPage })
+    expect(page.rows[0].declarationId).toBe("ATT-7")
+    expect(page.rows[0].requester).toBe("10316")
+    expect(page.rows[0].requesterName).toBe("Engineering")
+  })
+
+  it("an older backend: no declaration id, no name", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(response([item(1)]))
+    const page = await loadDeclarationsPage({}, 1, { fetchPage })
+    expect(page.rows[0].declarationId).toBeUndefined()
+    expect(page.rows[0].requesterName).toBeUndefined()
+  })
+})
+
+describe("toLogRow", () => {
+  const base: ApiAttestation = {
+    id: "ATT-2",
+    material: { materialId: "8000000001", materialCode: "8000000001", description: "Pump seal" },
+    plant: { plantId: "1300", name: "Black Mountain Mining" },
+    quantity: "1",
+    conditionDescription: "Seal weeping",
+    faultCategory: "SEAL_FAILURE",
+    recommendation: "REPAIRABLE",
+    condition: "Repairable",
+    serialNumber: null,
+    evidenceReference: null,
+    attestor: "unauthenticated",
+    attestedAt: "2026-10-27T09:00:00Z",
+    sessionId: null,
+    supersedes: null,
+    supersededBy: null,
+    coversRepairLines: null,
+    coverageNote: null,
+  }
+
+  it("shows the typed name, the evidence reference and the amendment reason", () => {
+    const row = toLogRow({
+      ...base,
+      attestorName: "T. Mokoena",
+      evidenceReference: "Photo 4411",
+      supersedes: "ATT-1",
+      amendmentReason: "Wrong fault chosen",
+      repairDocument: "4500000001",
+      repairItem: "10",
+    })
+    expect(row.attestor).toBe("T. Mokoena")
+    expect(row.evidenceReference).toBe("Photo 4411")
+    expect(row.amendmentReason).toBe("Wrong fault chosen")
+    expect(row.isAmendment).toBe(true)
+    expect(row.repairId).toBe("4500000001-10")
+    expect(row.repairDocument).toBe("4500000001")
+    expect(row.repairItem).toBe("10")
+  })
+
+  it("falls back to the stamped attestor on an older record", () => {
+    const row = toLogRow(base)
+    expect(row.attestor).toBe("unauthenticated")
+    expect(row.evidenceReference).toBeUndefined()
+    expect(row.amendmentReason).toBeUndefined()
+    expect(row.repairId).toBeUndefined()
+  })
+
+  it("a declaration bound to a repair PR keys the register's PR row", () => {
+    const row = toLogRow({ ...base, repairDocument: "1000001", repairItem: "10", repairDocumentType: "PR" })
+    expect(row.repairId).toBe("PR-1000001-10")
+    expect(row.repairDocumentType).toBe("PR")
+  })
+})
+
+describe("the Historical tab (28-Oct-2026)", () => {
+  it("reads ?tab= and keeps it in every link", () => {
+    expect(parseDeclarationTab({ tab: "historical" })).toBe("historical")
+    expect(parseDeclarationTab({ tab: "log" })).toBe("log")
+    expect(parseDeclarationTab({ tab: "anything" })).toBe("queue")
+    expect(parseDeclarationTab({})).toBe("queue")
+    expect(declarationsHref({ plant: "1300" }, 2, "historical")).toBe(
+      "/repairable-spares/declarations?tab=historical&plant=1300&page=2",
+    )
+    expect(declarationsHref({}, 1, "queue")).toBe("/repairable-spares/declarations")
+  })
+
+  it("asks for the Historical lines, and the queue's counts for the header", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce(response([item(1, { status: "Historical" })], 211))
+      .mockResolvedValueOnce(response([], 0))
+
+    const page = await loadDeclarationsPage({ plant: "1300" }, 1, { fetchPage, list: "historical" })
+
+    expect(fetchPage).toHaveBeenNthCalledWith(1, expect.objectContaining({ status: "Historical", plant: "1300", page: 1 }))
+    expect(fetchPage.mock.calls[0][0]).not.toHaveProperty("outstandingOnly")
+    expect(fetchPage).toHaveBeenNthCalledWith(2, expect.objectContaining({ outstandingOnly: true, pageSize: 1 }))
+    expect(page.total).toBe(211)
+    expect(page.summary.outstanding).toBe(0)
+  })
+
+  it("exports the Historical lines when asked", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(response([item(1, { status: "Historical" })]))
+    await fetchAllDeclarations({}, fetchPage, "historical")
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ status: "Historical" }))
+  })
+
+  it("counts the Historical lines with their plants, and says null when it cannot", async () => {
+    const counted = await loadHistoricalLines(vi.fn().mockResolvedValue(response([], 211)))
+    expect(counted).toEqual({ total: 211, plants: FACETS.plants })
+    expect(await loadHistoricalLines(vi.fn().mockRejectedValue(new Error("down")))).toBeNull()
+  })
+})
+
+describe("declarablePlants", () => {
+  it("lists every plant the sources name, once, by name", () => {
+    expect(
+      declarablePlants([
+        [],
+        [
+          { plantId: "1500", name: "Gamsberg" },
+          { plantId: "1300", name: "Black Mountain Mining" },
+        ],
+        [{ plantId: "1500", name: "Gamsberg" }],
+      ]),
+    ).toEqual([
+      { plantId: "1300", name: "Black Mountain Mining" },
+      { plantId: "1500", name: "Gamsberg" },
+    ])
+  })
+
+  it("never offers an empty list: the two plants the backend accepts", () => {
+    // "Declare a part" vanished when the queue's facets were empty.
+    expect(declarablePlants([[], []])).toEqual([...DECLARABLE_PLANTS])
+  })
+
+  it("reads the register's plants, and nothing when it cannot", async () => {
+    const fetchRegister = vi.fn().mockResolvedValue({ facets: { plants: [{ plantId: "1300", name: "Black Mountain Mining" }] } })
+    expect(await registerPlants(fetchRegister)).toEqual([{ plantId: "1300", name: "Black Mountain Mining" }])
+    expect(await registerPlants(vi.fn().mockRejectedValue(new Error("down")))).toEqual([])
+  })
+})
+
+describe("cutoverFromRules", () => {
+  it("reads the day declarations began, and nothing that is not a date", () => {
+    expect(cutoverFromRules({ attestationCutoverDate: "2026-10-27" })).toBe("2026-10-27")
+    expect(cutoverFromRules({ attestationCutoverDate: "" })).toBeUndefined()
+    expect(cutoverFromRules({ attestationCutoverDate: 1 })).toBeUndefined()
+    expect(cutoverFromRules({})).toBeUndefined()
+    expect(cutoverFromRules(null)).toBeUndefined()
   })
 })

@@ -103,13 +103,12 @@ function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sa
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
         <Link2 className="size-4 text-primary" aria-hidden />
-        <p className="text-sm font-medium text-foreground">Link SAP reservation</p>
+        <p className="text-sm font-medium text-foreground">Test link (UAT only)</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        In SAP the requester types <span className="font-mono">{sapText}</span>{" "}into the
-        reservation&rsquo;s item text (SGTXT), and the next extract links the reservation to this
-        session. The platform does not write to SAP, so these links are kept in its own table;
-        the loaded SAP data is never changed.
+        Stands in for a SAP reservation carrying <span className="font-mono">{sapText}</span>. The
+        platform does not write to SAP, so these test links are kept in its own table; the loaded
+        SAP data is never changed.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -123,7 +122,7 @@ function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sa
         <span className="text-[11px] text-muted-foreground">
           {simulated
             ? `Already created: ${simulated.reservationNumber}`
-            : "A new reservation for this part with SGTXT = the session ID. It has no PO, receipt or issue."}
+            : "A test reservation for this part that carries this reference. It has no PO, receipt or issue."}
         </span>
       </div>
 
@@ -153,7 +152,7 @@ function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sa
           onClick={() =>
             run(
               () => stampUatReservation({ sessionId, reservationNumber: number, reservationItem: item }),
-              `Session ID typed into ${choice}'s item text and linked.`
+              `Reference added to ${choice}'s text and linked.`
             )
           }
         >
@@ -169,7 +168,7 @@ function LiveUatReservationTools({ sessionId, sapText }: { sessionId: string; sa
                 {r.reservationNumber}/{r.reservationItem}
               </span>
               <span className="text-muted-foreground">
-                {r.simulated ? "created" : `stamped (was "${r.originalSgtxt ?? ""}")`} · SGTXT {r.sgtxt}
+                {r.simulated ? "test reservation" : `linked (its text was "${r.originalSgtxt ?? ""}")`} · text {r.sgtxt}
               </span>
               <Button
                 size="xs"

@@ -17,9 +17,10 @@ const OAR: OarConversionInfo = {
   isOar: true,
   conversionEligibility: "ELIGIBLE",
   conversionTrigger: "CONSUMPTION_FREQUENCY",
-  conversionDetail: "Used 14 times in the last 12 months.",
+  conversionDetail: "Used 14 times in the last 6 months.",
   demandClass: "SMOOTH",
   consumptionCount12m: 14,
+  consumptionCountMonths: 6,
   consumptionCountThreshold: 12,
   productionImpact: null,
   i13HodApproved: null,
@@ -75,7 +76,7 @@ describe("an OAR recommendation", () => {
     expect(markup).toContain("Move from OAR to Min-Max ordering")
     const reason = markup.indexOf("Reason")
     expect(reason).toBeGreaterThan(markup.indexOf("Move from OAR to Min-Max ordering"))
-    expect(markup.indexOf("Used 14 times in the last 12 months.")).toBeGreaterThan(reason)
+    expect(markup.indexOf("Used 14 times in the last 6 months.")).toBeGreaterThan(reason)
     expect(markup.indexOf("Demand is steady")).toBeGreaterThan(reason)
     expect(markup.indexOf("Lead time is short")).toBeGreaterThan(reason)
   })
@@ -152,14 +153,29 @@ describe("the Min-Max section's usage facts", () => {
 
   it("shows Times issued and Usage pattern when both are there", () => {
     const markup = section({ consumptionCount12m: 6, demandClass: "INTERMITTENT" })
-    expect(markup).toContain("Times issued, last 12 months")
+    expect(markup).toContain("Times issued, last 6 months")
+    expect(markup).not.toContain("Times issued, last 12 months")
     expect(markup).toContain("Usage pattern")
     expect(markup).toContain("INTERMITTENT")
   })
 
   it("leaves out a count of 0 and an unknown count", () => {
-    expect(section({ consumptionCount12m: 0 })).not.toContain("Times issued, last 12 months")
-    expect(section({ consumptionCount12m: null })).not.toContain("Times issued, last 12 months")
+    expect(section({ consumptionCount12m: 0 })).not.toContain("Times issued")
+    expect(section({ consumptionCount12m: null })).not.toContain("Times issued")
+  })
+
+  it("labels the count with the window it was counted over, not a fixed period", () => {
+    expect(section({ consumptionCount12m: 6, consumptionCountMonths: 12 })).toContain("Times issued, last 12 months")
+    expect(section({ consumptionCount12m: 6, consumptionCountMonths: 3 })).toContain("Times issued, last 3 months")
+    expect(section({ consumptionCount12m: 6, consumptionCountMonths: 1 })).toContain("Times issued, last 1 month<")
+  })
+
+  it("claims no period for a recommendation made before the window was recorded", () => {
+    for (const months of [null, undefined, 0]) {
+      const markup = section({ consumptionCount12m: 6, consumptionCountMonths: months })
+      expect(markup).toContain("Times issued")
+      expect(markup).not.toContain("Times issued, last")
+    }
   })
 
   it("leaves out a usage pattern that was never worked out", () => {
@@ -169,10 +185,10 @@ describe("the Min-Max section's usage facts", () => {
 
   it("drops the whole facts row, and keeps the badge and the Reason, when there is nothing to show", () => {
     const markup = section({ consumptionCount12m: 0, demandClass: "UNCLASSIFIED" })
-    expect(markup).not.toContain("Times issued, last 12 months")
+    expect(markup).not.toContain("Times issued")
     expect(markup).not.toContain("Usage pattern")
     expect(markup).not.toContain("Not enough history")
     expect(markup).toContain("Move from OAR to Min-Max ordering")
-    expect(markup).toContain("Used 14 times in the last 12 months.")
+    expect(markup).toContain("Used 14 times in the last 6 months.")
   })
 })

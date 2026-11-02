@@ -18,8 +18,9 @@ describe("PageLoader", () => {
     expect(html).toContain("page-loader-stream")
   })
 
-  it("is one theme colour, never a hex", () => {
-    expect(html).toContain("text-primary")
+  it("is one theme colour, never a hex -- the action blue on every page, never the indigo primary", () => {
+    expect(html).toContain("text-action")
+    expect(html).not.toContain("text-primary")
     expect(html).toContain("currentColor")
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,6}\b/)
   })

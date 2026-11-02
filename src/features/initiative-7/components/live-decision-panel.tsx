@@ -71,6 +71,8 @@ export function LiveDecisionActions({
   onChanged,
   surface = "recommendation",
   convertToMinMax = false,
+  canRequestAgain = false,
+  rejectionReason = null,
 }: {
   recommendationId: string
   onChanged: () => void
@@ -79,6 +81,11 @@ export function LiveDecisionActions({
    * its page is worded as that conversion, not as a generic "approval". It goes through the same
    * chain either way. */
   convertToMinMax?: boolean
+  /** A rejected NOT_ELIGIBLE OAR material may be asked for again: a rejection of a manual conversion is not final.
+   * The backend restarts the chain and keeps the earlier pass in the ledger. */
+  canRequestAgain?: boolean
+  /** Why it was rejected (the ledger comment), shown with the Rejected badge. */
+  rejectionReason?: string | null
 }) {
   const { submitting, error, act, submit, reject, lastState } = useLiveApproval(recommendationId, onChanged)
   const { state: loadedWorkflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
@@ -235,7 +242,28 @@ export function LiveDecisionActions({
   }
 
   if (content === "rejected") {
-    return <StatusBadge tone="danger">Rejected</StatusBadge>
+    return (
+      <div className="flex flex-col gap-2">
+        <div>
+          <StatusBadge tone="danger">Rejected</StatusBadge>
+        </div>
+        {rejectionReason && <p className="text-[12px] leading-relaxed text-muted-foreground">Reason: {rejectionReason}</p>}
+        {convertToMinMax && canRequestAgain && surface === "recommendation" && (
+          <>
+            <p className="text-[13px] text-muted-foreground">
+              The earlier request stays in the history. Asking again starts the approval chain again from its first role.
+            </p>
+            <div>
+              <Button size="sm" disabled={submitting} onClick={handleSend}>
+                <Send className="size-3.5" />
+                Request conversion again
+              </Button>
+            </div>
+            {error && <p className="text-[12px] text-destructive">{error.message}</p>}
+          </>
+        )}
+      </div>
+    )
   }
 
   if (content === "chain-complete") {

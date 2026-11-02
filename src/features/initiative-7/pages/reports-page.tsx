@@ -6,8 +6,8 @@ export function InventoryReportsPage() {
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHeader
-          title="Quarterly Reports"
-          description="The I07 Quarterly Deep-Dive Report — scope, forecasting, stock parameters, OAR, recommendations and approval status for one quarter"
+          title="Reports"
+          description="The I07 Deep-Dive Report — scope, forecasting, stock parameters, OAR, recommendations and approval status for one month or one quarter"
         />
         <QuarterlyReportsWorkspace />
       </div>

@@ -190,7 +190,7 @@ export function LiveApprovalsWorkspace({
     })
 
     return [...scoped].sort((a, b) => {
-      if (sortBy === "impact") return Math.abs(b.workingCapitalImpact) - Math.abs(a.workingCapitalImpact)
+      if (sortBy === "impact") return Math.abs(b.workingCapitalImpact ?? 0) - Math.abs(a.workingCapitalImpact ?? 0)
       if (sortBy === "risk") return RISK_ORDER[a.risk] - RISK_ORDER[b.risk]
       return new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
     })
@@ -318,7 +318,8 @@ export function LiveApprovalsWorkspace({
                 <TableBody>
                   {rows.map((rec) => {
                     const isSelected = selected?.id === rec.id
-                    const releases = rec.workingCapitalImpact > 0
+                    const impact = rec.workingCapitalImpact
+                    const releases = impact !== null && impact > 0
                     return (
                       <TableRow
                         key={rec.id}
@@ -332,7 +333,13 @@ export function LiveApprovalsWorkspace({
                           />
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                             <StatusBadge tone="default">{rec.criticality}</StatusBadge>
+                            {rec.manuallyConverted && <StatusBadge tone="warning">Manual conversion</StatusBadge>}
                           </div>
+                          {rec.status === "Rejected" && rec.rejectionReason && (
+                            <p className="mt-1 max-w-[210px] text-[11px] leading-snug text-destructive">
+                              Rejected: {rec.rejectionReason}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell>
                           <ChangeSummary rec={rec} />
@@ -340,11 +347,17 @@ export function LiveApprovalsWorkspace({
                         <TableCell
                           className={cn(
                             "text-right font-medium whitespace-nowrap tabular-nums",
-                            releases ? "text-success" : "text-warning"
+                            impact === null ? "text-muted-foreground" : releases ? "text-success" : "text-warning"
                           )}
                         >
-                          {releases ? "−" : "+"}
-                          {formatMoney(Math.abs(rec.workingCapitalImpact), rec.currency)}
+                          {impact === null ? (
+                            "Not available"
+                          ) : (
+                            <>
+                              {releases ? "−" : "+"}
+                              {formatMoney(Math.abs(impact), rec.workingCapitalCurrency ?? rec.currency)}
+                            </>
+                          )}
                         </TableCell>
                         <TableCell>
                           <RiskBadge level={rec.risk} />

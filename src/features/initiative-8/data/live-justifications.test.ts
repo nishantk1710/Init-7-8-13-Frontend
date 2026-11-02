@@ -4,7 +4,11 @@ import type { ApiJustification, JustificationListResponse } from "@/lib/api/assi
 import {
   EXPORT_BATCH_SIZE,
   fetchAllJustifications,
+  justificationAuthor,
+  justificationAuthorText,
   justificationsHref,
+  purchaseLabel,
+  purchasesCheckedOf,
   loadJustificationsPage,
   loadMaterialDescriptions,
   parseJustificationParams,
@@ -193,5 +197,71 @@ describe("loadMaterialDescriptions", () => {
     expect(await loadMaterialDescriptions(["8000000010", "8000000003", "8000004596"], lookup, 50)).toEqual({
       "8000004596": "VALVE",
     })
+  })
+})
+
+describe("who recorded a reason (28-Oct-2026)", () => {
+  it("names the person who signed in", () => {
+    expect(justificationAuthor({ author: "varad sheth", requesterName: "Someone else" })).toBe("varad sheth")
+  })
+
+  it("names the requester typed on the session when nobody signed in, never the placeholder", () => {
+    expect(justificationAuthor({ author: "UNAUTHENTICATED-FRONTEND", requesterName: "Johan Oberholzer" })).toBe(
+      "Johan Oberholzer",
+    )
+    expect(justificationAuthorText({ author: "UNAUTHENTICATED-FRONTEND", requesterName: "Johan Oberholzer" })).toBe(
+      "Johan Oberholzer",
+    )
+  })
+
+  it("says Not signed in only when there is no name at all", () => {
+    expect(justificationAuthor({ author: "UNAUTHENTICATED-FRONTEND", requesterName: "  " })).toBeUndefined()
+    expect(justificationAuthorText({ author: "UNAUTHENTICATED-FRONTEND" })).toBe("Not signed in")
+    expect(justificationAuthorText({ author: "unknown-actor", requesterName: null })).toBe("Not signed in")
+  })
+})
+
+describe("purchaseLabel", () => {
+  it("names the purchase a reason covered, with its date", () => {
+    expect(purchaseLabel({ type: "PR", documentNumber: "1000201234", line: "10", raisedAt: "2026-03-14" })).toBe(
+      "PR 1000201234/10, 14 Mar 2026",
+    )
+    expect(purchaseLabel({ type: "PO", documentNumber: "4500001234", line: null, raisedAt: null })).toBe("PO 4500001234")
+  })
+
+  it("says No purchase yet when none matched, and nothing when the backend does not say", () => {
+    expect(purchaseLabel(null)).toBe("No purchase yet")
+    expect(purchaseLabel(undefined)).toBeUndefined()
+  })
+
+  it("says Not checked yet when the backend could not look", () => {
+    // purchasesChecked false: the I08 data is still loading after a restart,
+    // and every purchase is null for that reason alone.
+    expect(purchaseLabel(null, false)).toBe("Not checked yet")
+  })
+})
+
+describe("the export when purchases were not checked", () => {
+  it("marks the rows of a batch the backend could not check, and leaves the rest alone", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ ...response([justification(1)], 1), purchasesChecked: false } as never)
+
+    const [row] = await fetchAllJustifications({}, fetchPage)
+
+    expect(row.purchasesChecked).toBe(false)
+    expect(purchaseLabel(null, row.purchasesChecked !== false)).toBe("Not checked yet")
+
+    const [plain] = await fetchAllJustifications({}, vi.fn().mockResolvedValueOnce(response([justification(2)], 1)))
+    expect(plain).not.toHaveProperty("purchasesChecked")
+  })
+})
+
+describe("purchasesCheckedOf", () => {
+  it("is false only when the backend says so", () => {
+    expect(purchasesCheckedOf({ ...response([], 0), purchasesChecked: false } as never)).toBe(false)
+    expect(purchasesCheckedOf({ ...response([], 0), purchasesChecked: true } as never)).toBe(true)
+    // An older backend sends nothing, and no purchases either.
+    expect(purchasesCheckedOf(response([], 0))).toBe(true)
   })
 })

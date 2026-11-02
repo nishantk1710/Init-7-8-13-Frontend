@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import {
   adoptionOf,
   findScope,
-  HIDDEN_QUARTERS,
   landingQuarters,
   loadQuarterlySnapshot,
   pageCount,
@@ -186,17 +188,23 @@ describe("landingQuarters", () => {
     expect(landingQuarters([])).toEqual(["Q2 2026"])
   })
 
-  it("leaves Q3 2026 off the grid", () => {
-    expect(HIDDEN_QUARTERS).toContain("Q3 2026")
-    expect(landingQuarters(["Q3 2026"])).toEqual(["Q2 2026"])
+  it("shows only the Q2 snapshot until another report is generated -- nothing is hidden, nothing is invented", () => {
+    expect(landingQuarters([])).toEqual(["Q2 2026"])
   })
 
-  it("leaves Q4 2026 off the grid", () => {
-    expect(HIDDEN_QUARTERS).toContain("Q4 2026")
-    expect(landingQuarters(["Q4 2026", "Q1 2026"])).toEqual(["Q2 2026", "Q1 2026"])
+  it("lists Q4 2026 as soon as it has been generated, and Q3 2026 likewise", () => {
+    expect(landingQuarters(["Q4 2026"])).toEqual(["Q4 2026", "Q2 2026"])
+    expect(landingQuarters(["Q3 2026"])).toEqual(["Q3 2026", "Q2 2026"])
   })
 
-  it("lists the other generated quarters newest first, with Q2 in its place and no duplicate", () => {
-    expect(landingQuarters(["Q1 2026", "Q2 2026", "Q3 2026", "Q4 2025"])).toEqual(["Q2 2026", "Q1 2026", "Q4 2025"])
+  it("lists the generated quarters newest first, with Q2 in its place and no duplicate", () => {
+    expect(landingQuarters(["Q1 2026", "Q2 2026", "Q3 2026", "Q4 2026", "Q4 2025"])).toEqual([
+      "Q4 2026", "Q3 2026", "Q2 2026", "Q1 2026", "Q4 2025",
+    ])
+  })
+
+  it("has no hidden-quarters list any more", () => {
+    const source = readFileSync(join(process.cwd(), "src/features/initiative-7/utils/quarterly-snapshot.ts"), "utf8")
+    expect(source).not.toContain("HIDDEN_QUARTERS")
   })
 })

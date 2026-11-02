@@ -27,6 +27,7 @@ import {
   RECOMMENDATION,
   parseAttestationQuantity,
 } from "@/features/initiative-8/utils/attestation"
+import { declarationFormProblem, optionalText } from "@/features/initiative-8/utils/declaration"
 import { conditionLabel, humanize } from "@/features/initiative-8/utils/format"
 import { ApiError } from "@/lib/api/client"
 import { createAttestation } from "@/lib/api/i8"
@@ -73,6 +74,8 @@ export type DeclarationTarget = {
    */
   repairDocument?: string
   repairItem?: string
+  /** `PR` when `repairDocument` is an open repair PR rather than a repair PO. */
+  repairDocumentType?: "PO" | "PR"
 }
 
 export type DeclarationFormDialogProps = {
@@ -113,9 +116,22 @@ export function DeclarationFormDialog({
   // cursor; parsed once, for the button and the POST.
   const [quantity, setQuantity] = useState(target.defaultQuantity)
   const [serialNumber, setSerialNumber] = useState("")
+  // A typed name, and the form says so: there is no sign-in, and a name
+  // field that looked like one would claim an identity check nobody made.
+  const [attestorName, setAttestorName] = useState("")
+  const [evidenceReference, setEvidenceReference] = useState("")
+  const [amendmentReason, setAmendmentReason] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const parsedQuantity = parseAttestationQuantity(quantity)
   const amending = target.supersedes !== undefined
+  const problem = declarationFormProblem({
+    description,
+    faultCategory,
+    quantityValid: parsedQuantity !== undefined,
+    attestorName,
+    amending,
+    amendmentReason,
+  })
 
   /**
    * POST the attestation.
@@ -146,7 +162,7 @@ export function DeclarationFormDialog({
       })
       return
     }
-    if (parsedQuantity === undefined) return
+    if (parsedQuantity === undefined || problem) return
 
     setSubmitting(true)
     try {
@@ -159,12 +175,17 @@ export function DeclarationFormDialog({
         recommendation: RECOMMENDATION[condition],
         // Optional, and omitted rather than sent blank: an empty string on an
         // audit record reads as "the serial number is empty".
-        serialNumber: serialNumber.trim() || undefined,
+        serialNumber: optionalText(serialNumber),
+        evidenceReference: optionalText(evidenceReference),
+        attestorName: attestorName.trim(),
         supersedes: target.supersedes,
+        // The backend refuses an amendment without one (422).
+        amendmentReason: amending ? amendmentReason.trim() : undefined,
         // Both or neither -- the API refuses half a key, and a target that
         // carries one without the other is a bug worth failing loudly on.
         repairDocument: target.repairDocument,
         repairItem: target.repairItem,
+        repairDocumentType: target.repairDocument ? target.repairDocumentType : undefined,
       })
 
       // The API's own words about what the write covered.
@@ -213,6 +234,21 @@ export function DeclarationFormDialog({
             This records a new declaration that supersedes {target.supersedes}. The original stays
             readable — the pair is the audit trail, and nothing is overwritten.
           </p>
+        )}
+
+        {amending && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="amendment-reason">
+              Why are you amending it?
+            </label>
+            <textarea
+              id="amendment-reason"
+              rows={2}
+              value={amendmentReason}
+              onChange={(e) => setAmendmentReason(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </div>
         )}
 
         {/* Three choices, so three cards rather than a dropdown that hides two. */}
@@ -318,8 +354,36 @@ export function DeclarationFormDialog({
             />
           </div>
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="attestor-name">
+              Your name (typed, not a sign-in)
+            </label>
+            <Input
+              id="attestor-name"
+              value={attestorName}
+              onChange={(e) => setAttestorName(e.target.value)}
+              autoComplete="name"
+              aria-invalid={attestorName.trim() === ""}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="evidence-reference">
+              Evidence reference <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Input
+              id="evidence-reference"
+              value={evidenceReference}
+              onChange={(e) => setEvidenceReference(e.target.value)}
+            />
+            <p className="text-[12.5px] text-muted-foreground">
+              A reference someone can follow — a photo or report number; the platform does not store the file.
+            </p>
+          </div>
+        </div>
 
         <DialogFooter>
+          {problem && <p className="mr-auto self-center text-[12.5px] text-muted-foreground">{problem}</p>}
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
@@ -328,12 +392,7 @@ export function DeclarationFormDialog({
             // The backend rejects a blank description or an unknown fault
             // category with a 422. Disabling here means the user is told
             // before the round trip rather than after it.
-            disabled={
-              submitting ||
-              description.trim() === "" ||
-              faultCategory === "" ||
-              parsedQuantity === undefined
-            }
+            disabled={submitting || problem !== undefined}
           >
             {submitting ? "Recording…" : amending ? "Record amendment" : "Confirm declaration"}
           </Button>

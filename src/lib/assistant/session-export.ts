@@ -1,8 +1,9 @@
 /**
  * One assistant session as a file -- Word, PDF or plain text -- with what the
- * trace screen shows, in its order and wording: the header, why this flow, the
- * advice as served, the plan, the quantity suggestion, the justification and
- * the reservation link. The conversation turns are left out: the decisions they
+ * session page shows, in its order and wording: the reference with its one
+ * instruction, the summary and decision, the advice as served, the plan, the
+ * quantity suggestion, the reason and the declaration recorded, and what SAP
+ * has linked. The conversation turns are left out: the decisions they
  * produced are all here, and the back-and-forth would triple the length.
  */
 
@@ -10,8 +11,19 @@ import type { SessionTraceResponse } from "@/lib/api/assistant"
 import { factsCaveats, factsHeadline, isI08Facts, isI13Facts } from "@/lib/api/assistant-facts"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import {
+  dueBackNullNote,
+  needDateAdviceOf,
+  openRepairsSuffix,
+  repairRequestsOf,
+  requestAgePhrase,
+  requestDepartmentText,
+  requestReference,
+  stockFigure,
+} from "@/lib/assistant/i08-facts-format"
+import {
   BAND_LABEL,
   coverReasonText,
+  formatDay,
   formatInstant,
   formatWindow,
   planStatusLabel,
@@ -24,6 +36,17 @@ import {
   type ExportDocument,
   type ExportFormat,
 } from "@/lib/export-document"
+import {
+  declarationViews,
+  declaredState,
+  formatQuantity,
+  personLabel,
+  readableText,
+  reasonViews,
+  referenceInstruction,
+  sessionDecision,
+} from "@/lib/assistant/session-view"
+import { departmentText } from "@/lib/assistant/request/record"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 const OUTCOME_LABEL: Record<string, string> = {
@@ -36,22 +59,27 @@ function orNote(value: string | null | undefined, note: string): string {
   return value === null || value === undefined || value === "" ? note : value
 }
 
+/** A quantity without SAP's padding, or the note when there is none. */
+function qtyOr(value: string | null | undefined, note: string): string {
+  return value === null || value === undefined || value === "" ? note : formatQuantity(value)
+}
+
 /** The assessment, as the card shows it: headline, the four figures, flags. */
 function assessmentBlocks(facts: unknown): ExportBlock[] {
   const blocks: ExportBlock[] = []
   const headline = factsHeadline(facts)
-  if (headline) blocks.push({ kind: "paragraph", text: headline })
+  if (headline) blocks.push({ kind: "paragraph", text: readableText(headline) })
 
   if (isI13Facts(facts)) {
     blocks.push({
       kind: "fields",
       rows: [
         ["Material (as assessed)", `${facts.material} · plant ${facts.plant}${facts.materialScope ? ` · ${facts.materialScope}` : ""}`],
-        ["Stock available", orNote(facts.stockOnHand, "—")],
-        ["Open PO", orNote(facts.openPoQuantity, "—")],
+        ["Stock available", qtyOr(facts.stockOnHand, "—")],
+        ["Open PO", qtyOr(facts.openPoQuantity, "—")],
         [
           "Months of cover",
-          orNote(
+          qtyOr(
             facts.monthsOfCover,
             facts.monthsOfCoverReason ? coverReasonText(facts.monthsOfCoverReason) : "cannot be computed"
           ),
@@ -73,16 +101,18 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
     if (facts.crossPlantStock.length > 0) {
       blocks.push({
         kind: "paragraph",
-        text: `Held at other plants: ${facts.crossPlantStock.map((s) => `${s.stockOnHand} at ${s.plant}`).join(", ")}. Shown for information. The platform does not create transfers or reservations, and does not write to SAP at all.`,
+        text: `Held at other plants: ${facts.crossPlantStock.map((s) => `${qtyOr(s.stockOnHand, "—")} at ${s.plant}`).join(", ")}. Shown for information. The platform does not create transfers or reservations, and does not write to SAP at all.`,
       })
     }
   } else if (isI08Facts(facts)) {
+    // The same formatter as the card, so a record from before the 27-Oct
+    // usable/damaged split and repair requests downloads as it did then.
     const dueBack =
       facts.soonestDueDate === null
-        ? facts.openRepairLines > 0
-          ? "no date promised"
-          : "no open repair PO"
-        : `${facts.soonestDueDate}${facts.repairDueDateIsReliable === false ? " (no longer a forecast)" : ""}`
+        ? dueBackNullNote(facts)
+        : `${formatDay(facts.soonestDueDate)}${facts.repairDueDateIsReliable === false ? " (no longer a forecast)" : ""}`
+    const stock = stockFigure(facts)
+    const requestsSuffix = openRepairsSuffix(facts)
     blocks.push({
       kind: "fields",
       rows: [
@@ -90,9 +120,9 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
           "Material (as assessed)",
           [facts.materialId, facts.description, `plant ${facts.plant}`, facts.criticality].filter(Boolean).join(" · "),
         ],
-        ["Stock available", facts.stockIsUnknown ? "no stock record" : orNote(facts.stockOnHand, "—")],
-        ["Open repairs", String(facts.openRepairLines)],
-        ["Units in repair", orNote(facts.quantityUnderRepair, "—")],
+        [stock.label, `${qtyOr(stock.value, stock.nullNote)}${stock.suffix ? ` (${stock.suffix})` : ""}`],
+        ["Open repairs", `${facts.openRepairLines}${requestsSuffix ? ` (${requestsSuffix})` : ""}`],
+        ["Units in repair", qtyOr(facts.quantityUnderRepair, "—")],
         ["Earliest due back", dueBack],
       ],
     })
@@ -104,22 +134,37 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
         } already past the promised return date.`,
       })
     }
+    const needDateAdvice = needDateAdviceOf(facts)
+    if (needDateAdvice) blocks.push({ kind: "paragraph", text: readableText(needDateAdvice) })
     if (facts.openRepairs.length > 0) {
       blocks.push({
         kind: "table",
         columns: ["Repair PO / item", "Quantity", "Vendor", "Status", "Overdue"],
         rows: facts.openRepairs.map((r) => [
           [`${r.purchasingDocument}/${r.item}`],
-          [r.quantity],
+          [formatQuantity(r.quantity)],
           [r.vendorName ?? r.vendor ?? "vendor not named"],
           [r.status, ...(r.dispatched ? [] : ["no dispatch movement recorded"])],
           [r.daysOverdue !== null && r.daysOverdue > 0 ? `${r.daysOverdue} days` : "—"],
         ]),
       })
     }
+    const requests = repairRequestsOf(facts)
+    if (requests.length > 0) {
+      blocks.push({
+        kind: "table",
+        columns: ["Requested, not yet ordered", "Quantity", "Requested", "Department"],
+        rows: requests.map((r) => [
+          [requestReference(r)],
+          [formatQuantity(r.quantity)],
+          [requestAgePhrase(r.daysSinceRequested)],
+          [requestDepartmentText(r) ?? "not stated"],
+        ]),
+      })
+    }
   }
 
-  for (const caveat of factsCaveats(facts)) blocks.push({ kind: "paragraph", text: caveat, muted: true })
+  for (const caveat of factsCaveats(facts)) blocks.push({ kind: "paragraph", text: readableText(caveat), muted: true })
   return blocks
 }
 
@@ -127,6 +172,8 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
 export function sessionDocument(trace: SessionTraceResponse, now: Date = new Date()): ExportDocument {
   const linked = trace.linkedReservations ?? []
   const identity = sessionIdentity(trace)
+  const reference = referenceInstruction(identity)
+  const declared = trace.flow === "i08" ? declaredState(trace) : null
   const blocks: ExportBlock[] = [
     {
       kind: "fields",
@@ -137,24 +184,29 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
               ["Type in SAP", identity.sapText],
             ] as [string, string][])
           : ([["Session reference", trace.sessionId]] as [string, string][])),
+        ["How to type it", reference.instruction],
         ["Flow", flowLabel(trace.flow)],
         ["Outcome", OUTCOME_LABEL[trace.outcome] ?? trace.outcome],
+        ["Decision", sessionDecision(trace).text],
+        ...(declared ? ([["Faulty unit declared", declared.text]] as [string, string][]) : []),
         [
           "Material",
           trace.materialDescription ? `${trace.materialDescription} (${trace.materialId})` : trace.materialId,
         ],
         ["Plant", sapPlantLabel(trace.plant)],
         ["Requester", orNote(trace.requestedFor, "not stated")],
-        ["Department", orNote(trace.department, "not stated")],
-        ...(trace.requestedQuantity !== null ? [["Quantity asked for", trace.requestedQuantity] as [string, string]] : []),
+        ["Department", trace.department ? departmentText(trace.department, trace.departmentName) : "not stated"],
+        ...(trace.requestedQuantity !== null
+          ? [["Quantity asked for", formatQuantity(trace.requestedQuantity)] as [string, string]]
+          : []),
         ["Opened from", trace.origin === "BADI" ? "SAP" : "the platform"],
         ["Issued", formatInstant(trace.issuedAt)],
         ["Reference valid until", `${formatInstant(trace.expiresAt)}${trace.expired ? " (expired)" : ""}`],
       ],
     },
     { kind: "heading", text: "Why this flow" },
-    { kind: "paragraph", text: trace.routingReason },
-    { kind: "heading", text: "The advice, as it was served" },
+    { kind: "paragraph", text: readableText(trace.routingReason) },
+    { kind: "heading", text: "What the assistant showed" },
     {
       kind: "paragraph",
       text: "Replayed from what was recorded at the time, not recomputed. Stock and repair status have moved since.",
@@ -172,10 +224,10 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
         columns: ["Purpose", "Planned quantity", "Expected use", "Status", "Captured"],
         rows: trace.plans.map((p) => [
           [p.purpose],
-          [p.plannedQuantity],
+          [formatQuantity(p.plannedQuantity)],
           [formatWindow(p.windowStart, p.windowEnd) ?? "no window given"],
           [planStatusLabel(p.status)],
-          [p.capturedBy, formatInstant(p.capturedAt)],
+          [personLabel(p.capturedBy, trace.requestedFor), formatInstant(p.capturedAt)],
         ]),
       }
     )
@@ -188,60 +240,75 @@ export function sessionDocument(trace: SessionTraceResponse, now: Date = new Dat
         kind: "table",
         columns: ["Why", "Asked for", "Suggested", "Recorded as", "Months of cover"],
         rows: trace.quantitySuggestions.map((s) => [
-          [s.suggestionReason, ...(s.isOverride ? ["The requester kept their own quantity."] : [])],
-          [s.requestedQuantity],
-          [orNote(s.suggestedQuantity, "no suggestion made")],
-          [s.acceptedQuantity],
-          [orNote(s.monthsOfCover, "not computable")],
+          [readableText(s.suggestionReason), ...(s.isOverride ? ["The requester kept their own quantity."] : [])],
+          [formatQuantity(s.requestedQuantity)],
+          [qtyOr(s.suggestedQuantity, "no suggestion made")],
+          [formatQuantity(s.acceptedQuantity)],
+          [qtyOr(s.monthsOfCover, "not computable")],
         ]),
       },
       ...trace.quantitySuggestions.map(
         (s): ExportBlock => ({
           kind: "paragraph",
           muted: true,
-          text: `Computed against a ${s.coverCeilingMonths}-month cover ceiling, a ${s.lookbackMonths}-month look-back and a minimum of ${s.minHistoryConsumptions} consumptions -- ${s.consumptionCount} found. All three are configuration and none is confirmed by VZI yet.`,
+          text: `Computed against a ${formatQuantity(s.coverCeilingMonths)}-month cover ceiling, a ${s.lookbackMonths}-month look-back and a minimum of ${s.minHistoryConsumptions} consumptions (${s.consumptionCount} found). All three are configuration and none is confirmed by VZI yet.`,
         })
       )
     )
   }
 
-  if (trace.justifications.length > 0) {
+  const reasons = reasonViews(trace.justifications, trace.requestedFor)
+  if (reasons.length > 0) {
     blocks.push(
-      { kind: "heading", text: "Justification recorded" },
+      { kind: "heading", text: "Reason recorded" },
       {
         kind: "table",
-        columns: ["Kind", "Reason", "Text", "Recorded"],
-        rows: trace.justifications.map((j) => [
-          [j.kind.replace(/_/g, " ").toLowerCase()],
-          [j.reasonCategory.replace(/_/g, " ")],
-          [j.freeText],
-          [j.author, formatInstant(j.recordedAt)],
-        ]),
+        columns: ["For", "Reason", "In their own words", "Recorded"],
+        rows: reasons.map((r) => [[r.heading], [r.reason], [r.text], [r.by, formatInstant(r.recordedAt)]]),
       }
     )
   }
 
-  blocks.push({ kind: "heading", text: "Link to the reservation" }, { kind: "paragraph", text: trace.linkageNote })
+  const declarations = trace.flow === "i08" ? declarationViews(trace) : []
+  if (declarations.length > 0) {
+    blocks.push(
+      { kind: "heading", text: "Declaration recorded" },
+      ...declarations.map(
+        (d): ExportBlock => ({
+          kind: "fields",
+          rows: [
+            ["Assessment", d.assessment],
+            ["Fault", d.fault],
+            ["Condition", orNote(d.condition, "not described")],
+            ["Quantity", d.quantity],
+            ["Typed name", d.name],
+            ["Evidence", d.evidence ?? "none given"],
+            ...(d.repairLine ? ([["Repair line", d.repairLine]] as [string, string][]) : []),
+            ...(d.recordedAt ? ([["Recorded", formatInstant(d.recordedAt)]] as [string, string][]) : []),
+          ],
+        })
+      )
+    )
+  }
+
+  blocks.push({ kind: "heading", text: "Linked in SAP" })
   if (linked.length > 0) {
     blocks.push({
       kind: "table",
-      columns: ["Reservation / item", "Item text (SGTXT)"],
+      columns: ["Reservation / item", "Its text in SAP"],
       rows: linked.map((l) => [[`${l.reservationNumber}/${l.reservationItem}`], [l.sgtxt ?? ""]]),
     })
   } else {
     blocks.push({
       kind: "paragraph",
-      muted: true,
-      text: `The link is read from the reservation's item text (SGTXT) in the loaded SAP extract. Until a reservation carrying ${
-        identity.requestId ? `request ${identity.requestId} for this material` : "this session's ID"
-      } is loaded, this session stands on its own: it records what the planner was told and what they decided.`,
+      text: `Not linked yet. The link appears once a SAP reservation carrying ${reference.value} reaches the platform.`,
     })
   }
 
   return {
     title: `Assistant session ${identity.label}`,
     subtitle: "What the assistant said, what the requester decided, and what was recorded.",
-    generatedAt: now.toLocaleString("en-GB"),
+    generatedAt: formatInstant(now.toISOString()),
     blocks,
   }
 }

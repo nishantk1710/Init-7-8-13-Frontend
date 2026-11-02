@@ -98,6 +98,10 @@ export async function RepairRegisterPage({
       filters={filters}
       viewCounts={data.viewCounts}
       sourceLoadedAt={data.sourceLoadedAt}
+      // Repair PRs are part of the I08 complete flow: off, none are listed,
+      // counted or explained, whatever the PR-rows rule says.
+      repairRequestsEnabled={data.completeFlowEnabled && data.repairRequestsEnabled}
+      completeFlow={data.completeFlowEnabled}
     />
   )
 }

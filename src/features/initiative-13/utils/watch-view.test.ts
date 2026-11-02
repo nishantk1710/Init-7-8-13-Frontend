@@ -19,17 +19,13 @@ describe("parseWatchView", () => {
 })
 
 describe("watchViewHref", () => {
-  it("keeps filters and drops view for the default tab", () => {
-    expect(watchViewHref("metrics", { plant: "1300", view: "grni" })).toBe(
-      "/oar-utilization/watch?plant=1300"
-    )
-    expect(watchViewHref("metrics", {})).toBe("/oar-utilization/watch")
+  it("drops view for the default tab", () => {
+    expect(watchViewHref("metrics")).toBe("/oar-utilization/watch")
   })
 
-  it("sets view for the other tabs", () => {
-    expect(watchViewHref("usage", { plant: "1300", material: "M1" })).toBe(
-      "/oar-utilization/watch?plant=1300&material=M1&view=usage"
-    )
+  it("sets only view for the other tabs, so a tab opens with no filters", () => {
+    expect(watchViewHref("grni")).toBe("/oar-utilization/watch?view=grni")
+    expect(watchViewHref("usage")).toBe("/oar-utilization/watch?view=usage")
   })
 })
 

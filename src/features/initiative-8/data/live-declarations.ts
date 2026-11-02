@@ -16,6 +16,14 @@
  * so that was the whole 5,153-line register -- and filter in the browser,
  * which made a 17 MB page. The filters and the page live in the URL, as on
  * the Justifications screen (`live-justifications.ts`).
+ *
+ * ## Two lists (28-Oct-2026)
+ *
+ * "To declare" is the queue: Required and Flagged. "Historical" is the open
+ * lines raised before declarations began, which nobody was asked to declare.
+ * They used to be reachable from nowhere on this screen, which then said
+ * "every repair line has a condition declaration" -- untrue for 211 lines.
+ * They can still be declared, voluntarily, from that tab.
  */
 
 import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
@@ -31,7 +39,7 @@ import type {
   DeclarationQuery,
 } from "@/lib/api/i8"
 import type { ApiAttestation } from "@/lib/api/i8"
-import { getAttestations, getDeclarations } from "@/lib/api/i8"
+import { getAttestations, getDeclarations, getRegister } from "@/lib/api/i8"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
@@ -55,6 +63,9 @@ function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
     // requisitioner is served as what it is. An invented name would read as
     // provenance this record does not have.
     requester: orUndefined(row.requester),
+    requesterName: orUndefined(row.requesterName),
+    // Carried so the row offers Amend (superseding it) rather than Declare.
+    declarationId: orUndefined(row.declarationId),
     purchaseRequisition: row.pr ? row.pr.documentNumber : undefined,
     relatedRepairId: row.relatedRepairId,
     repairPO: row.repairPo
@@ -104,9 +115,13 @@ export type DeclarationLogRow = {
   faultCategory: string
   conditionDescription: string
   serialNumber?: string
-  /** Always empty today: there is no sign-in, so the server stamps a
-   *  placeholder. Shown as recorded rather than prettied up. */
+  /** The name the declarer typed when there is one, else what the server
+   *  stamped (a placeholder: there is no sign-in). Shown as recorded. */
   attestor: string
+  /** A reference someone can follow (a photo or report number). */
+  evidenceReference?: string
+  /** Why the amendment was made, on an amendment. */
+  amendmentReason?: string
   attestedAt?: string
   /** Set when a later amendment replaced this one. The original is never
    *  edited or removed, so a reader needs this to know it is not current. */
@@ -116,9 +131,13 @@ export type DeclarationLogRow = {
   /** The repair line it was declared against, as the register keys it --
    *  absent for a part declared with no repair line. */
   repairId?: string
+  /** The same line, unjoined, so Amend can name it again. */
+  repairDocument?: string
+  repairItem?: string
+  repairDocumentType?: "PO" | "PR"
 }
 
-function toLogRow(row: ApiAttestation): DeclarationLogRow {
+export function toLogRow(row: ApiAttestation): DeclarationLogRow {
   return {
     id: row.id,
     material: {
@@ -134,7 +153,9 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
     faultCategory: row.faultCategory,
     conditionDescription: row.conditionDescription,
     serialNumber: row.serialNumber ?? undefined,
-    attestor: row.attestor,
+    attestor: row.attestorName || row.attestor,
+    evidenceReference: orUndefined(row.evidenceReference),
+    amendmentReason: orUndefined(row.amendmentReason),
     // A full timestamp, so the date AND the time: the shared formatApiDate
     // turned a timestamp into an invalid date, and this column read "—" on
     // every row (I08_Live_UI_Redesign_Plan.md, Q11).
@@ -142,7 +163,12 @@ function toLogRow(row: ApiAttestation): DeclarationLogRow {
     supersededBy: row.supersededBy ?? undefined,
     isAmendment: Boolean(row.supersedes),
     repairId:
-      row.repairDocument && row.repairItem ? `${row.repairDocument}-${row.repairItem}` : undefined,
+      row.repairDocument && row.repairItem
+        ? `${row.repairDocumentType === "PR" ? "PR-" : ""}${row.repairDocument}-${row.repairItem}`
+        : undefined,
+    repairDocument: orUndefined(row.repairDocument),
+    repairItem: orUndefined(row.repairItem),
+    repairDocumentType: orUndefined(row.repairDocumentType),
   }
 }
 
@@ -171,6 +197,20 @@ const EXPORT_PAGE_SIZE = 500
 /** A ceiling on export requests, so a backend that ignored `page` and kept
  *  returning full pages could never loop forever. 200 x 500 rows. */
 const MAX_EXPORT_PAGES = 200
+
+/**
+ * The screen's tabs, as `?tab=`: the queue (no parameter), the lines raised
+ * before declarations began, and the log.
+ */
+export type DeclarationTab = "queue" | "historical" | "log"
+
+/** The two tabs that list repair lines. */
+export type DeclarationList = Exclude<DeclarationTab, "log">
+
+export function parseDeclarationTab(raw: RawSearchParams): DeclarationTab {
+  const tab = single(raw.tab)
+  return tab === "log" || tab === "historical" ? tab : "queue"
+}
 
 /** What the queue can be narrowed by. Each is a URL parameter of the same name. */
 export type DeclarationFilters = {
@@ -220,11 +260,12 @@ export function isDeclarationFiltered(filters: DeclarationFilters): boolean {
 }
 
 /**
- * The link to one page of the queue, keeping the filters. Page 1 drops `page`,
- * so the plain screen and its first page are one URL.
+ * The link to one page of the queue, keeping the filters and the tab. Page 1
+ * drops `page` and the queue drops `tab`, so the plain screen is one URL.
  */
-export function declarationsHref(filters: DeclarationFilters, page = 1): string {
+export function declarationsHref(filters: DeclarationFilters, page = 1, tab: DeclarationTab = "queue"): string {
   const params = new URLSearchParams()
+  if (tab !== "queue") params.set("tab", tab)
   if (filters.q) params.set("q", filters.q)
   if (filters.plant) params.set("plant", filters.plant)
   if (filters.vendor) params.set("vendor", filters.vendor)
@@ -239,9 +280,11 @@ export function declarationsHref(filters: DeclarationFilters, page = 1): string 
  * table has no declaration-status column, so a Completed row would look
  * exactly like an undeclared one (see `DeclarationsTable`).
  */
-function declarationQuery(filters: DeclarationFilters): DeclarationQuery {
+function declarationQuery(filters: DeclarationFilters, list: DeclarationList = "queue"): DeclarationQuery {
   return {
-    outstandingOnly: true,
+    // The Historical tab asks for that status alone; the queue for the rows
+    // somebody owes a declaration.
+    ...(list === "historical" ? { status: "Historical" } : { outstandingOnly: true }),
     q: filters.q,
     plant: filters.plant,
     vendor: filters.vendor,
@@ -300,15 +343,19 @@ export async function loadDeclarationsPage(
   {
     pageSize = DEFAULT_PAGE_SIZE,
     fetchPage = getDeclarations,
-  }: { pageSize?: number; fetchPage?: FetchDeclarations } = {},
+    list = "queue",
+  }: { pageSize?: number; fetchPage?: FetchDeclarations; list?: DeclarationList } = {},
 ): Promise<DeclarationsPage> {
-  const request = { ...declarationQuery(filters), page, pageSize }
-  const [matching, whole] = isDeclarationFiltered(filters)
-    ? await Promise.all([
-        fetchPage(request),
-        fetchPage({ ...declarationQuery({}), pageSize: 1 }),
-      ])
-    : await fetchPage(request).then((body) => [body, body] as const)
+  const request = { ...declarationQuery(filters, list), page, pageSize }
+  // The summary is always the queue's: the header says how many are waiting,
+  // whichever tab is open.
+  const [matching, whole] =
+    isDeclarationFiltered(filters) || list !== "queue"
+      ? await Promise.all([
+          fetchPage(request),
+          fetchPage({ ...declarationQuery({}), pageSize: 1 }),
+        ])
+      : await fetchPage(request).then((body) => [body, body] as const)
 
   return {
     rows: matching.items.map(toRow),
@@ -329,14 +376,87 @@ export async function loadDeclarationsPage(
 export async function fetchAllDeclarations(
   filters: DeclarationFilters,
   fetchPage: FetchDeclarations = getDeclarations,
+  list: DeclarationList = "queue",
 ): Promise<DeclarationQueueRow[]> {
   const byId = new Map<string, DeclarationQueueRow>()
   for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
-    const body = await fetchPage({ ...declarationQuery(filters), page, pageSize: EXPORT_PAGE_SIZE })
+    const body = await fetchPage({ ...declarationQuery(filters, list), page, pageSize: EXPORT_PAGE_SIZE })
     for (const row of body.items.map(toRow)) {
       if (!byId.has(row.id)) byId.set(row.id, row)
     }
     if (body.items.length < EXPORT_PAGE_SIZE || page * EXPORT_PAGE_SIZE >= body.total) break
   }
   return [...byId.values()]
+}
+
+// --- Lines raised before declarations began, and where a part can be declared
+
+export type HistoricalLines = {
+  /** Open lines raised before declarations began. */
+  total: number
+  /** Their plants: one source of "Declare a part"'s choices. */
+  plants: { plantId: string; name: string }[]
+}
+
+/**
+ * How many open lines were raised before declarations began, for the tab's
+ * count and the queue's empty state. Null when that could not be read: the
+ * screen then says less, never "0 historical".
+ */
+export async function loadHistoricalLines(
+  fetchPage: FetchDeclarations = getDeclarations,
+): Promise<HistoricalLines | null> {
+  try {
+    const body = await fetchPage({ ...declarationQuery({}, "historical"), pageSize: 1 })
+    return { total: body.total, plants: facetsOf(body).plants }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The plants a declaration may name when nothing else lists them. The backend
+ * refuses any other plant (`POST /api/i8/attestations` answers 422), so this
+ * is the rule written down, not a guess.
+ */
+export const DECLARABLE_PLANTS: readonly { plantId: string; name: string }[] = [
+  { plantId: "1300", name: "Black Mountain Mining" },
+  { plantId: "1500", name: "Gamsberg" },
+]
+
+/**
+ * "Declare a part"'s plant choices: every plant the given sources list, once,
+ * by name -- and the two the backend accepts when none lists any.
+ *
+ * The button took its plants from the queue's facets alone and vanished when
+ * the queue was empty (27-Oct-2026: every open line Historical). It must
+ * never be offered an empty list again.
+ */
+export function declarablePlants(
+  sources: { plantId: string; name: string }[][],
+): { plantId: string; name: string }[] {
+  const byId = new Map<string, string>()
+  for (const plants of sources) for (const p of plants) if (p.plantId && !byId.has(p.plantId)) byId.set(p.plantId, p.name)
+  if (byId.size === 0) return DECLARABLE_PLANTS.map((p) => ({ ...p }))
+  return [...byId]
+    .map(([plantId, name]) => ({ plantId, name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The register's plants, for "Declare a part" when the queues list none.
+ *  Empty on failure: `declarablePlants` then falls back. */
+export async function registerPlants(fetchRegister: typeof getRegister = getRegister): Promise<{ plantId: string; name: string }[]> {
+  try {
+    const body = await fetchRegister({ pageSize: 1 })
+    return (body.facets?.plants ?? []).map((p) => ({ plantId: p.plantId, name: p.name }))
+  } catch {
+    return []
+  }
+}
+
+/** The day declarations began, from the snapshot's rules, as `YYYY-MM-DD`.
+ *  Undefined when it is not set or not a date. */
+export function cutoverFromRules(rules: Record<string, unknown> | null | undefined): string | undefined {
+  const value = rules?.attestationCutoverDate
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : undefined
 }

@@ -75,6 +75,15 @@ export const EMPTY_LABEL = {
     label: "No plan to compare",
     title: "Variance needs a captured plan to compare against.",
   },
+  notMeasured: {
+    label: "Not measured",
+    title: "The OAR Utilization data is being refreshed; this is measured again once it is ready.",
+  },
+  noReservationYet: {
+    label: "No reservation yet",
+    title:
+      "No reservation stands for this plan yet: none carries its session or request ID in the item text, and none is required inside its window.",
+  },
   notRouted: {
     label: "Not routed yet",
     title: "This exception has not been sent to anybody yet.",

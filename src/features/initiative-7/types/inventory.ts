@@ -133,9 +133,10 @@ export interface OarColdStartGuidance {
  * non-OAR (Min-Max) recommendation has no conversion decision to show.
  * `demandClass` is FR-2's pattern, carried here purely as supporting/
  * confidence context -- it plays no part in eligibility. The backend's rule is
- * now an AND of usage (> 4 issues in 12 months) and a CRITICAL/IMPACT tier, so
- * an eligible decision carries `CONSUMPTION_AND_CRITICALITY`; the two older
- * single-condition values can still arrive on recommendations made before it. */
+ * now an AND of usage (more than `consumptionCountThreshold` issues in the last
+ * `consumptionCountMonths` months) and a CRITICAL/IMPACT tier, so an eligible
+ * decision carries `CONSUMPTION_AND_CRITICALITY`; the two older single-condition
+ * values can still arrive on recommendations made before it. */
 export interface OarConversionInfo {
   isOar: boolean | null
   conversionEligibility: "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN" | null
@@ -148,7 +149,12 @@ export interface OarConversionInfo {
     | null
   conversionDetail: string | null
   demandClass: string | null
+  /** Issue transactions over the window below. The name says 12 for historical reasons; label it
+   * with `consumptionCountMonths`, never with a fixed period. */
   consumptionCount12m: number | null
+  /** How many months `consumptionCount12m` covers, as recorded when the recommendation was made.
+   * Null/absent for one made before it was recorded: then no period is claimed. */
+  consumptionCountMonths?: number | null
   consumptionCountThreshold: number | null
   /** Whether the criticality condition (CRITICAL/IMPACT) held -- null when it
    * could not be determined. */
@@ -189,6 +195,10 @@ export interface Recommendation {
   status: RecommendationStatus
   current: StockParameters
   recommended: StockParameters
+  /** Which of the stock figures above the backend really sent. `current` and `recommended` turn a missing figure
+   * into 0, which a side-by-side comparison must not read as "set to 0 in SAP"; this says which were there. Filled
+   * by the list mapper only. */
+  present?: { current: Record<keyof StockParameters, boolean>; recommended: Record<keyof StockParameters, boolean> }
   /** mean daily consumption used to derive expected lead-time demand */
   avgDailyConsumption: number
   leadTimeDays: number
@@ -210,8 +220,20 @@ export interface Recommendation {
    * absent on the scenario fixtures, which are ZAR. Format with formatMoney. */
   currency?: string | null
   annualConsumption: number
-  /** ZAR — positive releases working capital (stock reduced), negative is additional investment */
-  workingCapitalImpact: number
+  /** Unit price x (current ROP - recommended ROP), from the backend -- the Working Capital Impact card's rule.
+   * Positive releases working capital (reorder point reduced), negative is additional investment. `null` when it
+   * could not be calculated (blocked, no price, no reorder point): not 0, which would claim "no change". */
+  workingCapitalImpact: number | null
+  /** "ZAR" when `workingCapitalImpact` is stated in ZAR (a ZAR price, or NAD at 1:1); null when there is no figure
+   * or the price's currency cannot be stated in ZAR. Format the figure with this, falling back to `currency`. */
+  workingCapitalCurrency?: string | null
+  /** A user asked to convert this NOT_ELIGIBLE OAR material to Min-Max ordering. `conversionEligibility` still
+   * holds the rule's verdict: the two together say "the rule said no, and somebody asked anyway". */
+  manuallyConverted?: boolean
+  requestedBy?: string | null
+  requestedAt?: string | null
+  /** Why it was rejected: the comment of the newest REJECT in the approval ledger. Live rows with status Rejected. */
+  rejectionReason?: string | null
   consumptionHistory: ConsumptionPoint[]
   factors: RecommendationFactor[]
   championChallenger: ChampionChallenger

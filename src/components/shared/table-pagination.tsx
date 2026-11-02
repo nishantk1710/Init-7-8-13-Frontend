@@ -33,6 +33,7 @@ export function TablePagination({
   hrefFor,
   onPageChange,
   loading = false,
+  alwaysShowButtons = false,
   className,
 }: {
   /** 1-based. */
@@ -48,12 +49,15 @@ export function TablePagination({
   onPageChange?: (page: number) => void
   /** The next page is being fetched while this one's rows are still shown. */
   loading?: boolean
+  /** Keep Previous / Next on screen (switched off where there is nowhere to go) even when everything fits on one
+   * page, for a table whose filter can move it from one page to many. */
+  alwaysShowButtons?: boolean
   className?: string
 }) {
   if (count === 0 && page === 1) return null
 
   const w = pageWindow({ page, pageSize, total, count })
-  const showButtons = w.hasPrevious || w.hasNext
+  const showButtons = alwaysShowButtons || w.hasPrevious || w.hasNext
 
   const range = pageSummary({ page, pageSize, total, count, noun, loading })
   const pageLabel =

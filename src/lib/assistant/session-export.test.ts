@@ -172,6 +172,9 @@ const i08: SessionTraceResponse = {
   ],
 }
 
+/** The I08 record as stored (the trace types it `unknown`), for variants. */
+const i08Assessment = i08.assessment as Record<string, unknown>
+
 const fields = (blocks: ExportBlock[]) =>
   Object.fromEntries(blocks.flatMap((b) => (b.kind === "fields" ? b.rows : [])))
 const text = (blocks: ExportBlock[]) => toTxt({ title: "", generatedAt: "", blocks })
@@ -193,7 +196,10 @@ describe("sessionDocument", () => {
     expect(txt).toContain("Held at other plants: 3 at 1400.")
     expect(txt).toContain("Consumption is from the last 12 months only.")
     expect(txt).toContain("The requester kept their own quantity.")
-    expect(txt).toContain("quantity override")
+    // The reason in words, never its code.
+    expect(txt).toContain("Why this quantity")
+    expect(txt).toContain("Urgent breakdown")
+    expect(txt).not.toContain("URGENT_BREAKDOWN")
   })
 
   it("names the request for a line of a multi-material request", () => {
@@ -203,12 +209,16 @@ describe("sessionDocument", () => {
     expect(rows).toMatchObject({
       "Request line": "R5B61EQBGQ/2",
       "Type in SAP": "R5B61EQBGQ",
+      // The one instruction the page and the closing message give.
+      "How to type it":
+        "Type the request reference R5B61EQBGQ once into the reservation's header text in SAP; SAP copies it to every item.",
     })
     expect(rows).not.toHaveProperty("Session reference")
     expect(text(doc.blocks)).not.toContain("S8K2M4P6Q9")
     expect(exportId({ ...i13, requestId: "R5B61EQBGQ", lineNo: 2 })).toBe("R5B61EQBGQ-2")
     expect(exportId(i13)).toBe("S8K2M4P6Q9")
-    expect(text(doc.blocks)).toContain("request R5B61EQBGQ for this material")
+    expect(text(doc.blocks)).toContain("Not linked yet. The link appears once a SAP reservation carrying R5B61EQBGQ")
+    expect(text(doc.blocks)).not.toContain("SGTXT")
   })
 
   it("leaves the conversation turns out", () => {
@@ -221,13 +231,103 @@ describe("sessionDocument", () => {
       Requester: "not stated",
       Department: "not stated",
       "Stock available": "no stock record",
-      "Earliest due back": "2026-05-01 (no longer a forecast)",
+      "Earliest due back": "01 May 2026 (no longer a forecast)",
     })
     const txt = text(doc.blocks)
     expect(txt).toContain("4500000001/10")
     expect(txt).toContain("169 days")
     expect(txt).toContain("0012345678/0001")
     expect(txt).not.toContain("CONSUMPTION PLAN")
+  })
+
+  it("downloads an older I08 record exactly as before", () => {
+    const doc = sessionDocument({
+      ...i08,
+      assessment: { ...i08Assessment, stockIsUnknown: false, stockOnHand: "2", openRepairLines: 0, soonestDueDate: null },
+    })
+    expect(fields(doc.blocks)).toMatchObject({
+      "Stock available": "2",
+      "Open repairs": "0",
+      "Earliest due back": "no open repair PO",
+    })
+    expect(doc.blocks.some((b) => b.kind === "table" && b.columns[0] === "Requested, not yet ordered")).toBe(false)
+    expect(text(doc.blocks)).not.toContain("Usable stock")
+  })
+
+  it("renders requested repairs, the usable/damaged split and the need-date line", () => {
+    const advice =
+      "A repaired unit is due back on 12 Nov 2026. If your job can wait, set the need date after that, and no new unit is bought."
+    const doc = sessionDocument({
+      ...i08,
+      assessment: {
+        ...i08Assessment,
+        stockOnHand: "3",
+        stockIsUnknown: false,
+        usableStock: "2",
+        damagedStock: "1",
+        stockConditionKnown: true,
+        stockSource: "MCHB",
+        openRepairLines: 0,
+        openRepairs: [],
+        overdueLines: 0,
+        soonestDueDate: null,
+        openRepairRequestLines: 2,
+        openRepairRequests: [
+          {
+            purchaseRequisition: "2000029113",
+            item: "10",
+            quantity: "1",
+            requestedAt: "2026-02-19",
+            daysSinceRequested: 239,
+            department: "10305",
+            departmentName: "Engineering",
+            repairOrder: "0000123456",
+          },
+          {
+            purchaseRequisition: "2000029200",
+            item: "20",
+            quantity: "2",
+            requestedAt: null,
+            daysSinceRequested: null,
+            department: null,
+            departmentName: null,
+            repairOrder: null,
+          },
+        ],
+        needDateAdvice: advice,
+      },
+    })
+    const rows = fields(doc.blocks)
+    expect(rows).toMatchObject({
+      "Usable stock": "2 (1 damaged, not counted)",
+      "Open repairs": "0 (+2 requested, not ordered)",
+      "Earliest due back": "not ordered yet",
+    })
+    expect(rows).not.toHaveProperty("Stock available")
+    const table = doc.blocks.find((b) => b.kind === "table" && b.columns[0] === "Requested, not yet ordered")
+    expect(table).toMatchObject({
+      rows: [
+        [["PR 2000029113/10"], ["1"], ["requested 239 days ago"], ["10305 · Engineering"]],
+        [["PR 2000029200/20"], ["2"], ["request date not known"], ["not stated"]],
+      ],
+    })
+    expect(text(doc.blocks)).toContain(advice)
+  })
+
+  it("marks the stock total as condition unknown on the fallback", () => {
+    const doc = sessionDocument({
+      ...i08,
+      assessment: {
+        ...i08Assessment,
+        stockOnHand: "4",
+        stockIsUnknown: false,
+        usableStock: null,
+        damagedStock: null,
+        stockConditionKnown: false,
+        stockSource: "MARD",
+      },
+    })
+    expect(fields(doc.blocks)).toMatchObject({ "Stock available": "4 (condition unknown)" })
   })
 
   it("Word and PDF produce files", async () => {

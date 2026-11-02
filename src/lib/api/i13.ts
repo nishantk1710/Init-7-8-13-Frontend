@@ -38,6 +38,7 @@ import {
   ACT_EXCEPTION_TYPES,
   AGING_BANDS,
   ATTRIBUTION_STATUSES,
+  ISSUE_MATCHES,
   LEDGER_UTILISATION_STATUSES,
   LINKAGE_STATUSES,
   MATERIAL_SCOPES,
@@ -51,7 +52,6 @@ import {
   type ConsumptionAttribution,
   type ConsumptionPlan,
   type CrossPlantStock,
-  type DataSourceStatus,
   type GrniEntry,
   type I13SnapshotStatus,
   type I13Exception,
@@ -98,19 +98,6 @@ function str(value: unknown): string | null {
 
 // --- Adapters -------------------------------------------------------------
 
-function toDataSourceStatus(raw: RawRecord): DataSourceStatus {
-  return {
-    entitySet: String(raw.entity_set ?? ""),
-    // Deliberately NOT guarded: SourceMode is an open union (the backend may
-    // name an entity set's mode anything), and the component already handles
-    // an unrecognised value by falling through to its "danger" tone.
-    mode: String(raw.mode ?? "UNAVAILABLE"),
-    rowCount: toCount(raw.row_count as number),
-    available: Boolean(raw.available),
-    fetchedAt: String(raw.fetched_at ?? ""),
-  }
-}
-
 function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
@@ -128,6 +115,7 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
     receivedQuantity: toNumber(raw.received_quantity as string) ?? null,
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? null,
     openQuantity: toNumber(raw.open_quantity as string) ?? null,
+    orderedQuantity: toNumber(raw.ordered_quantity as string) ?? null,
     firstGrDate: str(raw.first_gr_date),
     latestGrDate: str(raw.latest_gr_date),
     expectedDeliveryDate: str(raw.expected_delivery_date),
@@ -149,6 +137,10 @@ function toLedgerEntry(raw: RawRecord): UtilisationLedgerEntry {
       ? oneOf(raw.attribution_status as string, ATTRIBUTION_STATUSES, "UNATTRIBUTED")
       : null,
     attributionEvidence: str(raw.attribution_evidence),
+    issueMatch: raw.issue_match ? oneOf(raw.issue_match as string, ISSUE_MATCHES, "OLDEST_DELIVERY_FIRST") : null,
+    deliveryCount: toCount(raw.delivery_count as number),
+    nextPlannedIssueDate: str(raw.next_planned_issue_date),
+    nextPlannedIssueQuantity: toNumber(raw.next_planned_issue_quantity as string) ?? null,
   }
 }
 
@@ -479,12 +471,6 @@ function toSummary(raw: RawRecord): I13Summary {
 export function getI13Summary(params?: { plant?: string; material?: string }): Promise<I13Summary> {
   const query = buildQuery({ plant: params?.plant, material: params?.material })
   return apiFetch<RawRecord>(`/i13/summary${query}`).then(toSummary)
-}
-
-export function getI13DataSources(): Promise<DataSourceStatus[]> {
-  return apiFetch<RawRecord[]>("/i13/data-sources").then((rows) =>
-    rows.map(toDataSourceStatus)
-  )
 }
 
 /**
@@ -1099,30 +1085,36 @@ export type { ActExceptionType }
 function toGrniEntry(raw: RawRecord): GrniEntry {
   return {
     ledgerId: String(raw.ledger_id ?? ""),
-    reservationNumber: String(raw.reservation_number ?? ""),
-    reservationItem: String(raw.reservation_item ?? ""),
     material: String(raw.material ?? ""),
     materialDescription: str(raw.material_description),
     plant: String(raw.plant ?? ""),
     materialScope: oneOf(raw.material_scope as string, MATERIAL_SCOPES, "EXCLUDED"),
     prNumber: str(raw.pr_number),
-    poNumber: str(raw.po_number),
-    poItem: str(raw.po_item),
+    prItem: str(raw.pr_item),
+    poNumber: String(raw.po_number ?? ""),
+    poItem: String(raw.po_item ?? ""),
+    reservationNumber: str(raw.reservation_number),
+    reservationItem: str(raw.reservation_item),
     receivedQuantity: toNumber(raw.received_quantity as string) ?? 0,
     issuedQuantity: toNumber(raw.issued_quantity as string) ?? 0,
     outstandingQuantity: toNumber(raw.outstanding_quantity as string) ?? 0,
+    deliveryCount: toCount(raw.delivery_count as number),
     firstGrDate: str(raw.first_gr_date),
     lastGrDate: String(raw.last_gr_date ?? ""),
     daysSinceGr: toCount(raw.days_since_gr as number),
     thresholdDays: toCount(raw.threshold_days as number),
-    requirementDate: str(raw.requirement_date),
-    lifecycleStatus: String(raw.lifecycle_status ?? ""),
+    firstIssueDate: str(raw.first_issue_date),
+    lastIssueDate: str(raw.last_issue_date),
+    issueMatch: raw.issue_match ? oneOf(raw.issue_match as string, ISSUE_MATCHES, "OLDEST_DELIVERY_FIRST") : null,
+    nextPlannedIssueDate: str(raw.next_planned_issue_date),
+    nextPlannedIssueQuantity: toNumber(raw.next_planned_issue_quantity as string) ?? null,
+    utilisationStatus: oneOf(raw.utilisation_status as string, LEDGER_UTILISATION_STATUSES, "NOT_ISSUED"),
   }
 }
 
 /**
- * `GET /i13/grni` — goods received and not issued for 30+ days, per
- * reservation line, oldest receipt first. Served from the I13 snapshot.
+ * `GET /i13/grni` — goods received and not issued for 30+ days, per PO line,
+ * oldest receipt first. Served from the I13 snapshot.
  */
 export function getI13Grni(params?: {
   plant?: string
@@ -1245,6 +1237,8 @@ export function getI13ReservationLedgerList(params?: {
   sessionId?: string
   /** Exact match on the reservation number, as the backend stores it. */
   reservationNumber?: string
+  /** One lifecycle value, or several comma-separated: any of them matches. */
+  lifecycleStatus?: string
   limit?: number
   offset?: number
 }): Promise<ApiList<ReservationLedgerRow>> {
@@ -1253,6 +1247,7 @@ export function getI13ReservationLedgerList(params?: {
     material: params?.material,
     session_id: params?.sessionId,
     reservation_number: params?.reservationNumber,
+    lifecycle_status: params?.lifecycleStatus,
     limit: params?.limit ?? 1000,
     offset: params?.offset,
   })

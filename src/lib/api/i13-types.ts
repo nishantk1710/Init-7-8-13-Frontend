@@ -27,7 +27,18 @@ export type AgingBand = "FAST" | "SLOW" | "NON_MOVING"
  */
 export type ProcurementStatus = "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CLOSED" | "NOT_AN_ORDER"
 
-export type LedgerUtilisationStatus = "NOT_ISSUED" | "PARTIALLY_ISSUED" | "FULLY_ISSUED"
+/**
+ * `BEFORE_ISSUE_HISTORY`: the line was delivered before the earliest goods
+ * movement the backend holds, so what was issued from it cannot be seen.
+ */
+export type LedgerUtilisationStatus = "NOT_ISSUED" | "PARTIALLY_ISSUED" | "FULLY_ISSUED" | "BEFORE_ISSUE_HISTORY"
+
+/**
+ * How a PO line's issued quantity was found: the reservation that raised its PR
+ * (exact), or the material's stock issues counted against the oldest delivery
+ * first. See `features/initiative-13/utils/issue-match.ts`.
+ */
+export type IssueMatch = "RESERVATION" | "OLDEST_DELIVERY_FIRST" | "BEFORE_ISSUE_HISTORY"
 
 export type LinkageStatus = "RESERVATION_LINKED" | "PR_ONLY" | "FULL_CHAIN" | "UNMATCHED"
 
@@ -37,13 +48,11 @@ export type AttributionStatus =
   | "PROCUREMENT_LINK"
   | "UNATTRIBUTED"
 
-export type AcquiredVsPlanStatus = "NO_PLAN" | "BELOW_PLAN" | "ON_PLAN" | "ABOVE_PLAN"
+export type AcquiredVsPlanStatus = "NO_PLAN" | "NO_RESERVATION" | "BELOW_PLAN" | "ON_PLAN" | "ABOVE_PLAN"
 
 export type I13ExceptionType = "PLAN_BREACH" | "NO_PLAN" | "GR_NOT_ISSUED_30_DAY"
 
 export type I13ExceptionStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED"
-
-export type SourceMode = "LIVE" | "MOCK" | "UNAVAILABLE" | string
 
 export type MaterialScope = "OAR" | "MIN_MAX" | "EXCLUDED"
 
@@ -81,7 +90,9 @@ export const LEDGER_UTILISATION_STATUSES: readonly LedgerUtilisationStatus[] = [
   "NOT_ISSUED",
   "PARTIALLY_ISSUED",
   "FULLY_ISSUED",
+  "BEFORE_ISSUE_HISTORY",
 ]
+export const ISSUE_MATCHES: readonly IssueMatch[] = ["RESERVATION", "OLDEST_DELIVERY_FIRST", "BEFORE_ISSUE_HISTORY"]
 export const LINKAGE_STATUSES: readonly LinkageStatus[] = [
   "RESERVATION_LINKED",
   "PR_ONLY",
@@ -96,6 +107,7 @@ export const ATTRIBUTION_STATUSES: readonly AttributionStatus[] = [
 ]
 export const ACQUIRED_VS_PLAN_STATUSES: readonly AcquiredVsPlanStatus[] = [
   "NO_PLAN",
+  "NO_RESERVATION",
   "BELOW_PLAN",
   "ON_PLAN",
   "ABOVE_PLAN",
@@ -121,14 +133,6 @@ export const ROUTING_STATUSES: readonly RoutingStatus[] = [
 ]
 export const MATERIAL_SCOPES: readonly MaterialScope[] = ["OAR", "MIN_MAX", "EXCLUDED"]
 
-export interface DataSourceStatus {
-  entitySet: string
-  mode: SourceMode
-  rowCount: number
-  available: boolean
-  fetchedAt: string
-}
-
 export interface UtilisationLedgerEntry {
   ledgerId: string
   material: string
@@ -148,6 +152,12 @@ export interface UtilisationLedgerEntry {
   receivedQuantity: number | null
   issuedQuantity: number | null
   openQuantity: number | null
+  /**
+   * EKPO-MENGE of the PO line: "0 of 6 received". Ordered minus received on
+   * an open line is what the assistant's Open PO adds up. Null without a PO
+   * line, or from a backend that does not send it yet.
+   */
+  orderedQuantity: number | null
 
   firstGrDate: string | null
   latestGrDate: string | null
@@ -164,6 +174,14 @@ export interface UtilisationLedgerEntry {
 
   attributionStatus: AttributionStatus | null
   attributionEvidence: string | null
+
+  /** Null for a line with nothing received and no reservation behind it. */
+  issueMatch: IssueMatch | null
+  /** Goods receipts on the line (EKBE 101, net of 102). */
+  deliveryCount: number
+  /** RESB-BDTER of the earliest open reservation expected to draw on this line's stock. */
+  nextPlannedIssueDate: string | null
+  nextPlannedIssueQuantity: number | null
 }
 
 export interface WatchMetric {
@@ -355,9 +373,9 @@ export interface ConsumptionPlan {
   /**
    * The assistant session this plan was captured in.
    *
-   * FR-4 stores a plan *against* a session identifier, and with the reservation
-   * link blocked on `RESB.BEDNR` this is currently the only link a plan has to
-   * anything else.
+   * FR-4 stores a plan *against* a session identifier. The reservation links
+   * back to it through its item text (`RESB.SGTXT`) once a SAP extract carrying
+   * that text is loaded; until then this is the only link a plan has.
    */
   sessionId: string
   material: string
@@ -382,6 +400,15 @@ export interface ConsumptionPlan {
     source: string
     sgtxt: string | null
   }[]
+  // Acquired vs plan for this one plan, sent by `GET /i13/consumption-plans`.
+  // Null while the I13 snapshot is unavailable: "not measured", not "nothing
+  // issued".
+  /** `rsnum/rspos` of each reservation item counted for this plan. */
+  matchedReservations?: string[] | null
+  /** Issued against `matchedReservations`, as the backend's decimal string. */
+  issuedQuantity?: string | null
+  acquiredVsPlanStatus?: AcquiredVsPlanStatus | null
+  acquiredVsPlanVarianceQuantity?: string | null
 }
 
 /** FR-3's answer, computed on demand for one material, plant and quantity. */
@@ -546,31 +573,39 @@ export interface I13Summary {
 }
 
 /**
- * `GET /i13/grni` — one reservation-ledger entry received and not issued for at
- * least the GR-not-issued threshold (FRS FR-6). The per-entry form of WATCH's
- * `grNotIssuedFlag`, which is per material and plant.
+ * `GET /i13/grni` — one PO line received at least the GR-not-issued threshold
+ * ago with stock not yet issued (FRS FR-6). The per-line form of WATCH's
+ * `grNotIssuedFlag`, which is per material and plant. `outstandingQuantity` is
+ * what is still in stock out of the line's deliveries.
  */
 export interface GrniEntry {
   ledgerId: string
-  reservationNumber: string
-  reservationItem: string
   material: string
   /** MAKT / ZMM065 text, where the backend sends one. */
   materialDescription?: string | null
   plant: string
   materialScope: MaterialScope
   prNumber: string | null
-  poNumber: string | null
-  poItem: string | null
+  prItem: string | null
+  poNumber: string
+  poItem: string
+  /** Only when the line's PR was raised by a reservation. */
+  reservationNumber: string | null
+  reservationItem: string | null
   receivedQuantity: number
   issuedQuantity: number
   outstandingQuantity: number
+  deliveryCount: number
   firstGrDate: string | null
   lastGrDate: string
   daysSinceGr: number
   thresholdDays: number
-  requirementDate: string | null
-  lifecycleStatus: string
+  firstIssueDate: string | null
+  lastIssueDate: string | null
+  issueMatch: IssueMatch | null
+  nextPlannedIssueDate: string | null
+  nextPlannedIssueQuantity: number | null
+  utilisationStatus: LedgerUtilisationStatus
 }
 
 /** One month of net goods issues and receipts for one material and plant. */

@@ -32,9 +32,9 @@ function IdleFor({ days }: { days: number }) {
   const tone = idleTone(days)
   return (
     <div className="ml-auto text-right">
-      <span className={cn("font-bold tabular-nums", TONE_INK[tone])}>
+      <span className={cn("font-semibold tabular-nums", TONE_INK[tone])}>
         {formatCount(days)} days
-        {days >= 365 && <span className="ml-1 font-medium text-ink-muted">({(days / 365).toFixed(1)} yrs)</span>}
+        {days >= 365 && <span className="ml-1 font-medium text-muted-foreground">({(days / 365).toFixed(1)} yrs)</span>}
         {isLongIdle(days) && <span className="sr-only"> (idle 150 days or more)</span>}
       </span>
     </div>
@@ -93,8 +93,8 @@ export function NonMoverTable({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-ink-muted">
-          <span className="font-bold text-ink">{formatCount(total ?? rows.length)}</span> non-moving position
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">{formatCount(total ?? rows.length)}</span> non-moving position
           {(total ?? rows.length) === 1 ? "" : "s"}, most recent activity first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />

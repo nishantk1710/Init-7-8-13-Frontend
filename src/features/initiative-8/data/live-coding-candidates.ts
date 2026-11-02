@@ -23,7 +23,8 @@ import type {
   ApiCodingCandidateTwin,
   CodingCandidatesQuery,
 } from "@/lib/api/i8"
-import { formatApiDate, getCodingCandidates, toNumber } from "@/lib/api/i8"
+import { getCodingCandidates, toNumber } from "@/lib/api/i8"
+import { i08Date } from "@/features/initiative-8/utils/format"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
 function orUndefined<T>(value: T | null | undefined): T | undefined {
@@ -38,7 +39,9 @@ function toLine(row: ApiCodingCandidateLine): CodingCandidateLine {
     plant: row.plant ? { plantId: row.plant.plantId, name: row.plant.name } : undefined,
     shortText: row.shortText,
     matchedKeywords: row.matchedKeywords,
-    raisedAt: row.raisedAt ? formatApiDate(row.raisedAt) : undefined,
+    // I08's one date format, "08 Sep 2025": the shared formatter writes en-ZA's
+    // "8 Sept 2025".
+    raisedAt: row.raisedAt ? i08Date(row.raisedAt) : undefined,
     itemCategory: orUndefined(row.itemCategory),
   }
 }
@@ -92,6 +95,10 @@ export function toCodingCandidate(row: ApiCodingCandidateItem): CodingCandidate 
 export type LiveCodingCandidates = {
   candidates: CodingCandidate[]
   meta: ApiCodingCandidateMeta
+  /** When the list was read (epoch ms): what "Screened 15 days ago" counts
+   *  to, read once on the server so the server's text and the browser's
+   *  agree. */
+  loadedAt: number
 }
 
 /**
@@ -110,5 +117,5 @@ export async function loadLiveCodingCandidates(
   query: CodingCandidatesQuery = {},
 ): Promise<LiveCodingCandidates> {
   const body = await getCodingCandidates(query)
-  return { candidates: body.items.map(toCodingCandidate), meta: body.meta }
+  return { candidates: body.items.map(toCodingCandidate), meta: body.meta, loadedAt: Date.now() }
 }

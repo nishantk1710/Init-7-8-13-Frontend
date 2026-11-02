@@ -17,11 +17,11 @@ export function MaterialIdentity({
 }) {
 const content = (
   <>
-    <span className="block truncate font-medium text-foreground">
+    <span className="block truncate font-medium text-foreground" title={material.description}>
       {material.description}
     </span>
     {material.materialCode !== material.description && (
-      <span className="block truncate text-[11px] text-muted-foreground">
+      <span className="block truncate text-[11px] text-muted-foreground" title={material.materialCode}>
         {material.materialCode}
       </span>
     )}

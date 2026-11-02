@@ -3,10 +3,13 @@ import {
   JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
   OVERDUE_STATUS_LABEL,
+  isPrOnly,
   justificationCellOf,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
+import { NO_PO_YET, REPAIR_REQUESTED, requesterText } from "@/features/initiative-8/utils/repair-request"
+import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /**
@@ -32,16 +35,20 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
  * The export's columns, in the order the screen shows them: what a repair is
  * doing first, the declaration and justification next, then the reference
  * columns (criticality, stock, SAP documents) the screen keeps at the end.
+ * "Repair line" and "Department" arrived with the screen's own columns on
+ * 28-Oct-2026.
  *
  * No turnaround, partial-receipt or blocked columns since 19-Oct-2026: every
  * line is open in SAP, and goods receipts are not read.
  */
 export const REGISTER_CSV_HEADERS = [
   "Line",
+  "Repair line",
   "Material",
   "Description",
   "Plant",
   "Vendor",
+  "Department",
   "Qty under repair",
   "Repair status",
   "Days in current stage",
@@ -73,21 +80,32 @@ export const REGISTER_CSV_HEADERS = [
  * Unknown values are empty cells, never 0: a CSV cell is read without the
  * column's caveats beside it, and an exported 0 asserts "none" where the
  * source only said "not recorded".
+ *
+ * A repair requested with no PO yet (a PR row, since 27-Oct-2026) reads "No PO
+ * yet" in the vendor and overdue columns and "Repair requested" as its status,
+ * as on screen: "Unknown vendor" would say a PO exists whose vendor is
+ * missing, and nothing has been ordered from anybody.
  */
 export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] {
   return chains.map((c) => {
     const justification = justificationCellOf(c)
+    const requested = isPrOnly(c)
     return [
       c.id,
+      // As the screen shows it: 4500001719/10, or PR 2000028756/10.
+      repairLineLabel(c),
       c.material.materialCode,
       c.material.description,
       `${c.plant.plantId} ${c.plant.name}`,
-      vendorLabel(c),
+      requested ? NO_PO_YET : vendorLabel(c),
+      // The department code with its name when the list knows it; empty
+      // when SAP carries none.
+      requesterText(c) ?? "",
       c.qtyUnderRepair,
-      c.repairStatus,
+      requested ? REPAIR_REQUESTED : c.repairStatus,
       c.daysInCurrentStage ?? "",
       c.expectedReturn ?? "",
-      OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
+      requested ? NO_PO_YET : OVERDUE_STATUS_LABEL[overdueStatusOf(c)],
       c.daysOpen,
       c.daysElapsed ?? "",
       c.agingBucket,

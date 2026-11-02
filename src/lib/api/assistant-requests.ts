@@ -47,6 +47,24 @@ export type PreviewResponse = {
   maxLines: number
   /** What submit accepts. Absent from a backend older than #127. */
   reasonCategories?: ApiReasonCategory[]
+  /** The configured fault categories for a declaration. Absent on an older backend. */
+  faultCategories?: string[]
+  /** The recommendations a declaration may make. Absent on an older backend. */
+  recommendations?: ApiReasonCategory[]
+}
+
+/**
+ * The faulty unit coming out, declared with the request (option B, 27-Oct).
+ * Recorded server-side as an unbound declaration for the line's session.
+ */
+export type ApiLineDeclaration = {
+  quantity: number
+  conditionDescription: string
+  faultCategory: string
+  recommendation: string
+  /** Typed, not a sign-in. */
+  attestorName: string
+  evidenceReference?: string | null
 }
 
 // --- create -------------------------------------------------------------------
@@ -63,6 +81,8 @@ export type ApiLineAnswers = {
   freeText?: string | null
   /** What the screen showed as suggested; null for "none could be made". */
   seenSuggestedQuantity?: string | null
+  /** I08 only, and only when the requester declares the unit coming out. */
+  declaration?: ApiLineDeclaration
 }
 
 export type CreateRequestBody = {

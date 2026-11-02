@@ -62,6 +62,7 @@ import {
   type Zmm065Upload,
 } from "@/lib/api/i13"
 import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
+import { reservationStatusQuery } from "@/features/initiative-13/utils/reservation-lifecycle"
 import { pageOffset } from "@/lib/pagination"
 
 /**
@@ -464,7 +465,7 @@ function reservationNumberOf(input: string | undefined): string | undefined {
 }
 
 export async function loadLiveReservationLedger(
-  filters: LedgerFilters & { session?: string; reservation?: string } = {},
+  filters: LedgerFilters & { session?: string; reservation?: string; reservationStatus?: string; issued?: string } = {},
   paging?: Paging
 ): Promise<LiveReservationLedger> {
   const { items: rows, total } = await getI13ReservationLedgerList({
@@ -472,6 +473,7 @@ export async function loadLiveReservationLedger(
     material: filters.material || undefined,
     sessionId: filters.session || undefined,
     reservationNumber: reservationNumberOf(filters.reservation),
+    lifecycleStatus: reservationStatusQuery(filters.reservationStatus, filters.issued),
     ...pageRequest(paging),
   })
   return {

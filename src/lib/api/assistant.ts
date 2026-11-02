@@ -282,6 +282,29 @@ export type ApiJustification = {
   recordedAt: string
 }
 
+/**
+ * An I08 faulty-unit declaration recorded during the session (the visit's
+ * own, read by its session ID; a later amendment carries no session and is
+ * not listed). Codes on the wire; read them through `lib/assistant/session-view`.
+ */
+export type ApiSessionDeclaration = {
+  id: string
+  /** `REPAIRABLE`, `BEYOND_ECONOMICAL_REPAIR` or `SCRAP`. */
+  recommendation: string
+  conditionDescription: string
+  faultCategory: string
+  /** Decimal-as-string. */
+  quantity: string
+  /** The name the person typed, not a sign-in. */
+  attestorName: string | null
+  attestedAt: string
+  evidenceReference: string | null
+  repairDocument: string | null
+  repairItem: string | null
+  /** `PO` or `PR` when the declaration names a repair line. */
+  repairDocumentType: string | null
+}
+
 export type ApiSessionOutcome = "OPEN" | "COMPLETED" | "ABANDONED"
 
 /**
@@ -340,9 +363,16 @@ export type SessionTraceResponse = {
   plans: ApiPlan[]
   quantitySuggestions: ApiQuantitySuggestion[]
   justifications: ApiJustification[]
+  /**
+   * I08: the faulty-unit declarations made in this session, newest first.
+   * Empty for an I13 session or a visit that declared nothing; absent on a
+   * backend older than the field (the page then reads the declaration turn).
+   */
+  declarations?: ApiSessionDeclaration[]
   /** Reservations whose item text (SGTXT) carries this session's ID. */
   linkedReservations?: ApiLinkedReservation[]
-  /** Says in words what is linked, or what is not yet and why. Show it; do not summarise it. */
+  /** The backend's own sentence about the link. The session page says it in
+   *  its own words now, so the reference instruction is said once. */
   linkageNote: string
 }
 
@@ -375,6 +405,11 @@ export type ApiSessionSummary = {
    * Absent on a backend older than the field.
    */
   linkedReservations?: ApiLinkedReservation[]
+  /** I08: a faulty-unit declaration was recorded in this session. Always
+   *  false for I13. Absent on a backend older than the field: unknown, never "no". */
+  declared?: boolean
+  /** The newest declaration's recommendation (`REPAIRABLE`, ...); null when none. */
+  declarationRecommendation?: string | null
 }
 
 export type SessionListResponse = {

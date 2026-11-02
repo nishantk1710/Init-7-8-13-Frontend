@@ -3,22 +3,42 @@
  *
  * Everything here is opt-in through `ai-*` utilities and `animate-ai-*`
  * classes, so the rest of the app is untouched. Colours are built from the
- * theme tokens plus three assistant accents, so light and dark both work.
+ * theme tokens plus three assistant accents (blues), so light and dark both work.
  *
  * Motion is decoration only. Inside `.ai-scope` it is switched off entirely
  * for anyone who asks the OS for reduced motion.
  */
 
+/* The accents are the app's action blue (`--action`, the brand-scope blues) in three
+   steps, deep to light, so the assistant reads as part of the app rather than a
+   separate purple product. */
 :root {
-  --ai-1: #6366f1;
-  --ai-2: #8b5cf6;
-  --ai-3: #06b6d4;
+  --ai-1: #005da4;
+  --ai-2: #0a66b5;
+  --ai-3: #2f80c9;
 }
 
 .dark {
-  --ai-1: #818cf8;
-  --ai-2: #a78bfa;
-  --ai-3: #22d3ee;
+  --ai-1: #1f74c0;
+  --ai-2: #4a97dc;
+  --ai-3: #5aa2e0;
+}
+
+/* Buttons, focus rings and tinted chips inside the assistant take the action blue
+   instead of the app's indigo primary. Same values as `.blue-scope`. */
+.ai-scope {
+  --primary: #0a66b5;
+  --primary-foreground: #ffffff;
+  --ring: #2f80c9;
+  --accent: #e6f0f9;
+  --accent-foreground: #004b87;
+}
+
+.dark .ai-scope {
+  --primary: #1f74c0;
+  --ring: #5aa2e0;
+  --accent: rgb(31 116 192 / 0.2);
+  --accent-foreground: #a9d0f5;
 }
 
 @theme inline {

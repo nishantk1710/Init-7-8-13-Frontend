@@ -1,11 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight, AtSign, Loader2, Mail, User } from "lucide-react"
+import { AtSign, Mail, User } from "lucide-react"
 import { useState } from "react"
 
-import { AuthField, FormError, PasswordField } from "@/components/auth/auth-field"
-import { Button } from "@/components/ui/button"
+import { AuthDone, AuthField, AuthSubmit, FormError, PasswordField } from "@/components/auth/auth-field"
 import { signUp, usernameFromName, type AuthResult } from "@/lib/auth/mock-auth"
 
 type Failure = Extract<AuthResult, { ok: false }>
@@ -18,7 +17,7 @@ export function SignupForm({ next, initialUsername }: { next: string; initialUse
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [failure, setFailure] = useState<Failure | null>(null)
-  const [pending, setPending] = useState(false)
+  const [done, setDone] = useState(false)
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -27,13 +26,16 @@ export function SignupForm({ next, initialUsername }: { next: string; initialUse
       setFailure(result)
       return
     }
-    setPending(true)
+    setDone(true)
     window.location.assign(next)
   }
 
+  if (done) return <AuthDone title="Account created">Loading your spares workspace…</AuthDone>
+
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <form onSubmit={submit} className="flex flex-col gap-[18px]">
+      {/* Side by side, so the card still fits a laptop screen without scrolling. */}
+      <div className="grid gap-[18px] sm:grid-cols-2 sm:gap-3">
         <AuthField
           id="signup-name"
           label="Full name"
@@ -95,24 +97,14 @@ export function SignupForm({ next, initialUsername }: { next: string; initialUse
         <FormError>
           {failure.error}{" "}
           {failure.reason === "taken" && (
-            <Link href="/login" className="font-medium underline underline-offset-4">
+            <Link href={`/login?next=${encodeURIComponent(next)}`} className="font-semibold underline underline-offset-4">
               Sign in instead
             </Link>
           )}
         </FormError>
       )}
 
-      <Button type="submit" size="lg" disabled={pending} className="mt-1 h-10 w-full">
-        {pending ? (
-          <>
-            <Loader2 className="animate-spin" /> Creating account…
-          </>
-        ) : (
-          <>
-            Create account <ArrowRight />
-          </>
-        )}
-      </Button>
+      <AuthSubmit pendingLabel="Creating account…">Create account</AuthSubmit>
     </form>
   )
 }

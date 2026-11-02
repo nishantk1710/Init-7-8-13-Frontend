@@ -42,6 +42,10 @@ export type I13SearchParams = {
   session?: string
   /** Ledger screen, reservations view: one reservation number (exact match). */
   reservation?: string
+  /** Ledger screen, reservations view: one lifecycle value (`RESERVED`, `ISSUED`, ...). */
+  reservationStatus?: string
+  /** Ledger screen, reservations view: `NOT_ISSUED`, `PARTIALLY_ISSUED` or `FULLY_ISSUED`. */
+  issued?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -79,6 +83,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     view: single(raw.view),
     session: single(raw.session),
     reservation: single(raw.reservation),
+    reservationStatus: single(raw.reservationStatus),
+    issued: single(raw.issued),
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),

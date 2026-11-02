@@ -28,7 +28,7 @@ export const initiative7Manifest: InitiativeManifest = {
         href: "/inventory-planning/adoption",
       },
       {
-        label: "Quarterly Reports",
+        label: "Reports",
         icon: "file-text",
         href: "/inventory-planning/reports",
       },
@@ -36,6 +36,11 @@ export const initiative7Manifest: InitiativeManifest = {
         label: "Criticality Reports",
         icon: "upload",
         href: "/inventory-planning/criticality-reports",
+      },
+      {
+        label: "Calculation",
+        icon: "sliders",
+        href: "/inventory-planning/calculation",
       },
     ],
   },

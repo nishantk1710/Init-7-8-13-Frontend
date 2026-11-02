@@ -10,7 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { signOut, updateProfile, type MockUser } from "@/lib/auth/mock-auth"
+import { useRoles } from "@/hooks/use-roles"
+import { roleLabel } from "@/lib/auth/roles"
+import { updateProfile, type MockUser } from "@/lib/auth/mock-auth"
+import { signOutEverywhere } from "@/lib/auth/sign-out"
 
 function formatWhen(iso: string | undefined): string {
   if (!iso) return "—"
@@ -31,7 +34,7 @@ export function ProfileView() {
           title="My profile"
           description="Your account details and how you appear in Spares AI."
           actions={
-            <Button variant="outline" onClick={signOut}>
+            <Button variant="outline" onClick={() => void signOutEverywhere()}>
               <LogOut /> Sign out
             </Button>
           }
@@ -63,11 +66,24 @@ function DetailRow({ icon: Icon, label, children }: { icon: typeof User; label: 
   )
 }
 
+/** The user's roles from GET /api/me, or what explains their absence. */
+function RoleList() {
+  const { roles, loading, failed, authEnabled } = useRoles()
+  if (loading) return <>…</>
+  if (failed) return <>Could not be read</>
+  if (!authEnabled) return <>Not assigned (test sign-in)</>
+  if (roles.length === 0) return <>None — ask VZI IT to assign you a role</>
+  return <span className="whitespace-normal">{roles.map(roleLabel).join(", ")}</span>
+}
+
 function ProfileContent({ user }: { user: MockUser }) {
+  const { roles } = useRoles()
   const [name, setName] = useState(user.name)
   const [email, setEmail] = useState(user.email)
   const [saved, setSaved] = useState(false)
   const dirty = name.trim() !== user.name || email.trim() !== user.email
+  // Signed in with Microsoft: name and e-mail are the account's, not editable here.
+  const fromMicrosoft = user.source === "entra"
 
   function save(event: React.FormEvent) {
     event.preventDefault()
@@ -112,8 +128,8 @@ function ProfileContent({ user }: { user: MockUser }) {
             <DetailRow icon={Mail} label="Email">
               {user.email || "Not set"}
             </DetailRow>
-            <DetailRow icon={ShieldCheck} label="Role">
-              Not assigned
+            <DetailRow icon={ShieldCheck} label={roles.length === 1 ? "Role" : "Roles"}>
+              <RoleList />
             </DetailRow>
             <DetailRow icon={CalendarDays} label="Member since">
               {formatWhen(user.createdAt)}
@@ -124,6 +140,15 @@ function ProfileContent({ user }: { user: MockUser }) {
           </dl>
         </section>
 
+        {fromMicrosoft ? (
+          <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
+            <h3 className="text-sm font-semibold text-foreground">Your Microsoft account</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You signed in with your VZI Microsoft account. Your name and email come from that account, and your
+              roles are assigned by VZI IT in Microsoft Entra ID — ask them for any change.
+            </p>
+          </section>
+        ) : (
         <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <h3 className="text-sm font-semibold text-foreground">Edit profile</h3>
           <p className="mt-1 text-sm text-muted-foreground">Update the name and email shown across the app.</p>
@@ -184,6 +209,7 @@ function ProfileContent({ user }: { user: MockUser }) {
             </div>
           </form>
         </section>
+        )}
       </div>
     </>
   )

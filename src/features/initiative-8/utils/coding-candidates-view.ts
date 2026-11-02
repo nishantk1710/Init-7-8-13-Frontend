@@ -144,3 +144,35 @@ export function matchesCandidateSearch(candidate: CodingCandidate, query: string
   if (candidate.material.materialCode.toLowerCase().includes(number)) return true
   return candidate.distinctTexts.some((text) => text.toLowerCase().includes(needle))
 }
+
+/** How old a screening may get before the page says so in amber. */
+export const SCREENING_STALE_AFTER_DAYS = 7
+
+/** The South African calendar day of a timestamp, as days since 1970. */
+function saDay(ms: number): number {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" })
+    .format(new Date(ms))
+    .split("-")
+    .map(Number)
+  return Date.UTC(y, m - 1, d) / 86_400_000
+}
+
+/**
+ * How long ago the AI last screened the list, plainly: "Screened 15 days
+ * ago", stale (amber on screen) after a week. "Last run 13 Oct 2026" read as
+ * current while new PO and PR text went unscreened (28-Oct-2026).
+ *
+ * Counted in South African calendar days. Undefined with no screening date.
+ */
+export function screenedAgo(
+  lastRun: string | undefined,
+  now: number,
+): { text: string; days: number; stale: boolean } | undefined {
+  if (!lastRun) return undefined
+  const at = Date.parse(lastRun)
+  if (Number.isNaN(at)) return undefined
+  const days = Math.max(0, saDay(now) - saDay(at))
+  const text =
+    days === 0 ? "Screened today" : days === 1 ? "Screened yesterday" : `Screened ${days.toLocaleString("en-US")} days ago`
+  return { text, days, stale: days > SCREENING_STALE_AFTER_DAYS }
+}

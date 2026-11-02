@@ -1,5 +1,6 @@
 import { CircleCheck, CircleHelp, TriangleAlert } from "lucide-react"
 
+import { InfoPopup, type InfoTone } from "@/components/shared/info-popup"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,6 +30,8 @@ export type ComplianceCheck = {
   label: string
   /** What this check is looking for, in a planner's words. */
   description: string
+  /** The (i) beside the label: what is counted, and what is not. */
+  info?: { summary: string; points: string[] }
 } & (
   | { state: "counted"; count: number; detail?: string }
   | { state: "blocked"; reason: string; dependency: string }
@@ -36,11 +39,39 @@ export type ComplianceCheck = {
 
 export function CompliancePanel({ checks }: { checks: ComplianceCheck[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-3">
       {checks.map((check) => (
         <CheckCard key={check.id} check={check} />
       ))}
     </div>
+  )
+}
+
+/**
+ * The card's edge: green once a check comes back clean, otherwise amber for a
+ * reasoned decision and red for an unanswered one. A blocked check has none.
+ */
+const EDGE_BY_ID: Record<string, string> = {
+  "advice-not-taken": "before:bg-warning",
+  abandoned: "before:bg-destructive",
+  "missing-session": "before:bg-destructive",
+}
+
+const INFO_TONE_BY_ID: Record<string, InfoTone> = {
+  "advice-not-taken": "warning",
+  abandoned: "danger",
+  "missing-session": "danger",
+}
+
+function CheckInfo({ check, info }: { check: ComplianceCheck; info: NonNullable<ComplianceCheck["info"]> }) {
+  return (
+    <InfoPopup title={check.label} description={info.summary} tone={INFO_TONE_BY_ID[check.id] ?? "info"}>
+      <ul className="list-disc space-y-1.5 pl-4 text-sm text-foreground marker:text-muted-foreground">
+        {info.points.map((point) => (
+          <li key={point}>{point}</li>
+        ))}
+      </ul>
+    </InfoPopup>
   )
 }
 
@@ -51,58 +82,47 @@ function CheckCard({ check }: { check: ComplianceCheck }) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-xl border p-4",
+        "relative flex flex-col gap-1 overflow-hidden rounded-xl border py-4 pr-4 pl-5",
         blocked
           ? // Dashed, muted, and no figure. It must not be mistakable for a
             // count of zero.
             "border-dashed border-border bg-transparent"
-          : "border-border bg-card"
+          : cn(
+              "border-border bg-card before:absolute before:inset-y-0 before:left-0 before:w-1",
+              clean ? "before:bg-success" : (EDGE_BY_ID[check.id] ?? "before:bg-action")
+            )
       )}
     >
-      <div className="flex items-center gap-1.5">
-        {blocked ? (
-          <CircleHelp className="size-3.5 text-muted-foreground" aria-hidden />
-        ) : clean ? (
-          <CircleCheck className="size-3.5 text-muted-foreground" aria-hidden />
-        ) : (
-          <TriangleAlert className="size-3.5 text-destructive" aria-hidden />
-        )}
-        <span className="text-[11px] font-medium tracking-[0.3px] text-muted-foreground uppercase">
-          {check.label}
-        </span>
-      </div>
-
       {check.state === "counted" ? (
         <>
-          <p
-            className={cn(
-              "text-2xl font-semibold tabular-nums",
-              clean ? "text-muted-foreground" : "text-foreground"
-            )}
-          >
-            {check.count}
+          <p className="text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
+            {check.count.toLocaleString()}
           </p>
-          {check.detail && (
-            <p className="text-[11px] text-muted-foreground">{check.detail}</p>
-          )}
+          <p className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+            {clean ? (
+              <CircleCheck className="size-4 text-success" aria-hidden />
+            ) : (
+              <TriangleAlert className="size-4 text-muted-foreground" aria-hidden />
+            )}
+            {check.label}
+            {check.info && <CheckInfo check={check} info={check.info} />}
+          </p>
+          <p className="text-sm text-muted-foreground">{check.description}</p>
+          {check.detail && <p className="text-xs text-muted-foreground">{check.detail}</p>}
         </>
       ) : (
         <>
           {/* Deliberately not a number, not a dash in the same typeface as a
               figure, and not "—". A word, so it cannot be skimmed as a count. */}
-          <p className="text-sm font-medium text-muted-foreground">
-            Cannot be checked
+          <p className="flex items-center gap-1.5 text-base font-semibold text-muted-foreground">
+            <CircleHelp className="size-4" aria-hidden />
+            {check.label}: cannot be checked
           </p>
-          <p className="text-[11px] text-muted-foreground">{check.reason}</p>
-          <p className="text-[11px] text-muted-foreground">
-            Blocked on: {check.dependency}
-          </p>
+          <p className="text-sm text-muted-foreground">{check.reason}</p>
+          <p className="text-xs text-muted-foreground">Blocked on: {check.dependency}</p>
+          <p className="text-sm text-muted-foreground">{check.description}</p>
         </>
       )}
-
-      <p className="mt-0.5 text-[11px] text-muted-foreground">
-        {check.description}
-      </p>
     </div>
   )
 }

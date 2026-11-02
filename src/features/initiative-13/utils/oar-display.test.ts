@@ -90,6 +90,7 @@ const entry: UtilisationLedgerEntry = {
   receivedQuantity: 2,
   issuedQuantity: null,
   openQuantity: 2,
+  orderedQuantity: null,
   firstGrDate: "2026-10-01",
   latestGrDate: "2026-10-05",
   firstGiDate: null,
@@ -101,6 +102,10 @@ const entry: UtilisationLedgerEntry = {
   dataSource: "SAP",
   attributionStatus: null,
   attributionEvidence: null,
+  issueMatch: null,
+  deliveryCount: 1,
+  nextPlannedIssueDate: null,
+  nextPlannedIssueQuantity: null,
 }
 
 describe("journeySteps", () => {

@@ -4,11 +4,15 @@ import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   ALL,
   NO_OVERVIEW_FILTERS,
+  declarationCounts,
   filterOverview,
+  openExceptionCounts,
+  openExceptionSummary,
   openLinesByVendor,
   overviewPdfTitle,
   repairStatusBuckets,
   stockByPlant,
+  stockLines,
   summariseOverview,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
@@ -26,6 +30,7 @@ import {
 function chain(overrides: Partial<RepairChain> = {}): RepairChain {
   return {
     id: "4500001052-1310",
+    lineKind: "PO",
     material: { materialId: "8000004665", materialCode: "8000004665", description: "Cylinder" },
     plant: { plantId: "1300", name: "Black Mountain Mining" },
     qtyUnderRepair: 1,
@@ -69,6 +74,99 @@ describe("stockByPlant", () => {
     const result = stockByPlant([universeRow({ stock: undefined }), universeRow({ stock: 0 })])
     expect(result.unknownRows).toBe(1)
     expect(result.plants).toEqual([{ plant: "Black Mountain Mining", stock: 0 }])
+  })
+
+  it("sums usable and damaged where the backend split them, and only there", () => {
+    const result = stockByPlant([
+      universeRow({ stock: 3, usable: 2, damaged: 1 }),
+      universeRow({ stock: 4, usable: 4, damaged: 0 }),
+      universeRow({ plantId: "1500", plantName: "Gamsberg", stock: 5 }),
+    ])
+    expect(result.plants).toEqual([
+      { plant: "Black Mountain Mining", stock: 7, usable: 6, damaged: 1 },
+      { plant: "Gamsberg", stock: 5 },
+    ])
+    expect(result.plants[1].usable).toBeUndefined()
+  })
+})
+
+describe("stockLines", () => {
+  const count = (n: number) => n.toLocaleString("en-US")
+
+  it("names the total per plant on a backend with no split", () => {
+    expect(stockLines([{ plant: "Gamsberg", stock: 572 }], count)).toEqual(["Gamsberg 572"])
+  })
+
+  it("names usable and damaged per plant when sent", () => {
+    expect(
+      stockLines(
+        [
+          { plant: "Black Mountain Mining", stock: 855, usable: 800, damaged: 55 },
+          { plant: "Gamsberg", stock: 572, usable: 572 },
+        ],
+        count,
+      ),
+    ).toEqual(["Black Mountain Mining: 800 usable · 55 damaged", "Gamsberg: 572 usable"])
+  })
+})
+
+describe("declarationCounts", () => {
+  it("counts only Required as waiting, and the Historical lines apart", () => {
+    // The card said 104 not declared while the queue said 0 waiting: it counted
+    // every line not Completed, Historical ones included.
+    const counts = declarationCounts([
+      chain({ declarationStatus: "Historical" }),
+      chain({ declarationStatus: "Historical" }),
+      chain({ declarationStatus: "Required" }),
+      chain({ declarationStatus: "Flagged" }),
+      chain({ declarationStatus: "Completed" }),
+    ])
+    expect(counts).toEqual({ required: 1, historical: 2, flagged: 1 })
+  })
+})
+
+describe("openExceptionCounts", () => {
+  const po = chain({ id: "4500001719-10" })
+  const otherPlant = chain({ id: "4500009999-10", plant: { plantId: "1500", name: "Gamsberg" } })
+  const pr = chain({ id: "PR-2000028756-10", lineKind: "PR", repairStatus: "PR Raised" })
+  const known = new Set([po.id, otherPlant.id, pr.id])
+  const items = [
+    { repairId: po.id, type: "OVERDUE_REPAIR", plantId: "1300" },
+    { repairId: otherPlant.id, type: "OVERDUE_REPAIR", plantId: "1500" },
+    { repairId: pr.id, type: "UNJUSTIFIED_ACQUISITION", plantId: "1300" },
+    // A part declared repairable with no repair PR since: on no line.
+    { repairId: undefined, type: "DECLARED_NO_REPAIR_PR", plantId: "1300" },
+    { repairId: "4500000001-10", type: "DECLARED_NO_REPAIR_PR", plantId: "1500" },
+  ]
+
+  it("counts every open item the queue lists, unfiltered", () => {
+    const counts = openExceptionCounts([po, otherPlant, pr], known, items, NO_OVERVIEW_FILTERS)
+    expect(counts.total).toBe(5)
+    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 2, UNJUSTIFIED_ACQUISITION: 1, DECLARED_NO_REPAIR_PR: 2 })
+  })
+
+  it("narrows items on a line by the slice, and items on no line by plant", () => {
+    const counts = openExceptionCounts([po, pr], known, items, { ...NO_OVERVIEW_FILTERS, plant: "1300" })
+    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 1, UNJUSTIFIED_ACQUISITION: 1, DECLARED_NO_REPAIR_PR: 1 })
+  })
+
+  it("leaves items on no line out under a vendor or criticality filter, which they cannot match", () => {
+    const counts = openExceptionCounts([po], known, items, { ...NO_OVERVIEW_FILTERS, vendor: "Some vendor" })
+    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 1 })
+  })
+})
+
+describe("openExceptionSummary", () => {
+  const count = (n: number) => n.toLocaleString("en-US")
+
+  it("names every open type with its count, most first", () => {
+    expect(
+      openExceptionSummary({ REPAIRED_AGAINST_ASSESSMENT: 1, OVERDUE_REPAIR: 104, DECLARED_NO_REPAIR_PR: 4 }, count),
+    ).toBe("104 overdue · 4 no repair PR · 1 against the assessment")
+  })
+
+  it("names a type this build does not know by the queue's label, and skips empty ones", () => {
+    expect(openExceptionSummary({ SOMETHING_NEW: 2, OVERDUE_REPAIR: 0 }, count)).toBe("2 something new")
   })
 })
 

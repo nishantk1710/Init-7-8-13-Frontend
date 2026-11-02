@@ -3,13 +3,13 @@ import Link from "next/link"
 import { connection } from "next/server"
 
 import { SessionLogTable } from "@/components/assistant/session-log-table"
+import { wentAheadSessionIds } from "@/lib/assistant/session-outcome"
 import { AssistantPageHeader } from "@/components/assistant/ai-visuals"
-import {
-  CompliancePanel,
-  type ComplianceCheck,
-} from "@/components/assistant/compliance-panel"
+import type { ComplianceCheck } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
 import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
+import { formatDay } from "@/lib/assistant/trace-format"
+import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -54,6 +54,9 @@ export default async function AssistantSessionsPage({
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
   let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
+  // Best-effort and in parallel: the I08 complete-flow switch (off on any
+  // failure), which decides the repairable cards and the Declared column.
+  const completeFlowLoad = loadCompleteFlowFromFeatures()
   // Best-effort: the log is the page; this count is one card on it.
   const compliance: SessionCompliance | null = await getSessionCompliance().catch(() => null)
   try {
@@ -67,25 +70,34 @@ export default async function AssistantSessionsPage({
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
+  const completeFlow = await completeFlowLoad
 
   const checks: ComplianceCheck[] = [
     {
       id: "advice-not-taken",
       label: "Went ahead anyway",
       description:
-        "Someone was told a repairable unit exists, or offered a smaller quantity, and proceeded regardless. Each one carries a recorded reason.",
+        "Told a usable unit exists, or offered a smaller quantity, and went ahead. Each one carries a recorded reason.",
+      info: {
+        summary: "Requests where the assistant gave advice, the requester chose not to follow it, and gave a reason.",
+        points: [
+          "Repairable available: the assistant said a repairable unit of the part exists, and the requester still asked for a new one.",
+          "Quantity kept: the assistant suggested a smaller quantity, and the requester kept their own.",
+          "Each one is saved with a reason category and the requester's own words.",
+          "Going ahead is allowed; this card makes those decisions visible. Pick \"Went ahead\" in the Outcome filter below to list them.",
+        ],
+      },
       state: "counted",
       count:
         justifications?.items.filter(
           (j) => j.kind === "NEW_ACQUISITION" || j.kind === "QUANTITY_OVERRIDE"
         ).length ?? 0,
-      detail: "Recorded at the moment of the decision.",
     },
     {
       id: "abandoned",
       label: "Advice given, not acted on",
       description:
-        "Sessions opened and left without an answer. Both FRSs count these, which is why the log lists them rather than hiding unfinished conversations.",
+        "Sessions opened and left without an answer. They are listed, not hidden: both initiatives count them.",
       state: "counted",
       count: sessions?.items.filter((s) => s.outcome === "ABANDONED").length ?? 0,
     },
@@ -93,13 +105,22 @@ export default async function AssistantSessionsPage({
       ? {
           id: "missing-session",
           label: "Reservations with no session",
-          description: `OAR reservations required since ${compliance.goLiveDate} whose item text (SGTXT) carries no valid session ID.`,
+          description: `OAR reservations needed since ${formatDay(compliance.goLiveDate)} whose text carries no valid session reference.`,
+          info: {
+            summary: "OAR reservations saved in SAP without the assistant's session or request ID.",
+            points: [
+              `Which reservations: OAR items whose requirement date is on or after ${formatDay(compliance.goLiveDate)}, when the assistant went live.`,
+              "What is read: the reservation's item text in SAP, where the requester types the ID the assistant gave them.",
+              "Counted here: no ID at all, or an ID that is mistyped or belongs to a different material or plant.",
+              "Not counted: an ID for a session that captured no plan. Those are listed separately in the line below the number.",
+            ],
+          },
           state: "counted",
           count: compliance.missingSession + compliance.invalidSession,
           detail:
             `${compliance.covered} of ${compliance.reservations} carry a session with a plan; ` +
-            `${compliance.invalidSession} carry an ID that is mistyped or not for that part; ` +
-            `${compliance.sessionWithoutPlan} name a session that captured no plan.`,
+            `${compliance.invalidSession} carry a reference that is mistyped or for another part; ` +
+            `${compliance.sessionWithoutPlan} name a session with no plan.`,
         }
       : {
           id: "missing-session",
@@ -114,9 +135,10 @@ export default async function AssistantSessionsPage({
   ]
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="flex flex-col gap-5">
+    <div className="nav-blue-scope min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <AssistantPageHeader
+          plain
           title="Assistant sessions"
           description={
             material || plant
@@ -138,14 +160,16 @@ export default async function AssistantSessionsPage({
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
           </div>
         ) : (
-          <>
-            <CompliancePanel checks={checks} />
-            <SessionLogTable
-              sessions={sessions.items}
-              note={sessions.note}
-              total={sessions.total}
-            />
-          </>
+          // The cards live in the table: with Flow set to Repairable Spares they
+          // become the repairable ones (complete flow on), and that choice is
+          // the table's state.
+          <SessionLogTable
+            sessions={sessions.items}
+            total={sessions.total}
+            checks={checks}
+            wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
+            completeFlow={completeFlow}
+          />
         )}
       </div>
     </div>

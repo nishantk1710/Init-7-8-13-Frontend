@@ -30,21 +30,21 @@ function plain(value: string | null): string {
 /** One sentence per line for the summary: what was decided. */
 export function outcomeSentence(line: ApiRequestLine): string {
   if (line.flow === "i08") {
-    if (line.decision === "use_existing") return "Use the existing unit -- no new one reserved."
+    if (line.decision === "use_existing") return "Use the existing unit: no new one reserved."
     return line.justification
-      ? "New unit, although one exists -- justified."
-      : "New unit -- none exists in stock or on repair."
+      ? "New unit although one exists, justified."
+      : "New unit: none exists in stock or on repair."
   }
   if (line.decision === "not_needed") return "Not needed after the assessment."
   const quantity = plain(line.plannedQuantity)
-  if (line.suggestedQuantity === null) return `Procure ${quantity} -- no suggestion possible, justified.`
+  if (line.suggestedQuantity === null) return `Procure ${quantity}: no suggestion possible, justified.`
   const suggested = Number(line.suggestedQuantity)
   const planned = Number(line.plannedQuantity)
-  if (planned === suggested) return `Procure ${quantity} -- the suggested quantity.`
-  if (planned < suggested) return `Procure ${quantity} -- below the suggested ${plain(line.suggestedQuantity)}.`
+  if (planned === suggested) return `Procure ${quantity}: the suggested quantity.`
+  if (planned < suggested) return `Procure ${quantity}: below the suggested ${plain(line.suggestedQuantity)}.`
   return suggested === 0
-    ? `Procure ${quantity} although stock covers the year -- justified.`
-    : `Procure ${quantity} -- above the suggested ${plain(line.suggestedQuantity)}, justified.`
+    ? `Procure ${quantity} although stock covers the year, justified.`
+    : `Procure ${quantity}: above the suggested ${plain(line.suggestedQuantity)}, justified.`
 }
 
 /** A department as shown: `10100 · FINANCE-COMMERCIAL DEPARTMENT`, or the code

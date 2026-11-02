@@ -17,11 +17,12 @@
 export const SESSION_COOKIE = "spares-user"
 
 /** Pages a visitor can open without signing in. */
-export const PUBLIC_PATHS = ["/login", "/signup"] as const
+export const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password"] as const
 
 export const DEFAULT_LANDING = "/home"
 
-export type AccountSource = "uat" | "signup"
+/** "entra": the user signed in with Microsoft (hooks/use-current-user.ts), not here. */
+export type AccountSource = "uat" | "signup" | "entra"
 
 export interface MockUser {
   username: string
@@ -147,15 +148,20 @@ export type AuthResult =
   | { ok: true; user: MockUser }
   | { ok: false; reason: "unknown-user" | "taken" | "invalid"; error: string }
 
-/** Any password is accepted; only the username has to exist. */
-export function signIn(username: string): AuthResult {
+/**
+ * Any password is accepted; only the username has to exist. `remember` ("Keep
+ * me signed in") keeps the session for thirty days; without it, the session
+ * ends when the browser closes.
+ */
+export function signIn(username: string, { remember = true }: { remember?: boolean } = {}): AuthResult {
   const user = findUser(username)
   if (!user) {
     return { ok: false, reason: "unknown-user", error: "We couldn't find an account with that username." }
   }
 
   const secure = window.location.protocol === "https:" ? "; secure" : ""
-  document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(user.username)}; path=/; max-age=${THIRTY_DAYS}; samesite=lax${secure}`
+  const lifetime = remember ? `; max-age=${THIRTY_DAYS}` : ""
+  document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(user.username)}; path=/${lifetime}; samesite=lax${secure}`
 
   const now = new Date().toISOString()
   const stored = readStoredAccounts()

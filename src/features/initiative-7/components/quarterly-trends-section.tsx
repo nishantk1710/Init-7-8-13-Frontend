@@ -2,36 +2,70 @@
 
 // Monthly trends and the quarter-end position of a generated quarterly report, from its saved KPI snapshots.
 //
-// A month is what was measured at the time: one with no snapshot is a gap in the line and a "No snapshot" row, never a
-// zero and never rebuilt from today's data. A stockout reading that was too old for its month is not a point. The
-// quarter-end position is the last month's snapshot, shown only when it is valid; if it is not, the card says why and
+// A month is what was measured at the time: one with no snapshot is a gap in the line, with a line under the chart naming
+// it, never a zero and never rebuilt from today's data. A stockout reading that was too old for its month is not a point.
+// The quarter-end position is the last month's snapshot, shown only when it is valid; if it is not, the card says why and
 // which snapshot is the latest available -- it never shows an earlier month as the quarter-end.
 //
-// Working capital here is an *estimate* of what the recommendations would change, and the change between months is the
-// movement in that estimate. Neither is a realised saving, and the section says so.
+// Working capital here is an *estimate* of what the recommendations would change, not a realised saving, and each card
+// says so behind its (i), with the report's own notes on how the months were measured.
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts"
 
 import { ChartCard } from "@/components/shared/chart-card"
-import { StatusBadge } from "@/components/shared/status-badge"
+import { InfoPopup, type InfoTone } from "@/components/shared/info-popup"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn, formatCount, formatIsoDateDMY } from "@/lib/utils"
+import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterTrends } from "@/features/initiative-7/types/api"
 import {
+  compactMoney,
   hasPoints,
-  millions,
-  monthBasisLabel,
   num,
+  seriesGaps,
   trendPoints,
   type TrendPoint,
 } from "@/features/initiative-7/utils/quarterly-management"
 
 type SeriesKey = "stockout" | "excessOpportunity" | "workingCapital"
 
-const SERIES: { key: SeriesKey; title: string; subtitle: string; color: string; money: boolean }[] = [
-  { key: "stockout", title: "At stockout risk", subtitle: "Material-plants, as of each month", color: "var(--destructive)", money: false },
-  { key: "excessOpportunity", title: "Excess inventory opportunity", subtitle: "Estimated value above the recommended maximum", color: "var(--chart-1)", money: true },
-  { key: "workingCapital", title: "Working capital impact", subtitle: "Estimate if recommended reorder points were adopted", color: "var(--chart-3)", money: true },
+const SERIES: {
+  key: SeriesKey
+  title: string
+  subtitle: string
+  /** What the figure is, said once, behind the card's (i). */
+  about: string
+  color: string
+  tone: InfoTone
+  money: boolean
+}[] = [
+  {
+    key: "stockout",
+    title: "At stockout risk",
+    subtitle: "Materials at risk each month",
+    about: "Materials whose stock was below what their lead time needs, as measured at the end of each month.",
+    color: "var(--destructive)",
+    tone: "danger",
+    money: false,
+  },
+  {
+    key: "excessOpportunity",
+    title: "Excess inventory opportunity",
+    subtitle: "Stock above the recommended maximum",
+    about: "Estimated value of stock above the recommended maximum at the end of each month. An estimate, not a saving.",
+    color: "var(--chart-1)",
+    tone: "info",
+    money: true,
+  },
+  {
+    key: "workingCapital",
+    title: "Working capital impact",
+    subtitle: "Cash freed (+) or tied up (−)",
+    about:
+      "Estimated cash freed (+) or tied up (−) if every recommended reorder point were adopted, at the end of each month. An estimate, not a realised saving.",
+    color: "var(--chart-3)",
+    tone: "success",
+    money: true,
+  },
 ]
 
 function TrendTooltip({ active, payload, label, money, currency }: TooltipContentProps & { money: boolean; currency: string | null }) {
@@ -41,40 +75,60 @@ function TrendTooltip({ active, payload, label, money, currency }: TooltipConten
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="font-medium text-foreground">{label}</div>
       <div className="mt-1 text-muted-foreground">
-        {money ? millions(value, currency, true) : formatCount(Math.round(value))}
+        {money ? compactMoney(value, currency, true) : formatCount(Math.round(value))}
       </div>
     </div>
   )
 }
 
-function MiniTrend({
+/** One measure over the quarter's months, as a card of the Overview's own kind: a title, one line, the chart with each
+ * month's value on its point (so there is no table to read), and an (i) for the detail. A month with no figure is a gap in
+ * the line -- never a zero -- and the card says which, in one line under the chart. */
+function TrendCard({
+  trends,
   points,
   series,
   currency,
 }: {
+  trends: ApiQuarterTrends
   points: TrendPoint[]
   series: (typeof SERIES)[number]
   currency: string | null
 }) {
   const drawable = hasPoints(points, series.key)
+  const gaps = seriesGaps(points, series.key)
+  const show = (value: number) =>
+    series.money ? compactMoney(value, currency, series.key === "workingCapital") : formatCount(Math.round(value))
+  // Why a month has no figure, and what the report says about how it was measured: for the (i), not the card.
+  const notes = [...trends.months.filter((m) => m.note).map((m) => `${m.label}: ${m.note}`), ...trends.notes]
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border p-3">
-      <div className="text-sm font-medium text-foreground">{series.title}</div>
-      <div className="text-[11px] text-muted-foreground">{series.subtitle}</div>
+    <ChartCard
+      title={series.title}
+      subtitle={series.subtitle}
+      span={4}
+      info={
+        <InfoPopup title={series.title} description={series.about} tone={series.tone}>
+          {notes.length > 0 ? (
+            <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm text-muted-foreground">
+              {notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Every month of the quarter has a saved snapshot.</p>
+          )}
+        </InfoPopup>
+      }
+      footnote={drawable && gaps.length > 0 ? `No figure for ${gaps.join(", ")}.` : undefined}
+    >
       {drawable ? (
-        <div className="mt-2 h-[140px] w-full">
+        <div className="h-[180px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={points} margin={{ top: 22, right: 24, left: 24, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="var(--border)" />
               <XAxis dataKey="label" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={11} />
-              <YAxis
-                stroke="var(--muted-foreground)"
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                width={48}
-                tickFormatter={(v: number) => (series.money ? `${(v / 1_000_000).toFixed(0)}M` : formatCount(Math.round(v)))}
-              />
+              {/* The values are on the points, so the axis only sets the scale. */}
+              <YAxis hide domain={series.money ? ["auto", "auto"] : [0, "auto"]} />
               <Tooltip
                 cursor={{ stroke: "var(--border)" }}
                 content={(props: TooltipContentProps) => <TrendTooltip {...props} money={series.money} currency={currency} />}
@@ -87,116 +141,51 @@ function MiniTrend({
                 strokeWidth={2}
                 connectNulls={false}
                 dot={{ r: 3, strokeWidth: 2, stroke: "var(--card)", fill: series.color }}
+                label={{
+                  position: "top",
+                  fontSize: 11,
+                  fill: "var(--foreground)",
+                  formatter: (value: unknown) => (typeof value === "number" ? show(value) : ""),
+                }}
                 isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="mt-2 flex h-[140px] items-center justify-center text-center text-xs text-muted-foreground">
+        <div className="flex h-[180px] items-center justify-center text-center text-xs text-muted-foreground">
           No month has a measured value yet.
         </div>
       )}
-    </div>
-  )
-}
-
-const STATE_TONE = { FINAL: "success", OPEN: "warning", MISSING: "default" } as const
-
-export function MonthlyTrends({ trends }: { trends: ApiQuarterTrends }) {
-  const points = trendPoints(trends)
-  const currency = trends.months.find((m) => m.currency)?.currency ?? null
-  return (
-    <ChartCard
-      title="Monthly trends"
-      subtitle="What was measured at the time, from saved monthly snapshots. A month with no snapshot is blank, not zero."
-      span={12}
-    >
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        {SERIES.map((series) => (
-          <MiniTrend key={series.key} points={points} series={series} currency={currency} />
-        ))}
-      </div>
-
-      <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead>Month</TableHead>
-              <TableHead>Measured</TableHead>
-              <TableHead className="text-right">At stockout risk</TableHead>
-              <TableHead className="text-right">Excess opportunity</TableHead>
-              <TableHead className="text-right">Working capital estimate</TableHead>
-              <TableHead className="text-right">Change from last month</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {trends.months.map((m) => (
-              <TableRow key={m.month}>
-                <TableCell>
-                  <div className="font-medium text-foreground">{m.label}</div>
-                  <StatusBadge tone={STATE_TONE[m.state]}>{monthBasisLabel(m)}</StatusBadge>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {m.measured_on ? formatIsoDateDMY(m.measured_on) : "—"}
-                  {m.revision && m.revision > 1 ? ` · revision ${m.revision}` : ""}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {m.stockout_at_risk === null ? <span className="text-muted-foreground">—</span> : formatCount(m.stockout_at_risk)}
-                  {m.stockout_evaluated !== null && (
-                    <div className="text-[11px] text-muted-foreground">of {formatCount(m.stockout_evaluated)} judged</div>
-                  )}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{millions(num(m.excess_opportunity), m.currency)}</TableCell>
-                <TableCell className="text-right tabular-nums">{millions(num(m.net_rop_value_impact), m.currency, true)}</TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right tabular-nums",
-                    num(m.net_rop_change_from_previous) === null
-                      ? "text-muted-foreground"
-                      : (num(m.net_rop_change_from_previous) ?? 0) < 0
-                        ? "text-warning"
-                        : "text-success",
-                  )}
-                >
-                  {millions(num(m.net_rop_change_from_previous), m.currency, true)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <ul className="mt-3 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-muted-foreground">
-        {trends.months
-          .filter((m) => m.note)
-          .map((m) => (
-            <li key={m.month}>
-              <span className="font-medium text-foreground">{m.label}:</span> {m.note}
-            </li>
-          ))}
-        {trends.notes.map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-        <li>
-          Counts are positions on a date: each month shows its own, and they are never added into a quarter total. A negative
-          change means more cash tied up than the month before.
-        </li>
-      </ul>
     </ChartCard>
   )
 }
 
-export function QuarterEndCard({ trends }: { trends: ApiQuarterTrends }) {
+/** The three monthly measures, each its own card in the report's grid -- the way the Overview lays out its charts. */
+export function MonthlyTrends({ trends }: { trends: ApiQuarterTrends }) {
+  const points = trendPoints(trends)
+  const currency = trends.months.find((m) => m.currency)?.currency ?? null
+  return (
+    <>
+      {SERIES.map((series) => (
+        <TrendCard key={series.key} trends={trends} points={points} series={series} currency={currency} />
+      ))}
+    </>
+  )
+}
+
+/** The closing position of the period: the last month's saved snapshot. For a monthly report that month is the whole
+ * period, so ``period`` is ``"month"`` and the card says "Month-end"; a quarterly report says "Quarter-end". */
+export function QuarterEndCard({ trends, period = "quarter" }: { trends: ApiQuarterTrends; period?: "quarter" | "month" }) {
   const end = trends.quarter_end
   const available = end.status === "AVAILABLE"
   return (
     <ChartCard
-      title="Quarter-end position"
+      title={period === "month" ? "Month-end position" : "Quarter-end position"}
       subtitle={
         available && end.measured_on
           ? `The saved ${end.label} month-end snapshot, measured ${formatIsoDateDMY(end.measured_on)}.`
-          : "The last month's saved snapshot, shown only when it is valid for the end of the quarter."
+          : `The last month's saved snapshot, shown only when it is valid for the end of the ${period}.`
       }
       span={12}
     >
@@ -233,7 +222,7 @@ export function QuarterEndCard({ trends }: { trends: ApiQuarterTrends }) {
           {end.latest_available_label && end.latest_available_measured_on && (
             <p className="mx-auto max-w-xl text-xs leading-relaxed text-muted-foreground">
               The latest snapshot available is {end.latest_available_label}, measured {formatIsoDateDMY(end.latest_available_measured_on)}.
-              It is not shown as the quarter-end.
+              It is not shown as the {period}-end.
             </p>
           )}
         </div>

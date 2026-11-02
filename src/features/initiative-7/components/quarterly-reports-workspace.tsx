@@ -24,6 +24,7 @@ import {
   Boxes,
   Clock,
   FileBarChart,
+  FileSpreadsheet,
   Loader2,
   RefreshCw,
   TrendingUp,
@@ -60,7 +61,7 @@ import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quar
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
-import { generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
 import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
 import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
@@ -69,7 +70,15 @@ import type { QuarterlyReportListRow } from "@/features/initiative-7/services/i7
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
-import { landingQuarters, SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
+import { SNAPSHOT_CAPTION, SNAPSHOT_QUARTER } from "@/features/initiative-7/utils/quarterly-snapshot"
+import {
+  REPORT_KINDS,
+  landingReports,
+  reportKindOf,
+  reportNoun,
+  type ReportKind,
+} from "@/features/initiative-7/utils/report-period"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 /** Every quarter this UI lets someone generate a report for -- current + the
  * three previous, in reverse chronological order. There is no backend
@@ -180,6 +189,9 @@ export function QuarterlyReportsWorkspace() {
   const { data: existingReports, refetch: refetchReportsList } = useQuarterlyReports(50)
   const [selectedQuarter, setSelectedQuarter] = useState<string>(quarters[0] ?? "")
   const [tab, setTab] = useState<GenerationTab>("landing")
+  // Which list the landing grid shows. Opening a report sets it to that report's kind, so "← All reports" returns to
+  // the list the report came from.
+  const [kind, setKind] = useState<ReportKind>("quarterly")
   const [materialsPage, setMaterialsPage] = useState(1)
   // Q2 2026 is a fixed snapshot with its own view; there is no generated report to fetch for it.
   const isSnapshot = tab === "report" && selectedQuarter === SNAPSHOT_QUARTER
@@ -188,6 +200,8 @@ export function QuarterlyReportsWorkspace() {
   const { summary: adoptionSummary } = useLiveAdoptionSummary()
   const [pdfState, setPdfState] = useState<"idle" | "preparing">("idle")
   const [pdfError, setPdfError] = useState<string | null>(null)
+  const [excelState, setExcelState] = useState<"idle" | "preparing">("idle")
+  const [excelError, setExcelError] = useState<string | null>(null)
   // Set when the user asks to print; cleared once the dialog has been
   // opened. The effect below waits on it rather than printing inline, so
   // the 50-row fetch and the print view's own render both land first.
@@ -207,7 +221,8 @@ export function QuarterlyReportsWorkspace() {
     setGeneratingLatest(true)
     setGenerateLatestError(null)
     try {
-      const generated = await generateQuarterlyReport()
+      // "Latest closed" means the latest closed month or quarter, whichever toggle the landing grid is on.
+      const generated = await generateQuarterlyReport(undefined, kind === "monthly" ? "month" : undefined)
       refetchReportsList()
       openReport(generated.metadata.quarter)
     } catch (err) {
@@ -238,7 +253,33 @@ export function QuarterlyReportsWorkspace() {
     setPrintRequested(true)
   }
 
+  /** Download Excel -- the saved report's workbook from GET /reports/quarterly/{quarter}/export: the KPI cards, the
+   * monthly activity and the raw detail. Unlike the PDF it needs no print view, so it is one request and a download.
+   * The button is disabled while the request is out, so a double click cannot download it twice. */
+  async function handleDownloadExcel() {
+    if (!report || excelState === "preparing") return
+    setExcelError(null)
+    setExcelState("preparing")
+    try {
+      const { blobUrl, filename } = await fetchQuarterlyReportExportBlob(selectedQuarter)
+      const link = document.createElement("a")
+      link.href = blobUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      setExcelError(
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "The Excel download failed.",
+      )
+    } finally {
+      setExcelState("idle")
+    }
+  }
+
   function openReport(quarter: string) {
+    setKind(reportKindOf(quarter))
     setSelectedQuarter(quarter)
     setTab("report")
     setMaterialsPage(1)
@@ -385,14 +426,31 @@ export function QuarterlyReportsWorkspace() {
   return (
     <div className="flex flex-col gap-4">
       {tab === "landing" && (
-        <QuarterlyLandingGrid
-          quarters={landingQuarters((existingReports ?? []).map((r) => r.quarter))}
-          existingReports={existingReports ?? []}
-          onView={openReport}
-          onGenerateLatest={handleGenerateLatest}
-          generating={generatingLatest}
-          generateError={generateLatestError}
-        />
+        <>
+          {/* The Action Center's toggle: the same blue bordered track, one report kind at a time. */}
+          <Tabs value={kind} onValueChange={(v) => setKind(v as ReportKind)}>
+            <TabsList className="w-full max-w-sm border-2 border-action/40 bg-card p-1 shadow-lg ring-0 group-data-horizontal/tabs:h-11">
+              {REPORT_KINDS.map((k) => (
+                <TabsTrigger
+                  key={k.id}
+                  value={k.id}
+                  className="px-4 font-semibold text-foreground/70 duration-300 ease-out data-active:border-action data-active:bg-background data-active:text-foreground data-active:shadow-md dark:data-active:border-action dark:data-active:bg-background dark:data-active:text-foreground"
+                >
+                  {k.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <QuarterlyLandingGrid
+            kind={kind}
+            quarters={landingReports(kind, (existingReports ?? []).map((r) => r.quarter))}
+            existingReports={existingReports ?? []}
+            onView={openReport}
+            onGenerateLatest={handleGenerateLatest}
+            generating={generatingLatest}
+            generateError={generateLatestError}
+          />
+        </>
       )}
 
       {isSnapshot && <QuarterlySnapshotReport onBack={() => setTab("landing")} />}
@@ -402,7 +460,7 @@ export function QuarterlyReportsWorkspace() {
           {/* --- Controls -------------------------------------------------- */}
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
             <Button size="sm" variant="ghost" onClick={() => setTab("landing")}>
-              ← All quarters
+              ← All reports
             </Button>
             <span className="text-sm font-medium text-foreground">{selectedQuarter}</span>
 
@@ -429,6 +487,22 @@ export function QuarterlyReportsWorkspace() {
               </Button>
               <Button
                 size="sm"
+                variant="outline"
+                className="h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
+                onClick={handleDownloadExcel}
+                disabled={!report || excelState === "preparing"}
+              >
+                {excelState === "preparing" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="size-3.5" />
+                )}
+                {excelState === "preparing" ? "Preparing Excel…" : "Download Excel"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
                 onClick={handleDownloadPdf}
                 disabled={!report || pdfState === "preparing"}
               >
@@ -445,6 +519,11 @@ export function QuarterlyReportsWorkspace() {
           {pdfError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {pdfError}
+            </div>
+          )}
+          {excelError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {excelError}
             </div>
           )}
 
@@ -469,7 +548,7 @@ export function QuarterlyReportsWorkspace() {
               {/* --- KPI row: real metrics + honestly-undefined ones --------- */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <UndefinedKpiCard
-                  label="Critical stockout risk"
+                  label="High Stockout Risk"
                   icon={<AlertTriangle className="size-4" />}
                   metric={report.management_summary.critical_stockout_risk}
                 />
@@ -760,6 +839,7 @@ function GenerateReportButton({
  * the backend resolves itself -- see period.latest_closed_quarter) sits
  * alongside the automatic path; it does not replace it. */
 function QuarterlyLandingGrid({
+  kind,
   quarters,
   existingReports,
   onView,
@@ -767,6 +847,7 @@ function QuarterlyLandingGrid({
   generating,
   generateError,
 }: {
+  kind: ReportKind
   quarters: string[]
   existingReports: QuarterlyReportListRow[]
   onView: (quarter: string) => void
@@ -775,18 +856,21 @@ function QuarterlyLandingGrid({
   generateError: string | null
 }) {
   const byQuarter = new Map(existingReports.map((r) => [r.quarter, r]))
+  // "month" or "quarter": the grid's words and its generate button follow the toggle.
+  const noun = reportNoun(kind).singular
+  const generateLabel = `Generate latest closed ${noun}`
 
   if (quarters.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
         <FileBarChart className="mx-auto size-10 text-muted-foreground" />
-        <div className="mt-3 text-base font-medium text-foreground">No quarterly reports yet</div>
+        <div className="mt-3 text-base font-medium text-foreground">No {kind} reports yet</div>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Quarterly reports are generated automatically after each quarter closes. You can also generate the
-          latest closed quarter manually.
+          {kind === "monthly" ? "Monthly" : "Quarterly"} reports are generated automatically after each {noun}{" "}
+          {kind === "monthly" ? "ends" : "closes"}. You can also generate the latest closed {noun} manually.
         </p>
         <div className="mt-4 flex justify-center">
-          <GenerateReportButton label="Generate latest closed quarter" generating={generating} onClick={onGenerateLatest} />
+          <GenerateReportButton label={generateLabel} generating={generating} onClick={onGenerateLatest} />
         </div>
         {generateError && <p className="mt-2 text-xs text-destructive">{generateError}</p>}
       </div>
@@ -797,10 +881,10 @@ function QuarterlyLandingGrid({
     <div>
       <div className="mb-3.5 flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Reports are generated automatically after each quarter closes. You can also generate the latest closed
-          quarter manually.
+          Reports are generated automatically after each {noun} {kind === "monthly" ? "ends" : "closes"}. You can also
+          generate the latest closed {noun} manually.
         </p>
-        <GenerateReportButton label="Generate latest closed quarter" generating={generating} onClick={onGenerateLatest} />
+        <GenerateReportButton label={generateLabel} generating={generating} onClick={onGenerateLatest} />
       </div>
       {generateError && <p className="mb-3 text-xs text-destructive">{generateError}</p>}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -850,8 +934,9 @@ function EmptyReportState({
       <FileBarChart className="mx-auto size-10 text-muted-foreground" />
       <div className="mt-3 text-base font-medium text-foreground">No report generated for {quarter}</div>
       <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-        Quarterly reports are generated automatically after each quarter closes. You can also generate the latest
-        closed quarter manually.
+        {reportKindOf(quarter) === "monthly"
+          ? "Monthly reports are generated automatically after each month ends. You can also generate this month's report manually."
+          : "Quarterly reports are generated automatically after each quarter closes. You can also generate the latest closed quarter manually."}
       </p>
       <div className="mt-4 flex justify-center">
         <GenerateReportButton label={`Generate ${quarter}`} generating={generating} onClick={onGenerate} />
