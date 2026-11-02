@@ -10,6 +10,7 @@ import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
 import { deleteDraft, getDraft, saveDraft, type RequestDraft } from "@/components/assistant/request/request-drafts"
 import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts"
+import { UploadMaterials } from "@/components/assistant/request/upload-materials"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
@@ -45,6 +46,7 @@ import {
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
+import type { UploadContext, UploadPlan } from "@/lib/assistant/request/upload"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
 import { formatInstant } from "@/lib/assistant/trace-format"
@@ -223,6 +225,54 @@ export function RequestBuilder({
         description: error instanceof Error ? error.message : "The backend did not answer.",
       })
     }
+  }
+
+  /**
+   * A checked upload (UAT, 22 Oct): the file sets the plant and department, and
+   * its materials are previewed UPLOAD_PREVIEW_CHUNK at a time -- rows appear as
+   * each group answers rather than after one long wait. The file was already
+   * held to the cap, the plant and the rows on screen.
+   */
+  async function addMany(plan: UploadPlan) {
+    setPicked({ plant: plan.plant, code: plan.department })
+    const pending = plan.materials.map((materialId) => pendingLine(materialId, plan.plant, null))
+    setRows((current) => [...current, ...pending])
+    for (let start = 0; start < pending.length; start += UPLOAD_PREVIEW_CHUNK) {
+      const chunk = pending.slice(start, start + UPLOAD_PREVIEW_CHUNK)
+      try {
+        const response = await previewRequest(chunk.map((p) => ({ materialId: p.materialId, plant: p.plant })))
+        setMaxLines(response.maxLines)
+        if (response.reasonCategories?.length) setReasons(response.reasonCategories)
+        if (response.faultCategories?.length) setFaultCategories(response.faultCategories)
+        if (response.recommendations?.length) setRecommendations(response.recommendations)
+        const byKey = new Map(chunk.map((p, i) => [p.key, response.lines[i]]))
+        setRows((current) =>
+          current.map((row) => {
+            const preview = byKey.get(row.key)
+            return preview ? lineFromPreview(preview, row.key) : row
+          })
+        )
+      } catch (error) {
+        const unchecked = new Set(pending.slice(start).map((p) => p.key))
+        setRows((current) => current.filter((row) => !unchecked.has(row.key)))
+        if (isNotEnabled(error)) {
+          setNotEnabled(true)
+          return
+        }
+        toast.error(`Checked ${start} of ${pending.length} materials`, {
+          description: `${error instanceof Error ? error.message : "The backend did not answer."} The rest were not added: upload the file again to add them.`,
+        })
+        return
+      }
+    }
+    toast.success(`${pending.length} material${pending.length === 1 ? "" : "s"} added from the file`)
+  }
+
+  const uploadContext: UploadContext = {
+    maxLines,
+    requestPlant,
+    requestDepartment: department || null,
+    existing: rows,
   }
 
   /** Fill the screen from a re-checked draft, header and lines together. */
@@ -458,11 +508,24 @@ export function RequestBuilder({
         </p>
       </section>
 
-      <AddMaterials rows={rows} requestPlant={requestPlant} maxLines={maxLines} onAdd={add} />
+      <AddMaterials
+        rows={rows}
+        requestPlant={requestPlant}
+        maxLines={maxLines}
+        onAdd={add}
+        upload={
+          <UploadMaterials
+            context={uploadContext}
+            disabled={pendingCount > 0 || rows.length >= maxLines}
+            onConfirm={(plan) => void addMany(plan)}
+          />
+        }
+      />
 
       {rows.length === 0 && (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          Add materials above. Each one is checked and goes to the right table automatically.
+          Add materials above, one by one or from the Excel format. Each one is checked and goes to the right table
+          automatically.
         </div>
       )}
 
@@ -726,17 +789,23 @@ function loadDepartments(plant: string) {
 
 const SEARCH_DEBOUNCE_MS = 250
 
+/** Materials per preview call during an upload: about 0.75 s each on non-prod. */
+const UPLOAD_PREVIEW_CHUNK = 5
+
 function AddMaterials({
   rows,
   requestPlant,
   maxLines,
   onAdd,
+  upload,
 }: {
   rows: DraftLine[]
   /** Once set, only this plant's materials can be added. */
   requestPlant: string | null
   maxLines: number
   onAdd: (picked: Picked) => void
+  /** "Upload Excel" and "Download Excel format", above the search. */
+  upload: React.ReactNode
 }) {
   const [query, setQuery] = useState("")
   const [typedPlant, setTypedPlant] = useState<string>(REQUEST_PLANTS[0])
@@ -781,6 +850,7 @@ function AddMaterials({
           : "The first material you add sets the request's plant."}{" "}
         {full && <span className="text-warning">This request is full ({maxLines} materials).</span>}
       </p>
+      {upload}
       <div className="relative flex flex-col gap-1.5">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
