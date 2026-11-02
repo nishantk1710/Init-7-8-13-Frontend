@@ -9,9 +9,10 @@
  * {@link isNotEnabled} tells that apart from a request that does not exist.
  */
 
-import { ApiError, apiFetch, apiPost } from "@/lib/api/client"
+import { ApiError, apiFetch, apiFetchBlob, apiPost, apiPostForm } from "@/lib/api/client"
 import type { ApiDepartment, ApiLinkedReservation, ApiMaterialMatch } from "@/lib/api/assistant"
 import { listDepartments, searchMaterials } from "@/lib/api/assistant"
+import { saveBlob } from "@/lib/download-file"
 
 // --- preview ------------------------------------------------------------------
 
@@ -185,6 +186,29 @@ export function conflictDetail(error: unknown): ConflictDetail | null {
   return { message: raw?.message ?? error.detailText(), changed: Array.isArray(raw?.changed) ? raw.changed : [] }
 }
 
+/**
+ * `POST /assistant/requests/upload`: the filled-in template, read and checked
+ * by the backend. Nothing is stored; each material is then previewed as one
+ * added by hand.
+ */
+export type ApiUploadResult = {
+  plant: string
+  department: string
+  departmentName: string | null
+  /** In file order, duplicates removed. */
+  materials: string[]
+  rowCount: number
+  duplicates: string[]
+  maxLines: number
+}
+
+/** A file the backend refused: every problem in it, so it is fixed in one go. */
+export function uploadErrors(error: unknown): string[] | null {
+  if (!(error instanceof ApiError) || error.status !== 422) return null
+  const raw = error.rawDetail as { errors?: unknown } | null
+  return Array.isArray(raw?.errors) ? raw.errors.map(String) : [error.detailText()]
+}
+
 /** The routes answer 404 "Not Found" while the backend flag is off. */
 export function isNotEnabled(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404 && error.detailText() === "Not Found"
@@ -221,6 +245,19 @@ export async function searchRequestMaterials(q: string, signal?: AbortSignal): P
 export async function requestDepartments(plant: string): Promise<{ items: ApiDepartment[]; loaded: boolean }> {
   const response = await listDepartments(plant)
   return { items: response.items, loaded: response.loaded }
+}
+
+/** Read and check a filled-in template. Throws 422 -- see {@link uploadErrors}. */
+export async function uploadRequestFile(file: File): Promise<ApiUploadResult> {
+  const form = new FormData()
+  form.append("file", file)
+  return apiPostForm<ApiUploadResult>("/assistant/requests/upload", form)
+}
+
+/** The Excel template a request's materials are uploaded in. */
+export async function downloadRequestTemplate(): Promise<void> {
+  const { blob, filename } = await apiFetchBlob("/assistant/requests/upload-template", "material-request-template.xlsx")
+  saveBlob(blob, filename)
 }
 
 // --- UAT ----------------------------------------------------------------------
