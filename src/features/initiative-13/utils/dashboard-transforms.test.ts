@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { ActExceptionDetail, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { ActExceptionDetail, PlanVsIssuedRow, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
 import {
-  acquiredVsPlanRowsToCsv,
   attachCriticalImpactIndicator,
   buildLastRefreshedAt,
   countByField,
@@ -10,6 +9,7 @@ import {
   justificationRowsToCsv,
   matchesCriticalFilter,
   nonMoverRowsToCsv,
+  planVsIssuedRowsToCsv,
 } from "./dashboard-transforms"
 import { selectConfirmedExceptions } from "@/lib/api/i13"
 
@@ -225,20 +225,40 @@ describe("justificationRowsToCsv", () => {
   })
 })
 
-describe("acquiredVsPlanRowsToCsv", () => {
-  it("exports issued against plans, and leaves it empty when there was nothing to issue against", () => {
+function planRow(overrides: Partial<PlanVsIssuedRow>): PlanVsIssuedRow {
+  return {
+    rowId: "RES-1-1",
+    source: "SAP",
+    material: "MAT-1",
+    materialDescription: null,
+    plant: "1300",
+    reservations: ["2022510/1"],
+    sessionId: null,
+    planId: null,
+    plannedQuantity: "15.000",
+    issuedQuantity: "15.000",
+    status: "FULLY_ISSUED",
+    varianceQuantity: "0",
+    variancePercentage: 0,
+    dueDate: "2026-06-04",
+    windowStart: null,
+    ...overrides,
+  }
+}
+
+describe("planVsIssuedRowsToCsv", () => {
+  it("exports both sources with their labels, and no issued figure for a plan awaiting a reservation", () => {
     const rows = [
-      watchRow({
-        material: "A", acquiredVsPlanStatus: "ON_PLAN", plannedQuantity: 10, receivedQuantity: 0, issuedQuantity: 10,
-        acquiredVsPlanVarianceQuantity: 0, acquiredVsPlanVariancePercentage: 0,
+      planRow({}),
+      planRow({
+        rowId: "PLAN-P1", source: "ASSISTANT", reservations: [], sessionId: "SABC", planId: "P1",
+        plannedQuantity: "5.000", issuedQuantity: "0", status: "NO_RESERVATION",
+        varianceQuantity: null, variancePercentage: null, dueDate: "2026-10-23",
       }),
-      watchRow({ material: "B", acquiredVsPlanStatus: "NO_RESERVATION", plannedQuantity: 4, issuedQuantity: 0 }),
-      watchRow({ material: "C", acquiredVsPlanStatus: "NO_PLAN", plannedQuantity: null, issuedQuantity: 0 }),
     ]
-    expect(acquiredVsPlanRowsToCsv(rows).map((r) => r.slice(0, 4))).toEqual([
-      ["A", "1300", 10, 10],
-      ["B", "1300", 4, ""],
-      ["C", "1300", "", ""],
+    expect(planVsIssuedRowsToCsv(rows)).toEqual([
+      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "", "15.000", "15.000", "0", 0, "Fully issued", "2026-06-04"],
+      ["Via assistant", "MAT-1", "1300", "", "SABC", "5.000", "", "", "", "Awaiting reservation", "2026-10-23"],
     ])
   })
 })

@@ -46,6 +46,10 @@ export type I13SearchParams = {
   reservationStatus?: string
   /** Ledger screen, reservations view: `NOT_ISSUED`, `PARTIALLY_ISSUED` or `FULLY_ISSUED`. */
   issued?: string
+  /** Dashboard, acquired-vs-plan tab: `ASSISTANT` or `SAP`. */
+  source?: string
+  /** Dashboard, acquired-vs-plan tab: one row status (`BELOW_PLAN`, `NOT_ISSUED`, ...). */
+  planStatus?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -85,6 +89,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     reservation: single(raw.reservation),
     reservationStatus: single(raw.reservationStatus),
     issued: single(raw.issued),
+    source: single(raw.source),
+    planStatus: single(raw.planStatus),
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),

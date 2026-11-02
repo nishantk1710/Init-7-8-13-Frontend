@@ -112,6 +112,64 @@ export const ACQUIRED_VS_PLAN_STATUSES: readonly AcquiredVsPlanStatus[] = [
   "ON_PLAN",
   "ABOVE_PLAN",
 ]
+// The acquired-vs-plan tab's rows (`GET /i13/acquired-vs-plan`): a captured
+// plan, or an OAR reservation raised directly in SAP. A plan is on, below or
+// above plan; a SAP reservation is fully, partly, not or over issued -- it has
+// no plan, only a reserved quantity. "Issued" is the goods issue, never a GR.
+export type PlanVsIssuedSource = "ASSISTANT" | "SAP"
+
+export type PlanVsIssuedStatus =
+  | "ON_PLAN"
+  | "BELOW_PLAN"
+  | "ABOVE_PLAN"
+  | "NO_RESERVATION"
+  | "FULLY_ISSUED"
+  | "PARTLY_ISSUED"
+  | "NOT_ISSUED"
+  | "OVER_ISSUED"
+  | "NOT_DUE"
+
+export const PLAN_VS_ISSUED_SOURCES: readonly PlanVsIssuedSource[] = ["ASSISTANT", "SAP"]
+
+export const PLAN_VS_ISSUED_STATUSES: readonly PlanVsIssuedStatus[] = [
+  "ON_PLAN",
+  "BELOW_PLAN",
+  "ABOVE_PLAN",
+  "NO_RESERVATION",
+  "FULLY_ISSUED",
+  "PARTLY_ISSUED",
+  "NOT_ISSUED",
+  "OVER_ISSUED",
+  "NOT_DUE",
+]
+
+export type PlanVsIssuedRow = {
+  rowId: string
+  source: PlanVsIssuedSource
+  material: string
+  materialDescription: string | null
+  plant: string
+  /** `number/item`. A plan's may be empty: no reservation stands for it yet. */
+  reservations: string[]
+  sessionId: string | null
+  planId: string | null
+  /** A plan's planned quantity, or a SAP reservation's reserved quantity. Kept as sent. */
+  plannedQuantity: string
+  issuedQuantity: string
+  status: PlanVsIssuedStatus
+  varianceQuantity: string | null
+  variancePercentage: number | null
+  /** A plan's window end, a reservation's requirement date. */
+  dueDate: string | null
+  windowStart: string | null
+}
+
+export type PlanVsIssuedCounts = {
+  total: number
+  bySource: Record<string, number>
+  byStatus: Record<string, number>
+}
+
 export const ACT_EXCEPTION_TYPES: readonly ActExceptionType[] = [
   "PLAN_BREACH",
   "NO_PLAN",

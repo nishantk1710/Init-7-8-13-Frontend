@@ -84,6 +84,14 @@ export const EMPTY_LABEL = {
     title:
       "No reservation stands for this plan yet: none carries its session or request ID in the item text, and none is required inside its window.",
   },
+  notDueYet: {
+    label: "Not due yet",
+    title: "Nothing issued yet, and the date it is wanted by is still ahead -- not a shortfall yet.",
+  },
+  noSession: {
+    label: "None",
+    title: "No session or request ID in this reservation's item text: it was raised directly in SAP.",
+  },
   notRouted: {
     label: "Not routed yet",
     title: "This exception has not been sent to anybody yet.",

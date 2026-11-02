@@ -27,17 +27,22 @@ import {
   getI13AllJustifications,
   type ActExceptionCounts,
   type I13Summary,
+  type PlanVsIssuedCounts,
+  type PlanVsIssuedRow,
   type WatchCounts,
 } from "@/lib/api/i13"
 import { listSummaryReports } from "@/lib/api/i13-report"
 import type { UnifiedJustification } from "@/lib/assistant/justifications"
 import {
   loadLiveExceptionCounts,
+  loadLivePlanVsIssued,
+  loadLivePlanVsIssuedCounts,
   loadLivePlans,
   loadLiveReclassification,
   loadLiveSummary,
   loadLiveWatch,
   loadLiveWatchCounts,
+  type Capped,
   type LivePlans,
   type LiveReclassification,
   type LiveWatch,
@@ -82,6 +87,10 @@ export type DashboardFilters = {
   material?: string
   agingBand?: string
   acquiredVsPlanStatus?: string
+  /** The acquired-vs-plan tab's own filters. */
+  source?: string
+  planStatus?: string
+  reservation?: string
 }
 
 export type LiveDashboard = {
@@ -91,7 +100,7 @@ export type LiveDashboard = {
    * match. Null means the page cannot render its core.
    */
   watchCounts: WatchCounts | null
-  /** The acquired-vs-plan tab: one page of WATCH rows, most recent activity first. */
+  /** One page of WATCH rows: the header's "data as of" and the filters' options. */
   watch: LiveWatch | null
   watchError: string | null
   /** The non-movers tab: one page of NON_MOVING rows, most recent activity first. */
@@ -101,6 +110,10 @@ export type LiveDashboard = {
   exceptionCounts: Section<ActExceptionCounts>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
+  /** The acquired-vs-plan tab: one page of captured plans and SAP reservations. */
+  planVsIssued: Section<Capped<PlanVsIssuedRow>>
+  /** Its badge and filter counts, over every row the tab's filters match. */
+  planVsIssuedCounts: Section<PlanVsIssuedCounts>
   /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
    * Any failure reads as "not offered": the button is a convenience, and a
    * broken check must never cost the dashboard. */
@@ -140,16 +153,35 @@ export async function loadLiveDashboard(
     pageSize: DEFAULT_PAGE_SIZE,
   })
   const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
+  const planVsIssuedFilters = {
+    ...scope,
+    source: filters.source,
+    status: filters.planStatus,
+    reservation: filters.reservation,
+  }
 
   // All in flight together. Sequentially this would be eight round trips deep
   // on a screen whose whole job is to be glanced at.
-  const [counts, watch, nonMovers, summary, reclassification, exceptionCounts, justifications, plans, reportEnabled] =
-    await Promise.all([
+  const [
+    counts,
+    watch,
+    nonMovers,
+    summary,
+    reclassification,
+    exceptionCounts,
+    justifications,
+    plans,
+    planVsIssued,
+    planVsIssuedCounts,
+    reportEnabled,
+  ] = await Promise.all([
       loadLiveWatchCounts(filters).then(
         (data) => ({ ok: true as const, data }),
         (error: unknown) => ({ ok: false as const, message: failure(error) })
       ),
-      loadLiveWatch(filters, pageOf("plan")).catch(() => null),
+      // Only for the header's "data as of" and the filters' plant and band
+      // options now: the acquired-vs-plan tab reads its own rows.
+      loadLiveWatch(filters, { page: 1, pageSize: DEFAULT_PAGE_SIZE }).catch(() => null),
       nonMoverFilter
         ? loadLiveWatch({ ...filters, agingBand: "NON_MOVING" }, pageOf("non-movers")).catch(() => null)
         : Promise.resolve(NO_ROWS),
@@ -158,6 +190,8 @@ export async function loadLiveDashboard(
       section(loadLiveExceptionCounts(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope, pageOf("plans"))),
+      section(loadLivePlanVsIssued(planVsIssuedFilters, pageOf("plan"))),
+      section(loadLivePlanVsIssuedCounts(planVsIssuedFilters)),
       listSummaryReports({ limit: 1 }).then(
         () => true,
         () => false
@@ -174,6 +208,8 @@ export async function loadLiveDashboard(
     exceptionCounts,
     justifications,
     plans,
+    planVsIssued,
+    planVsIssuedCounts,
     reportEnabled,
   }
 }

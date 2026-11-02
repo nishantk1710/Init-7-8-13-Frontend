@@ -109,9 +109,20 @@ export async function UtilisationDashboardPage({
     agingBand: searchParams.agingBand,
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
   }
+  // The acquired-vs-plan tab's rows have their own filters, set inside the tab.
+  const planVsIssuedFilters = {
+    plant: searchParams.plant,
+    material: searchParams.material,
+    source: searchParams.source,
+    status: searchParams.planStatus,
+    reservation: searchParams.reservation,
+  }
   const initialTab = resolveDetailTab(searchParams.tab)
   const page = searchParams.page ?? 1
-  const dashboard = await loadLiveDashboard(filters, { tab: initialTab, page })
+  const dashboard = await loadLiveDashboard(
+    { ...filters, source: searchParams.source, planStatus: searchParams.planStatus, reservation: searchParams.reservation },
+    { tab: initialTab, page }
+  )
 
   const { watch, watchCounts, nonMovers } = dashboard
   /** The page a tab is showing: the URL's for the open tab, else its first. */
@@ -202,7 +213,7 @@ export async function UtilisationDashboardPage({
 
       <I13UrlFilters
         layout="panel"
-        fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
+        fields={["plant", "material", "agingBand"]}
         plants={watch?.plantOptions}
         agingBands={watch?.agingBandOptions}
       />
@@ -282,7 +293,11 @@ export async function UtilisationDashboardPage({
             <div className="pb-4">
               <TabsList className="w-full border-2 border-action/40 bg-card p-1 shadow-lg ring-0 group-data-horizontal/tabs:h-11">
                 <DetailTab value="non-movers" label="Non-movers" count={nonMovers?.total ?? null} />
-                <DetailTab value="plan" label="Acquired vs plan" count={watchCounts?.total ?? null} />
+                <DetailTab
+                  value="plan"
+                  label="Acquired vs plan"
+                  count={sectionCount(dashboard.planVsIssuedCounts, (d) => d.total)}
+                />
                 <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
                 <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
               </TabsList>
@@ -324,29 +339,31 @@ export async function UtilisationDashboardPage({
               </TabsContent>
 
               <TabsContent value="plan">
-                {watch ? (
+                {dashboard.planVsIssued.status === "ready" ? (
                   <div className="flex flex-col gap-3">
                     <TabIntro info="acquiredVsPlanTab">
-                      Quantity issued on the reservations of each consumption plan, per material and plant.
+                      Every plan captured in the assistant and every OAR reservation raised directly in SAP,
+                      with the quantity issued against it.
                     </TabIntro>
                     <AcquiredVsPlanPanel
-                      rows={watch.rows}
-                      total={watch.total}
-                      filters={filters}
+                      rows={dashboard.planVsIssued.data.rows}
+                      total={dashboard.planVsIssued.data.total}
+                      counts={dashboard.planVsIssuedCounts.status === "ready" ? dashboard.planVsIssuedCounts.data : null}
+                      filters={planVsIssuedFilters}
                       pagination={
                         <TablePagination
                           page={pageOf("plan")}
                           pageSize={DEFAULT_PAGE_SIZE}
-                          total={watch.total}
-                          count={watch.count}
-                          noun="positions"
+                          total={dashboard.planVsIssued.data.total}
+                          count={dashboard.planVsIssued.data.count}
+                          noun="rows"
                           hrefFor={hrefFor("plan")}
                         />
                       }
                     />
                   </div>
                 ) : (
-                  <LoadFailure what="consumption tracking data" message={dashboard.watchError} />
+                  <SectionFallback section={dashboard.planVsIssued} what="acquired-vs-plan rows" />
                 )}
               </TabsContent>
 
