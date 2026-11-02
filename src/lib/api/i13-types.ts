@@ -113,34 +113,24 @@ export const ACQUIRED_VS_PLAN_STATUSES: readonly AcquiredVsPlanStatus[] = [
   "ABOVE_PLAN",
 ]
 // The acquired-vs-plan tab's rows (`GET /i13/acquired-vs-plan`): a captured
-// plan, or an OAR reservation raised directly in SAP. A plan is on, below or
-// above plan; a SAP reservation is fully, partly, not or over issued -- it has
-// no plan, only a reserved quantity. "Issued" is the goods issue, never a GR.
+// plan, or an OAR reservation raised directly in SAP, read the same way --
+// planned (asked for: a plan's quantity, a reservation's reserved quantity)
+// against issued (used; the goods issue, never a GR). Awaiting reservation (a
+// plan nothing is reserved for yet), not due yet (nothing issued, date ahead),
+// else on, below or above plan. Overdue is a marker on a below-plan row whose
+// date has passed, not a status.
 export type PlanVsIssuedSource = "ASSISTANT" | "SAP"
 
-export type PlanVsIssuedStatus =
-  | "ON_PLAN"
-  | "BELOW_PLAN"
-  | "ABOVE_PLAN"
-  | "NO_RESERVATION"
-  | "FULLY_ISSUED"
-  | "PARTLY_ISSUED"
-  | "NOT_ISSUED"
-  | "OVER_ISSUED"
-  | "NOT_DUE"
+export type PlanVsIssuedStatus = "NO_RESERVATION" | "NOT_DUE" | "ON_PLAN" | "BELOW_PLAN" | "ABOVE_PLAN"
 
 export const PLAN_VS_ISSUED_SOURCES: readonly PlanVsIssuedSource[] = ["ASSISTANT", "SAP"]
 
 export const PLAN_VS_ISSUED_STATUSES: readonly PlanVsIssuedStatus[] = [
+  "NO_RESERVATION",
+  "NOT_DUE",
   "ON_PLAN",
   "BELOW_PLAN",
   "ABOVE_PLAN",
-  "NO_RESERVATION",
-  "FULLY_ISSUED",
-  "PARTLY_ISSUED",
-  "NOT_ISSUED",
-  "OVER_ISSUED",
-  "NOT_DUE",
 ]
 
 export type PlanVsIssuedRow = {
@@ -153,21 +143,28 @@ export type PlanVsIssuedRow = {
   reservations: string[]
   sessionId: string | null
   planId: string | null
-  /** A plan's planned quantity, or a SAP reservation's reserved quantity. Kept as sent. */
+  /** What was asked for: a plan's planned quantity, or a SAP reservation's reserved quantity. Kept as sent. */
   plannedQuantity: string
+  /** What was used: goods issued, reversals netted. */
   issuedQuantity: string
   status: PlanVsIssuedStatus
+  /** Null while awaiting a reservation or not due yet. */
   varianceQuantity: string | null
+  /** Also null when nothing was planned. */
   variancePercentage: number | null
   /** A plan's window end, a reservation's requirement date. */
   dueDate: string | null
   windowStart: string | null
+  /** Below plan, and `dueDate` has passed. */
+  overdue: boolean
 }
 
 export type PlanVsIssuedCounts = {
   total: number
   bySource: Record<string, number>
   byStatus: Record<string, number>
+  /** Overdue rows under every filter but status and overdue. */
+  overdue: number
 }
 
 export const ACT_EXCEPTION_TYPES: readonly ActExceptionType[] = [

@@ -116,11 +116,18 @@ export async function UtilisationDashboardPage({
     source: searchParams.source,
     status: searchParams.planStatus,
     reservation: searchParams.reservation,
+    overdue: searchParams.overdue === "1",
   }
   const initialTab = resolveDetailTab(searchParams.tab)
   const page = searchParams.page ?? 1
   const dashboard = await loadLiveDashboard(
-    { ...filters, source: searchParams.source, planStatus: searchParams.planStatus, reservation: searchParams.reservation },
+    {
+      ...filters,
+      source: searchParams.source,
+      planStatus: searchParams.planStatus,
+      reservation: searchParams.reservation,
+      overdue: searchParams.overdue === "1",
+    },
     { tab: initialTab, page }
   )
 

@@ -91,6 +91,7 @@ export type DashboardFilters = {
   source?: string
   planStatus?: string
   reservation?: string
+  overdue?: boolean
 }
 
 export type LiveDashboard = {
@@ -158,6 +159,7 @@ export async function loadLiveDashboard(
     source: filters.source,
     status: filters.planStatus,
     reservation: filters.reservation,
+    overdue: filters.overdue,
   }
 
   // All in flight together. Sequentially this would be eight round trips deep

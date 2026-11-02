@@ -9,8 +9,8 @@
 //   GR not issued    oldest receipt still not issued >= 30 days, per material and plant (watch.py)
 //   plan overdue     planned usage window end + 14 days passed, nothing issued (exceptions.py)
 //   non-AI           OAR reservation line, not deleted, no consumption plan matched (exceptions.py)
-//   acquired vs plan issued on each plan's own reservations vs planned, and on each OAR reservation no
-//                    plan owns vs reserved; exact comparison (plan_vs_issued.py); read again 2 Nov 2026
+//   acquired vs plan issued vs planned (plan quantity, or reserved for an OAR reservation no plan owns);
+//                    on/below/above, exact; overdue = below and date passed (plan_vs_issued.py); 2 Nov 2026
 // The thresholds are backend settings; if one changes, change its text here. dashboard-info.test.ts
 // checks each example lands in the band its text claims.
 import type { InfoTone } from "@/components/shared/info-popup"
@@ -271,30 +271,32 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   acquiredVsPlanTab: {
     title: "Acquired vs plan",
     tone: "warning",
-    summary: "What was issued against each plan captured in the assistant, and against each OAR reservation raised directly in SAP.",
+    summary: "What was used against what was asked for, for each plan captured in the assistant and each OAR reservation raised directly in SAP.",
     rule: [
-      "Via assistant: one row per captured plan; its reservations carry its session or request ID in the item text, else are required inside its usage window",
-      "Direct from SAP: one row per OAR reservation item no plan owns; a reservation a plan owns is on the plan's row only",
-      "Issued = goods issued against the reservation(s), reversals taken off",
-      "Plan: On plan (issued = planned) · Below plan (less) · Above plan (more) · Awaiting reservation (none yet)",
-      "SAP reservation: Fully issued (issued = reserved) · Partly issued (less) · Not issued (none) · Over-issued (more)",
-      "Not due yet: nothing issued, and the date it is wanted by is still ahead",
+      "Planned = what was asked for: the plan's quantity in the assistant, or the reserved quantity in SAP",
+      "Issued = what was used: goods issued against the reservation(s), reversals taken off",
+      "Awaiting reservation: a plan from the assistant that no reservation stands for yet",
+      "Not due yet: nothing issued, and the Required by date is still ahead",
+      "Otherwise On plan: issued = planned · Below plan: issued < planned · Above plan: issued > planned",
+      "Overdue: below plan, and the Required by date has passed",
+      "Via assistant: the plan's reservations carry its session or request ID, else are required inside its usage window",
+      "Direct from SAP: an OAR reservation no plan owns; a reservation a plan owns is on the plan's row only",
     ],
     steps: [
       "Issued, not received: OAR is issued from stock on the shelf, so no goods receipt is linked to the reservation.",
-      "A SAP reservation has no plan, only a reserved quantity, so it is never Below or Above plan.",
-      "The comparison is exact: no tolerance band is configured, so 9 against 10 is Below plan, or Partly issued.",
-      "Variance = issued − planned (or reserved), also shown as a percentage.",
-      "Filter by Source and Status above the table; Required by is a plan's window end or a reservation's requirement date.",
+      "The comparison is exact: no tolerance band is configured, so 9 against 10 is Below plan.",
+      "Something partly issued is Below plan even before its date: only nothing issued at all waits as Not due yet.",
+      "Variance = issued − planned, also shown as a percentage of planned.",
+      "Required by is the plan's window end or the reservation's requirement date. Filter by Source, Status and Overdue above the table.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",
       inputs: [
-        { label: "Plan in the assistant", value: "10" },
-        { label: "Issued on its reservation, from stock", value: "12" },
-        { label: "Another reservation raised directly in SAP: reserved / issued", value: "5 / 3" },
+        { label: "Plan in the assistant: planned / issued", value: "10 / 12" },
+        { label: "Reservation raised in SAP: planned / issued", value: "5 / 3" },
+        { label: "That reservation's Required by date", value: "15 Oct 2026" },
       ],
-      result: "The plan row is Above plan (+2); the SAP row is Partly issued (−2).",
+      result: "The plan is Above plan (+2). The SAP reservation is Below plan (−2) and Overdue, since 15 Oct has passed.",
     },
   },
   capturedPlansTab: {

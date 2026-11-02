@@ -237,28 +237,35 @@ function planRow(overrides: Partial<PlanVsIssuedRow>): PlanVsIssuedRow {
     planId: null,
     plannedQuantity: "15.000",
     issuedQuantity: "15.000",
-    status: "FULLY_ISSUED",
+    status: "ON_PLAN",
     varianceQuantity: "0",
     variancePercentage: 0,
     dueDate: "2026-06-04",
     windowStart: null,
+    overdue: false,
     ...overrides,
   }
 }
 
 describe("planVsIssuedRowsToCsv", () => {
-  it("exports both sources with their labels, and no issued figure for a plan awaiting a reservation", () => {
+  it("exports both sources the same way, with the overdue marker", () => {
     const rows = [
       planRow({}),
       planRow({
         rowId: "PLAN-P1", source: "ASSISTANT", reservations: [], sessionId: "SABC", planId: "P1",
-        plannedQuantity: "5.000", issuedQuantity: "0", status: "NO_RESERVATION",
-        varianceQuantity: null, variancePercentage: null, dueDate: "2026-10-23",
+        plannedQuantity: "5.000", issuedQuantity: "0", status: "BELOW_PLAN",
+        varianceQuantity: "-5.000", variancePercentage: -100, dueDate: "2026-10-23", overdue: true,
+      }),
+      planRow({
+        rowId: "PLAN-P2", source: "ASSISTANT", reservations: [], sessionId: "SDEF", planId: "P2",
+        plannedQuantity: "2.000", issuedQuantity: "0", status: "NO_RESERVATION",
+        varianceQuantity: null, variancePercentage: null, dueDate: "2026-12-01",
       }),
     ]
     expect(planVsIssuedRowsToCsv(rows)).toEqual([
-      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "", "15.000", "15.000", "0", 0, "Fully issued", "2026-06-04"],
-      ["Via assistant", "MAT-1", "1300", "", "SABC", "5.000", "", "", "", "Awaiting reservation", "2026-10-23"],
+      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "", "15.000", "15.000", "0", 0, "On plan", "2026-06-04", "No"],
+      ["Via assistant", "MAT-1", "1300", "", "SABC", "5.000", "0", "-5.000", -100, "Below plan", "2026-10-23", "Yes"],
+      ["Via assistant", "MAT-1", "1300", "", "SDEF", "2.000", "0", "", "", "Awaiting reservation", "2026-12-01", "No"],
     ])
   })
 })
