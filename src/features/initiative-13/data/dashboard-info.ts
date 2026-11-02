@@ -286,8 +286,8 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "Issued, not received: OAR is issued from stock on the shelf, so no goods receipt is linked to the reservation.",
       "The comparison is exact: no tolerance band is configured, so 9 against 10 is Below plan.",
       "Something partly issued is Below plan even before its date: only nothing issued at all waits as Not due yet.",
-      "Variance = issued − planned, also shown as a percentage of planned.",
-      "Required by is the plan's window end or the reservation's requirement date. Filter by Source, Status and Overdue above the table.",
+      "Hover a status to see its Required by date: the plan's window end or the reservation's requirement date.",
+      "Filter by Source (via assistant or direct from SAP), Status and Overdue; each row links to its reservation in the Utilization Ledger.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",

@@ -2,9 +2,7 @@
 
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { MessagesSquare } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
@@ -24,7 +22,6 @@ import { formatApiDate } from "@/lib/api/format"
 import { planVsIssuedRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import {
   badgeTone,
-  PLAN_VS_ISSUED_SOURCE_LABEL,
   PLAN_VS_ISSUED_STATUS_LABEL,
   PLAN_VS_ISSUED_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
@@ -37,10 +34,14 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  * same way -- planned (asked for: the plan's quantity, or the reservation's
  * reserved one) against issued (used). A reservation a plan owns is on that
  * plan's row only. Issued is the goods issue, never a receipt -- OAR is issued
- * from stock. Awaiting reservation, not due yet, or on, below or above plan,
- * and Overdue on a below-plan row whose date has passed -- all the backend's,
- * rendered as-is. One server page of 25,
- * latest due date first; the export fetches every row the filters match. */
+ * from stock. Statuses and the Overdue marker are the backend's, rendered
+ * as-is.
+ *
+ * Kept to four columns on purpose: the source is a filter, and each row links
+ * to its reservation in the Utilization Ledger, which holds the rest (dates,
+ * PR/PO, every movement). The required-by date shows on the status's hover,
+ * since "Not due yet" and "Overdue" mean nothing without it. The export keeps
+ * the full detail. One server page of 25, latest required-by date first. */
 export function AcquiredVsPlanPanel({
   rows,
   total,
@@ -68,11 +69,8 @@ export function AcquiredVsPlanPanel({
         "Material",
         "Plant",
         "Reservation",
-        "Session",
         "Planned qty",
         "Issued qty",
-        "Variance qty",
-        "Variance %",
         "Status",
         "Required by",
         "Overdue",
@@ -109,11 +107,7 @@ export function AcquiredVsPlanPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Source</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Reservation</TableHead>
-                <TableHead>Session</TableHead>
+                <TableHead>Material &amp; plant</TableHead>
                 <TableHead
                   className="text-right"
                   title="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
@@ -126,56 +120,32 @@ export function AcquiredVsPlanPanel({
                 >
                   Issued
                 </TableHead>
-                <TableHead className="text-right">Variance</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Required by</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.rowId}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {PLAN_VS_ISSUED_SOURCE_LABEL[r.source]}
-                  </TableCell>
                   <TableCell>
-                    <MaterialName material={r.material} description={r.materialDescription} />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(r.plant)}</TableCell>
-                  <TableCell>
-                    <Reservations reservations={r.reservations} />
-                  </TableCell>
-                  <TableCell>
-                    {r.sessionId ? (
-                      <Link
-                        href={`/assistant/sessions/${encodeURIComponent(r.sessionId)}`}
-                        className="inline-flex items-center gap-1 text-[11px] text-primary underline-offset-4 hover:underline"
-                      >
-                        <MessagesSquare className="size-3" aria-hidden />
-                        {r.sessionId}
-                      </Link>
-                    ) : (
-                      <EmptyValue kind="noSession" />
-                    )}
+                    <div className="flex flex-col gap-0.5">
+                      <MaterialName material={r.material} description={r.materialDescription} />
+                      <span className="text-[11px] text-muted-foreground">
+                        {sapPlantLabel(r.plant)} · <ReservationLinks reservations={r.reservations} />
+                      </span>
+                    </div>
                   </TableCell>
                   {/* Rendered as the strings the backend sent, as on the plans table. */}
                   <TableCell className="text-right text-foreground">{r.plannedQuantity}</TableCell>
                   <TableCell className="text-right text-foreground">{r.issuedQuantity}</TableCell>
-                  <TableCell className="text-right text-foreground">
-                    <Variance row={r} />
-                  </TableCell>
                   <TableCell>
-                    <StatusBadge tone={badgeTone(PLAN_VS_ISSUED_STATUS_TONE[r.status])}>
-                      {PLAN_VS_ISSUED_STATUS_LABEL[r.status]}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    <div className="flex flex-col items-start gap-0.5">
-                      {r.dueDate ? formatApiDate(r.dueDate) : <EmptyValue kind="notRecorded" />}
-                      {r.overdue && (
-                        <span title="Below plan, and this date has passed">
-                          <StatusBadge tone="danger">Overdue</StatusBadge>
-                        </span>
-                      )}
+                    <div
+                      className="flex flex-col items-start gap-0.5"
+                      title={r.dueDate ? `Required by ${formatApiDate(r.dueDate)}` : "No required-by date recorded"}
+                    >
+                      <StatusBadge tone={badgeTone(PLAN_VS_ISSUED_STATUS_TONE[r.status])}>
+                        {PLAN_VS_ISSUED_STATUS_LABEL[r.status]}
+                      </StatusBadge>
+                      {r.overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -189,32 +159,21 @@ export function AcquiredVsPlanPanel({
   )
 }
 
-/** One reservation as a chip; several as a count, listed on hover. */
-function Reservations({ reservations }: { reservations: string[] }) {
+/** The reservation(s) a row stands for, each opening it in the Utilization Ledger. */
+function ReservationLinks({ reservations }: { reservations: string[] }) {
   if (reservations.length === 0) return <EmptyValue kind="noReservationYet" />
-  if (reservations.length > 1) {
-    return (
-      <span className="text-[11px] text-muted-foreground" title={reservations.join(", ")}>
-        {reservations.length} reservations
-      </span>
-    )
-  }
-  const [number, item] = reservations[0].split("/")
-  return <SAPDocumentChip doc={{ type: "RESERVATION", documentNumber: number, line: item }} />
-}
-
-/** Issued − planned, signed, with its percentage of planned -- or why there is none yet. */
-function Variance({ row }: { row: PlanVsIssuedRow }) {
-  if (row.status === "NO_RESERVATION") return <EmptyValue kind="noReservationYet" />
-  if (row.varianceQuantity === null) return <EmptyValue kind="notDueYet" />
-  const n = Number(row.varianceQuantity)
+  const [first, ...rest] = reservations
+  const number = first.split("/")[0]
   return (
     <>
-      {n > 0 ? "+" : ""}
-      {row.varianceQuantity}
-      {row.variancePercentage !== null && (
-        <span className="text-muted-foreground"> ({Math.round(row.variancePercentage)}%)</span>
-      )}
+      <Link
+        href={`/oar-utilization/ledger?view=reservations&reservation=${encodeURIComponent(number)}`}
+        className="text-primary underline-offset-4 hover:underline"
+        title="Open this reservation in the Utilization Ledger"
+      >
+        Reservation {first}
+      </Link>
+      {rest.length > 0 && <span title={rest.join(", ")}> +{rest.length} more</span>}
     </>
   )
 }
