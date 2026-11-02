@@ -263,9 +263,9 @@ describe("planVsIssuedRowsToCsv", () => {
       }),
     ]
     expect(planVsIssuedRowsToCsv(rows)).toEqual([
-      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "", "15.000", "15.000", "0", 0, "On plan", "2026-06-04", "No"],
-      ["Via assistant", "MAT-1", "1300", "", "SABC", "5.000", "0", "-5.000", -100, "Below plan", "2026-10-23", "Yes"],
-      ["Via assistant", "MAT-1", "1300", "", "SDEF", "2.000", "0", "", "", "Awaiting reservation", "2026-12-01", "No"],
+      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "15.000", "15.000", "On plan", "2026-06-04", "No"],
+      ["Via assistant", "MAT-1", "1300", "", "5.000", "0", "Below plan", "2026-10-23", "Yes"],
+      ["Via assistant", "MAT-1", "1300", "", "2.000", "0", "Awaiting reservation", "2026-12-01", "No"],
     ])
   })
 })
