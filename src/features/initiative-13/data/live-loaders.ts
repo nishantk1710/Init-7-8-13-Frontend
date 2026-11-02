@@ -493,10 +493,12 @@ export type PlanVsIssuedFilters = {
   source?: string
   status?: string
   reservation?: string
+  overdue?: boolean
 }
 
 function planVsIssuedParams(filters: PlanVsIssuedFilters) {
   return {
+    overdue: filters.overdue || undefined,
     plant: filters.plant || undefined,
     material: filters.material || undefined,
     source: filters.source || undefined,

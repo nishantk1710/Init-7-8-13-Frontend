@@ -92,6 +92,7 @@ export function I13UrlFilters({
     | "issued"
     | "source"
     | "planStatus"
+    | "overdue"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -132,7 +133,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -208,6 +209,14 @@ export function I13UrlFilters({
             value={searchParams.get("planStatus") ?? ""}
             options={PLAN_VS_ISSUED_STATUS_ORDER.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
             onChange={(value) => push({ planStatus: value })}
+          />)}
+
+        {fields.includes("overdue") && wrap("overdue", <UrlSelect
+            label="Overdue: any"
+            width="sm:w-40"
+            value={searchParams.get("overdue") ?? ""}
+            options={[{ value: "1", label: "Overdue only" }]}
+            onChange={(value) => push({ overdue: value })}
           />)}
 
         {fields.includes("type") && wrap("type", <UrlSelect

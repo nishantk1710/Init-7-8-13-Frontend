@@ -50,6 +50,8 @@ export type I13SearchParams = {
   source?: string
   /** Dashboard, acquired-vs-plan tab: one row status (`BELOW_PLAN`, `NOT_ISSUED`, ...). */
   planStatus?: string
+  /** Dashboard, acquired-vs-plan tab: `1` keeps below-plan rows whose date has passed. */
+  overdue?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -91,6 +93,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     issued: single(raw.issued),
     source: single(raw.source),
     planStatus: single(raw.planStatus),
+    overdue: single(raw.overdue),
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),

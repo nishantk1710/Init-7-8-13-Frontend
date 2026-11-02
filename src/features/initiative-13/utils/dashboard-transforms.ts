@@ -90,13 +90,12 @@ export function planVsIssuedRowsToCsv(rows: PlanVsIssuedRow[]): (string | number
     r.reservations.join(", "),
     r.sessionId ?? "",
     r.plannedQuantity,
-    // Empty, not 0, for a plan no reservation stands for yet: an exported 0
-    // would assert nothing was issued, when there was nothing to issue on.
-    r.status === "NO_RESERVATION" ? "" : r.issuedQuantity,
-    r.varianceQuantity ?? "",
+    r.issuedQuantity,
+    r.varianceQuantity,
     r.variancePercentage ?? "",
     PLAN_VS_ISSUED_STATUS_LABEL[r.status],
     r.dueDate ?? "",
+    r.overdue ? "Yes" : "No",
   ])
 }
 

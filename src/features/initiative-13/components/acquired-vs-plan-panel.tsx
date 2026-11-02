@@ -33,12 +33,13 @@ import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /** Acquired vs plan (§9), reservation by reservation: every captured plan
- * ("via assistant": planned against what was issued on its reservations) and
- * every OAR reservation raised directly in SAP (reserved against what was
- * issued on it). A reservation a plan owns is on that plan's row only. Issued
- * is the goods issue, never a receipt -- OAR is issued from stock. Statuses
- * are the backend's, rendered as-is. One server page of 25, latest due date
- * first; the export fetches every row the filters match. */
+ * ("via assistant") and every OAR reservation raised directly in SAP, read the
+ * same way -- planned (asked for: the plan's quantity, or the reservation's
+ * reserved one) against issued (used). A reservation a plan owns is on that
+ * plan's row only. Issued is the goods issue, never a receipt -- OAR is issued
+ * from stock. On, below or above plan, and Overdue on a below-plan row whose
+ * date has passed -- all the backend's, rendered as-is. One server page of 25,
+ * latest due date first; the export fetches every row the filters match. */
 export function AcquiredVsPlanPanel({
   rows,
   total,
@@ -67,12 +68,13 @@ export function AcquiredVsPlanPanel({
         "Plant",
         "Reservation",
         "Session",
-        "Planned / reserved qty",
+        "Planned qty",
         "Issued qty",
         "Variance qty",
         "Variance %",
         "Status",
         "Required by",
+        "Overdue",
       ],
       planVsIssuedRowsToCsv(await exportPlanVsIssuedRows(filters))
     )
@@ -81,10 +83,11 @@ export function AcquiredVsPlanPanel({
   const shown = total ?? rows.length
   const assistant = counts?.bySource.ASSISTANT ?? null
   const sap = counts?.bySource.SAP ?? null
+  const overdue = counts?.overdue ?? null
 
   return (
     <div className="flex flex-col gap-3">
-      <I13UrlFilters fields={["source", "planStatus", "reservation"]} pin={{ tab: "plan" }} />
+      <I13UrlFilters fields={["source", "planStatus", "overdue", "reservation"]} pin={{ tab: "plan" }} />
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-muted-foreground">
           {formatCount(shown)} row{shown === 1 ? "" : "s"}
@@ -94,7 +97,7 @@ export function AcquiredVsPlanPanel({
               ({formatCount(assistant)} via assistant, {formatCount(sap)} direct from SAP)
             </>
           )}
-          , latest required-by date first
+          {overdue !== null && overdue > 0 && <> · {formatCount(overdue)} overdue</>}, latest required-by date first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
@@ -110,12 +113,15 @@ export function AcquiredVsPlanPanel({
                 <TableHead>Plant</TableHead>
                 <TableHead>Reservation</TableHead>
                 <TableHead>Session</TableHead>
-                <TableHead className="text-right" title="A plan's planned quantity, or a SAP reservation's reserved quantity">
-                  Planned / Reserved
+                <TableHead
+                  className="text-right"
+                  title="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
+                >
+                  Planned
                 </TableHead>
                 <TableHead
                   className="text-right"
-                  title="Goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
+                  title="What was used: goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
                 >
                   Issued
                 </TableHead>
@@ -152,9 +158,7 @@ export function AcquiredVsPlanPanel({
                   </TableCell>
                   {/* Rendered as the strings the backend sent, as on the plans table. */}
                   <TableCell className="text-right text-foreground">{r.plannedQuantity}</TableCell>
-                  <TableCell className="text-right text-foreground">
-                    {r.status === "NO_RESERVATION" ? <EmptyValue kind="noReservationYet" /> : r.issuedQuantity}
-                  </TableCell>
+                  <TableCell className="text-right text-foreground">{r.issuedQuantity}</TableCell>
                   <TableCell className="text-right text-foreground">
                     <Variance row={r} />
                   </TableCell>
@@ -164,7 +168,14 @@ export function AcquiredVsPlanPanel({
                     </StatusBadge>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {r.dueDate ? formatApiDate(r.dueDate) : <EmptyValue kind="notRecorded" />}
+                    <div className="flex flex-col items-start gap-0.5">
+                      {r.dueDate ? formatApiDate(r.dueDate) : <EmptyValue kind="notRecorded" />}
+                      {r.overdue && (
+                        <span title="Below plan, and this date has passed">
+                          <StatusBadge tone="danger">Overdue</StatusBadge>
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -191,10 +202,8 @@ function Reservations({ reservations }: { reservations: string[] }) {
   return <SAPDocumentChip doc={{ type: "RESERVATION", documentNumber: number, line: item }} />
 }
 
-/** A label, not a number, when there is nothing to vary against yet. */
+/** Issued − planned, signed, with its percentage of planned. */
 function Variance({ row }: { row: PlanVsIssuedRow }) {
-  if (row.status === "NO_RESERVATION") return <EmptyValue kind="noReservationYet" />
-  if (row.status === "NOT_DUE" || row.varianceQuantity === null) return <EmptyValue kind="notDueYet" />
   const n = Number(row.varianceQuantity)
   return (
     <>

@@ -862,11 +862,12 @@ function toPlanVsIssuedRow(raw: RawRecord): PlanVsIssuedRow {
     // Quantities stay the strings the backend sent, as on the plans table.
     plannedQuantity: String(raw.planned_quantity ?? "0"),
     issuedQuantity: String(raw.issued_quantity ?? "0"),
-    status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "NOT_ISSUED"),
-    varianceQuantity: str(raw.variance_quantity),
+    status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "BELOW_PLAN"),
+    varianceQuantity: String(raw.variance_quantity ?? "0"),
     variancePercentage: toNumber(raw.variance_percentage as string) ?? null,
     dueDate: str(raw.due_date),
     windowStart: str(raw.window_start),
+    overdue: raw.overdue === true,
   }
 }
 
@@ -876,6 +877,8 @@ export type PlanVsIssuedParams = {
   plant?: string
   material?: string
   reservation?: string
+  /** Only below-plan rows whose date has passed. */
+  overdue?: boolean
 }
 
 /**
@@ -892,6 +895,7 @@ export function getI13PlanVsIssuedList(
     plant: params?.plant,
     material: params?.material,
     reservation: params?.reservation,
+    overdue: params?.overdue ? "true" : undefined,
     limit: params?.limit,
     offset: params?.offset,
   })
@@ -912,11 +916,13 @@ export function getI13PlanVsIssuedCounts(params?: PlanVsIssuedParams): Promise<P
     plant: params?.plant,
     material: params?.material,
     reservation: params?.reservation,
+    overdue: params?.overdue ? "true" : undefined,
   })
   return apiFetch<RawRecord>(`/i13/acquired-vs-plan/counts${query}`).then((raw) => ({
     total: countValue(raw.total),
     bySource: countsOf(raw.by_source),
     byStatus: countsOf(raw.by_status),
+    overdue: countValue(raw.overdue),
   }))
 }
 

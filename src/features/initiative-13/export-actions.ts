@@ -69,6 +69,7 @@ export async function exportPlanVsIssuedRows(filters: PlanVsIssuedFilters = {}):
       source: filters.source || undefined,
       status: filters.status || undefined,
       reservation: filters.reservation || undefined,
+      overdue: filters.overdue || undefined,
       limit: EXPORT_PAGE,
       offset,
     })
