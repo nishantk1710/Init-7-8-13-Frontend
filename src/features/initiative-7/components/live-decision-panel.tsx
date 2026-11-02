@@ -3,16 +3,19 @@
 // Backend-driven DecisionActions/DecisionHistory, rendered by
 // recommendation-detail-page.tsx.
 //
-// AUTHENTICATION LIMITATION (Part 13 deferred, revisited Part 35): no real
-// login exists yet. Until one does, this uses a placeholder identity rather
-// than asking the user to type an actor id and pick a role from every
-// possible value: a single fixed demo identity acts, and the role it acts AS
-// is derived from the backend's own pending_role for this recommendation
+// WHO IS ACTING: this panel never names the user. Every request carries the signed-in user's own
+// identity (the Entra access token, or `X-Actor-Id` while sign-in is off -- see lib/api/client.ts) and the
+// backend records that person as the actor and uses them to decide who is notified. No user id is sent
+// from here, so there is nothing for a request body to impersonate.
+//
+// AUTHORISATION LIMITATION (unchanged): the approval ROLE is still a placeholder. A single fixed role
+// acts, and is derived from the backend's own pending_role for this recommendation
 // (GET .../workflow-state) -- never a free choice. If pending_role does not
 // match DEMO_ACTOR_ROLE, the actions are disabled with an explanation rather
 // than let the user pick a role that was never theirs; the backend would
 // reject a mismatched role anyway (HTTP 409 INVALID_WORKFLOW_ACTION), but the
-// UI should not offer an action it already knows will fail.
+// UI should not offer an action it already knows will fail. The backend does not yet check the role
+// against the user's token roles.
 
 "use client"
 
@@ -33,12 +36,9 @@ import {
   type DecisionSurface,
 } from "@/features/initiative-7/utils/decision-panel-mode"
 
-/** Stand-in for a real signed-in identity (see the AUTHENTICATION LIMITATION
- * note above) -- one fixed placeholder user/role. "End User"
- * is chosen here because it is the first step of both real routing chains
- * (criticality-tier and OAR/SOP 3.1.1), so a fresh recommendation is
- * immediately actionable rather than always showing "not your turn". */
-const DEMO_ACTOR_ID = "end-user"
+/** Who is acting is NOT chosen here. Every request carries the signed-in user's identity (the Entra
+ * token, or `X-Actor-Id` while sign-in is off) and the backend records and notifies that person, so
+ * no user id is sent from this panel. Only the approval ROLE below is still a placeholder. */
 
 const DECISION_TOAST: Record<"APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD", string> = {
   APPROVE: "Approved",
@@ -99,13 +99,13 @@ export function LiveDecisionActions({
   const rejectReasonId = useId()
 
   async function handle(action: "APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD") {
-    const accepted = await act(DEMO_ACTOR_ID, DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
+    const accepted = await act(DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
     if (accepted) toast.success(DECISION_TOAST[action])
     setComment("")
   }
 
   async function handleSend() {
-    const accepted = await submit(DEMO_ACTOR_ID)
+    const accepted = await submit()
     if (accepted && convertToMinMax) {
       toast.success("Sent for conversion to Min-Max", {
         description: "It is now in the Action Center, where it is reviewed and approved.",
@@ -118,7 +118,7 @@ export function LiveDecisionActions({
   }
 
   async function handleReject() {
-    const accepted = await reject(DEMO_ACTOR_ID, rejectReason.trim())
+    const accepted = await reject(rejectReason.trim())
     if (accepted) {
       toast.success("Rejected", {
         description: "It is not sent for approval and leaves the Recommendations list.",

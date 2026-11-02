@@ -14,6 +14,8 @@ import {
   QUICK_ACTIONS,
 } from "@/lib/constants"
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
+import { useUnreadNotifications } from "@/hooks/use-unread-notifications"
+import { NOTIFICATIONS_PATH, unreadBadge } from "@/lib/notifications"
 import { cn } from "@/lib/utils"
 
 type NavLink = {
@@ -90,6 +92,7 @@ function within(pathname: string, href: string): boolean {
 export function Sidebar() {
   const pathname = usePathname()
   const opened = useGroupToggles()
+  const unreadNotifications = useUnreadNotifications()
 
   const home = QUICK_ACTIONS.find((action) => action.href === "/home")
   const groups: NavGroup[] = [
@@ -117,7 +120,7 @@ export function Sidebar() {
         label: action.label,
         href: action.href,
         icon: ICONS[action.icon],
-        badge: action.badge,
+        badge: action.href === NOTIFICATIONS_PATH ? unreadBadge(unreadNotifications) : action.badge,
       })),
     },
   ]

@@ -843,10 +843,15 @@ export async function fetchWorkflowState(id: string): Promise<ApiWorkflowStateRe
   )
 }
 
-export async function submitForApproval(id: string, actorId: string): Promise<ApiWorkflowStateResponse> {
+/**
+ * The three approval writes below send **no actor id**. The backend takes the acting user from the
+ * request's own identity -- the Entra access token that `apiFetch` attaches (or `X-Actor-Id` while
+ * sign-in is off) -- and records and notifies that person. A body field would be the caller's own claim.
+ */
+export async function submitForApproval(id: string): Promise<ApiWorkflowStateResponse> {
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/submit`, {
     method: "POST",
-    body: JSON.stringify({ actor_id: actorId }),
+    body: JSON.stringify({}),
   })
 }
 
@@ -854,27 +859,22 @@ export async function submitForApproval(id: string, actorId: string): Promise<Ap
  * Recommendations page. The backend only accepts it while the recommendation is READY_FOR_REVIEW, and
  * requires a comment (the reason). Once a recommendation is in the approval chain, rejecting it is the
  * pending approver's decision (applyApprovalAction). */
-export async function rejectRecommendation(
-  id: string,
-  actorId: string,
-  comment: string,
-): Promise<ApiWorkflowStateResponse> {
+export async function rejectRecommendation(id: string, comment: string): Promise<ApiWorkflowStateResponse> {
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/reject`, {
     method: "POST",
-    body: JSON.stringify({ actor_id: actorId, comment }),
+    body: JSON.stringify({ comment }),
   })
 }
 
 export async function applyApprovalAction(
   id: string,
-  actorId: string,
   actorRole: ApiApprovalRole,
   action: ApiApprovalAction,
   comment?: string,
 ): Promise<ApiWorkflowStateResponse> {
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/actions`, {
     method: "POST",
-    body: JSON.stringify({ actor_id: actorId, actor_role: actorRole, action, comment: comment ?? null }),
+    body: JSON.stringify({ actor_role: actorRole, action, comment: comment ?? null }),
   })
 }
 

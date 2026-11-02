@@ -1,4 +1,5 @@
 import {
+  Bell,
   Cpu,
   MessageCircle,
   Search,
@@ -78,6 +79,7 @@ export const ICONS: Record<IconKey, LucideIcon> = {
   inbox: Inbox,
   cancel: CircleX,
   upload: Upload,
+  bell: Bell,
 }
 
 /**
@@ -119,6 +121,9 @@ export const QUICK_ACTIONS: {
   // view over the same underlying items as the Action Center.
   { label: "Approvals", icon: "clipboard-check", href: "/approvals" },
   { label: "Audit trail", icon: "history", href: "/audit" },
+  // One inbox for every module: approvals waiting on me, exceptions and
+  // escalations. The unread count is added by the sidebar, which fetches it.
+  { label: "Notifications", icon: "bell", href: "/notifications" },
 ]
 
 /**

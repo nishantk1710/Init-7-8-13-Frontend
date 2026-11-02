@@ -10,11 +10,10 @@
 // materially different from the scenario simulation, and forcing them onto
 // one hook would mean redesigning one or the other, which Part 21 forbids.
 //
-// AUTHENTICATION LIMITATION (Part 13 is deferred): `actorId`/`actorRole` are
-// not derived from any real signed-in identity -- there is none yet (see
-// app/core/security.py, a placeholder). The caller supplies them explicitly,
-// exactly as the backend's ApprovalActionRequest documents. This hook does
-// not invent a login; it exposes the same limitation the API already has.
+// WHO IS ACTING: this hook sends no user id. The backend identifies the actor from the request's own
+// identity (the Entra access token, or `X-Actor-Id` while sign-in is off; see lib/api/client.ts).
+// AUTHORISATION LIMITATION (unchanged): `actorRole` is still the caller's own claim -- the backend
+// does not yet check it against the roles in the token. This hook does not invent a login.
 
 "use client"
 
@@ -42,10 +41,10 @@ export interface LiveApprovalState {
 
 export interface UseLiveApproval extends LiveApprovalState {
   /** Resolves true when the backend accepted it, false when it failed (the error is on `error`). */
-  submit: (actorId: string) => Promise<boolean>
+  submit: () => Promise<boolean>
   /** Declines a recommendation that has not been sent for approval. `comment` is the reason. */
-  reject: (actorId: string, comment: string) => Promise<boolean>
-  act: (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<boolean>
+  reject: (comment: string) => Promise<boolean>
+  act: (actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<boolean>
 }
 
 /** `onChanged` is called after a successful submit/act so the caller can
@@ -78,19 +77,17 @@ export function useLiveApproval(recommendationId: string, onChanged?: () => void
     [onChanged],
   )
 
-  const submit = useCallback(
-    (actorId: string) => run(() => submitForApproval(recommendationId, actorId)),
-    [recommendationId, run],
-  )
+  // None of these name the acting user: the backend identifies them from the request's own identity.
+  const submit = useCallback(() => run(() => submitForApproval(recommendationId)), [recommendationId, run])
 
   const reject = useCallback(
-    (actorId: string, comment: string) => run(() => rejectRecommendation(recommendationId, actorId, comment)),
+    (comment: string) => run(() => rejectRecommendation(recommendationId, comment)),
     [recommendationId, run],
   )
 
   const act = useCallback(
-    (actorId: string, actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) =>
-      run(() => applyApprovalAction(recommendationId, actorId, actorRole, action, comment)),
+    (actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) =>
+      run(() => applyApprovalAction(recommendationId, actorRole, action, comment)),
     [recommendationId, run],
   )
 
