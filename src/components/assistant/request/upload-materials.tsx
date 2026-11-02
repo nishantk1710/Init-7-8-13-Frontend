@@ -76,8 +76,8 @@ export function UploadMaterials({
           <Download /> Download Excel format
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Fill in the format: Material, Plant, Department. One plant and one department, up to {context.maxLines}{" "}
-          materials.
+          Fill in the format: Material, Plant, Department (Material name optional, for your reference). One plant and
+          one department, up to {context.maxLines} materials.
         </span>
         <input
           ref={input}
