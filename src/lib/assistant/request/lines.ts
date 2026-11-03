@@ -15,6 +15,7 @@ import type {
   ApiLineDeclaration,
   ApiPreviewLine,
   ApiReasonCategory,
+  QuantityChoice,
 } from "@/lib/api/assistant-requests"
 import { needsJustification, suggestWindow } from "@/lib/assistant/request/suggest"
 
@@ -124,7 +125,15 @@ export type OarLine = Common & {
   /** Average monthly consumption -- what a new quantity's window is sized by. */
   rate: number
   decision: "proceed" | "not_needed"
-  /** As typed. Prefilled with the suggestion when there is one above zero. */
+  /**
+   * The quantity the requester needs, typed first (3 Nov). The suggestion is
+   * shown only once this is filled in; a saving is measured from it. Absent on
+   * a draft saved before then.
+   */
+  required?: string
+  /** Which number is locked: the suggestion or the requester's own. Null until chosen. */
+  choice?: QuantityChoice | null
+  /** The locked quantity -- the suggestion or `required` -- what is planned and reserved. */
   quantity: string
   windowStart: string
   windowEnd: string
@@ -217,9 +226,12 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
         suggested,
         rate: toNumber(facts.averageMonthlyConsumption) ?? 0,
         decision: "proceed",
-        quantity: suggested !== null && suggested > 0 ? String(suggested) : "",
-        windowStart: preview.suggestion?.windowStart ?? "",
-        windowEnd: preview.suggestion?.windowEnd ?? "",
+        // Nothing prefilled: the requester names their own quantity first.
+        required: "",
+        choice: null,
+        quantity: "",
+        windowStart: "",
+        windowEnd: "",
         windowEdited: false,
         purpose: "",
         justification: EMPTY_JUSTIFICATION,
@@ -227,13 +239,12 @@ export function lineFromPreview(preview: ApiPreviewLine, key: string = nextKey()
       }
       if (previous?.kind !== "i13") return fresh
       // Re-checked: keep everything the requester typed, take the new figures.
-      return withSuggestedWindow({
-        ...previous,
-        preview,
-        suggested,
-        rate: fresh.rate,
-        changed: true,
-      })
+      // A locked suggestion is the old figure, so it is unlocked to be chosen again.
+      return withRequired(
+        { ...previous, preview, suggested, rate: fresh.rate, changed: true },
+        previous.required ?? "",
+        previous.choice === "own" ? "own" : null
+      )
     }
     case "i08":
       return {
@@ -258,9 +269,113 @@ export function isDuplicate(lines: readonly DraftLine[], materialId: string, pla
   return lines.some((line) => line.materialId.replace(/^0+/, "") === id && line.plant === plant.trim())
 }
 
+/** The quantity the requester said they need; null until a positive whole number is typed. */
+export function requiredOf(line: OarLine): number | null {
+  return parseQuantity(line.required ?? "")
+}
+
+/**
+ * Which number the row has locked. With no suggestion there is only the
+ * requester's own. A row marked not needed without a lock counts as taking
+ * the suggestion only when that was 0 -- stock already covered it.
+ */
+export function choiceOf(line: OarLine): QuantityChoice | null {
+  if (line.suggested === null) return "own"
+  if (line.choice) return line.choice
+  if (line.decision === "not_needed") return line.suggested === 0 ? "suggested" : "own"
+  return null
+}
+
+/**
+ * The row with `required` typed. The lock goes with the number it was made
+ * against, so typing a new one unlocks the row -- unless `keep` names a lock
+ * that still holds (the requester's own number follows what they type).
+ */
+export function withRequired(
+  line: OarLine,
+  required: string,
+  keep: QuantityChoice | null = null,
+  today?: Date
+): OarLine {
+  const next = { ...line, required, choice: line.suggested === null ? ("own" as const) : keep }
+  return withSuggestedWindow({ ...next, quantity: lockedQuantity(next) }, today)
+}
+
+/**
+ * Lock the suggestion or the requester's own number. Taking a suggestion of 0
+ * means nothing needs reserving: the row is marked not needed.
+ */
+export function withChoice(line: OarLine, choice: QuantityChoice, today?: Date): OarLine {
+  const declined = choice === "suggested" && line.suggested === 0
+  const next: OarLine = { ...line, choice, decision: declined ? "not_needed" : "proceed", changed: false }
+  return withSuggestedWindow({ ...next, quantity: lockedQuantity(next) }, today)
+}
+
+function lockedQuantity(line: OarLine): string {
+  const choice = line.suggested === null ? "own" : line.choice
+  if (choice === "own") return requiredOf(line) === null ? "" : String(requiredOf(line))
+  if (choice === "suggested" && line.suggested !== null && line.suggested > 0) return String(line.suggested)
+  return ""
+}
+
+export type LineSaving = {
+  /** Null: no suggestion could be made, so nothing is counted. */
+  units: number | null
+  /** Null without a price; `priceNote` says why. */
+  value: number | null
+  priceNote: string | null
+}
+
+/**
+ * What the suggestion saves on this row, as the backend will record it:
+ * required less what is locked, never below 0, at the plant's I07 price.
+ * Null until the row has a required quantity and a lock.
+ */
+export function savingOf(line: OarLine): LineSaving | null {
+  const required = requiredOf(line)
+  const choice = choiceOf(line)
+  if (required === null || choice === null) return null
+  const price = toNumber(line.preview.unitPrice?.price)
+  const priceNote = line.preview.unitPrice?.note ?? (line.preview.unitPrice ? null : "No price")
+  let units: number | null
+  if (line.suggested === null) units = null
+  else if (line.decision === "not_needed") units = line.suggested > 0 ? 0 : required
+  else units = Math.max(required - (parseQuantity(line.quantity) ?? required), 0)
+  return { units, value: units === null || price === null ? null : units * price, priceNote }
+}
+
+/**
+ * What taking the suggestion would save, shown beside it before anything is
+ * locked. Null until a required quantity is typed, or with no suggestion.
+ */
+export function suggestionSavingOf(line: OarLine): LineSaving | null {
+  if (requiredOf(line) === null || line.suggested === null) return null
+  return savingOf(withChoice(line, "suggested"))
+}
+
+/** The request's savings so far: units and rand over the OAR rows with a lock. */
+export function requestSaving(rows: readonly DraftLine[]): { units: number; value: number; unpriced: number } {
+  const total = { units: 0, value: 0, unpriced: 0 }
+  for (const row of rows) {
+    if (row.kind !== "i13") continue
+    const saving = savingOf(row)
+    if (!saving?.units) continue
+    total.units += saving.units
+    if (saving.value === null) total.unpriced += 1
+    else total.value += saving.value
+  }
+  return total
+}
+
 /** Whether the OAR row's quantity needs a reason, as it stands. */
 export function oarNeedsJustification(line: OarLine): boolean {
-  return line.decision === "proceed" && needsJustification(line.suggested, parseQuantity(line.quantity))
+  if (line.decision !== "proceed") return false
+  const quantity = parseQuantity(line.quantity)
+  // Your own number under the suggestion needs a reason too (3 Nov), not only one above it.
+  if (choiceOf(line) === "own" && line.suggested !== null && quantity !== null && quantity < line.suggested) {
+    return true
+  }
+  return needsJustification(line.suggested, quantity)
 }
 
 /** Whether the repairable row needs a reason, as it stands. */
@@ -281,7 +396,9 @@ export function lineIssues(line: DraftLine): string[] {
     case "i13": {
       if (line.decision === "not_needed") return []
       const issues: string[] = []
-      if (parseQuantity(line.quantity) === null) issues.push("quantity")
+      if (requiredOf(line) === null) issues.push("required quantity")
+      else if (choiceOf(line) === null) issues.push("suggested or your quantity")
+      else if (parseQuantity(line.quantity) === null) issues.push("quantity")
       if (oarNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
       if (!line.windowStart) issues.push("window start")
       if (!line.windowEnd) issues.push("window end")
@@ -325,6 +442,7 @@ export function answersOf(line: DraftLine): ApiLineAnswers {
   if (line.kind === "i13") {
     const proceed = line.decision === "proceed"
     const reason = oarNeedsJustification(line)
+    const required = requiredOf(line)
     return {
       ...base,
       decision: line.decision,
@@ -335,6 +453,8 @@ export function answersOf(line: DraftLine): ApiLineAnswers {
       reasonCategory: reason ? line.justification.reasonCategory : null,
       freeText: reason ? line.justification.freeText.trim() : null,
       seenSuggestedQuantity: line.preview.suggestion?.quantity ?? null,
+      // Only with a required quantity: a row marked not needed before one was typed saves nothing.
+      ...(required !== null ? { requiredQuantity: String(required), quantityChoice: choiceOf(line) } : {}),
     }
   }
   if (line.kind === "i08") {

@@ -7,6 +7,7 @@
  */
 
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
+import { formatZAR } from "@/lib/utils"
 
 export type RequestRecord = ApiRequest
 export type RequestLine = ApiRequestLine
@@ -65,4 +66,37 @@ export function departmentLabel(
 /** The distinct departments a request serves, in line order. */
 export function departmentsOf(request: Pick<ApiRequest, "lines">): string[] {
   return [...new Set(request.lines.map((l) => l.department).filter((d): d is string => !!d))]
+}
+
+/**
+ * What the suggestion saved on a line, in words: "Asked 12 · saved 4 ·
+ * R 1,002". Null for a line recorded without a saving (before 3 Nov, a
+ * repairable line, or one marked not needed before a quantity was typed).
+ */
+export function savingSentence(line: Pick<ApiRequestLine, "saving">): string | null {
+  const s = line.saving
+  if (!s) return null
+  const asked = `Asked ${plainNumber(s.requiredQuantity)}`
+  if (s.unitsSaved === null) return `${asked} · no suggestion, nothing counted`
+  if (Number(s.unitsSaved) === 0) return `${asked} · no saving`
+  const value = s.valueSaved === null ? (s.priceNote ?? "no price") : formatZAR(Number(s.valueSaved))
+  return `${asked} · saved ${plainNumber(s.unitsSaved)} · ${value}`
+}
+
+/** The request's savings: units and rand over its lines, and how many had no price. */
+export function requestSavings(request: Pick<ApiRequest, "lines">): { units: number; value: number; unpriced: number } {
+  const total = { units: 0, value: 0, unpriced: 0 }
+  for (const line of request.lines) {
+    const units = Number(line.saving?.unitsSaved ?? 0)
+    if (!(units > 0)) continue
+    total.units += units
+    if (line.saving?.valueSaved == null) total.unpriced += 1
+    else total.value += Number(line.saving.valueSaved)
+  }
+  return total
+}
+
+function plainNumber(value: string): string {
+  const n = Number(value)
+  return Number.isFinite(n) ? String(n) : value
 }

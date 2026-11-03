@@ -39,6 +39,17 @@ export type ApiPreviewLine = {
   unitExists: boolean | null
   suggestion: ApiSuggested | null
   alsoMatched: string | null
+  /** OAR only: what a saving is valued at. Absent on a backend older than 3 Nov. */
+  unitPrice?: ApiUnitPrice | null
+}
+
+/** The plant's replacement price as I07 reads it (MBEW VERPR ÷ PEINH), in ZAR. */
+export type ApiUnitPrice = {
+  /** Null: no usable price -- `note` says why. */
+  price: string | null
+  currency: string | null
+  missing: string | null
+  note: string | null
 }
 
 export type ApiReasonCategory = { value: string; label: string }
@@ -84,7 +95,13 @@ export type ApiLineAnswers = {
   seenSuggestedQuantity?: string | null
   /** I08 only, and only when the requester declares the unit coming out. */
   declaration?: ApiLineDeclaration
+  /** OAR: the quantity needed, typed before the suggestion was shown. */
+  requiredQuantity?: string | null
+  /** OAR: which number was locked; `quantity` is then that number. */
+  quantityChoice?: QuantityChoice | null
 }
+
+export type QuantityChoice = "suggested" | "own"
 
 export type CreateRequestBody = {
   idempotencyKey: string
@@ -126,7 +143,24 @@ export type ApiRequestLine = {
   windowEnd: string | null
   purpose: string | null
   justification: { kind: string; reasonCategory: string; freeText: string } | null
+  /** OAR lines submitted with a required quantity (from 3 Nov). Absent before. */
+  saving?: ApiSaving | null
   linkedReservations: ApiRequestLink[]
+}
+
+/** What the quantity suggestion saved on one OAR line -- an estimate at submit. */
+export type ApiSaving = {
+  requiredQuantity: string
+  suggestedQuantity: string | null
+  finalQuantity: string
+  quantityChoice: QuantityChoice
+  /** Null: no suggestion could be made, so nothing is counted. */
+  unitsSaved: string | null
+  unitPrice: string | null
+  currency: string | null
+  /** Null without a price; `priceNote` says why. */
+  valueSaved: string | null
+  priceNote: string | null
 }
 
 export type ApiSkipped = { materialId: string; plant: string; kind: string; reason: string }
