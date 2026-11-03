@@ -244,7 +244,11 @@ function OarRow({
                 <span className="text-[11px] text-muted-foreground">Your {required} is used, with a reason.</span>
               ) : (
                 <div
-                  className="grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5"
+                  className={cn(
+                    "inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border border-action/60 bg-action/5 p-0.5",
+                    // Nothing locked yet: a stronger ring so the requester sees a choice is due.
+                    choice === null && "border-action ring-2 ring-action/20"
+                  )}
                   role="group"
                   aria-label={`Quantity to lock for ${row.materialId}`}
                 >
@@ -412,7 +416,7 @@ function LockButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium whitespace-nowrap transition-colors",
+        "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         chosen
           ? "bg-primary text-primary-foreground shadow-sm"
@@ -463,7 +467,7 @@ function SavingStrip({
         </span>
         <span className="text-[11px] leading-snug text-muted-foreground">
           {saving.value !== null && price !== null
-            ? `${saving.units} × ${rand(price)} at the I07 price`
+            ? `${saving.units} × ${rand(price)}`
             : `${units} · ${saving.priceNote ?? "No price"}`}
         </span>
         {ownChosen && (
