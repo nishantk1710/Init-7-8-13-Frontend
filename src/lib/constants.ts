@@ -117,9 +117,6 @@ export const QUICK_ACTIONS: {
   // Pending items across every module surface in the Action Center, which
   // links straight into each module's own action surface.
   { label: "Action Center", icon: "inbox", href: "/actions" },
-  // Decisions waiting on someone specifically — a filtered, decision-shaped
-  // view over the same underlying items as the Action Center.
-  { label: "Approvals", icon: "clipboard-check", href: "/approvals" },
   { label: "Audit trail", icon: "history", href: "/audit" },
   // One inbox for every module: approvals waiting on me, exceptions and
   // escalations. The unread count is added by the sidebar, which fetches it.

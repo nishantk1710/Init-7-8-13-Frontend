@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Save, Search, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, PiggyBank, Plus, Save, Search, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { DepartmentPicker } from "@/components/assistant/department-picker"
@@ -39,6 +39,7 @@ import {
   opensSession,
   pendingLine,
   repairableNeedsJustification,
+  requestSaving,
   withSuggestedWindow,
   type DraftLine,
   type Justification,
@@ -48,7 +49,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import type { UploadContext, UploadPlan } from "@/lib/assistant/request/upload"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
-import { cn } from "@/lib/utils"
+import { cn, formatZAR } from "@/lib/utils"
 import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
@@ -171,6 +172,7 @@ export function RequestBuilder({
   const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
+  const saving = requestSaving(rows)
   const headerReady = fromSap || (requester.trim().length > 0 && department.length > 0)
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
@@ -643,6 +645,21 @@ export function RequestBuilder({
                 style={{ width: `${(readyCount / sessionRows.length) * 100}%` }}
               />
             </div>
+          )}
+          {saving.units > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-xs font-semibold text-success"
+              title="What you asked for less what you locked, at each plant's MBEW price (VERPR ÷ PEINH). An estimate until SAP is reserved."
+            >
+              <PiggyBank className="size-3.5" aria-hidden />
+              Suggestions save {saving.units} unit{saving.units === 1 ? "" : "s"}
+              {saving.value > 0 && ` · ${formatZAR(saving.value)}`}
+              {saving.unpriced > 0 && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  ({saving.unpriced} line{saving.unpriced === 1 ? "" : "s"} without a price)
+                </span>
+              )}
+            </span>
           )}
           <span className="text-xs font-medium text-foreground">
             {!headerReady

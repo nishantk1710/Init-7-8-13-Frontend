@@ -1,31 +1,40 @@
 "use client"
 
 import { Fragment } from "react"
-import { Ban, RefreshCw, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
+import { Ban, CheckCircle2, Lock, PiggyBank, RefreshCw, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
 
 import { Chip, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import {
+  choiceOf,
   lineIssues,
   oarNeedsJustification,
   parseQuantity,
+  requiredOf,
+  suggestionSavingOf,
   toNumber,
+  withChoice,
+  withRequired,
   withSuggestedWindow,
+  type LineSaving,
   type OarLine,
 } from "@/lib/assistant/request/lines"
-import { justificationPrompt, suggestionKind, suggestionLabel, suggestWindow } from "@/lib/assistant/request/suggest"
-import { cn } from "@/lib/utils"
+import { justificationPrompt, suggestionKind, suggestWindow } from "@/lib/assistant/request/suggest"
+import { cn, formatZAR } from "@/lib/utils"
 
 /**
  * The OAR (I13) rows of a request.
  *
- * Reads left to right in the order the assistant asks: what is on hand, what
- * it suggests, the quantity (prefilled with that suggestion), a reason only if
- * the quantity goes above it, then the consumption window (prefilled from the
- * quantity and the usage rate) and the purpose. Every figure is the backend's
- * assessment, exactly as a conversation would show it.
+ * Reads left to right in the order the assistant asks: what is on hand, the
+ * quantity the requester needs (typed first, 3 Nov), and only then what the
+ * assistant suggests -- with a choice to lock the suggestion or their own
+ * number, and what the suggestion saves. A reason is asked when their own
+ * number is above or below the suggestion; then the consumption window
+ * (prefilled from the locked quantity and the usage rate) and the purpose.
+ * Every figure is the backend's assessment, exactly as a conversation would
+ * show it.
  */
 export function OarTable({
   rows,
@@ -47,20 +56,26 @@ export function OarTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[1120px] text-sm">
+      <table className="w-full min-w-[1160px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="w-10 px-3 py-2 font-medium">#</th>
             <th className="min-w-44 px-3 py-2 font-medium">Material</th>
             <th className="px-3 py-2 font-medium">On hand</th>
-            <th className="w-48 px-3 py-2 font-medium">
-              <span className="inline-flex items-center gap-1">
-                <Sparkles className="size-3 text-action" aria-hidden />1 · Suggested
-              </span>
+            <th className="w-28 px-3 py-2 font-medium">
+              <Step n={1}>You need</Step>
             </th>
-            <th className="w-24 px-3 py-2 font-medium">2 · Quantity</th>
-            <th className="w-[19rem] px-3 py-2 font-medium">3 · Consumption window</th>
-            <th className="px-3 py-2 font-medium">4 · Purpose</th>
+            <th className="w-72 px-3 py-2 font-medium">
+              <Step n={2}>
+                Suggested <Sparkles className="size-3 text-action" aria-hidden />
+              </Step>
+            </th>
+            <th className="w-[19rem] px-3 py-2 font-medium">
+              <Step n={3}>Consumption window</Step>
+            </th>
+            <th className="px-3 py-2 font-medium">
+              <Step n={4}>Purpose</Step>
+            </th>
             <th className="w-40 px-3 py-2 font-medium">Status</th>
           </tr>
         </thead>
@@ -80,6 +95,18 @@ export function OarTable({
         </tbody>
       </table>
     </div>
+  )
+}
+
+/** A numbered step in the column header: the order a row is filled in. */
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+        {n}
+      </span>
+      {children}
+    </span>
   )
 }
 
@@ -103,6 +130,9 @@ function OarRow({
   const declined = row.decision === "not_needed"
   const issues = lineIssues(row)
   const quantity = parseQuantity(row.quantity)
+  const required = requiredOf(row)
+  const choice = choiceOf(row)
+  const saving = suggestionSavingOf(row)
   const justify = oarNeedsJustification(row)
   const kind = suggestionKind(row.suggested)
   const facts = row.preview.facts ?? {}
@@ -155,50 +185,98 @@ function OarRow({
           )}
         </td>
         <td className="px-3 py-3">
-          <div className="flex flex-col gap-1">
-            <span className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "w-fit rounded-md px-2 py-0.5 font-mono text-base font-semibold",
-                  kind === "suggested" && "bg-primary text-primary-foreground",
-                  kind === "covered" && "bg-success/15 text-success",
-                  kind === "none" && "bg-muted font-sans text-xs font-medium text-muted-foreground"
-                )}
-              >
-                {suggestionLabel(row.suggested)}
-              </span>
-              {row.changed && (
-                <Chip tone="warn" title="The stock figures moved since this row was added; review the quantity.">
-                  <RefreshCw className="size-3" /> Updated
-                </Chip>
-              )}
-            </span>
-            <span className="text-[11px] leading-snug text-muted-foreground">{row.preview.suggestion?.reason}</span>
-          </div>
+          <Input
+            inputMode="numeric"
+            aria-label={`Quantity you need for ${row.materialId}`}
+            value={row.required ?? ""}
+            disabled={declined}
+            aria-invalid={err("required quantity")}
+            placeholder="Enter"
+            onChange={(e) =>
+              onChange(withRequired({ ...row, changed: false }, e.target.value, choice === "own" ? "own" : null))
+            }
+            className={cn(
+              "h-8 w-20 font-mono",
+              !declined && required === null && "border-action ring-2 ring-action/20"
+            )}
+          />
         </td>
         <td className="px-3 py-3">
-          <div className="flex flex-col gap-1">
-            <Input
-              inputMode="numeric"
-              aria-label={`Quantity for ${row.materialId}`}
-              value={row.quantity}
-              disabled={declined}
-              aria-invalid={err("quantity")}
-              placeholder={row.suggested === null ? "Enter" : "0"}
-              onChange={(e) => onChange(withSuggestedWindow({ ...row, quantity: e.target.value, changed: false }))}
-              className="h-8 w-20 font-mono"
-            />
-            {!declined && row.suggested !== null && row.suggested > 0 && quantity !== row.suggested && (
-              <button
-                type="button"
-                className="inline-flex w-fit items-center gap-1 text-[11px] text-action hover:underline"
-                onClick={() => onChange(withSuggestedWindow({ ...row, quantity: String(row.suggested), changed: false }))}
-              >
-                <RotateCcw className="size-3" aria-hidden />
-                Use {row.suggested}
-              </button>
-            )}
-          </div>
+          {required === null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+              <Sparkles className="size-3.5 shrink-0 text-action" aria-hidden />
+              Enter the quantity you need to see the suggestion.
+            </span>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {kind === "suggested" && (
+                  <span className="inline-flex items-baseline gap-1.5 rounded-lg bg-accent px-2.5 py-1 text-accent-foreground">
+                    <span className="text-[11px] font-medium">Suggested</span>
+                    <span className="font-mono text-lg leading-none font-semibold">{row.suggested}</span>
+                  </span>
+                )}
+                {kind === "covered" && (
+                  <Chip tone="ready" className="py-1 text-xs">
+                    <CheckCircle2 className="size-3.5" aria-hidden /> Stock covers it · suggest 0
+                  </Chip>
+                )}
+                {kind === "none" && (
+                  <Chip tone="muted" className="py-1 text-xs">
+                    No suggestion
+                  </Chip>
+                )}
+                {row.changed && (
+                  <Chip tone="warn" title="The stock figures moved since this row was added; choose again.">
+                    <RefreshCw className="size-3" /> Updated
+                  </Chip>
+                )}
+              </div>
+              {row.preview.suggestion?.reason && (
+                <p
+                  className="line-clamp-2 text-[11px] leading-snug text-muted-foreground"
+                  title={row.preview.suggestion.reason}
+                >
+                  {row.preview.suggestion.reason}
+                </p>
+              )}
+              {kind === "none" ? (
+                <span className="text-[11px] text-muted-foreground">Your {required} is used, with a reason.</span>
+              ) : (
+                <div
+                  className={cn(
+                    "inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border border-action/60 bg-action/5 p-0.5",
+                    // Nothing locked yet: a stronger ring so the requester sees a choice is due.
+                    choice === null && "border-action ring-2 ring-action/20"
+                  )}
+                  role="group"
+                  aria-label={`Quantity to lock for ${row.materialId}`}
+                >
+                  <LockButton
+                    chosen={choice === "suggested"}
+                    onClick={() => onChange(withChoice(row, "suggested"))}
+                    label={kind === "covered" ? "Not needed" : `Use ${row.suggested}`}
+                    title={
+                      kind === "covered"
+                        ? "Stock and open orders already cover it: reserve nothing"
+                        : "Lock the suggested quantity"
+                    }
+                  />
+                  <LockButton
+                    chosen={choice === "own"}
+                    onClick={() => onChange(withChoice(row, "own"))}
+                    label={`Use mine (${required})`}
+                    title="Lock your own quantity"
+                  />
+                </div>
+              )}
+              <SavingStrip
+                saving={saving}
+                price={toNumber(row.preview.unitPrice?.price)}
+                ownChosen={choice === "own"}
+              />
+            </div>
+          )}
         </td>
         <td className="px-3 py-3">
           <div className="flex flex-col gap-1">
@@ -209,7 +287,13 @@ function OarRow({
                 value={row.windowStart}
                 disabled={declined}
                 aria-invalid={err("window start") || err("window ends before it starts")}
-                onChange={(e) => onChange({ ...row, windowStart: e.target.value, windowEdited: true })}
+                onChange={(e) =>
+                  onChange({
+                    ...row,
+                    windowStart: e.target.value,
+                    windowEdited: true,
+                  })
+                }
                 className="h-8 w-[8.5rem] text-xs"
               />
               <span className="text-xs text-muted-foreground">to</span>
@@ -219,13 +303,21 @@ function OarRow({
                 value={row.windowEnd}
                 disabled={declined}
                 aria-invalid={err("window end") || err("window ends before it starts")}
-                onChange={(e) => onChange({ ...row, windowEnd: e.target.value, windowEdited: true })}
+                onChange={(e) =>
+                  onChange({
+                    ...row,
+                    windowEnd: e.target.value,
+                    windowEdited: true,
+                  })
+                }
                 className="h-8 w-[8.5rem] text-xs"
               />
             </div>
             {!declined && !row.windowEdited && suggestedWindow && (
               <span className="text-[11px] text-muted-foreground">
-                Suggested: {suggestedWindow.months} month{suggestedWindow.months === 1 ? "" : "s"} at {figure(row.rate)}/month
+                Suggested: {suggestedWindow.months} month
+                {suggestedWindow.months === 1 ? "" : "s"} at {figure(row.rate)}
+                /month
               </span>
             )}
             {!declined && !suggestedWindow && row.rate <= 0 && (
@@ -262,7 +354,14 @@ function OarRow({
               variant="ghost"
               size="xs"
               title={declined ? "Needed after all" : "After the assessment, this part is not needed"}
-              onClick={() => onChange({ ...row, decision: declined ? "proceed" : "not_needed" })}
+              onClick={() =>
+                onChange(
+                  declined
+                    ? // Back to proceed: a locked "nothing needed" no longer holds.
+                      withRequired({ ...row, decision: "proceed" }, row.required ?? "", choice === "own" ? "own" : null)
+                    : { ...row, decision: "not_needed" }
+                )
+              }
             >
               {declined ? <Undo2 /> : <Ban />}
               {declined ? "Undo" : "Not needed"}
@@ -296,6 +395,86 @@ function OarRow({
         </tr>
       )}
     </Fragment>
+  )
+}
+
+function LockButton({
+  chosen,
+  label,
+  title,
+  onClick,
+}: {
+  chosen: boolean
+  label: string
+  title: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={chosen}
+      title={title}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        chosen
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-background hover:text-foreground"
+      )}
+    >
+      {chosen && <Lock className="size-3" aria-hidden />}
+      {label}
+    </button>
+  )
+}
+
+/** A unit price with its cents: "R 59,745.08". */
+function rand(amount: number): string {
+  return `R ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/**
+ * What taking the suggestion saves on the row, under the choice: the rand
+ * amount and the sum behind it. Dimmed when the requester keeps their own
+ * number, since that saving is then not counted.
+ */
+function SavingStrip({
+  saving,
+  price,
+  ownChosen,
+}: {
+  saving: LineSaving | null
+  price: number | null
+  ownChosen: boolean
+}) {
+  if (saving === null || saving.units === null) return null
+  if (saving.units === 0) {
+    return <span className="text-[11px] text-muted-foreground">No saving: you need no more than the suggestion.</span>
+  }
+  const units = `${saving.units} unit${saving.units === 1 ? "" : "s"}`
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-lg border-l-[3px] border-success bg-success/10 px-2.5 py-1.5",
+        ownChosen && "opacity-60"
+      )}
+    >
+      <PiggyBank className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+      <div className="flex min-w-0 flex-col">
+        <span className="text-sm font-semibold whitespace-nowrap text-success">
+          Saves {saving.value === null ? units : formatZAR(saving.value)}
+        </span>
+        <span className="text-[11px] leading-snug text-muted-foreground">
+          {saving.value !== null && price !== null
+            ? `${saving.units} × ${rand(price)}`
+            : `${units} · ${saving.priceNote ?? "No price"}`}
+        </span>
+        {ownChosen && (
+          <span className="text-[11px] leading-snug text-muted-foreground">Not counted: your own number is used.</span>
+        )}
+      </div>
+    </div>
   )
 }
 
