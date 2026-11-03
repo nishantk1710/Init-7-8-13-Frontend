@@ -51,9 +51,12 @@ export function RequestCreatedDialog({ request }: { request: ApiRequest }) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className="sm:max-w-lg">
+      {/* The window renders outside the page, so it takes the page's blue scope itself. */}
+      <DialogContent className="nav-blue-scope sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Request {request.requestId} is recorded</DialogTitle>
+          <DialogTitle className="text-base font-semibold text-foreground">
+            Request <span className="font-mono tracking-wider">{request.requestId}</span> is recorded
+          </DialogTitle>
           <DialogDescription>
             {waiting} line{waiting === 1 ? "" : "s"} still need{waiting === 1 ? "s" : ""} a reservation in SAP.
           </DialogDescription>
