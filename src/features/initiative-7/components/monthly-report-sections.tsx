@@ -10,13 +10,12 @@
 import { ChartCard } from "@/components/shared/chart-card"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn, formatCount, formatIsoDateDMY } from "@/lib/utils"
+import { cn, formatCount } from "@/lib/utils"
 import type { ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import { cardTitle, compactMoney, num, orderedKpis } from "@/features/initiative-7/utils/quarterly-management"
+import { cardTitle, compactMoney, orderedKpis } from "@/features/initiative-7/utils/quarterly-management"
 import {
   approvalStageRows,
   coverageItemsOf,
-  monthEndPositionOf,
   PERSPECTIVE_LABEL,
   plantExcessRows,
   type CoverageStatus,
@@ -61,104 +60,6 @@ export function KpiGuide({ cards }: { cards: ApiKpiCard[] }) {
         ))}
       </dl>
     </details>
-  )
-}
-
-// --- Month-end inventory position ----------------------------------------------------------------------------
-
-/** The closing position of a month, from its saved snapshot only. With none it says "Snapshot not available" and why, and
- * lists what the section will show once a valid snapshot exists -- it never fills the gap with today's figures. */
-export function MonthEndPositionCard({ management }: { management: ApiQuarterManagement }) {
-  const position = monthEndPositionOf(management)
-  const end = management.trends?.quarter_end
-  return (
-    <ChartCard
-      title="Month-end position"
-      subtitle={
-        position.available && position.measuredOn
-          ? `The saved ${end?.label} month-end snapshot, measured ${formatIsoDateDMY(position.measuredOn)}${
-              position.stockAsOf ? `; stock on hand loaded ${formatIsoDateDMY(position.stockAsOf)}` : ""
-            }.`
-          : "The last day of the month, from the month's saved snapshot. It is never rebuilt from today's data."
-      }
-      span={12}
-    >
-      <PerspectiveTag perspective="snapshot" />
-      {position.available ? (
-        <PositionTiles items={position.items} />
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="rounded-lg border border-dashed border-border p-3">
-            <p className="text-sm font-medium text-foreground">Snapshot not available</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{position.reason}</p>
-            {end?.latest_available_label && end.latest_available_measured_on && (
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                The latest snapshot available is {end.latest_available_label}, measured {formatIsoDateDMY(end.latest_available_measured_on)}
-                . It is not shown as the month-end.
-              </p>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Once a valid month-end snapshot is saved this section shows: total inventory value, excess inventory value, working capital
-            impact, safety stock value, material-plants below their reorder point, and high stockout risk.
-          </p>
-        </div>
-      )}
-      {position.available && end && end.stock_levels.length > 0 && <StockLevelMeans stockLevels={end.stock_levels} />}
-    </ChartCard>
-  )
-}
-
-function PositionTiles({ items }: { items: ReturnType<typeof monthEndPositionOf>["items"] }) {
-  return (
-    <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item) => (
-        <div key={item.key} className="rounded-lg border border-border p-3">
-          <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">{item.label}</dt>
-          {item.value === null ? (
-            <dd className="mt-1">
-              <span className="text-sm font-medium text-muted-foreground">Not measured</span>
-              <span className="mt-0.5 block text-[11px] leading-relaxed text-warning">{item.reason}</span>
-            </dd>
-          ) : (
-            <dd className="mt-1">
-              <span className="text-xl font-semibold tabular-nums text-foreground">{item.value}</span>
-              {item.basis && <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">{item.basis}</span>}
-            </dd>
-          )}
-        </div>
-      ))}
-    </dl>
-  )
-}
-
-function StockLevelMeans({ stockLevels }: { stockLevels: NonNullable<ApiQuarterManagement["trends"]>["quarter_end"]["stock_levels"] }) {
-  return (
-    <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead>Stock level</TableHead>
-            <TableHead className="text-right">Current (SAP), mean</TableHead>
-            <TableHead className="text-right">Recommended, mean</TableHead>
-            <TableHead className="text-right">Records</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {stockLevels.map((level) => (
-            <TableRow key={level.key}>
-              <TableCell>{level.label}</TableCell>
-              {[level.current, level.recommended].map((value, i) => (
-                <TableCell key={i} className="text-right tabular-nums">
-                  {num(value) === null ? <span className="text-muted-foreground">Not available</span> : (num(value) as number).toFixed(1)}
-                </TableCell>
-              ))}
-              <TableCell className="text-right tabular-nums text-muted-foreground">{formatCount(level.records)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
   )
 }
 

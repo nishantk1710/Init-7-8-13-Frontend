@@ -5,18 +5,12 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import {
-  ApprovalStagesCard,
-  CoverageStatusTable,
-  ExcessByPlantValues,
-  MonthEndPositionCard,
-} from "@/features/initiative-7/components/monthly-report-sections"
+import { ApprovalStagesCard, CoverageStatusTable, ExcessByPlantValues } from "@/features/initiative-7/components/monthly-report-sections"
 import type { ApiAdoptionQuarter, ApiPositionFigures, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import { adoptionSummaryOf } from "@/features/initiative-7/utils/quarterly-management"
 import {
   approvalStageRows,
   coverageItemsOf,
-  monthEndPositionOf,
   plantExcessRows,
   STATUS_FILTER_OPTIONS,
 } from "@/features/initiative-7/utils/quarterly-sections"
@@ -131,103 +125,6 @@ function management(
 }
 
 const html = (component: unknown, props: object) => renderToStaticMarkup(createElement(component as never, props))
-
-describe("the month-end position", () => {
-  it("shows the stock held from a valid saved snapshot, with its dates and what each is over", () => {
-    const position = monthEndPositionOf(management())
-    expect(position.available).toBe(true)
-    expect(position.measuredOn).toBe("2026-11-02")
-    expect(position.stockAsOf).toBe("2026-10-30")
-    const byKey = Object.fromEntries(position.items.map((i) => [i.key, i]))
-    expect(byKey.inventory_value.value).toContain("120.00M")
-    expect(byKey.inventory_value.basis).toContain("800 material-plants")
-    expect(byKey.below_reorder.value).toBe("70")
-    expect(byKey.below_reorder.basis).toContain("of 600")
-    expect(byKey.stockout.value).toBe("891")
-    const out = html(MonthEndPositionCard, { management: management() })
-    expect(out).toContain("Total inventory value")
-    expect(out).toContain("Month-end snapshot")
-  })
-
-  it("says a snapshot saved before stock held was captured did not measure it, and never shows 0", () => {
-    const old = figures({
-      inventory_value: null,
-      safety_stock_value: null,
-      below_reorder_count: null,
-      below_reorder_judged: 0,
-      inventory_stock_as_of: null,
-      inventory_priced_count: 0,
-    })
-    const position = monthEndPositionOf(management({}, old))
-    const byKey = Object.fromEntries(position.items.map((i) => [i.key, i]))
-    for (const key of ["inventory_value", "safety_stock_value", "below_reorder"]) {
-      expect(byKey[key].value).toBeNull()
-      expect(byKey[key].reason).toContain("saved before stock held was captured")
-    }
-    expect(byKey.excess_value.value).not.toBeNull() // what that snapshot did measure is still shown
-    expect(html(MonthEndPositionCard, { management: management({}, old) })).toContain("Not measured")
-  })
-
-  it("carries the reason when the stock load was too far from the month's end", () => {
-    const why =
-      "Stock on hand was loaded on 31 May 2026, 153 days from this report's cutoff (31 Oct 2026); it is not shown as the position for the period."
-    const stale = figures({
-      inventory_value: null,
-      safety_stock_value: null,
-      below_reorder_count: null,
-      inventory_unavailable_reason: why,
-    })
-    const byKey = Object.fromEntries(monthEndPositionOf(management({}, stale)).items.map((i) => [i.key, i]))
-    expect(byKey.inventory_value.reason).toBe(why)
-    expect(byKey.below_reorder.value).toBeNull()
-  })
-
-  it("does not show a stale stockout reading as the month's risk", () => {
-    const stale = figures({
-      stockout: stockout({
-        as_of: "2026-05-31",
-        stale: true,
-        stale_note: "Stockout risk was last measured on 31 May 2026.",
-      }),
-    })
-    const item = monthEndPositionOf(management({}, stale)).items.find((i) => i.key === "stockout")!
-    expect(item.value).toBeNull()
-    expect(item.reason).toContain("31 May 2026")
-  })
-
-  it("says Snapshot not available, and why, when there is no valid snapshot -- and shows no figure from today's data", () => {
-    const m = management(
-      { position_basis: "current_calculation" },
-      figures(),
-      end({
-        status: "NOT_AVAILABLE",
-        reason: "No snapshot was captured for Oct 2026, and a past month cannot be rebuilt.",
-      }),
-    )
-    const position = monthEndPositionOf(m)
-    expect(position.available).toBe(false)
-    expect(position.items).toEqual([])
-    const out = html(MonthEndPositionCard, { management: m })
-    expect(out).toContain("Snapshot not available")
-    expect(out).toContain("No snapshot was captured for Oct 2026")
-    expect(out).not.toContain("120.00M") // the current inventory value is not stood in for the month-end
-    expect(out).toContain("total inventory value") // what the section will show once a snapshot exists
-  })
-
-  it("never presents an earlier month as the month-end", () => {
-    const m = management(
-      { position_basis: "current_calculation" },
-      figures(),
-      end({
-        status: "NOT_AVAILABLE",
-        reason: "x",
-        latest_available_label: "Sep 2026",
-        latest_available_measured_on: "2026-10-02",
-      }),
-    )
-    expect(html(MonthEndPositionCard, { management: m })).toContain("not shown as the month-end")
-  })
-})
 
 describe("excess by plant", () => {
   it("keeps material counts and money in separate columns, and a missing value is not zero", () => {

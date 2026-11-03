@@ -22,7 +22,7 @@ import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { reportKindOf, reportNoun } from "@/features/initiative-7/utils/report-period"
-import { approvalStageRows, coverageItemsOf, monthEndPositionOf } from "@/features/initiative-7/utils/quarterly-sections"
+import { approvalStageRows, coverageItemsOf } from "@/features/initiative-7/utils/quarterly-sections"
 import {
   activityCell,
   adoptionSummaryOf,
@@ -63,7 +63,6 @@ export function ManagementPrintView({ report, management, materials, materialsTo
   const kind = reportKindOf(meta.quarter)
   const noun = reportNoun(kind)
   const stages = approvalStageRows(management.adoption)
-  const monthEnd = monthEndPositionOf(management)
   const performance = management.performance
   const coverageItems = coverageItemsOf(management)
   const usable = stockoutUsable(management)
@@ -229,49 +228,6 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           {management.adoption.reason} Recommendations awaiting a decision: {formatCount(management.adoption.pending_approvals)}.
         </p>
       </Section>
-
-      {trends && kind === "monthly" && (
-        <Section number={next()} title="Month-End Position" subtitle="The month's saved snapshot, shown only when it is valid for the end of the month.">
-          {monthEnd.available ? (
-            <>
-              <p className="print-disclosure">
-                The saved {trends.quarter_end.label} month-end snapshot, measured {date(monthEnd.measuredOn)}
-                {monthEnd.stockAsOf ? `; stock on hand loaded ${date(monthEnd.stockAsOf)}` : ""}.
-              </p>
-              <Table
-                headers={["Measure", "Value", "Over"]}
-                rows={monthEnd.items.map((item) => [
-                  item.label,
-                  item.value ?? `${NOT_AVAILABLE}. ${item.reason ?? ""}`,
-                  item.basis ?? "—",
-                ])}
-              />
-              {trends.quarter_end.stock_levels.length > 0 && (
-                <Table
-                  headers={["Stock level", "Current (SAP), mean", "Recommended, mean", "Records"]}
-                  rows={trends.quarter_end.stock_levels.map((level) => [
-                    level.label,
-                    num(level.current) === null ? NOT_AVAILABLE : (num(level.current) as number).toFixed(1),
-                    num(level.recommended) === null ? NOT_AVAILABLE : (num(level.recommended) as number).toFixed(1),
-                    formatCount(level.records),
-                  ])}
-                />
-              )}
-            </>
-          ) : (
-            <>
-              <p className="print-empty">Snapshot not available. {monthEnd.reason}</p>
-              {trends.quarter_end.latest_available_label && (
-                <p className="print-disclosure">
-                  The latest snapshot available is {trends.quarter_end.latest_available_label}, measured{" "}
-                  {date(trends.quarter_end.latest_available_measured_on)}. It is not shown as the month-end.
-                </p>
-              )}
-              <p className="print-disclosure">A past month cannot be rebuilt from today&apos;s data, so no estimate is printed in its place.</p>
-            </>
-          )}
-        </Section>
-      )}
 
       {performance && kind === "monthly" && (
         <Section

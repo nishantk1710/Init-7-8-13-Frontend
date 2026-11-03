@@ -33,7 +33,6 @@ import {
   CoverageStatusTable,
   ExcessByPlantValues,
   KpiGuide,
-  MonthEndPositionCard,
   PerspectiveTag,
 } from "@/features/initiative-7/components/monthly-report-sections"
 import { PerformanceTrends } from "@/features/initiative-7/components/performance-trends-section"
@@ -756,7 +755,6 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
         {/* --- From the saved monthly snapshots -------------------------------------------------- */}
         {/* A month has one point per chart, so there is no trend to draw: its report shows the month-end position only. */}
         {management.trends && kind === "quarterly" && <MonthlyTrends trends={management.trends} />}
-        {management.trends && kind === "monthly" && <MonthEndPositionCard management={management} />}
         {management.performance && kind === "monthly" && <PerformanceTrends performance={management.performance} />}
         {management.trends && kind === "quarterly" && <QuarterEndCard trends={management.trends} period={reportNoun(kind).singular} />}
 

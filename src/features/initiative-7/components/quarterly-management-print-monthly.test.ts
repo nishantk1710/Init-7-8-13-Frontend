@@ -1,6 +1,6 @@
-// The PDF of a monthly report: it prints the same sections the page shows, from the saved report -- the month-end position from the
-// snapshot only, the performance trends with their gaps, the approval stages apart from SAP adoption, the coverage statuses and the
-// comparison rows -- and says Not available, with the reason, wherever a figure was not measured.
+// The PDF of a monthly report: it prints the same sections the page shows, from the saved report -- the performance trends with
+// their gaps, the approval stages apart from SAP adoption, the coverage statuses and the comparison rows -- and says Not available,
+// with the reason, wherever a figure was not measured.
 
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -227,27 +227,10 @@ describe("a monthly PDF", () => {
     expect(out).not.toContain("Quarter-End Position")
   })
 
-  it("prints the month-end position from the saved snapshot, with the stock figures and what each is over", () => {
+  it("has no month-end position section, as the page has none", () => {
     const out = html(management())
-    expect(out).toContain("Month-End Position")
-    expect(out).toContain("Total inventory value")
-    expect(out).toContain("120.00M")
-    expect(out).toContain("800 material-plants with stock and a ZAR price")
-    expect(out).toContain("Material-plants below reorder point")
-  })
-
-  it("says Snapshot not available and why, and prints no figure in its place", () => {
-    const out = html(management({}, false))
-    expect(out).toContain("Snapshot not available")
-    expect(out).toContain("No snapshot was captured for Oct 2026.")
-    expect(out).toContain("cannot be rebuilt")
-    expect(out).not.toContain("Total inventory value")
-  })
-
-  it("prints a snapshot saved before stock held was captured as not measured, never zero", () => {
-    const old = figures({ inventory_value: null, safety_stock_value: null, below_reorder_count: null, inventory_stock_as_of: null })
-    const out = html(management({ position: old }))
-    expect(out).toContain("saved before stock held was captured")
+    expect(out).not.toContain("Month-End Position")
+    expect(out).not.toContain("Snapshot not available")
   })
 
   it("prints the performance trends with a gap as Not available and a real zero as 0", () => {
