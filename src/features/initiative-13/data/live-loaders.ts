@@ -40,6 +40,8 @@ import {
   getI13ConsumptionPlansList,
   getI13Grni,
   getI13LedgerCounts,
+  getI13PlanVsIssuedCounts,
+  getI13PlanVsIssuedList,
   getI13LedgerList,
   getI13ReclassificationList,
   getI13ReservationLedgerList,
@@ -52,6 +54,8 @@ import {
   type ConsumptionPlan,
   type GrniEntry,
   type I13Summary,
+  type PlanVsIssuedCounts,
+  type PlanVsIssuedRow,
   type ReclassificationCandidate,
   type ReservationLedgerRow,
   type UsagePattern,
@@ -481,4 +485,41 @@ export async function loadLiveReservationLedger(
     plantOptions: plantsOf(rows),
     linkedCount: rows.filter((r) => r.sessionId).length,
   }
+}
+
+export type PlanVsIssuedFilters = {
+  plant?: string
+  material?: string
+  source?: string
+  status?: string
+  reservation?: string
+  overdue?: boolean
+}
+
+function planVsIssuedParams(filters: PlanVsIssuedFilters) {
+  return {
+    overdue: filters.overdue || undefined,
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    source: filters.source || undefined,
+    status: filters.status || undefined,
+    reservation: filters.reservation || undefined,
+  }
+}
+
+/**
+ * The acquired-vs-plan tab: one page of captured plans and OAR reservations
+ * raised directly in SAP, latest due date first.
+ */
+export async function loadLivePlanVsIssued(
+  filters: PlanVsIssuedFilters = {},
+  paging?: Paging
+): Promise<Capped<PlanVsIssuedRow>> {
+  const { items, total } = await getI13PlanVsIssuedList({ ...planVsIssuedParams(filters), ...pageRequest(paging) })
+  return cap(items, total)
+}
+
+/** The tab badge and the Source/Status filters' counts, over every row. */
+export function loadLivePlanVsIssuedCounts(filters: PlanVsIssuedFilters = {}): Promise<PlanVsIssuedCounts> {
+  return getI13PlanVsIssuedCounts(planVsIssuedParams(filters))
 }

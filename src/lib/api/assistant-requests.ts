@@ -9,9 +9,10 @@
  * {@link isNotEnabled} tells that apart from a request that does not exist.
  */
 
-import { ApiError, apiFetch, apiPost } from "@/lib/api/client"
+import { ApiError, apiFetch, apiFetchBlob, apiPost, apiPostForm } from "@/lib/api/client"
 import type { ApiDepartment, ApiLinkedReservation, ApiMaterialMatch } from "@/lib/api/assistant"
 import { listDepartments, searchMaterials } from "@/lib/api/assistant"
+import { saveBlob } from "@/lib/download-file"
 
 // --- preview ------------------------------------------------------------------
 
@@ -185,6 +186,29 @@ export function conflictDetail(error: unknown): ConflictDetail | null {
   return { message: raw?.message ?? error.detailText(), changed: Array.isArray(raw?.changed) ? raw.changed : [] }
 }
 
+/**
+ * `POST /assistant/requests/upload`: the filled-in template, read and checked
+ * by the backend. Nothing is stored; each material is then previewed as one
+ * added by hand.
+ */
+export type ApiUploadResult = {
+  plant: string
+  department: string
+  departmentName: string | null
+  /** In file order, duplicates removed. */
+  materials: string[]
+  rowCount: number
+  duplicates: string[]
+  maxLines: number
+}
+
+/** A file the backend refused: every problem in it, so it is fixed in one go. */
+export function uploadErrors(error: unknown): string[] | null {
+  if (!(error instanceof ApiError) || error.status !== 422) return null
+  const raw = error.rawDetail as { errors?: unknown } | null
+  return Array.isArray(raw?.errors) ? raw.errors.map(String) : [error.detailText()]
+}
+
 /** The routes answer 404 "Not Found" while the backend flag is off. */
 export function isNotEnabled(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404 && error.detailText() === "Not Found"
@@ -221,6 +245,66 @@ export async function searchRequestMaterials(q: string, signal?: AbortSignal): P
 export async function requestDepartments(plant: string): Promise<{ items: ApiDepartment[]; loaded: boolean }> {
   const response = await listDepartments(plant)
   return { items: response.items, loaded: response.loaded }
+}
+
+/** Read and check a filled-in template. Throws 422 -- see {@link uploadErrors}. */
+export async function uploadRequestFile(file: File): Promise<ApiUploadResult> {
+  const form = new FormData()
+  form.append("file", file)
+  return apiPostForm<ApiUploadResult>("/assistant/requests/upload", form)
+}
+
+/** The Excel template a request's materials are uploaded in. */
+export async function downloadRequestTemplate(): Promise<void> {
+  const { blob, filename } = await apiFetchBlob("/assistant/requests/upload-template", "material-request-template.xlsx")
+  saveBlob(blob, filename)
+}
+
+// --- link reservation -----------------------------------------------------------
+
+export type LinkJobStatus = "queued" | "running" | "succeeded" | "failed" | "abandoned"
+export type LinkJobStepKey = "queue" | "delta" | "link" | "i13" | "i08"
+export type LinkJobStepStatus = "pending" | "active" | "done" | "failed" | "skipped"
+
+export interface ApiLinkJobStep {
+  key: LinkJobStepKey
+  label: string
+  status: LinkJobStepStatus
+  startedAt: string | null
+  finishedAt: string | null
+  detail: string | null
+}
+
+/** A "Link reservation" job: pull SAP, link this request, rebuild the two views. */
+export interface ApiLinkJob {
+  id: number
+  requestId: string
+  status: LinkJobStatus
+  /** The step being worked on: a step key, or "done". */
+  step: LinkJobStepKey | "done"
+  steps: ApiLinkJobStep[]
+  requestedAt: string
+  startedAt: string | null
+  finishedAt: string | null
+  links: number | null
+  error: string | null
+  /** False when the press found this request's job already queued or running. */
+  created: boolean
+}
+
+/** Start the job, or get the one already queued or running for this request. **Responds 202.** */
+export function startLinkReservation(requestId: string): Promise<ApiLinkJob> {
+  return apiPost<ApiLinkJob>(`/assistant/requests/${encodeURIComponent(requestId)}/link-reservation`)
+}
+
+/** The latest job for this request, or null when none was ever started. */
+export async function getLinkReservation(requestId: string): Promise<ApiLinkJob | null> {
+  try {
+    return await apiFetch<ApiLinkJob>(`/assistant/requests/${encodeURIComponent(requestId)}/link-reservation`)
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  }
 }
 
 // --- UAT ----------------------------------------------------------------------

@@ -5,7 +5,13 @@
 // here, green on the Exceptions board). Labels only -- no value is
 // reclassified here.
 
-import type { AcquiredVsPlanStatus, ActExceptionStatus, ActExceptionType } from "@/lib/api/i13"
+import type {
+  AcquiredVsPlanStatus,
+  ActExceptionStatus,
+  ActExceptionType,
+  PlanVsIssuedSource,
+  PlanVsIssuedStatus,
+} from "@/lib/api/i13"
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger"
 
@@ -45,6 +51,37 @@ export const PLAN_STATUS_TONE: Record<AcquiredVsPlanStatus, Tone> = {
   ABOVE_PLAN: "danger",
   NO_RESERVATION: "info",
   NO_PLAN: "neutral",
+}
+
+// The acquired-vs-plan tab's rows: one rule for both sources -- issued (used)
+// against planned (asked for: a plan's quantity, a reservation's reserved one).
+export const PLAN_VS_ISSUED_SOURCE_LABEL: Record<PlanVsIssuedSource, string> = {
+  ASSISTANT: "Via assistant",
+  SAP: "Direct from SAP",
+}
+
+export const PLAN_VS_ISSUED_STATUS_ORDER: PlanVsIssuedStatus[] = [
+  "NO_RESERVATION",
+  "NOT_DUE",
+  "ON_PLAN",
+  "BELOW_PLAN",
+  "ABOVE_PLAN",
+]
+
+export const PLAN_VS_ISSUED_STATUS_LABEL: Record<PlanVsIssuedStatus, string> = {
+  NO_RESERVATION: "Awaiting reservation",
+  NOT_DUE: "Not due yet",
+  ON_PLAN: "On plan",
+  BELOW_PLAN: "Below plan",
+  ABOVE_PLAN: "Above plan",
+}
+
+export const PLAN_VS_ISSUED_STATUS_TONE: Record<PlanVsIssuedStatus, Tone> = {
+  NO_RESERVATION: "info",
+  NOT_DUE: "neutral",
+  ON_PLAN: "success",
+  BELOW_PLAN: "warning",
+  ABOVE_PLAN: "danger",
 }
 
 export const EXCEPTION_STATUS_ORDER: ActExceptionStatus[] = [

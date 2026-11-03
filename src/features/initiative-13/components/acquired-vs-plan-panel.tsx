@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import Link from "next/link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
@@ -13,33 +14,44 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
-import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
-import { exportWatchRows } from "@/features/initiative-13/export-actions"
-import type { WatchMetric } from "@/lib/api/i13"
-import { acquiredVsPlanRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
+import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
+import type { PlanVsIssuedFilters } from "@/features/initiative-13/data/live-loaders"
+import { exportPlanVsIssuedRows } from "@/features/initiative-13/export-actions"
+import type { PlanVsIssuedCounts, PlanVsIssuedRow } from "@/lib/api/i13"
+import { formatApiDate } from "@/lib/api/format"
+import { planVsIssuedRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import {
   badgeTone,
-  PLAN_STATUS_LABEL,
-  PLAN_STATUS_TONE,
+  PLAN_VS_ISSUED_STATUS_LABEL,
+  PLAN_VS_ISSUED_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
 import { downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
-/** Acquired vs. Plan (§9): backend-computed `acquired_vs_plan_status` and
- * variance, rendered as-is — no tolerance/comparison rule is recreated
- * here. Planned is measured against what was issued on the plans' own
- * reservations; received (GR on a reservation's PO) is not shown, since an
- * OAR reservation is filled from stock. One server page of 25, most recent
- * activity first; the export fetches every position the filters match. */
+/** Acquired vs plan (§9), reservation by reservation: every captured plan
+ * ("via assistant") and every OAR reservation raised directly in SAP, read the
+ * same way -- planned (asked for: the plan's quantity, or the reservation's
+ * reserved one) against issued (used). A reservation a plan owns is on that
+ * plan's row only. Issued is the goods issue, never a receipt -- OAR is issued
+ * from stock. Statuses and the Overdue marker are the backend's, rendered
+ * as-is.
+ *
+ * Kept to four columns on purpose: the source is a filter, and each row links
+ * to its reservation in the Utilization Ledger, which holds the rest (dates,
+ * PR/PO, every movement). The required-by date shows on the status's hover,
+ * since "Not due yet" and "Overdue" mean nothing without it. The export keeps
+ * the full detail. One server page of 25, latest required-by date first. */
 export function AcquiredVsPlanPanel({
   rows,
   total,
+  counts,
   pagination,
   filters,
 }: {
-  rows: WatchMetric[]
+  rows: PlanVsIssuedRow[]
   total: number | null
+  counts: PlanVsIssuedCounts | null
   /**
    * The pager, rendered by the server page and handed in as a node. Not built
    * here from an `hrefFor` function: a function cannot cross from a server
@@ -47,94 +59,121 @@ export function AcquiredVsPlanPanel({
    * render at all.
    */
   pagination: ReactNode
-  filters: WatchFilters
+  filters: PlanVsIssuedFilters
 }) {
   async function exportExcel() {
     downloadExcel(
       "i13-acquired-vs-plan.xlsx",
-      ["Material", "Plant", "Planned qty", "Issued against plans qty", "Variance qty", "Variance %", "Status"],
-      acquiredVsPlanRowsToCsv(await exportWatchRows(filters))
+      [
+        "Source",
+        "Material",
+        "Plant",
+        "Reservation",
+        "Planned qty",
+        "Issued qty",
+        "Status",
+        "Required by",
+        "Overdue",
+      ],
+      planVsIssuedRowsToCsv(await exportPlanVsIssuedRows(filters))
     )
   }
 
-  if (rows.length === 0 && !total) {
-    return <EmptyState title="No acquired-vs-plan data for the selected filters." />
-  }
+  const shown = total ?? rows.length
+  const assistant = counts?.bySource.ASSISTANT ?? null
+  const sap = counts?.bySource.SAP ?? null
+  const overdue = counts?.overdue ?? null
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <I13UrlFilters fields={["source", "planStatus", "overdue", "reservation"]} pin={{ tab: "plan" }} />
+      <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-muted-foreground">
-          {formatCount(total ?? rows.length)} position{(total ?? rows.length) === 1 ? "" : "s"}, most recent activity
-          first
+          {formatCount(shown)} row{shown === 1 ? "" : "s"}
+          {assistant !== null && sap !== null && (
+            <>
+              {" "}
+              ({formatCount(assistant)} via assistant, {formatCount(sap)} direct from SAP)
+            </>
+          )}
+          {overdue !== null && overdue > 0 && <> · {formatCount(overdue)} overdue</>}, latest required-by date first
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Planned</TableHead>
-              <TableHead
-                className="text-right"
-                title="Issued against the reservations the plans stand for (MSEG by reservation, reversals netted)"
-              >
-                Issued
-              </TableHead>
-              <TableHead className="text-right">Variance</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={`${r.material}-${r.plant}`}>
-                <TableCell>
-                  <MaterialName material={r.material} description={r.materialDescription} />
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(r.plant)}</TableCell>
-                <TableCell className="text-right text-foreground">
-                  {r.plannedQuantity !== null ? formatCount(r.plannedQuantity) : <EmptyValue kind="noPlanCaptured" />}
-                </TableCell>
-                {/* A label, not zero, when there is nothing to have issued
-                    against: no plan, or no reservation for it yet. */}
-                <TableCell className="text-right text-foreground">
-                  {r.acquiredVsPlanStatus === "NO_PLAN" ? (
-                    <EmptyValue kind="noPlanToCompare" />
-                  ) : r.acquiredVsPlanStatus === "NO_RESERVATION" ? (
-                    <EmptyValue kind="noReservationYet" />
-                  ) : r.issuedQuantity !== null ? (
-                    formatCount(r.issuedQuantity)
-                  ) : (
-                    <EmptyValue kind="noneRecorded" />
-                  )}
-                </TableCell>
-                <TableCell className="text-right text-foreground">
-                  {r.acquiredVsPlanVarianceQuantity !== null ? (
-                    <>
-                      {formatCount(r.acquiredVsPlanVarianceQuantity)}
-                      {r.acquiredVsPlanVariancePercentage !== null && (
-                        <span className="text-muted-foreground"> ({r.acquiredVsPlanVariancePercentage}%)</span>
-                      )}
-                    </>
-                  ) : (
-                    <EmptyValue
-                      kind={r.acquiredVsPlanStatus === "NO_RESERVATION" ? "noReservationYet" : "noPlanToCompare"}
-                    />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge tone={badgeTone(PLAN_STATUS_TONE[r.acquiredVsPlanStatus])}>
-                    {PLAN_STATUS_LABEL[r.acquiredVsPlanStatus]}
-                  </StatusBadge>
-                </TableCell>
+      {rows.length === 0 && !total ? (
+        <EmptyState title="No plans or reservations for the selected filters." />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Material &amp; plant</TableHead>
+                <TableHead
+                  className="text-right"
+                  title="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
+                >
+                  Planned
+                </TableHead>
+                <TableHead
+                  className="text-right"
+                  title="What was used: goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
+                >
+                  Issued
+                </TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.rowId}>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <MaterialName material={r.material} description={r.materialDescription} />
+                      <span className="text-[11px] text-muted-foreground">
+                        {sapPlantLabel(r.plant)} · <ReservationLinks reservations={r.reservations} />
+                      </span>
+                    </div>
+                  </TableCell>
+                  {/* Rendered as the strings the backend sent, as on the plans table. */}
+                  <TableCell className="text-right text-foreground">{r.plannedQuantity}</TableCell>
+                  <TableCell className="text-right text-foreground">{r.issuedQuantity}</TableCell>
+                  <TableCell>
+                    <div
+                      className="flex flex-col items-start gap-0.5"
+                      title={r.dueDate ? `Required by ${formatApiDate(r.dueDate)}` : "No required-by date recorded"}
+                    >
+                      <StatusBadge tone={badgeTone(PLAN_VS_ISSUED_STATUS_TONE[r.status])}>
+                        {PLAN_VS_ISSUED_STATUS_LABEL[r.status]}
+                      </StatusBadge>
+                      {r.overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       {pagination}
     </div>
+  )
+}
+
+/** The reservation(s) a row stands for, each opening it in the Utilization Ledger. */
+function ReservationLinks({ reservations }: { reservations: string[] }) {
+  if (reservations.length === 0) return <EmptyValue kind="noReservationYet" />
+  const [first, ...rest] = reservations
+  const number = first.split("/")[0]
+  return (
+    <>
+      <Link
+        href={`/oar-utilization/ledger?view=reservations&reservation=${encodeURIComponent(number)}`}
+        className="text-primary underline-offset-4 hover:underline"
+        title="Open this reservation in the Utilization Ledger"
+      >
+        Reservation {first}
+      </Link>
+      {rest.length > 0 && <span title={rest.join(", ")}> +{rest.length} more</span>}
+    </>
   )
 }

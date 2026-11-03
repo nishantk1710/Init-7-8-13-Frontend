@@ -386,6 +386,16 @@ export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
   return apiFetch<T>(path, { method: "POST", body })
 }
 
+/**
+ * GET a file (an .xlsx, say) with the same identity as every other call, and
+ * the server's filename from `Content-Disposition` when it sends one.
+ */
+export async function apiFetchBlob(path: string, fallbackName: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await request(path)
+  const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")
+  return { blob: await response.blob(), filename: match?.[1] ?? fallbackName }
+}
+
 export type HealthResponse = {
   status: string
   service: string

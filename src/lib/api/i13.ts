@@ -42,6 +42,8 @@ import {
   LEDGER_UTILISATION_STATUSES,
   LINKAGE_STATUSES,
   MATERIAL_SCOPES,
+  PLAN_VS_ISSUED_SOURCES,
+  PLAN_VS_ISSUED_STATUSES,
   PROCUREMENT_STATUSES,
   ROUTING_STATUSES,
   type ActException,
@@ -57,6 +59,8 @@ import {
   type I13Exception,
   type I13Summary,
   type JustificationEntry,
+  type PlanVsIssuedCounts,
+  type PlanVsIssuedRow,
   type QuantitySuggestion,
   type ReclassificationCandidate,
   type ReservationLedgerRow,
@@ -842,6 +846,83 @@ export function getI13ActUtilisationCounts(params?: {
     total: countValue(raw.total),
     byAcquiredVsPlanStatus: countsOf(raw.by_acquired_vs_plan_status),
     byAgingBand: countsOf(raw.by_aging_band),
+  }))
+}
+
+function toPlanVsIssuedRow(raw: RawRecord): PlanVsIssuedRow {
+  return {
+    rowId: String(raw.row_id ?? ""),
+    source: oneOf(raw.source as string, PLAN_VS_ISSUED_SOURCES, "SAP"),
+    material: String(raw.material ?? ""),
+    materialDescription: str(raw.material_description),
+    plant: String(raw.plant ?? ""),
+    reservations: Array.isArray(raw.reservations) ? raw.reservations.map(String) : [],
+    sessionId: str(raw.session_id),
+    planId: str(raw.plan_id),
+    // Quantities stay the strings the backend sent, as on the plans table.
+    plannedQuantity: String(raw.planned_quantity ?? "0"),
+    issuedQuantity: String(raw.issued_quantity ?? "0"),
+    status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "BELOW_PLAN"),
+    varianceQuantity: str(raw.variance_quantity),
+    variancePercentage: toNumber(raw.variance_percentage as string) ?? null,
+    dueDate: str(raw.due_date),
+    windowStart: str(raw.window_start),
+    overdue: raw.overdue === true,
+  }
+}
+
+export type PlanVsIssuedParams = {
+  source?: string
+  status?: string
+  plant?: string
+  material?: string
+  reservation?: string
+  /** Only below-plan rows whose date has passed. */
+  overdue?: boolean
+}
+
+/**
+ * `GET /i13/acquired-vs-plan` — the acquired-vs-plan tab: captured plans and
+ * OAR reservations raised directly in SAP, latest due date first, with the
+ * total from `X-Total-Count`.
+ */
+export function getI13PlanVsIssuedList(
+  params?: PlanVsIssuedParams & { limit?: number; offset?: number }
+): Promise<ApiList<PlanVsIssuedRow>> {
+  const query = buildQuery({
+    source: params?.source,
+    status: params?.status,
+    plant: params?.plant,
+    material: params?.material,
+    reservation: params?.reservation,
+    overdue: params?.overdue ? "true" : undefined,
+    limit: params?.limit,
+    offset: params?.offset,
+  })
+  return apiFetchList<RawRecord>(`/i13/acquired-vs-plan${query}`).then((list) => ({
+    ...list,
+    items: list.items.map(toPlanVsIssuedRow),
+  }))
+}
+
+/**
+ * `GET /i13/acquired-vs-plan/counts` — the tab badge and the filters' counts.
+ * `bySource` ignores the source filter, `byStatus` the status one.
+ */
+export function getI13PlanVsIssuedCounts(params?: PlanVsIssuedParams): Promise<PlanVsIssuedCounts> {
+  const query = buildQuery({
+    source: params?.source,
+    status: params?.status,
+    plant: params?.plant,
+    material: params?.material,
+    reservation: params?.reservation,
+    overdue: params?.overdue ? "true" : undefined,
+  })
+  return apiFetch<RawRecord>(`/i13/acquired-vs-plan/counts${query}`).then((raw) => ({
+    total: countValue(raw.total),
+    bySource: countsOf(raw.by_source),
+    byStatus: countsOf(raw.by_status),
+    overdue: countValue(raw.overdue),
   }))
 }
 

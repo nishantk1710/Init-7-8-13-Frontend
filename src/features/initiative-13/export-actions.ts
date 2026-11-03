@@ -1,11 +1,17 @@
 "use server"
 
-import { getI13ActUtilisationList, getI13ReclassificationList, type WatchMetric } from "@/lib/api/i13"
+import {
+  getI13ActUtilisationList,
+  getI13PlanVsIssuedList,
+  getI13ReclassificationList,
+  type PlanVsIssuedRow,
+  type WatchMetric,
+} from "@/lib/api/i13"
 import {
   attachCriticalImpactIndicator,
   type NonMoverRow,
 } from "@/features/initiative-13/utils/dashboard-transforms"
-import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
+import type { PlanVsIssuedFilters, WatchFilters } from "@/features/initiative-13/data/live-loaders"
 
 /**
  * The dashboard's Excel exports, as Server Actions.
@@ -51,4 +57,23 @@ export async function exportNonMoverRows(filters: WatchFilters = {}): Promise<No
     getI13ReclassificationList(scope).catch(() => null),
   ])
   return attachCriticalImpactIndicator(rows, reclassification?.items ?? [])
+}
+
+/** Every acquired-vs-plan tab row the filters match, latest due date first. */
+export async function exportPlanVsIssuedRows(filters: PlanVsIssuedFilters = {}): Promise<PlanVsIssuedRow[]> {
+  const rows: PlanVsIssuedRow[] = []
+  for (let offset = 0; ; offset += EXPORT_PAGE) {
+    const { items, total } = await getI13PlanVsIssuedList({
+      plant: filters.plant || undefined,
+      material: filters.material || undefined,
+      source: filters.source || undefined,
+      status: filters.status || undefined,
+      reservation: filters.reservation || undefined,
+      overdue: filters.overdue || undefined,
+      limit: EXPORT_PAGE,
+      offset,
+    })
+    rows.push(...items)
+    if (items.length < EXPORT_PAGE || (total !== null && rows.length >= total)) return rows
+  }
 }

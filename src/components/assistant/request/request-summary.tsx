@@ -5,6 +5,7 @@ import Link from "next/link"
 import { CircleSlash, FlaskConical, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
+import { LinkReservation } from "@/components/assistant/request/link-reservation"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
 import { Chip, CopyReferenceButton, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
@@ -135,6 +136,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
       <LiveLinks request={request} onSimulated={reload} />
 
       <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:min-h-11">
+        <LinkReservation requestId={request.requestId} onLinked={reload} />
         <DownloadMenu onDownload={(format) => downloadRequest(request, format)} />
         <Link href="/assistant/requests/new" className={cn(buttonVariants({ size: "lg" }), "min-h-11 px-4 font-semibold")}>
           New request
