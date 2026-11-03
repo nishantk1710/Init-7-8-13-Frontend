@@ -92,6 +92,20 @@ describe("the section", () => {
     expect(html).toContain("No month-end snapshot for Oct 2026.") // the gap is named, not drawn as zero
   })
 
+  it("lists each month's excess value in full under the chart, never abbreviated to millions", () => {
+    const html = render(
+      trends([
+        month("Aug 2026", { excess_state: "MONTH_END", excess_opportunity: "12830000.00", currency: "ZAR" }),
+        month("Sep 2026", { excess_state: "MONTH_END", excess_opportunity: "850000.00", currency: "ZAR" }),
+        month("Oct 2026", { excess_state: "MONTH_END", excess_opportunity: "103950.00", currency: "ZAR" }),
+      ]),
+    )
+    expect(html).toContain("ZAR 12,830,000")
+    expect(html).toContain("ZAR 850,000")
+    expect(html).toContain("ZAR 103,950")
+    expect(html).not.toMatch(/\d\.\d+M/)
+  })
+
   it("says there is no excess trend yet, rather than drawing one point or zeros", () => {
     const none = render(
       trends([

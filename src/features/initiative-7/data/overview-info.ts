@@ -152,7 +152,7 @@ export const OVERVIEW_INFO: Record<OverviewInfoId, OverviewInfoSpec> = {
         { label: "Recommended reorder point", value: "4,594 kg" },
       ],
       substitution: ["48.15 × (0 − 4,594)", "= 48.15 × −4,594", "= −221,201"],
-      result: "−221,201: this material adds about 0.22M of investment. The card shows the total over all materials, in millions.",
+      result: "−221,201: this material adds 221,201 of investment. The card shows the total over all materials, as the full amount.",
     },
     note: "Reorder point already includes the safety stock, so safety stock is not added a second time. Amounts are in the price currency.",
   },

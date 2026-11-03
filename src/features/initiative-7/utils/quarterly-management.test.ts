@@ -4,9 +4,8 @@ import type { ApiActivityRow, ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManageme
 import {
   activityCell,
   adoptionSummaryOf,
-  axisMoney,
   cardCaption,
-  compactMoney,
+  moneyExact,
   cardTitle,
   kpiValueText,
   num,
@@ -80,19 +79,33 @@ describe("stockoutUsable", () => {
 
 describe("adoptionSummaryOf", () => {
   const adoption = (overrides: Partial<ApiAdoptionQuarter> = {}): ApiAdoptionQuarter => ({
-    status: "UNKNOWN", confirmed_adoptions: null, pending_approvals: 0, reason: "r",
-    tracked: 100, adopted: 10, partially_adopted: 5, not_adopted: 5, pending: 80, ...overrides,
+    status: "UNKNOWN",
+    confirmed_adoptions: null,
+    pending_approvals: 0,
+    reason: "r",
+    tracked: 100,
+    adopted: 10,
+    partially_adopted: 5,
+    not_adopted: 5,
+    pending: 80,
+    ...overrides,
   })
 
   it("is the Overview's adoption card shape, with the rate over those with SAP evidence", () => {
     expect(adoptionSummaryOf(adoption())).toEqual({
-      totalEvaluated: 100, adoptedCount: 10, partiallyAdoptedCount: 5, notAdoptedCount: 5, unknownCount: 80,
+      totalEvaluated: 100,
+      adoptedCount: 10,
+      partiallyAdoptedCount: 5,
+      notAdoptedCount: 5,
+      unknownCount: 80,
       adoptionRatePercentage: 75,
     })
   })
 
   it("has no rate while nothing has SAP evidence -- never a 0%", () => {
-    expect(adoptionSummaryOf(adoption({ adopted: 0, partially_adopted: 0, not_adopted: 0, pending: 100 }))?.adoptionRatePercentage).toBeNull()
+    expect(
+      adoptionSummaryOf(adoption({ adopted: 0, partially_adopted: 0, not_adopted: 0, pending: 100 }))?.adoptionRatePercentage,
+    ).toBeNull()
   })
 
   it("is null when the backend sent no counts, so the page says so instead of drawing zeros", () => {
@@ -103,7 +116,15 @@ describe("adoptionSummaryOf", () => {
 
 describe("the activity table", () => {
   const row = (months: (number | string | null)[], total: number | string | null): ApiActivityRow => ({
-    key: "k", label: "L", unit: "u", kind: "EVENT", months, quarter_total: total, status: "AVAILABLE", reconciles: null, note: null,
+    key: "k",
+    label: "L",
+    unit: "u",
+    kind: "EVENT",
+    months,
+    quarter_total: total,
+    status: "AVAILABLE",
+    reconciles: null,
+    note: null,
   })
 
   it("shows a count, and a dash for a month that is not available -- never 0", () => {
@@ -123,9 +144,21 @@ describe("the activity table", () => {
 
 describe("the KPI cards", () => {
   const card = (key: string, overrides: Partial<ApiKpiCard> = {}): ApiKpiCard => ({
-    key, title: key, unit: "u", value: "5", status: "AVAILABLE", explanation: "e", kind: "EVENT", measured_on: null,
-    period_label: "p", denominator: null, denominator_label: null, basis: "current_calculation", unavailable_reason: null,
-    note: null, ...overrides,
+    key,
+    title: key,
+    unit: "u",
+    value: "5",
+    status: "AVAILABLE",
+    explanation: "e",
+    kind: "EVENT",
+    measured_on: null,
+    period_label: "p",
+    denominator: null,
+    denominator_label: null,
+    basis: "current_calculation",
+    unavailable_reason: null,
+    note: null,
+    ...overrides,
   })
 
   it("come in the order the page shows them, leaving out any the report does not carry", () => {
@@ -139,39 +172,85 @@ describe("the KPI cards", () => {
     expect(kpiValueText(card("critical_stockout_risk", { value: "0", status: "NOT_AVAILABLE" }))).toBe("Not available")
   })
 
-  it("show money in millions with its sign, and no currency prefix when none is stated", () => {
-    expect(kpiValueText(card("working_capital_impact", { value: "-2397304441.43", unit: "amount (currency not stated)" }))).toBe("−2,397.30M")
-    expect(kpiValueText(card("working_capital_impact", { value: "2500000", unit: "USD" }))).toBe("+USD 2.50M")
-    expect(kpiValueText(card("excess_inventory_opportunity", { value: "1500000", unit: "USD" }))).toBe("USD 1.50M")
+  it("show money as the exact amount with its sign, and no currency prefix when none is stated", () => {
+    expect(kpiValueText(card("working_capital_impact", { value: "-2397304441.43", unit: "amount (currency not stated)" }))).toBe(
+      "−2,397,304,441",
+    )
+    expect(kpiValueText(card("working_capital_impact", { value: "2500000", unit: "USD" }))).toBe("+USD 2,500,000")
+    expect(kpiValueText(card("excess_inventory_opportunity", { value: "1500000", unit: "USD" }))).toBe("USD 1,500,000")
   })
 
-  it("show a small money figure on a card in thousands or as it is, never as 0.00M", () => {
-    expect(kpiValueText(card("excess_inventory_opportunity", { value: "1200", unit: "amount (currency not stated)" }))).toBe("1.2K")
+  it("show a money figure under a million in full on a card, never as 0.00M or 103.9K", () => {
+    expect(kpiValueText(card("excess_inventory_opportunity", { value: "1200", unit: "amount (currency not stated)" }))).toBe("1,200")
     expect(kpiValueText(card("working_capital_impact", { value: "-300", unit: "amount (currency not stated)" }))).toBe("−300")
     expect(kpiValueText(card("working_capital_impact", { value: "560", unit: "USD" }))).toBe("+USD 560")
-    expect(kpiValueText(card("excess_inventory_opportunity", { value: "2000", unit: "amount (currency not stated)" }))).not.toContain("0.00M")
+    expect(kpiValueText(card("working_capital_impact", { value: "-103950", unit: "ZAR" }))).toBe("−ZAR 103,950")
   })
 
-  it("write money in the unit that reads best, so a small amount is not shown as 0.00M", () => {
-    expect(compactMoney(1_500_000, null)).toBe("1.50M")
-    expect(compactMoney(-2_000_000, "USD", true)).toBe("−USD 2.00M")
-    expect(compactMoney(1_200, null)).toBe("1.2K")
-    expect(compactMoney(-560, null)).toBe("−560")
-    expect(compactMoney(560, null, true)).toBe("+560")
-    expect(compactMoney(0, null)).toBe("0")
-    expect(compactMoney(999_990, null)).toBe("1.00M") // not "1,000K"
-    expect(compactMoney(null, null)).toBe("—")
+  it("never abbreviate a money figure with M, K or B", () => {
+    for (const value of ["103950", "850000", "1000000", "1048500", "12500000", "2397304441", "-87660000"]) {
+      expect(kpiValueText(card("working_capital_impact", { value, unit: "ZAR" }))).not.toMatch(/[MKB]$/)
+      expect(kpiValueText(card("excess_inventory_opportunity", { value, unit: "ZAR" }))).not.toMatch(/[MKB]$/)
+    }
   })
 
-  it("put short ticks on a money axis, never 0M for every tick of a small series", () => {
-    expect(axisMoney(-2_000_000)).toBe("−2M")
-    expect(axisMoney(1_500)).toBe("1.5K")
-    expect(axisMoney(250)).toBe("250")
-    expect(axisMoney(0)).toBe("0")
+  it("leave a count that is not money alone", () => {
+    expect(kpiValueText(card("materials_assessed", { value: "21343", unit: "recommendations" }))).toBe("21,343")
+  })
+
+  describe("moneyExact", () => {
+    it("writes an amount below a million in full", () => {
+      expect(moneyExact(103_950, "ZAR")).toBe("ZAR 103,950")
+      expect(moneyExact(850_000, "ZAR")).toBe("ZAR 850,000")
+      expect(moneyExact(999_999, "ZAR")).toBe("ZAR 999,999")
+    })
+
+    it("writes exactly one million, and more, in full too", () => {
+      expect(moneyExact(1_000_000, "ZAR")).toBe("ZAR 1,000,000")
+      expect(moneyExact(1_048_500, "ZAR")).toBe("ZAR 1,048,500")
+      expect(moneyExact(12_500_000, "ZAR")).toBe("ZAR 12,500,000")
+      expect(moneyExact(3_468_610_000, "ZAR")).toBe("ZAR 3,468,610,000")
+    })
+
+    it("keeps the sign: a minus for a negative amount, a plus only when asked", () => {
+      expect(moneyExact(-103_950, "ZAR", true)).toBe("−ZAR 103,950")
+      expect(moneyExact(-103_950, "ZAR")).toBe("−ZAR 103,950")
+      expect(moneyExact(103_950, "ZAR", true)).toBe("+ZAR 103,950")
+      expect(moneyExact(103_950, "ZAR")).toBe("ZAR 103,950")
+      expect(moneyExact(-87_660_000, "ZAR", true)).toBe("−ZAR 87,660,000")
+    })
+
+    it("writes zero without a sign, even when a plus is asked for", () => {
+      expect(moneyExact(0, "ZAR", true)).toBe("ZAR 0")
+      expect(moneyExact(0, "ZAR")).toBe("ZAR 0")
+      expect(moneyExact(-0.2, "ZAR")).toBe("ZAR 0") // an amount that rounds to nothing has no minus sign
+    })
+
+    it("rounds a decimal to the whole unit, without carrying into an abbreviation", () => {
+      expect(moneyExact(103_950.49, "ZAR")).toBe("ZAR 103,950")
+      expect(moneyExact(103_950.5, "ZAR")).toBe("ZAR 103,951")
+      expect(moneyExact(999_999.6, "ZAR")).toBe("ZAR 1,000,000")
+      expect(moneyExact(-2_397_304_441.43, "ZAR")).toBe("−ZAR 2,397,304,441")
+    })
+
+    it("uses the currency as stated, and no prefix when none is stated", () => {
+      expect(moneyExact(2_500_000, "USD", true)).toBe("+USD 2,500,000")
+      expect(moneyExact(2_500_000, null)).toBe("2,500,000")
+    })
+
+    it("says not measured, never 0, when there is no value", () => {
+      expect(moneyExact(null, "ZAR")).toBe("—")
+    })
   })
 
   it("list the months a series has no figure for, in order, and none when every month has one", () => {
-    const point = (label: string, stockout: number | null) => ({ label, state: "FINAL" as const, stockout, excessOpportunity: 1, workingCapital: 1 })
+    const point = (label: string, stockout: number | null) => ({
+      label,
+      state: "FINAL" as const,
+      stockout,
+      excessOpportunity: 1,
+      workingCapital: 1,
+    })
     const points = [point("Oct 2026", 3), point("Nov 2026", null), point("Dec 2026", null)]
     expect(seriesGaps(points, "stockout")).toEqual(["Nov 2026", "Dec 2026"])
     expect(seriesGaps(points, "excessOpportunity")).toEqual([])
@@ -188,7 +267,14 @@ describe("the KPI cards", () => {
   })
 
   it("carry one plain line each, and fall back to the report's explanation for a card with no wording", () => {
-    for (const key of ["materials_assessed", "recommendations_generated", "critical_stockout_risk", "excess_inventory_opportunity", "working_capital_impact", "pending_approval"]) {
+    for (const key of [
+      "materials_assessed",
+      "recommendations_generated",
+      "critical_stockout_risk",
+      "excess_inventory_opportunity",
+      "working_capital_impact",
+      "pending_approval",
+    ]) {
       const caption = cardCaption(card(key, { explanation: "A long explanation that belongs behind the (i)." }))
       expect(caption).not.toContain("belongs behind")
       expect(caption.length).toBeLessThanOrEqual(50) // one line on an Overview-sized card
@@ -200,14 +286,29 @@ describe("the KPI cards", () => {
 // --- trends -----------------------------------------------------------------------------------
 
 import type { ApiQuarterTrends, ApiTrendMonth } from "@/features/initiative-7/types/api"
-import { hasPoints, millions, monthBasisLabel, trendPoints } from "./quarterly-management"
+import { hasPoints, monthBasisLabel, trendPoints } from "./quarterly-management"
 
 function month(overrides: Partial<ApiTrendMonth> = {}): ApiTrendMonth {
   return {
-    month: "2026-10-01", label: "Oct 2026", state: "FINAL", measured_on: "2026-11-03", month_end_valid: true, stockout_valid: true,
-    population: 10, stockout_at_risk: 5, stockout_evaluated: 50, stockout_insufficient: 2, excess_count: 3,
-    excess_opportunity: "1000.00", net_rop_value_impact: "-500.00", net_rop_change_from_previous: null, currency: null,
-    revision: 1, calc_version: "1", note: null, ...overrides,
+    month: "2026-10-01",
+    label: "Oct 2026",
+    state: "FINAL",
+    measured_on: "2026-11-03",
+    month_end_valid: true,
+    stockout_valid: true,
+    population: 10,
+    stockout_at_risk: 5,
+    stockout_evaluated: 50,
+    stockout_insufficient: 2,
+    excess_count: 3,
+    excess_opportunity: "1000.00",
+    net_rop_value_impact: "-500.00",
+    net_rop_change_from_previous: null,
+    currency: null,
+    revision: 1,
+    calc_version: "1",
+    note: null,
+    ...overrides,
   }
 }
 
@@ -235,13 +336,7 @@ describe("trendPoints", () => {
   })
 })
 
-describe("millions and monthBasisLabel", () => {
-  it("shows money in millions with its sign", () => {
-    expect(millions(-2_397_304_441, null)).toBe("−2,397.30M")
-    expect(millions(1_200_000, "USD", true)).toBe("+USD 1.20M")
-    expect(millions(null, null)).toBe("—")
-  })
-
+describe("monthBasisLabel", () => {
   it("says how each month was measured", () => {
     expect(monthBasisLabel(month({ state: "MISSING" }))).toBe("No snapshot")
     expect(monthBasisLabel(month({ state: "OPEN", month_end_valid: false }))).toBe("Rolling reading")

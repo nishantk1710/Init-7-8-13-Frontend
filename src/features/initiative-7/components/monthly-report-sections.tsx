@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount } from "@/lib/utils"
 import type { ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import { cardTitle, compactMoney, orderedKpis } from "@/features/initiative-7/utils/quarterly-management"
+import { cardTitle, moneyExact, orderedKpis } from "@/features/initiative-7/utils/quarterly-management"
 import {
   approvalStageRows,
   coverageItemsOf,
@@ -92,11 +92,7 @@ export function ExcessByPlantValues({ management }: { management: ApiQuarterMana
                 <TableCell>{row.plant}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(row.count)}</TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {row.value === null ? (
-                    <span className="text-muted-foreground">Not available</span>
-                  ) : (
-                    compactMoney(row.value, row.currency)
-                  )}
+                  {row.value === null ? <span className="text-muted-foreground">Not available</span> : moneyExact(row.value, row.currency)}
                 </TableCell>
               </TableRow>
             ))}

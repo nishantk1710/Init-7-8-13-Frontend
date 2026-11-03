@@ -28,7 +28,7 @@ import {
   adoptionSummaryOf,
   cardTitle,
   kpiValueText,
-  millions,
+  moneyExact,
   monthBasisLabel,
   num,
   orderedKpis,
@@ -56,9 +56,12 @@ export interface ManagementPrintProps {
   /** The recommendations the page's "Current SAP vs I07" table lists: those with at least one recommended value. */
   comparison?: Recommendation[]
   comparisonTotal?: number
+  /** The material-plants the "Min-Max conversion" card counted: the list its click-through shows, as a table. */
+  conversion?: Recommendation[]
+  conversionTotal?: number
 }
 
-export function ManagementPrintView({ report, management, materials, materialsTotal, comparison = [], comparisonTotal = 0 }: ManagementPrintProps) {
+export function ManagementPrintView({ report, management, materials, materialsTotal, comparison = [], comparisonTotal = 0, conversion = [], conversionTotal = 0 }: ManagementPrintProps) {
   const meta = report.metadata
   const kind = reportKindOf(meta.quarter)
   const noun = reportNoun(kind)
@@ -182,8 +185,8 @@ export function ManagementPrintView({ report, management, materials, materialsTo
             usable ? formatCount(entry.figures.stockout.at_risk) : NOT_AVAILABLE,
             usable ? formatCount(entry.figures.stockout.evaluated) : NOT_AVAILABLE,
             formatCount(entry.figures.excess_count),
-            millions(num(entry.figures.excess_opportunity), entry.figures.currency),
-            millions(num(entry.figures.net_rop_value_impact), entry.figures.working_capital_currency ?? entry.figures.currency, true),
+            moneyExact(num(entry.figures.excess_opportunity), entry.figures.currency),
+            moneyExact(num(entry.figures.net_rop_value_impact), entry.figures.working_capital_currency ?? entry.figures.currency, true),
           ])}
         />
         <p className="print-disclosure">
@@ -205,6 +208,42 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           <p className="print-disclosure">
             {formatCount(management.adoption.stages?.total ?? 0)} recommendation records. Approved is not adopted: whether SAP changed is the next
             section, and its &ldquo;pending&rdquo; counts recommendations with no SAP change evidence yet, whether or not they were approved.
+          </p>
+        </Section>
+      )}
+
+      {management.kpis.some((card) => card.key === "min_max_conversion") && (
+        <Section
+          number={next()}
+          title="Min-Max Conversion"
+          subtitle="OAR material-plants whose newest recommendation from this period is eligible to be converted to Min-Max ordering."
+        >
+          {conversion.length > 0 ? (
+            <>
+              <p className="print-disclosure">
+                {`${formatCount(conversion.length)} of ${formatCount(conversionTotal)} eligible material-plants, newest first. This is the list the card opens on the page.`}
+              </p>
+              <Table
+                headers={["Material", "Plant", "Crit.", "Safety stock", "Reorder point", "Max stock", "Status", "Generated"]}
+                rows={conversion.map((rec) => [
+                  <span key="m">
+                    {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
+                  </span>,
+                  rec.plantId,
+                  rec.criticality,
+                  <span key="s" className="print-mono">{formatCount(rec.recommended.safetyStock)}</span>,
+                  <span key="r" className="print-mono">{formatCount(rec.recommended.rop)}</span>,
+                  <span key="x" className="print-mono">{formatCount(rec.recommended.maxStock)}</span>,
+                  rec.status,
+                  rec.generatedAt,
+                ])}
+              />
+            </>
+          ) : (
+            <p className="print-empty">No OAR material-plant from this period is eligible for Min-Max conversion.</p>
+          )}
+          <p className="print-disclosure">
+            Eligible is the conversion rule&apos;s verdict, not a change made in SAP: whether SAP was changed is the SAP adoption section.
           </p>
         </Section>
       )}
@@ -245,7 +284,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
               m.approved === null ? NOT_AVAILABLE : formatCount(m.approved),
               m.rejected === null ? NOT_AVAILABLE : formatCount(m.rejected),
               m.sent_back === null ? NOT_AVAILABLE : formatCount(m.sent_back),
-              m.excess_state === "MONTH_END" && num(m.excess_opportunity) !== null ? millions(num(m.excess_opportunity), m.currency) : NOT_AVAILABLE,
+              m.excess_state === "MONTH_END" && num(m.excess_opportunity) !== null ? moneyExact(num(m.excess_opportunity), m.currency) : NOT_AVAILABLE,
             ])}
           />
           <p className="print-disclosure">
@@ -270,9 +309,9 @@ export function ManagementPrintView({ report, management, materials, materialsTo
                 monthBasisLabel(m),
                 date(m.measured_on),
                 m.stockout_at_risk === null ? NOT_AVAILABLE : `${formatCount(m.stockout_at_risk)}${m.stockout_evaluated !== null ? ` of ${formatCount(m.stockout_evaluated)}` : ""}`,
-                m.state === "MISSING" ? NOT_AVAILABLE : millions(num(m.excess_opportunity), m.currency),
-                m.state === "MISSING" ? NOT_AVAILABLE : millions(num(m.net_rop_value_impact), m.currency, true),
-                num(m.net_rop_change_from_previous) === null ? NOT_AVAILABLE : millions(num(m.net_rop_change_from_previous), m.currency, true),
+                m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.excess_opportunity), m.currency),
+                m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.net_rop_value_impact), m.currency, true),
+                num(m.net_rop_change_from_previous) === null ? NOT_AVAILABLE : moneyExact(num(m.net_rop_change_from_previous), m.currency, true),
               ])}
             />
             {trends.months.filter((m) => m.note).map((m) => (

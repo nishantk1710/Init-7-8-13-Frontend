@@ -36,11 +36,25 @@ export function formatMoney(amount: number, currency?: string | null): string {
   }
 }
 
-/** The prefix a compact figure ("R 1.05M") uses for `currency`; see formatMoney. */
+/** The prefix a figure ("R 1,048,500") uses for `currency`; see formatMoney. */
 export function currencyPrefix(currency?: string | null): string {
   if (currency === undefined || currency?.toUpperCase() === "ZAR") return "R "
   if (currency === null) return ""
   return `${currency.toUpperCase()} `
+}
+
+/**
+ * A financial amount, exactly: sign, `prefix`, then the whole amount with international comma grouping -- "−R 103,950",
+ * "+ZAR 12,500,000". Never abbreviated: no "M", "K" or "B", which would round an amount and read as a different figure ("0.10M" for
+ * 103,950). The one formatter for money that is shown as a figure; `formatMoney` is the same for an unsigned amount in a stated currency.
+ *
+ * Rounded to the whole unit. A minus sign (U+2212) is kept for a negative amount, a plus only when `signed` asks for it, and neither on an
+ * amount that rounds to 0. Does not change the amount, convert a currency or apply any business rule.
+ */
+export function formatSignedAmount(amount: number, prefix: string, signed = false): string {
+  const rounded = Math.round(Math.abs(amount))
+  const sign = rounded === 0 ? "" : amount < 0 ? "−" : signed ? "+" : ""
+  return `${sign}${prefix}${rounded.toLocaleString("en-US")}`
 }
 
 /** The one currency every item states, `undefined` if none do, `null` if they differ. */
@@ -89,34 +103,9 @@ export function formatTime12h(date: Date): string {
   return `${hours}:${minutes} ${ampm}`
 }
 
-/** Formats a number as compact ZAR for chart axes: "R150k", "R1.3M". */
-export function formatZARCompact(amount: number): string {
-  const abs = Math.abs(amount)
-  if (abs >= 1_000_000) {
-    return `R${(amount / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
-  }
-  if (abs >= 1_000) {
-    return `R${Math.round(amount / 1000)}k`
-  }
-  return `R${amount}`
-}
-
 /** Formats a plain count with comma grouping: 1234 -> "1,234". */
 export function formatCount(n: number): string {
   return Math.round(n).toLocaleString("en-US")
-}
-
-/** Formats a value already expressed in ZAR millions: 3708.46 -> "R3,708.46M". */
-export function formatZARMillions(millions: number): string {
-  return `R${millions.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}M`
-}
-
-/** Formats a raw ZAR amount as billions: 3708460000 -> "R 3.71B". */
-export function formatZARBillions(amount: number): string {
-  return `R ${(amount / 1_000_000_000).toFixed(2)}B`
 }
 
 /** Exports are Excel workbooks; see export-excel.ts. */

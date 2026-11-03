@@ -25,7 +25,7 @@ import {
 import { ChartCard } from "@/components/shared/chart-card"
 import { formatCount } from "@/lib/utils"
 import type { ApiPerformanceTrends } from "@/features/initiative-7/types/api"
-import { compactMoney } from "@/features/initiative-7/utils/quarterly-management"
+import { moneyExact } from "@/features/initiative-7/utils/quarterly-management"
 import { MIN_EXCESS_POINTS, performancePoints, pointCount, type PerformancePoint } from "@/features/initiative-7/utils/quarterly-sections"
 import { PerspectiveTag } from "@/features/initiative-7/components/monthly-report-sections"
 
@@ -37,7 +37,7 @@ function Tooltips({ active, payload, label, money, currency }: TooltipContentPro
       {payload.map((entry) =>
         typeof entry.value === "number" ? (
           <div key={String(entry.dataKey)} className="mt-1 text-muted-foreground">
-            {entry.name}: {money ? compactMoney(entry.value, currency ?? null) : formatCount(Math.round(entry.value))}
+            {entry.name}: {money ? moneyExact(entry.value, currency ?? null) : formatCount(Math.round(entry.value))}
           </div>
         ) : null,
       )}
@@ -70,36 +70,41 @@ function ExcessTrendCard({ performance, points }: { performance: ApiPerformanceT
     >
       <PerspectiveTag perspective="snapshot" />
       {drawable ? (
-        <div className="h-[200px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={points} margin={{ top: 22, right: 24, left: 24, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="label" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={11} />
-              <YAxis hide domain={[0, "auto"]} />
-              <Tooltip
-                cursor={{ stroke: "var(--border)" }}
-                content={(props: TooltipContentProps) => <Tooltips {...props} money currency={currency} />}
-              />
-              {/* connectNulls off: a month with no snapshot breaks the line instead of being joined across. */}
-              <Line
-                type="monotone"
-                dataKey="excess"
-                name="Excess value"
-                stroke="var(--chart-1)"
-                strokeWidth={2}
-                connectNulls={false}
-                dot={{ r: 3, strokeWidth: 2, stroke: "var(--card)", fill: "var(--chart-1)" }}
-                label={{
-                  position: "top",
-                  fontSize: 11,
-                  fill: "var(--foreground)",
-                  formatter: (v: unknown) => (typeof v === "number" ? compactMoney(v, currency) : ""),
-                }}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={points} margin={{ top: 22, right: 24, left: 24, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="label" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={11} />
+                <YAxis hide domain={[0, "auto"]} />
+                <Tooltip
+                  cursor={{ stroke: "var(--border)" }}
+                  content={(props: TooltipContentProps) => <Tooltips {...props} money currency={currency} />}
+                />
+                {/* connectNulls off: a month with no snapshot breaks the line instead of being joined across. */}
+                <Line
+                  type="monotone"
+                  dataKey="excess"
+                  name="Excess value"
+                  stroke="var(--chart-1)"
+                  strokeWidth={2}
+                  connectNulls={false}
+                  dot={{ r: 3, strokeWidth: 2, stroke: "var(--card)", fill: "var(--chart-1)" }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            {points
+              .filter((p) => p.excess !== null)
+              .map((p) => (
+                <li key={p.label}>
+                  {p.label}: <span className="tabular-nums text-foreground">{moneyExact(p.excess, currency)}</span>
+                </li>
+              ))}
+          </ul>
+        </>
       ) : (
         <Empty>
           {pointCount(points, ["excess"]) === 1
