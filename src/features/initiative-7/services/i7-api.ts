@@ -463,6 +463,9 @@ export interface RecommendationListParams {
    * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
    * current value. The set the SAP adoption counts cover. Applied in SQL. */
   actionable?: boolean
+  /** Only recommendations with at least one recommended value (reorder point, safety stock or max
+   * stock) -- leaves out those where nothing could be computed. Applied in SQL. */
+  hasRecommended?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -503,6 +506,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
   if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
   if (params.actionable) search.set("actionable", "true")
+  if (params.hasRecommended) search.set("has_recommended", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)

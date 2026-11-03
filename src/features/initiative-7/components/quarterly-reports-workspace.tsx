@@ -179,6 +179,8 @@ const MATERIALS_PAGE_SIZE = 5
  * one -- it is not ranked by ROP change, because no such ranking exists in
  * the backend (see recommendation-sort-contract.test.ts). */
 const PDF_MATERIALS_SIZE = 50
+/** The PDF's "Current SAP vs I07" rows: the page's own list (recommendations with a recommended value), newest first. */
+const PDF_COMPARISON_SIZE = 25
 
 /** Rows backing the on-screen charts. Printed verbatim in the PDF's
  * disclosure so a sample is never implied to be the whole quarter. */
@@ -359,6 +361,22 @@ export function QuarterlyReportsWorkspace() {
         : {},
     )
 
+  // The PDF's comparison rows: the same query as the page's "Current SAP vs I07" table (only recommendations with a
+  // recommended value, newest first), so the two cannot disagree about which materials are listed.
+  const { data: pdfComparison, total: pdfComparisonTotal, loading: pdfComparisonLoading } = useLiveRecommendations(
+    report?.management && printRequested
+      ? {
+          sort: "generated_at",
+          sortDesc: true,
+          page: 1,
+          pageSize: PDF_COMPARISON_SIZE,
+          generatedFrom: `${report.metadata.period_start}T00:00:00`,
+          generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
+          hasRecommended: true,
+        }
+      : {},
+  )
+
   // Open the print dialog only when everything the PDF needs is on the page.
   //
   // Waits on: the report itself, the 50-row material fetch, and -- via
@@ -369,7 +387,7 @@ export function QuarterlyReportsWorkspace() {
   useEffect(() => {
     if (!printRequested) return
     if (!report) return
-    if (pdfMaterialsLoading) return
+    if (pdfMaterialsLoading || pdfComparisonLoading) return
 
     let cancelled = false
 
@@ -408,7 +426,7 @@ export function QuarterlyReportsWorkspace() {
     return () => {
       cancelled = true
     }
-  }, [printRequested, report, pdfMaterialsLoading])
+  }, [printRequested, report, pdfMaterialsLoading, pdfComparisonLoading])
 
   // Guard against a stuck "Preparing…" if the dialog never opens.
   useEffect(() => {
@@ -785,6 +803,8 @@ export function QuarterlyReportsWorkspace() {
                 management={report.management}
                 materials={pdfMaterials ?? []}
                 materialsTotal={pdfMaterialsTotal}
+                comparison={pdfComparison ?? []}
+                comparisonTotal={pdfComparisonTotal}
               />
             ) : (
               <ReportPrintView
