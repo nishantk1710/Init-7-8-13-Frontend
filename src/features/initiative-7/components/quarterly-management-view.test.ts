@@ -182,9 +182,9 @@ describe("a monthly report", () => {
     notes: [],
   }
 
-  it("calls its closing position Month-end, and the total column Month total", () => {
+  it("has a Month total column, and no month-end or quarter-end position card of its own", () => {
     const html = renderMonthly(management({ trends }))
-    expect(html).toContain("Month-end position")
+    expect(html).not.toContain("Month-end position") // the figures it held are in the cards above and the Excel
     expect(html).not.toContain("Quarter-end position")
     expect(html).toContain("Month total")
     expect(html).not.toContain("Quarter total")
@@ -196,12 +196,6 @@ describe("a monthly report", () => {
       expect(html).not.toContain(subtitle)
     }
     expect(render(management({ trends }))).toContain("Materials at risk each month") // a quarterly report still does
-  })
-
-  it("never shows an earlier month as its month-end, in its own words", () => {
-    const html = renderMonthly(management({ trends: { ...trends, quarter_end: { ...trends.quarter_end, latest_available_month: "2026-09-01",
-      latest_available_label: "Sep 2026", latest_available_measured_on: "2026-10-02" } } }))
-    expect(html).toContain("not shown as the month-end")
   })
 })
 

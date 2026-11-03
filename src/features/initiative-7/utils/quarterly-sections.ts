@@ -5,7 +5,7 @@
 // period, a saved month-end reading, how things stand now) say which one they are.
 
 import type { ApiAdoptionQuarter, ApiPerformanceTrends, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import { compactMoney, num } from "@/features/initiative-7/utils/quarterly-management"
+import { num } from "@/features/initiative-7/utils/quarterly-management"
 
 // --- Which perspective a section speaks for ----------------------------------------------------------
 
@@ -26,126 +26,6 @@ export const PERSPECTIVE_LABEL: Record<Perspective, { label: string; hint: strin
     label: "Current position",
     hint: "How things stand on the day this report was generated, not at the end of the period.",
   },
-}
-
-const count = (value: number): string => value.toLocaleString("en-US", { maximumFractionDigits: 0 })
-
-// --- The month-end inventory position ------------------------------------------------------------------
-
-export interface PositionItem {
-  key: string
-  label: string
-  /** The figure as shown, or null when it was not measured. */
-  value: string | null
-  /** Why there is no value, when there is not one. */
-  reason: string | null
-  /** What it is over, in a few words. */
-  basis: string | null
-}
-
-export interface MonthEndPosition {
-  available: boolean
-  /** Why the whole section is unavailable (no valid snapshot). */
-  reason: string | null
-  /** When the snapshot was measured. */
-  measuredOn: string | null
-  /** When the stock on hand behind the stock figures was loaded. */
-  stockAsOf: string | null
-  items: PositionItem[]
-}
-
-const NOT_IN_SNAPSHOT = "This snapshot was saved before stock held was captured, and a past month cannot be rebuilt."
-
-const zar = (value: number | null, currency: string | null, signed = false): string | null =>
-  value === null ? null : compactMoney(value, currency, signed)
-
-/** The month-end position, only from a valid saved snapshot. With none, the section is unavailable and says why: the
- * current calculation is never shown in its place. */
-export function monthEndPositionOf(management: ApiQuarterManagement): MonthEndPosition {
-  const end = management.trends?.quarter_end
-  if (management.position_basis !== "snapshot" || !end || end.status !== "AVAILABLE") {
-    return {
-      available: false,
-      reason: end?.reason ?? "No saved month-end snapshot exists for this period.",
-      measuredOn: null,
-      stockAsOf: null,
-      items: [],
-    }
-  }
-  const p = management.position
-  // A snapshot saved before the stock figures existed has none of the fields; one with a stale or missing stock load
-  // carries the reason.
-  const neverCaptured = p.inventory_value === undefined || (num(p.inventory_value) === null && !p.inventory_stock_as_of)
-  const stockReason = p.inventory_unavailable_reason ?? (neverCaptured ? NOT_IN_SNAPSHOT : null)
-  const held = (value: string | null, basis: string): Pick<PositionItem, "value" | "reason" | "basis"> =>
-    value === null
-      ? {
-          value: null,
-          reason: stockReason ?? "Not measured: no material-plant had both a stock figure and a ZAR price.",
-          basis: null,
-        }
-      : { value, reason: null, basis }
-  const stockout = p.stockout
-  const stockoutUsable = stockout.as_of !== null && !stockout.stale
-  const below = p.below_reorder_count
-  const items: PositionItem[] = [
-    {
-      key: "inventory_value",
-      label: "Total inventory value",
-      ...held(zar(num(p.inventory_value), "ZAR"), `${count(p.inventory_priced_count ?? 0)} material-plants with stock and a ZAR price`),
-    },
-    {
-      key: "excess_value",
-      label: "Excess inventory value",
-      value: zar(num(p.excess_opportunity), p.currency),
-      reason: num(p.excess_opportunity) === null ? "No excess material-plant has a price and both maximum stocks." : null,
-      basis: `${count(p.excess_count)} material-plants above their recommended maximum · estimate`,
-    },
-    {
-      key: "working_capital",
-      label: "Working capital impact",
-      value: zar(num(p.net_rop_value_impact), p.working_capital_currency ?? p.currency, true),
-      reason: num(p.net_rop_value_impact) === null ? "No recommendation has a ZAR or NAD price and both reorder points." : null,
-      basis: `${count(p.priced_count)} material-plants · cash released (+) or tied up (−) · estimate`,
-    },
-    {
-      key: "safety_stock_value",
-      label: "Safety stock value",
-      ...held(
-        zar(num(p.safety_stock_value), "ZAR"),
-        `SAP safety stock · ${count(p.safety_stock_priced_count ?? 0)} material-plants priced`,
-      ),
-    },
-    {
-      key: "below_reorder",
-      label: "Material-plants below reorder point",
-      ...(below === null || below === undefined
-        ? {
-            value: null,
-            reason: stockReason ?? "Not measured: no material-plant had both a stock figure and a reorder point above 0.",
-            basis: null,
-          }
-        : {
-            value: count(below),
-            reason: null,
-            basis: `of ${count(p.below_reorder_judged ?? 0)} that could be judged (a reorder point of 0 is not maintained)`,
-          }),
-    },
-    {
-      key: "stockout",
-      label: "High stockout risk",
-      value: stockoutUsable ? count(stockout.at_risk) : null,
-      reason: stockoutUsable ? null : (stockout.stale_note ?? "The stockout usage has not been built, so this is not zero risk."),
-      basis: stockoutUsable ? `of ${count(stockout.evaluated)} that could be judged` : null,
-    },
-  ]
-  return {
-    available: true,
-    reason: null,
-    measuredOn: end.measured_on,
-    stockAsOf: p.inventory_stock_as_of ?? null,
-    items,
-  }
 }
 
 // --- Excess by plant, in money -------------------------------------------------------------------------
