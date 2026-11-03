@@ -105,7 +105,7 @@ describe("the PDF carries the saved report's own figures", () => {
     const out = html()
     expect(out).toContain("Q4 2026")
     expect(out).toContain("Complete")
-    expect(out).toContain("Title materials_assessed")
+    expect(out).toContain("Material-plants with a computed recommendation")
     expect(out).toContain("18,627")
     expect(out).toContain("of 18,700 material-plants")
     expect(out).toContain("Event in the period")

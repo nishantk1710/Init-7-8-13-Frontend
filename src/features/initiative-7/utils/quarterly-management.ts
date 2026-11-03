@@ -56,8 +56,19 @@ export function adoptionSummaryOf(adoption: ApiAdoptionQuarter): AdoptionSummary
     partiallyAdoptedCount: partially,
     notAdoptedCount: notAdopted,
     unknownCount: adoption.pending ?? 0,
-    adoptionRatePercentage: known > 0 ? Math.round(((adopted + partially) / known) * 1000) / 10 : null,
+    adoptionRatePercentage: adoptionRatePercent(adoption, adopted, partially, known),
   }
+}
+
+/** The adoption rate as a percentage. The backend works it out with the Overview's own formula (the one on the
+ * Calculation page), so a report that carries it is read as sent -- null when nothing is measured. Only a report made
+ * before the backend sent it falls back to the default formula's shape. */
+function adoptionRatePercent(adoption: ApiAdoptionQuarter, adopted: number, partially: number, known: number): number | null {
+  if (adoption.adoption_rate !== undefined) {
+    const rate = num(adoption.adoption_rate)
+    return rate === null ? null : Math.round(rate * 1000) / 10
+  }
+  return known > 0 ? Math.round(((adopted + partially) / known) * 1000) / 10 : null
 }
 
 /** One activity cell for display: a count, or "—" when it is not available. */
@@ -82,7 +93,8 @@ export const KPI_ORDER = [
   "critical_stockout_risk",
   "excess_inventory_opportunity",
   "working_capital_impact",
-  "pending_approval",
+  "approved",
+  "pending_approval", // carried only by reports saved before the card became Approved
 ] as const
 
 export function orderedKpis(cards: ApiKpiCard[]): ApiKpiCard[] {
@@ -110,12 +122,13 @@ export function kpiValueText(card: ApiKpiCard): string {
  * and stay behind the card's (i); the PDF prints them in full. `title` is set only where a card was renamed: a saved
  * report keeps the title it was generated with, so this is what lets a rename reach the reports saved before it. */
 const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
-  materials_assessed: { caption: "Materials we made a recommendation for" },
-  recommendations_generated: { caption: "Recommendations created in this period" },
+  materials_assessed: { title: "Material-plants with a computed recommendation", caption: "Different material-plants with a result" },
+  recommendations_generated: { caption: "Records created this period, not materials" },
   critical_stockout_risk: { title: "High Stockout Risk", caption: "Stock below what the lead time needs" },
   excess_inventory_opportunity: { caption: "Stock above the recommended maximum · estimate" },
   working_capital_impact: { caption: "Cash released (+) or tied up (−) · estimate" },
-  pending_approval: { caption: "Waiting for a decision" },
+  approved: { caption: "Approved so far · approval, not SAP adoption" },
+  pending_approval: { caption: "Waiting for an approver's decision" },
 }
 
 /** The card's title as the page and the PDF show it. */

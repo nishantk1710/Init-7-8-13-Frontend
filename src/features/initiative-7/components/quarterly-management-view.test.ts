@@ -96,8 +96,8 @@ const render = (m: ApiQuarterManagement) => renderToStaticMarkup(createElement(Q
 describe("the cards", () => {
   it("each carry what it is, when it was measured and what it is out of", () => {
     const html = render(management())
-    expect(html).toContain("Title materials_assessed")
-    expect(html).toContain("Materials we made a recommendation for") // the one plain line
+    expect(html).toContain("Material-plants with a computed recommendation") // renamed, so a saved report reads the same
+    expect(html).toContain("Different material-plants with a result") // the one plain line
     expect(html).toContain("18,627")
     expect(html).toContain("of 18,700 material-plants with a recommendation")
     expect(html).toContain("as of 15 Jan 2027")
@@ -106,7 +106,10 @@ describe("the cards", () => {
   it("have no (i) and no long explanation on the card, only the figure and one plain line", () => {
     const html = render(management())
     expect(html).not.toContain("is calculated") // the (i) button's label
-    expect(html).not.toContain("Explains materials_assessed.")
+    // The longer explanation is folded away under "How each figure above is measured", not on the card.
+    const outsideGuide = html.replace(/<details[\s\S]*?<\/details>/g, "")
+    expect(outsideGuide).not.toContain("Explains materials_assessed.")
+    expect(html).toContain("How each figure above is measured")
     expect(html).not.toContain("Status on a date") // the old jargon badge
     expect(html).toContain("before:bg-primary") // still the Overview's card: the accent bar down its edge
   })
@@ -290,23 +293,23 @@ describe("the Overview's charts", () => {
 })
 
 describe("the stock level table and the coverage", () => {
-  it("keeps the Stock level / Current (SAP) / Recommended / Change table, for one material, with a search and no averages", () => {
+  it("lists a row per recommendation: SAP, recommended and difference for safety stock, reorder point and maximum stock", () => {
     const html = render(management())
     expect(html).toContain("Current SAP vs I07 recommendation")
     expect(html).toContain("Search a material")
     expect(html).toContain("border-action bg-action/10") // the search box wears the blue filter style
     expect(html).not.toContain("Current (SAP), average")
     expect(html).not.toContain("Recommended, average")
-    for (const heading of ["Stock level", "Current (SAP)", "Recommended", "Change"]) {
-      expect(viewSource).toContain(`>${heading}</TableHead>`)
-    }
+    for (const heading of ["Material", "Plant", "Generated"]) expect(viewSource).toContain(`>${heading}</TableHead>`)
     for (const level of ["Safety stock", "Reorder point", "Maximum stock"]) expect(viewSource).toContain(`label: "${level}"`)
+    for (const sub of ["Current (SAP)", "Recommended", "Difference"]) expect(viewSource).toContain(sub)
     expect(viewSource).toContain("search: query || undefined") // the search goes to the backend, over every material
   })
 
-  it("opens on the period's latest recommendation, and steps through the matches one at a time", () => {
-    expect(viewSource).toContain("const COMPARE_PAGE_SIZE = 1") // one recommendation per page ...
-    expect(viewSource).toMatch(/sort: "generated_at",\s+sortDesc: true,\s+page,\s+pageSize: COMPARE_PAGE_SIZE/) // ... newest first
+  it("lists only recommendations that have a recommended value, newest first, a page at a time", () => {
+    expect(viewSource).toContain("hasRecommended: true") // the backend's has_recommended filter is kept
+    expect(viewSource).toContain("const COMPARE_PAGE_SIZE = 5")
+    expect(viewSource).toMatch(/sort: "generated_at",\s+sortDesc: true,\s+page,\s+pageSize: COMPARE_PAGE_SIZE/)
   })
 
   it("works out the change from SAP's figure to the recommended one, and none from a missing figure", () => {
