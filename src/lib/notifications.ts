@@ -49,7 +49,7 @@ const TYPE_LABELS: Record<string, string> = {
   APPROVAL_REMINDER: "Reminder",
   APPROVAL_ESCALATED: "Escalation required",
   EXCEPTION_ACTION_REQUIRED: "Inventory exception",
-  EXCEPTION_RESPONSE_REQUIRED: "Inventory exception",
+  EXCEPTION_RESPONSE_REQUIRED: "Confirm exception",
   EXCEPTION_ESCALATED: "Escalation required",
   PR_RECEIVED: "Purchase requisition",
   PR_RECEIVED_DETAILS: "Purchase requisition",
@@ -118,7 +118,6 @@ export function severityOf(eventType: string): NotificationSeverity {
 
 const MODULE_PREFIXES: { prefix: string; label: string }[] = [
   { prefix: "/inventory-planning", label: "Inventory Planning" },
-  { prefix: "/repairable-spares", label: "Repairable Spares" },
   { prefix: "/oar-utilization", label: "OAR Utilization" },
 ]
 
@@ -127,7 +126,8 @@ export function moduleOf(item: Pick<ApiInboxItem, "actionPath" | "eventType">): 
   const path = safeActionPath(item.actionPath)
   const byPath = path ? MODULE_PREFIXES.find((m) => path === m.prefix || path.startsWith(`${m.prefix}/`) || path.startsWith(`${m.prefix}?`)) : undefined
   if (byPath) return byPath.label
-  return item.eventType.startsWith("EXCEPTION_") ? "Repairable Spares" : null
+  // Exception notifications now come from OAR Utilization only (Repairable Spares no longer sends any).
+  return item.eventType.startsWith("EXCEPTION_") ? "OAR Utilization" : null
 }
 
 export type DateGroup = "Today" | "Yesterday" | "Earlier"

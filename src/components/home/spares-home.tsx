@@ -72,7 +72,6 @@ const MODULES: ModuleCard[] = [
 /** What each cross-module destination is for, keyed by its QUICK_ACTIONS href. */
 const CROSS_MODULE: Record<string, string> = {
   "/actions": "Everything waiting on you",
-  "/approvals": "Approve or reject requests",
   "/audit": "Who changed what, and when",
 }
 

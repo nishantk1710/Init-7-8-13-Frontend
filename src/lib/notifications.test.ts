@@ -80,6 +80,7 @@ describe("what a row shows", () => {
   it("labels the type in business words, never a module name", () => {
     expect(notificationTypeLabel("APPROVAL_REQUIRED")).toBe("Approval required")
     expect(notificationTypeLabel("EXCEPTION_ESCALATED")).toBe("Escalation required")
+    expect(notificationTypeLabel("EXCEPTION_RESPONSE_REQUIRED")).toBe("Confirm exception")
     expect(notificationTypeLabel("SOMETHING_NEW")).toBe("Notification")
     expect(notificationTypeLabel("PR_RECEIVED")).toBe("Purchase requisition")
     expect(notificationTypeLabel("PR_RECEIVED_DETAILS")).toBe("Purchase requisition")
@@ -144,11 +145,13 @@ describe("how urgent, where from, and when", () => {
 
   it("names the module in words from the page it opens", () => {
     expect(moduleOf(item())).toBe("Inventory Planning")
-    expect(moduleOf(item({ actionPath: "/repairable-spares/exceptions" }))).toBe("Repairable Spares")
     expect(moduleOf(item({ actionPath: "/oar-utilization/watch" }))).toBe("OAR Utilization")
-    expect(moduleOf(item({ actionPath: null, eventType: "EXCEPTION_ESCALATED" }))).toBe("Repairable Spares")
+    expect(moduleOf(item({ actionPath: "/oar-utilization/aging-exceptions?material=4000002200&plant=1300" }))).toBe("OAR Utilization")
+    // Exception notifications are OAR's now; Repairable Spares sends none and has no module name here.
+    expect(moduleOf(item({ actionPath: null, eventType: "EXCEPTION_ESCALATED" }))).toBe("OAR Utilization")
+    expect(moduleOf(item({ actionPath: "/repairable-spares/exceptions", eventType: "APPROVAL_REQUIRED" }))).toBeNull()
     expect(moduleOf(item({ actionPath: null }))).toBeNull()
-    for (const label of ["/inventory-planning", "/repairable-spares", "/oar-utilization"].map((actionPath) => moduleOf(item({ actionPath })))) {
+    for (const label of ["/inventory-planning", "/oar-utilization"].map((actionPath) => moduleOf(item({ actionPath })))) {
       expect(label).not.toMatch(/\bI\s?0?(7|8|13)\b/i)
     }
   })
