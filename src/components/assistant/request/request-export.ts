@@ -7,7 +7,14 @@
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
 import { formatInstant } from "@/lib/assistant/trace-format"
-import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import {
+  departmentLabel,
+  isDeclined,
+  outcomeSentence,
+  requestSavings,
+  savingSentence,
+} from "@/lib/assistant/request/record"
+import { formatZAR } from "@/lib/utils"
 import {
   downloadDocument,
   exportFilename,
@@ -50,9 +57,13 @@ function lineCells(line: ApiRequestLine): ExportCell[] {
     line.materialDescription ?? "No description",
     `Plant ${line.plant}`,
   ]
-  const decision = procured
-    ? [`${plain(line.plannedQuantity)} (suggested ${plain(line.suggestedQuantity)})`, outcomeSentence(line)]
-    : [outcomeSentence(line)]
+  const shown = line.saving ? line.saving.suggestedQuantity : line.suggestedQuantity
+  const saved = savingSentence(line)
+  const decision = [
+    ...(procured ? [`${plain(line.plannedQuantity)} (suggested ${plain(shown)})`] : []),
+    outcomeSentence(line),
+    ...(saved ? [saved] : []),
+  ]
   const window = procured
     ? [`${formatDate(line.windowStart)} – ${formatDate(line.windowEnd)}`, ...(line.purpose ? [line.purpose] : [])]
     : ["—"]
@@ -72,6 +83,7 @@ function lineCells(line: ApiRequestLine): ExportCell[] {
 export function requestExportModel(request: ApiRequest, now: Date = new Date()): RequestExportModel {
   const toReserve = request.lines.filter((l) => !isDeclined(l)).length
   const linked = request.lines.reduce((n, l) => n + l.linkedReservations.length, 0)
+  const savings = requestSavings(request)
   return {
     title: `Request ${request.requestId}`,
     subtitle: "What was decided for each material, and how to quote it in SAP.",
@@ -86,6 +98,16 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
       ["Lines", String(request.lines.length)],
       ["To reserve", String(toReserve)],
       ["No session", String(request.skipped.length)],
+      ...(savings.units > 0
+        ? ([
+            [
+              "Saved by suggestions",
+              `${savings.units} unit${savings.units === 1 ? "" : "s"}` +
+                (savings.value > 0 ? ` · ${formatZAR(savings.value)}` : "") +
+                (savings.unpriced > 0 ? ` (${savings.unpriced} without a price)` : ""),
+            ],
+          ] as [string, string][])
+        : []),
     ],
     note:
       `Create one SAP reservation for this request and type ${request.requestId} into its header text, without /1, /2. ` +
