@@ -53,6 +53,8 @@ const TYPE_LABELS: Record<string, string> = {
   EXCEPTION_ESCALATED: "Escalation required",
   PR_RECEIVED: "Purchase requisition",
   PR_RECEIVED_DETAILS: "Purchase requisition",
+  RESERVATION_LINKED: "Reservation linked",
+  RESERVATION_LINK_REMINDER: "Reservation not linked",
 }
 
 export function notificationTypeLabel(eventType: string): string {
@@ -83,6 +85,7 @@ export function formatNotificationTime(iso: string): string {
 export function actionLabelOf(eventType: string): string {
   if (eventType.startsWith("APPROVAL_")) return "Open Review Workspace"
   if (eventType.startsWith("EXCEPTION_")) return "Open Exception"
+  if (eventType.startsWith("RESERVATION_")) return "Open Request"
   return "Open"
 }
 
@@ -103,11 +106,13 @@ const SEVERITY: Record<string, NotificationSeverity> = {
   EXCEPTION_ESCALATED: "critical",
   APPROVAL_REJECTED: "critical",
   APPROVAL_REMINDER: "warning",
+  RESERVATION_LINK_REMINDER: "warning",
   APPROVAL_ON_HOLD: "warning",
   APPROVAL_SENT_BACK: "warning",
   EXCEPTION_ACTION_REQUIRED: "warning",
   EXCEPTION_RESPONSE_REQUIRED: "warning",
   APPROVAL_COMPLETED: "success",
+  RESERVATION_LINKED: "success",
   APPROVAL_HOLD_RELEASED: "success",
 }
 
@@ -119,6 +124,7 @@ export function severityOf(eventType: string): NotificationSeverity {
 const MODULE_PREFIXES: { prefix: string; label: string }[] = [
   { prefix: "/inventory-planning", label: "Inventory Planning" },
   { prefix: "/oar-utilization", label: "OAR Utilization" },
+  { prefix: "/assistant", label: "Reservation assistant" },
 ]
 
 /** The module a notification belongs to, by the page it opens; null when it opens none of them. */

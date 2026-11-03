@@ -141,6 +141,17 @@ describe("how urgent, where from, and when", () => {
     expect(actionLabelOf("APPROVAL_ESCALATED")).toBe("Open Review Workspace")
     expect(actionLabelOf("EXCEPTION_ACTION_REQUIRED")).toBe("Open Exception")
     expect(actionLabelOf("GENERAL")).toBe("Open")
+    expect(actionLabelOf("RESERVATION_LINKED")).toBe("Open Request")
+    expect(actionLabelOf("RESERVATION_LINK_REMINDER")).toBe("Open Request")
+  })
+
+  it("names a request's reservation notices", () => {
+    const linked = item({ eventType: "RESERVATION_LINKED", actionPath: "/assistant/requests/RSA1MT7EKP" })
+    expect(notificationTypeLabel("RESERVATION_LINKED")).toBe("Reservation linked")
+    expect(notificationTypeLabel("RESERVATION_LINK_REMINDER")).toBe("Reservation not linked")
+    expect(severityOf("RESERVATION_LINKED")).toBe("success")
+    expect(severityOf("RESERVATION_LINK_REMINDER")).toBe("warning")
+    expect(moduleOf(linked)).toBe("Reservation assistant")
   })
 
   it("names the module in words from the page it opens", () => {
