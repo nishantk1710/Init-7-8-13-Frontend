@@ -6,12 +6,20 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ApiInboxItem } from "@/lib/api/notifications"
 import {
   INBOX_FILTERS,
+  actionLabelOf,
+  dayKeyOf,
+  greetingFor,
+  inDateRange,
   formatNotificationTime,
+  formatRelativeTime,
+  groupByDate,
   materialOf,
+  moduleOf,
   notificationTypeLabel,
   parseFilter,
   referenceOf,
   safeActionPath,
+  severityOf,
   unreadBadge,
   withRead,
 } from "@/lib/notifications"
@@ -89,6 +97,76 @@ describe("what a row shows", () => {
   it("formats the date and time, and tolerates a bad one", () => {
     expect(formatNotificationTime("2026-11-02T09:00:00Z")).toMatch(/2 Nov 2026/)
     expect(formatNotificationTime("not a date")).toBe("")
+  })
+})
+
+describe("how urgent, where from, and when", () => {
+  const now = new Date(2026, 10, 3, 12, 0, 0)
+
+  it("ranks escalations and rejections above reminders, and completions as calm", () => {
+    expect(severityOf("APPROVAL_ESCALATED")).toBe("critical")
+    expect(severityOf("APPROVAL_REJECTED")).toBe("critical")
+    expect(severityOf("APPROVAL_REMINDER")).toBe("warning")
+    expect(severityOf("APPROVAL_COMPLETED")).toBe("success")
+    expect(severityOf("APPROVAL_REQUIRED")).toBe("info")
+    expect(severityOf("SOMETHING_NEW")).toBe("info")
+  })
+
+  it("matches a notification to a day or a range of days, by local date", () => {
+    const at = new Date(2026, 10, 2, 23, 30).toISOString()
+    expect(dayKeyOf(at)).toBe("2026-11-02")
+    expect(dayKeyOf("not a date")).toBe("")
+    expect(inDateRange(at, "", "")).toBe(true)
+    expect(inDateRange(at, "2026-11-02", "2026-11-02")).toBe(true)
+    expect(inDateRange(at, "2026-11-03", "")).toBe(false)
+    expect(inDateRange(at, "", "2026-11-01")).toBe(false)
+    expect(inDateRange(at, "2026-10-30", "2026-11-03")).toBe(true)
+    expect(inDateRange("not a date", "2026-11-02", "")).toBe(false)
+  })
+
+  it("greets the person by first name, tolerating usernames and no name", () => {
+    expect(greetingFor("Khushi Patil")).toBe("Dear Khushi,")
+    expect(greetingFor("lynn.boyce")).toBe("Dear Lynn,")
+    expect(greetingFor("simone")).toBe("Dear Simone,")
+    expect(greetingFor("paul@example.com")).toBe("Dear Paul,")
+    expect(greetingFor("")).toBe("Dear colleague,")
+    expect(greetingFor(null)).toBe("Dear colleague,")
+  })
+
+  it("labels the button as the email does", () => {
+    expect(actionLabelOf("APPROVAL_REQUIRED")).toBe("Open Review Workspace")
+    expect(actionLabelOf("APPROVAL_ESCALATED")).toBe("Open Review Workspace")
+    expect(actionLabelOf("EXCEPTION_ACTION_REQUIRED")).toBe("Open Exception")
+    expect(actionLabelOf("GENERAL")).toBe("Open")
+  })
+
+  it("names the module in words from the page it opens", () => {
+    expect(moduleOf(item())).toBe("Inventory Planning")
+    expect(moduleOf(item({ actionPath: "/repairable-spares/exceptions" }))).toBe("Repairable Spares")
+    expect(moduleOf(item({ actionPath: "/oar-utilization/watch" }))).toBe("OAR Utilization")
+    expect(moduleOf(item({ actionPath: null, eventType: "EXCEPTION_ESCALATED" }))).toBe("Repairable Spares")
+    expect(moduleOf(item({ actionPath: null }))).toBeNull()
+    for (const label of ["/inventory-planning", "/repairable-spares", "/oar-utilization"].map((actionPath) => moduleOf(item({ actionPath })))) {
+      expect(label).not.toMatch(/\bI\s?0?(7|8|13)\b/i)
+    }
+  })
+
+  it("groups a newest-first list under Today, Yesterday and Earlier", () => {
+    const at = (d: number, h = 9) => new Date(2026, 10, d, h).toISOString()
+    const groups = groupByDate([{ createdAt: at(3, 8) }, { createdAt: at(2) }, { createdAt: at(1) }, { createdAt: at(1, 7) }], now)
+    expect(groups.map((g) => [g.group, g.items.length])).toEqual([
+      ["Today", 1],
+      ["Yesterday", 1],
+      ["Earlier", 2],
+    ])
+  })
+
+  it("shows how long ago, then the date once it is over a day old", () => {
+    expect(formatRelativeTime(new Date(2026, 10, 3, 11, 59, 40).toISOString(), now)).toBe("Just now")
+    expect(formatRelativeTime(new Date(2026, 10, 3, 11, 55).toISOString(), now)).toBe("5m ago")
+    expect(formatRelativeTime(new Date(2026, 10, 3, 9).toISOString(), now)).toBe("3h ago")
+    expect(formatRelativeTime(new Date(2026, 9, 28, 9).toISOString(), now)).toMatch(/28 Oct 2026/)
+    expect(formatRelativeTime("not a date", now)).toBe("")
   })
 })
 
