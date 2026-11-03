@@ -18,28 +18,21 @@ import { toast } from "sonner"
 
 import type { TimelineEvent } from "@/components/shared/timeline"
 import { buttonVariants } from "@/components/ui/button"
-import { DeclareConditionButton } from "@/features/initiative-8/components/declare-condition-button"
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
 import { Card, Dot, I08Page, type Crumb } from "@/features/initiative-8/components/kit/page"
 import { Actor, StatusDot } from "@/features/initiative-8/components/kit/status"
 import { REGISTER_RETURN_KEY } from "@/features/initiative-8/components/repair-register-table"
-import { exceptionsHref } from "@/features/initiative-8/data/live-exceptions"
 import { REGISTER_PATH } from "@/features/initiative-8/data/live-register"
 import { isRepairRequestId } from "@/features/initiative-8/data/live-repair-detail"
-import type { ExceptionQueueRow, RepairChain } from "@/features/initiative-8/types/repair"
+import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { conditionLabel, humanize, i08Quantity, isUnsigned, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { NO_PO_YET, repairRequestBanner, requesterText } from "@/features/initiative-8/utils/repair-request"
-import { lineExceptionState } from "@/features/initiative-8/utils/repair-line"
-import { declarationAction, declarationDisplay, declarationLinkLabel } from "@/features/initiative-8/utils/declaration"
+import { declarationDisplay, declarationLinkLabel } from "@/features/initiative-8/utils/declaration"
 import {
-  JUSTIFICATION_CELL_NOTE,
-  exceptionTypeLabel,
   hasNoDueDate,
   isOpenRepair,
   isPrOnly,
   isRepairOverdue,
-  justificationCellOf,
-  purchaseSummary,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { cn, formatMoney } from "@/lib/utils"
@@ -53,12 +46,6 @@ export type RepairDetailPageProps = {
   detail?: { chain: RepairChain; timeline: TimelineEvent[] }
   /** Set when the fetch failed. Rendered as a failure, never as "not found". */
   loadError?: string | null
-  /** The declaration form's fault categories; empty when that fetch failed,
-   *  and the form then says so rather than offering a list it made up. */
-  faultCategories?: string[]
-  /** The exception items raised against this line. Null when that fetch
-   *  failed -- "could not be checked", never a clean bill of health. */
-  exceptions?: ExceptionQueueRow[] | null
 }
 
 const noSubscription = () => () => {}
@@ -82,31 +69,30 @@ function useRegisterHref(): string {
  * One repair line -- I08_Live_UI_Redesign_Plan.md, L3 and Q8.
  *
  * A breadcrumb back to the register as it was left (it had no way back but the
- * browser's). The main action, Declare condition, in the header -- it was
- * inside the fourth card. Lateness said once, in the banner; each fact once.
+ * browser's). Lateness said once, in the banner; each fact once.
+ *
+ * Read-only since 3-Nov-2026: a declaration is made in the reservation
+ * assistant, so the page offers no Declare or Amend, and the "Exceptions on
+ * this line" and "Justification" cards went with the exception queue (the
+ * reasons for buying new are on the Justifications page).
  *
  * The timeline reads plainly: a recorded step is filled, a step SAP does not
  * record is hollow and grey, and red means late. The colours used to run the
  * other way, with the one real event in grey. The SAP evidence behind each
  * step -- which document, which movement -- is behind its ⓘ.
  *
- * A repair requested with no PO yet (a PR row, `PR-{BANFN}-{BNFPO}`, since
- * 27-Oct-2026) has no vendor, no return date and no PO line to declare
- * against: it says "No PO yet" in a banner and its timeline starts at "Repair
- * requested", with "Repair PO raised" still to come. Since phase 2
- * (27-Oct-2026) it is declared on the repair PR itself, so Declare is offered
- * there as on a PO line.
+ * A PR raised for repair with no PO yet (a PR row, `PR-{BANFN}-{BNFPO}`, since
+ * 27-Oct-2026) has no vendor and no return date: it says "No PO yet" in a
+ * banner and its timeline starts at "PR raised", with "Repair PO raised" still
+ * to come.
  *
  * A Historical line (raised before declarations began, 27-Oct-2026) waits for
- * nothing: its declaration step says so in grey, and the exceptions raised on
- * it before go-live read "no action needed" (28-Oct-2026).
+ * nothing: its declaration step says so in grey.
  */
 export function RepairDetailPage({
   repairId,
   detail,
   loadError = null,
-  faultCategories = [],
-  exceptions = null,
 }: RepairDetailPageProps) {
   const registerHref = useRegisterHref()
   const crumbs: Crumb[] = [
@@ -141,11 +127,11 @@ export function RepairDetailPage({
       <I08Page crumbs={crumbs} title="Repair not found">
         <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-card px-6 py-14 text-center">
           <p className="text-[15px] font-semibold text-foreground">
-            No open {request ? "repair request" : "repair line"} &ldquo;{repairId}&rdquo;
+            No open {request ? "repair PR" : "repair line"} &ldquo;{repairId}&rdquo;
           </p>
           <p className="max-w-md text-[13.5px] text-muted-foreground">
             {request
-              ? "This repair request now has a PO, or SAP has closed it. Search the register for its PR number to find the PO line."
+              ? "This PR now has a PO, or SAP has closed it. Search the register for its PR number to find the PO line."
               : "The register lists only the repair lines SAP still has open. This one may since have been marked delivery completed, blocked or deleted in SAP."}
           </p>
           <Link href={registerHref} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-1 px-3.5")}>
@@ -183,23 +169,6 @@ export function RepairDetailPage({
           </span>
           <Dot />
           <span>{requested ? NO_PO_YET : vendorLabel(chain)}</span>
-        </>
-      }
-      actions={
-        <>
-          {declarationAction(chain.declarationStatus, chain.declarationId) === null ? undefined : chain.declarationId ? (
-            // An attestation is never edited: an amendment is a new row
-            // pointing at the old one, which stays readable.
-            <DeclareConditionButton
-              chain={chain}
-              faultCategories={faultCategories}
-              label="Amend declaration"
-              size="lg"
-              supersedes={chain.declarationId}
-            />
-          ) : (
-            <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="default" size="lg" icon />
-          )}
         </>
       }
     >
@@ -259,7 +228,7 @@ export function RepairDetailPage({
         <Card className="px-5 pt-4.5 pb-5">
           <h2 className="text-[15.5px] font-semibold text-foreground">Repair progress</h2>
           <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">From the SAP documents on this line.</p>
-          <RepairTimeline chain={chain} stages={detail.timeline} faultCategories={faultCategories} />
+          <RepairTimeline chain={chain} stages={detail.timeline} />
         </Card>
 
         <div className="flex flex-col gap-4">
@@ -317,7 +286,7 @@ export function RepairDetailPage({
               <Fact label="Repair PO">
                 {chain.repairPO ? <span className="font-mono text-[13.5px]">{docRef(chain.repairPO)}</span> : <Faint>Not yet raised</Faint>}
               </Fact>
-              <Fact label={requested ? "Requested on" : "Open since"}>{chain.poIssuedAt ?? chain.raisedAt}</Fact>
+              <Fact label={requested ? "PR raised on" : "Open since"}>{chain.poIssuedAt ?? chain.raisedAt}</Fact>
               {/* A requisitioner CODE (a department on a repair PR), with the
                   department's name only when the department list knows it.
                   Across the card, and wrapped: the names are long. */}
@@ -333,9 +302,6 @@ export function RepairDetailPage({
               </Fact>
             </dl>
           </Card>
-
-          <LineExceptions chain={chain} exceptions={exceptions} />
-          <Justification chain={chain} />
         </div>
       </div>
     </I08Page>
@@ -400,7 +366,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 }
 
 const STAGE_TITLE: Record<string, string> = {
-  pr_raised: "Repair requested",
+  pr_raised: "PR raised",
   attested: "Condition declared",
   po_raised: "Repair PO raised",
   dispatched: "Sent to vendor",
@@ -428,15 +394,7 @@ type Step = {
 }
 
 /** The lifecycle, one step per stage the backend reports, then the return. */
-function RepairTimeline({
-  chain,
-  stages,
-  faultCategories,
-}: {
-  chain: RepairChain
-  stages: TimelineEvent[]
-  faultCategories: string[]
-}) {
+function RepairTimeline({ chain, stages }: { chain: RepairChain; stages: TimelineEvent[] }) {
   const requested = isPrOnly(chain)
   const steps: Step[] = stages.map((stage) => {
     const happened = stage.timestamp !== "Not recorded"
@@ -479,20 +437,8 @@ function RepairTimeline({
         if (chain.declarationStatus === "Historical") {
           return { ...base, state: "missing", note: "Raised before declarations began" }
         }
-        // Declare on a PO line and, since 27-Oct-2026, on a repair request
-        // (bound to its PR).
-        return {
-          ...base,
-          state: "todo",
-          note: declarationAction(chain.declarationStatus, chain.declarationId) !== "declare" ? (
-            "Not declared yet"
-          ) : (
-            <span className="inline-flex flex-wrap items-center gap-x-1.5">
-              Not yet.
-              <DeclareConditionButton chain={chain} faultCategories={faultCategories} variant="link" label="Declare condition" />
-            </span>
-          ),
-        }
+        // Declared in the reservation assistant since 3-Nov-2026, never here.
+        return { ...base, state: "todo", note: "Not declared yet" }
       case "po_raised":
         // Done when the PO exists. Not always "done" any more: a repair
         // request's timeline carries this step with no date and no PO. A PO
@@ -609,112 +555,5 @@ function RepairTimeline({
         )
       })}
     </ol>
-  )
-}
-
-/**
- * What the checks raised against this line. Three states, three claims: items
- * found; checks ran and found nothing; the queue could not be read -- which
- * must never render as a clean bill of health.
- */
-function LineExceptions({ chain, exceptions }: { chain: RepairChain; exceptions: ExceptionQueueRow[] | null }) {
-  return (
-    <Card className="px-5 pt-4.5 pb-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-[15.5px] font-semibold text-foreground">Exceptions on this line</h2>
-        {exceptions !== null && exceptions.length > 0 && (
-          <Link
-            href={exceptionsHref({ status: undefined, repair: chain.id })}
-            className="text-[13.5px] font-medium text-i08-link hover:underline"
-          >
-            Open in the queue
-          </Link>
-        )}
-      </div>
-      {exceptions === null ? (
-        <p className="mt-2 text-[13.5px] text-i08-warn-ink">
-          The exception queue could not be read, so this line&rsquo;s findings are unknown. This is not &ldquo;nothing
-          found&rdquo;.
-        </p>
-      ) : exceptions.length === 0 ? (
-        <p className="mt-2 text-[13.5px] text-muted-foreground">The checks ran and found nothing on this line.</p>
-      ) : (
-        <ul className="mt-2 flex flex-col">
-          {exceptions.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 border-t border-border py-2.5 first:border-t-0">
-              <Link href={`${exceptionsHref({ status: undefined })}&id=${encodeURIComponent(item.id)}`} className="hover:underline">
-                <StatusDot
-                  tone={
-                    item.preAutomation
-                      ? "muted"
-                      : item.status === "OPEN"
-                        ? item.type === "OVERDUE_REPAIR"
-                          ? "crit"
-                          : "warn"
-                        : "good"
-                  }
-                >
-                  {exceptionTypeLabel(item.type)}
-                </StatusDot>
-              </Link>
-              <span className="text-right text-[13px] text-muted-foreground">{lineExceptionState(item)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  )
-}
-
-/**
- * FR-7 on this line: the reasons recorded for buying new while it was out,
- * and the purchases made with none. One line when there is nothing to show.
- */
-function Justification({ chain }: { chain: RepairChain }) {
-  const cell = justificationCellOf(chain)
-  const entries = chain.justification?.entries ?? []
-  const purchases = chain.justification?.unjustifiedPurchases ?? []
-  return (
-    <Card className="px-5 pt-4.5 pb-4">
-      <h2 className="text-[15.5px] font-semibold text-foreground">Justification</h2>
-      <p className="mt-1.5 text-[13.5px] text-muted-foreground">
-        {JUSTIFICATION_CELL_NOTE[cell]}{" "}
-        <Link href="/repairable-spares/justifications" className="font-medium text-i08-link hover:underline">
-          All justifications
-        </Link>
-      </p>
-      {purchases.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-1.5 text-[13px]">
-          {purchases.map((purchase) => (
-            <li key={purchase.exceptionId} className="text-muted-foreground">
-              <span className="text-foreground">{purchaseSummary(purchase)}</span>
-              {purchase.preAutomation ? ", before the control existed" : ", no reason recorded"}
-            </li>
-          ))}
-        </ul>
-      )}
-      {entries.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-2">
-          {entries.map((entry, index) => (
-            <li key={entry.id ?? index} className="rounded-lg border border-border px-3 py-2.5 text-[13px]">
-              <p className="font-medium text-foreground">{humanize(entry.reasonCategory, "Reason recorded")}</p>
-              {entry.freeText && <p className="mt-0.5 text-muted-foreground">{entry.freeText}</p>}
-              <p className="mt-1 text-[12.5px] text-muted-foreground">
-                Recorded by <Actor actor={entry.author} />
-                {entry.recordedAt && ` · ${entry.recordedAt}`}
-                {entry.sessionId && (
-                  <>
-                    {" · "}
-                    <Link href={`/assistant/sessions/${encodeURIComponent(entry.sessionId)}`} className="font-medium text-i08-link hover:underline">
-                      session {entry.sessionId}
-                    </Link>
-                  </>
-                )}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   )
 }

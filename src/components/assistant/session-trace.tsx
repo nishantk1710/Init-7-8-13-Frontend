@@ -63,14 +63,10 @@ import { cn } from "@/lib/utils"
 export function SessionTrace({
   trace,
   job = null,
-  completeFlow,
 }: {
   trace: SessionTraceResponse
   /** The job behind a repairable session; null for OAR or when it could not be read. */
   job?: SessionJobView | null
-  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
-   *  Off: no "Declaration recorded" card and no "Faulty unit declared". */
-  completeFlow: boolean
 }) {
   const identity = sessionIdentity(trace)
   const reference = referenceInstruction(identity)
@@ -81,7 +77,7 @@ export function SessionTrace({
     requestedQuantity: suggestion?.requestedQuantity ?? null,
   })
   const reasons = reasonViews(trace.justifications, typedName)
-  const declarations = completeFlow && trace.flow === "i08" ? declarationViews(trace) : []
+  const declarations = trace.flow === "i08" ? declarationViews(trace) : []
   const linked = linkedInSapView({
     flow: trace.flow,
     sessionId: trace.sessionId,
@@ -92,7 +88,7 @@ export function SessionTrace({
   return (
     <div className="flex flex-col gap-6">
       <ReferenceBox trace={trace} reference={reference} />
-      <Summary trace={trace} completeFlow={completeFlow} />
+      <Summary trace={trace} />
 
       <Part
         title="What the assistant showed"
@@ -209,9 +205,9 @@ function ReferenceBox({
 
 // --- 2. the summary -----------------------------------------------------------
 
-function Summary({ trace, completeFlow }: { trace: SessionTraceResponse; completeFlow: boolean }) {
+function Summary({ trace }: { trace: SessionTraceResponse }) {
   const decision = sessionDecision(trace)
-  const declared = completeFlow && trace.flow === "i08" ? declaredState(trace) : null
+  const declared = trace.flow === "i08" ? declaredState(trace) : null
   return (
     <section aria-label="Summary" className="overflow-hidden rounded-xl border border-border bg-card">
       <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -312,8 +308,8 @@ function I08Shown({ facts }: { facts: unknown }) {
       )}
       {requests.length > 0 && (
         <ShownList
-          title="Repairs requested, no PO yet"
-          columns={["Request", "Department", "Quantity", "Requested"]}
+          title="PRs raised for repair, no PO yet"
+          columns={["PR", "Department", "Quantity", "Raised"]}
           rows={requests.map((r) => ({
             key: r.key,
             cells: [
@@ -511,13 +507,16 @@ function DeclarationCard({ declaration: d }: { declaration: DeclarationView }) {
       footer={d.recordedAt ? `Recorded ${formatInstant(d.recordedAt)}` : "Recorded in this visit"}
     >
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        <Fact label="Condition" wide>
-          {d.condition || <span className="text-muted-foreground">Not described</span>}
-        </Fact>
+        {/* Asked until 3-Nov-2026: shown only on a declaration that has one. */}
+        {d.condition && (
+          <Fact label="Condition" wide>
+            {d.condition}
+          </Fact>
+        )}
         <Fact label="Fault">{d.fault}</Fact>
         <Fact label="Quantity">{d.quantity}</Fact>
-        <Fact label="Typed name">{d.name}</Fact>
-        <Fact label="Evidence">{d.evidence ?? <span className="text-muted-foreground">None given</span>}</Fact>
+        <Fact label="Declared by">{d.name}</Fact>
+        {d.evidence && <Fact label="Evidence">{d.evidence}</Fact>}
         {d.repairLine && <Fact label="Repair line">{d.repairLine}</Fact>}
       </dl>
     </RecordCard>

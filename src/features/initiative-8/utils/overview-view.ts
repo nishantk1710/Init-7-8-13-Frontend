@@ -1,9 +1,6 @@
 import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
-import { humanize } from "@/features/initiative-8/utils/format"
 import { ALL } from "@/features/initiative-8/utils/register-view"
 import {
-  NO_CRITICALITY,
-  exceptionTypeLabel,
   hasNoDueDate,
   isOpenRepair,
   isRepairOverdue,
@@ -44,14 +41,15 @@ export type OverviewFilters = {
   plant: string
   /** A vendor label, or `ALL`. Narrows repair lines only — see `filterOverview`. */
   vendor: string
-  /** A criticality rating, `NO_CRITICALITY` for unrated rows, or `ALL`. */
-  criticality: string
+  /** A department code -- who raised the repair -- or `ALL` (3-Nov-2026; it
+   *  replaced the criticality filter). Narrows repair lines only. */
+  department: string
 }
 
 export const NO_OVERVIEW_FILTERS: OverviewFilters = {
   plant: ALL,
   vendor: ALL,
-  criticality: ALL,
+  department: ALL,
 }
 
 /**
@@ -82,10 +80,9 @@ export type OverviewSlice = {
 /**
  * The rows matching every active filter.
  *
- * Vendor is the odd one out and deliberately so: only repair lines have a
- * vendor. The repairable universe does not, so a vendor filter leaves it
- * alone — "how many repairable materials does this vendor hold" is not a
- * question the data can answer, and silently emptying the universe to zero
+ * Vendor and department narrow the repair lines only: the repairable universe
+ * has neither -- "how many repairable materials does this vendor hold" is not
+ * a question the data can answer, and silently emptying the universe to zero
  * would answer it wrongly. The screen says this next to the filters.
  */
 export function filterOverview(
@@ -97,25 +94,28 @@ export function filterOverview(
     chains: chains.filter((c) => {
       if (filters.plant !== ALL && c.plant.plantId !== filters.plant) return false
       if (filters.vendor !== ALL && vendorLabel(c) !== filters.vendor) return false
-      if (
-        filters.criticality !== ALL &&
-        (c.criticality ?? NO_CRITICALITY) !== filters.criticality
-      ) {
-        return false
-      }
+      if (filters.department !== ALL && c.requester !== filters.department) return false
       return true
     }),
-    universe: universe.filter((row) => {
-      if (filters.plant !== ALL && row.plantId !== filters.plant) return false
-      if (
-        filters.criticality !== ALL &&
-        (row.criticality ?? NO_CRITICALITY) !== filters.criticality
-      ) {
-        return false
-      }
-      return true
-    }),
+    universe: universe.filter((row) => filters.plant === ALL || row.plantId === filters.plant),
   }
+}
+
+/**
+ * The Department filter's choices: every department that raised a listed
+ * repair, by code, with its name when the department list knows it, in code
+ * order. A repair with no department recorded matches only "All".
+ */
+export function departmentOptions(
+  chains: Pick<RepairChain, "requester" | "requesterName">[],
+): { value: string; label: string }[] {
+  const names = new Map<string, string | undefined>()
+  for (const chain of chains) {
+    if (chain.requester) names.set(chain.requester, chain.requesterName ?? names.get(chain.requester))
+  }
+  return [...names]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([value, name]) => ({ value, label: name ? `${value} · ${name}` : value }))
 }
 
 export type PlantStock = {
@@ -343,23 +343,40 @@ export function bandOf(days: number | null | undefined, bands: string[]): string
 export const STAGE_ORDER: RepairStatus[] = ["PR Raised", "PO Issued", "At Vendor"]
 
 export type StageAging = {
-  /** One row per stage that holds a line: how many lines sit in each band of
-   *  days in that stage. A stage with no lines has no row -- an empty row
-   *  would claim the stage is tracked and nothing reached it. */
+  /** One row per stage that holds a line -- PR raised (no PO yet), PO issued,
+   *  At vendor -- with how many sit in each band of days in that stage. A
+   *  stage with no lines has no row: an empty row would claim the stage is
+   *  tracked and nothing reached it. */
   rows: { stage: RepairStatus; cells: number[] }[]
-  /** Every open line, by days open (the whole repair). */
-  total: number[]
+  /** The open repair PO lines past their expected return date, by band of
+   *  days past it. Null with no PO line at all; a PR has no date to be past. */
+  late: number[] | null
   /** The largest cell, for shading. */
   max: number
 }
 
 /**
- * FR-9's aging per stage, as a table of counts rather than a bar chart: a
- * chart with one bar said less than the number, and on today's data every
- * line sits in one cell.
+ * How many days past its expected return an open PO line is, or undefined when
+ * it is not past it (or has no date). From `daysRemainingInRepair`, which is
+ * negative once the date has passed -- the backend's `lateAgingBucket` reads
+ * the same number, so a cell and the register lines its link opens agree.
  */
-export function stageAging(chains: RepairChain[], bands: string[]): StageAging {
-  const open = chains.filter(isOpenRepair)
+export function daysPastExpected(chain: Pick<RepairChain, "daysRemainingInRepair">): number | undefined {
+  const remaining = chain.daysRemainingInRepair
+  return remaining !== undefined && remaining < 0 ? -remaining : undefined
+}
+
+/**
+ * FR-9's aging, as a table of counts rather than a bar chart: one row per
+ * stage by days in that stage, then the PO lines by days past their expected
+ * return (3-Nov-2026: it replaced the "all open lines, days open" row, which
+ * repeated the PO-issued row exactly).
+ *
+ * `requests` are the PRs raised for repair with no PO yet, which the Overview
+ * keeps apart from `chains` (PO lines only): their row is the first.
+ */
+export function stageAging(chains: RepairChain[], bands: string[], requests: RepairChain[] = []): StageAging {
+  const open = [...requests, ...chains].filter(isOpenRepair)
   const rows = STAGE_ORDER.filter((stage) => open.some((c) => c.repairStatus === stage)).map(
     (stage) => ({
       stage,
@@ -370,136 +387,11 @@ export function stageAging(chains: RepairChain[], bands: string[]): StageAging {
       ),
     }),
   )
-  // The days-open band is the backend's own, so the total row and the
-  // register's "days open" filter count the same lines.
-  const total = bands.map((band) => open.filter((c) => c.agingBucket === band).length)
-  const max = Math.max(1, ...rows.flatMap((row) => row.cells), ...total)
-  return { rows, total, max }
-}
-
-export type VendorRow = {
-  /** What the register's vendor filter takes: the code, or `none`. */
-  code: string
-  name: string
-  open: number
-  late: number
-}
-
-/** Open repair lines per vendor, most first, with how many are late. */
-export function vendorRows(chains: RepairChain[]): VendorRow[] {
-  const byVendor = new Map<string, VendorRow>()
-  for (const chain of chains) {
-    if (!isOpenRepair(chain)) continue
-    const code = chain.vendor ?? "none"
-    const row = byVendor.get(code) ?? { code, name: vendorLabel(chain), open: 0, late: 0 }
-    row.open += 1
-    if (isRepairOverdue(chain)) row.late += 1
-    byVendor.set(code, row)
-  }
-  return [...byVendor.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name))
-}
-
-/** One open exception, as the Overview's card counts it. */
-export type OpenExceptionItem = { repairId?: string; type: string; plantId?: string }
-
-export type OpenExceptionCounts = { total: number; byType: Record<string, number> }
-
-/**
- * The open exception items the card counts, by type: the same items the
- * queue lists under Open, narrowed the way the Overview is.
- *
- * An item on a register line counts when that line is in the slice -- a
- * repair PO line or a repair requested with no PO yet. An item on no line
- * the register lists (a part declared repairable with no repair PR since, for
- * one) has only a plant: it counts while no vendor or criticality filter is
- * set, and the plant filter narrows it. Until 28-Oct-2026 the card counted
- * only items on PO lines, and said 105 where the queue said 109.
- */
-export function openExceptionCounts(
-  slice: RepairChain[],
-  knownLineIds: ReadonlySet<string>,
-  items: OpenExceptionItem[],
-  filters: OverviewFilters,
-): OpenExceptionCounts {
-  const inSlice = new Set(slice.map((c) => c.id))
-  const lineless = filters.vendor === ALL && filters.criticality === ALL
-  const counted = items.filter((item) =>
-    item.repairId && knownLineIds.has(item.repairId)
-      ? inSlice.has(item.repairId)
-      : lineless && (filters.plant === ALL || item.plantId === filters.plant),
-  )
-  const byType: Record<string, number> = {}
-  for (const item of counted) byType[item.type] = (byType[item.type] ?? 0) + 1
-  return { total: counted.length, byType }
-}
-
-/** Each check's open items, as the card names them after a count. */
-const OPEN_EXCEPTION_WORDS: Record<string, string> = {
-  OVERDUE_REPAIR: "overdue",
-  MISSING_ATTESTATION: "with no declaration",
-  REPAIR_PR_NOT_DECLARED: "repair PR not declared",
-  REPAIRED_AGAINST_ASSESSMENT: "against the assessment",
-  DECLARED_NO_REPAIR_PR: "no repair PR",
-  UNJUSTIFIED_ACQUISITION: "bought new with no reason",
-  MISSING_SESSION_ID: "no R-reference",
-}
-
-/**
- * Every open type with its count, most first: "104 overdue · 4 no repair PR
- * · 1 against the assessment". The card used to name two types only, and hid
- * five of 105. A type this build does not know is named by the queue's label.
- */
-export function openExceptionSummary(byType: Record<string, number>, count: (value: number) => string): string {
-  return Object.entries(byType)
-    .filter(([, n]) => n > 0)
-    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-    .map(([type, n]) => {
-      const words = OPEN_EXCEPTION_WORDS[type] ?? humanize(exceptionTypeLabel(type)).toLowerCase()
-      return `${count(n)} ${words}`
-    })
-    .join(" · ")
-}
-
-/**
- * The "Not declared" card's counts. Only `Required` is waiting: a line raised
- * before declarations began (`Historical`) was never asked for one, and a
- * `Flagged` line has a declaration -- against the assessment. Until
- * 28-Oct-2026 the card counted every line not `Completed`, and said 104 not
- * declared while the queue said 0 waiting.
- */
-export function declarationCounts(chains: Pick<RepairChain, "declarationStatus">[]): {
-  required: number
-  historical: number
-  flagged: number
-} {
-  return {
-    required: chains.filter((c) => c.declarationStatus === "Required").length,
-    historical: chains.filter((c) => c.declarationStatus === "Historical").length,
-    flagged: chains.filter((c) => c.declarationStatus === "Flagged").length,
-  }
-}
-
-/** The queues an Overview card can open. The register is not one: it narrows by
- *  everything the Overview does, so its links need no note. */
-export type QueueDestination = "declarations" | "exceptions"
-
-/**
- * What a card says when the queue it opens cannot narrow the way the Overview
- * did, or undefined when it can -- so the card never quietly opens a longer
- * list than its own count.
- *
- * The declaration queue narrows by plant and by a vendor code. It has no
- * criticality, and no "lines with no vendor" (`none`, which the register
- * understands and the queue would match as a vendor code and list nothing).
- * The exception queue narrows by plant alone.
- */
-export function queueNote(
-  filters: { vendor?: string; criticality?: string },
-  destination: QueueDestination,
-): string | undefined {
-  const lost: string[] = []
-  const vendorLost = destination === "exceptions" ? Boolean(filters.vendor) : filters.vendor === "none"
-  if (vendorLost) lost.push("vendor")
-  if (filters.criticality) lost.push("criticality")
-  return lost.length ? `The queue does not narrow by ${lost.join(" or ")}, so it opens wider than this count.` : undefined
+  const poLines = chains.filter(isOpenRepair)
+  const late =
+    poLines.length === 0
+      ? null
+      : bands.map((band) => poLines.filter((c) => bandOf(daysPastExpected(c), bands) === band).length)
+  const max = Math.max(1, ...rows.flatMap((row) => row.cells), ...(late ?? []))
+  return { rows, late, max }
 }

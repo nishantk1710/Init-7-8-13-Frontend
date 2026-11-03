@@ -1,23 +1,13 @@
 import type {
   AgingBucket,
   DeclarationStatus,
-  ExceptionStatus,
   LeadTimeStatus,
   OverdueStatus,
   RepairChain,
   RepairStatus,
-  UnjustifiedPurchase,
 } from "@/features/initiative-8/types/repair"
 
 type Tone = "default" | "success" | "warning" | "danger"
-
-export const REPAIR_STATUS_TONE: Record<RepairStatus, Tone> = {
-  "PR Raised": "default",
-  "PO Issued": "default",
-  "At Vendor": "warning",
-  Received: "success",
-  Closed: "success",
-}
 
 export const DECLARATION_STATUS_TONE: Record<DeclarationStatus, Tone> = {
   Required: "warning",
@@ -33,73 +23,6 @@ export const DECLARATION_STATUSES: readonly DeclarationStatus[] = [
   "Flagged",
   "Historical",
 ]
-
-/**
- * What the register's Justification cell says.
- *
- * `NOT_ASKED` is a MISSING whose every unjustified purchase predates the
- * justification control — the same pre-automation split the exception check
- * makes, so a purchase nobody could have been asked about does not read as a
- * miss. `NONE` is a line no reason and no new purchase ever touched.
- */
-export type JustificationCell = "RECORDED" | "MISSING" | "NOT_ASKED" | "NONE"
-
-export function justificationCellOf(chain: Pick<RepairChain, "justification">): JustificationCell {
-  const value = chain.justification
-  if (!value) return "NONE"
-  if (value.status === "RECORDED") return "RECORDED"
-  return value.unjustifiedPurchases.length > 0 &&
-    value.unjustifiedPurchases.every((purchase) => purchase.preAutomation)
-    ? "NOT_ASKED"
-    : "MISSING"
-}
-
-export const JUSTIFICATION_CELL_LABEL: Record<JustificationCell, string> = {
-  RECORDED: "Recorded",
-  MISSING: "Missing",
-  NOT_ASKED: "Not asked",
-  NONE: "—",
-}
-
-export const JUSTIFICATION_CELL_TONE: Record<Exclude<JustificationCell, "NONE">, Tone> = {
-  RECORDED: "success",
-  MISSING: "warning",
-  NOT_ASKED: "default",
-}
-
-/** The hover text behind each cell — what it means, in a sentence. Since
- *  27-Oct-2026 the check looks at the request for a new unit (the new-buy PR)
- *  as well as a PO ordered directly, so the notes say "requested or bought". */
-export const JUSTIFICATION_CELL_NOTE: Record<JustificationCell, string> = {
-  RECORDED: "A reason for buying new was recorded while this repair was out.",
-  MISSING:
-    "A new unit was requested or bought while this repair was out, and no reason was recorded.",
-  NOT_ASKED:
-    "A new unit was requested or bought while this repair was out, before the justification control existed — nobody was asked.",
-  NONE: "No new unit was requested or bought, and no reason recorded, while this repair was out.",
-}
-
-/**
- * One purchase made while a repair was out, as the repair detail page lists
- * it. A new-buy PR is a request for a unit, not a purchase yet, so it reads
- * "New unit requested {date} (PR {n}/{item})"; a PO ordered directly keeps
- * "{n}/{item} bought {date}". `raisedAt` is already a display date.
- */
-export function purchaseSummary(
-  purchase: Pick<UnjustifiedPurchase, "purchase" | "raisedAt">,
-): string {
-  const { documentNumber, line } = purchase.purchase
-  const document = line ? `${documentNumber}/${line}` : documentNumber
-  const when = purchase.raisedAt ?? "on an unknown date"
-  return purchase.purchase.type === "PR"
-    ? `New unit requested ${when} (PR ${document})`
-    : `${document} bought ${when}`
-}
-
-/** The exception drawer's name for the purchase an item is about. */
-export function purchaseFactLabel(type: string | undefined): string {
-  return type === "PR" ? "Purchase request" : "Purchase line"
-}
 
 /** The lifecycle order, for sorting status options that come from the data. */
 export const REPAIR_STATUS_ORDER: readonly RepairStatus[] = [
@@ -348,75 +271,4 @@ export function vendorLabel(chain: RepairChain): string {
 /** A number for display, or a placeholder when the source does not carry one. */
 export function orUnknown(value: number | string | undefined): string {
   return value === undefined ? UNKNOWN : String(value)
-}
-
-/**
- * The exception vocabulary, shared by every screen that shows a finding.
- *
- * Here rather than in the exception table because the register's Exceptions
- * column, the repair detail page and the queue itself all render the same
- * items, and three private copies of these labels would drift apart.
- *
- * Open sets, not closed unions: the backend decides which checks exist and
- * adds to them (OVERDUE_REPAIR arrived after the first two), so an unknown
- * type renders as its raw value rather than disappearing.
- */
-export const EXCEPTION_TYPE_LABEL: Record<string, string> = {
-  MISSING_ATTESTATION: "No condition declaration",
-  UNJUSTIFIED_ACQUISITION: "Bought new while a repair was open",
-  MISSING_SESSION_ID: "Reservation with no R-reference",
-  OVERDUE_REPAIR: "Repair overdue",
-  // The declaration checks, 27-Oct-2026 (contract B4).
-  REPAIRED_AGAINST_ASSESSMENT: "Repaired against the assessment",
-  REPAIR_PR_NOT_DECLARED: "Repair PR not declared",
-  DECLARED_NO_REPAIR_PR: "Declared, no repair PR yet",
-}
-
-export const EXCEPTION_SEVERITY_TONE: Record<string, Tone> = {
-  info: "default",
-  warning: "warning",
-  critical: "danger",
-}
-
-/** A check's name as a reader would say it; the raw value if it is new here. */
-export function exceptionTypeLabel(type: string): string {
-  return EXCEPTION_TYPE_LABEL[type] ?? type
-}
-
-/**
- * FR-11's workflow vocabulary: open or closed, and nothing in between.
- *
- * A closed set, unlike the exception TYPES above: each status has behaviour
- * attached (what the default filter shows, which ones the queue may close by
- * itself), so adding a third is a conversation rather than a config change.
- */
-export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = ["OPEN", "CLOSED"]
-
-export const EXCEPTION_STATUS_LABEL: Record<ExceptionStatus, string> = {
-  OPEN: "Open",
-  CLOSED: "Closed",
-}
-
-export const EXCEPTION_STATUS_TONE: Record<ExceptionStatus, Tone> = {
-  OPEN: "danger",
-  CLOSED: "default",
-}
-
-/**
- * What the two retired statuses read as. History is never rewritten, so a
- * backend older than 21-Oct-2026 — and an old `?status=` link — can still say
- * IN_PROGRESS or RESOLVED.
- */
-const LEGACY_EXCEPTION_STATUS: Record<string, ExceptionStatus> = {
-  IN_PROGRESS: "OPEN",
-  RESOLVED: "CLOSED",
-}
-
-/** A status off the wire or the URL in today's vocabulary; undefined when it
- *  is neither a current nor a retired one. */
-export function toExceptionStatus(raw: string | null | undefined): ExceptionStatus | undefined {
-  if (!raw) return undefined
-  const upper = raw.trim().toUpperCase()
-  if ((EXCEPTION_STATUSES as readonly string[]).includes(upper)) return upper as ExceptionStatus
-  return LEGACY_EXCEPTION_STATUS[upper]
 }

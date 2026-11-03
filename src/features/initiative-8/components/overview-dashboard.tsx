@@ -23,44 +23,39 @@ import {
   ALL,
   NO_OVERVIEW_FILTERS,
   filterOverview,
-  openExceptionCounts,
   overviewPdfTitle,
   summariseOverview,
-  type OpenExceptionItem,
   type OverviewFilters,
   type UniverseRow,
 } from "@/features/initiative-8/utils/overview-view"
-import { NO_CRITICALITY, vendorLabel } from "@/features/initiative-8/utils/status"
+import { vendorLabel } from "@/features/initiative-8/utils/status"
 import type { ApiUniverseMeta } from "@/lib/api/i8"
 import { cn, formatCount } from "@/lib/utils"
 
 /** What each filter narrows: behind the ⓘ beside Vendor, and in the PDF's header. */
 const FILTER_NOTE =
-  "Plant and criticality narrow every figure. Vendor narrows the repair-line figures only. " +
-  "Materials monitored and stock on hand have no vendor, so they stay as they are."
+  "Plant narrows every figure. Vendor and department narrow the repair figures only: " +
+  "materials monitored and stock on hand have neither, so they stay as they are."
 
 export type OverviewDashboardProps = {
   chains: RepairChain[]
-  /** Repairs requested with no PO yet (PR rows): counted on their own, never
-   *  in a figure about repairs that are out. Empty on an older backend. */
+  /** PRs raised for repair with no PO yet (PR rows): their card and their row
+   *  of the waiting table, never a figure about repairs that are out. Empty
+   *  when the backend serves none. */
   requests?: RepairChain[]
   agingBands: string[]
   /** Null when the universe fetch failed: its tile says so. */
   universe: { meta: ApiUniverseMeta; rows: UniverseRow[] } | null
-  /** Every open exception item, by the line it is on; null when the queue
-   *  could not be read. */
-  exceptions: OpenExceptionItem[] | null
   plantOptions: { plantId: string; name: string }[]
   vendorOptions: string[]
-  criticalityOptions: string[]
+  /** The departments that raised the listed repairs (`departmentOptions`). */
+  departmentOptions: { value: string; label: string }[]
   referenceDate: string
   sourceLoadedAt: string | null
-  /** "+3 repairs requested, no PO yet", or undefined when the backend does not
-   *  serve them or has none. Never part of any figure: `chains` holds PO lines
-   *  only (see `withoutRepairRequests`). */
+  /** "+3 PRs raised, no PO yet", or undefined when the backend does not serve
+   *  them or has none. Never part of a figure about repairs that are out:
+   *  `chains` holds PO lines only (see `withoutRepairRequests`). */
   repairRequestsNote?: string
-  /** The I08 complete-flow switch, read by the page (`lib/i08-features`). */
-  completeFlow: boolean
 }
 
 /**
@@ -71,11 +66,10 @@ export type OverviewDashboardProps = {
  *
  * ## What the filters narrow
  *
- * Plant and criticality narrow the register rows AND the universe rows, so
- * every figure moves together. Vendor narrows the repair lines only -- the
- * universe has no vendor -- and the universe tile says so when one is chosen;
- * the full rule is behind the ⓘ beside the Vendor filter. "Not declared" is now
- * counted from the lines, so it narrows with them like everything else.
+ * Plant narrows the register rows AND the universe rows, so every figure moves
+ * together. Vendor and department (3-Nov-2026; it replaced criticality) narrow
+ * the repairs only -- the universe has neither -- and the universe tile says so
+ * when one is chosen; the full rule is behind the ⓘ beside the Vendor filter.
  *
  * ## Download PDF
  *
@@ -88,14 +82,12 @@ export function OverviewDashboard({
   requests = [],
   agingBands,
   universe,
-  exceptions,
   plantOptions,
   vendorOptions,
-  criticalityOptions,
+  departmentOptions,
   referenceDate,
   sourceLoadedAt,
   repairRequestsNote,
-  completeFlow,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
   const [printedAt, setPrintedAt] = useState<string | null>(null)
@@ -106,38 +98,23 @@ export function OverviewDashboard({
     [chains, universe, filters],
   )
   const metrics = useMemo(() => summariseOverview(slice), [slice])
-  // The repairs requested with no PO yet, under the same filters.
+  // The PRs raised for repair with no PO yet, under the same filters.
   const requestSlice = useMemo(() => filterOverview(requests, [], filters).chains, [requests, filters])
-  const exceptionCounts = useMemo(() => {
-    if (exceptions === null) return null
-    const known = new Set([...chains, ...requests].map((c) => c.id))
-    return openExceptionCounts([...slice.chains, ...requestSlice], known, exceptions, filters)
-  }, [chains, requests, slice, requestSlice, exceptions, filters])
 
   const activeFilters = Object.values(filters).filter((v) => v !== ALL).length
   const plantChoices = plantOptions.map((p) => ({ value: p.plantId, label: p.name }))
   const vendorChoices = vendorOptions.map((v) => ({ value: v, label: v }))
-  const criticalityChoices = criticalityOptions.map((c) => ({
-    value: c,
-    label: c === NO_CRITICALITY ? "Not rated" : c.charAt(0) + c.slice(1).toLowerCase(),
-  }))
 
   // The register's filters for the same slice, so a link into the register
   // opens what the figure counted. The register filters a vendor by code, the
-  // Overview by name. The declaration and exception queues cannot narrow by all
-  // of it: their cards say so (`queueNote`).
+  // Overview by name; a department is a code on both.
   const linkFilters: RegisterFilters = {
     plant: filters.plant === ALL ? undefined : filters.plant,
     vendor:
       filters.vendor === ALL
         ? undefined
         : (chains.find((c) => vendorLabel(c) === filters.vendor)?.vendor ?? "none"),
-    criticality:
-      filters.criticality === ALL
-        ? undefined
-        : filters.criticality === NO_CRITICALITY
-          ? "none"
-          : filters.criticality,
+    department: filters.department === ALL ? undefined : filters.department,
   }
 
   function setFilter(key: keyof OverviewFilters) {
@@ -175,16 +152,12 @@ export function OverviewDashboard({
 
   const figures = {
     chains: slice.chains,
-    // Shown only when the backend serves PR rows: a count it never made is
-    // not zero.
-    repairRequests: repairRequestsNote ? requestSlice.length : undefined,
+    requests: requestSlice,
     agingBands,
     metrics,
     universeLoaded: universe !== null,
-    exceptions: exceptionCounts,
     linkFilters,
-    vendorFiltered: filters.vendor !== ALL,
-    completeFlow,
+    repairsOnlyFiltered: filters.vendor !== ALL || filters.department !== ALL,
   }
   const plants = new Set(chains.map((c) => c.plant.plantId)).size
   const loaded = sourceLoadedAt ? `SAP data loaded ${i08DateTime(sourceLoadedAt)}` : null
@@ -205,7 +178,7 @@ export function OverviewDashboard({
             // the whole register, and the register lists them.
             <Link
               href={registerHref({ view: "notOrdered" })}
-              title="Open the repairs requested on a purchase requisition with no PO yet. They are counted apart from the open repair lines."
+              title="Open the PRs raised for repair with no PO yet. They are counted apart from the open repair lines."
               className="text-i08-link hover:underline"
             >
               {repairRequestsNote}
@@ -222,7 +195,7 @@ export function OverviewDashboard({
               The repair POs SAP still has open for 80-series (repairable) materials. A line leaves when SAP
               marks it delivery completed.
             </p>
-            <p>Every number opens the list behind it, filtered to the same plant, vendor and criticality.</p>
+            <p>Every number opens the list behind it, filtered to the same plant, vendor and department.</p>
           </InfoPopover>
         </>
       }
@@ -239,7 +212,8 @@ export function OverviewDashboard({
         </Button>
       }
     >
-      {/* FR-10: the dashboard filters by plant, vendor and criticality. */}
+      {/* The dashboard filters by plant, vendor and department (3-Nov-2026: department replaced criticality,
+          which the register still offers under "More filters"). */}
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border-2 border-action/40 bg-card p-3 shadow-lg">
         <FilterSelect
           value={filters.plant}
@@ -261,11 +235,11 @@ export function OverviewDashboard({
           </InfoPopover>
         </span>
         <FilterSelect
-          value={filters.criticality}
-          onChange={setFilter("criticality")}
-          allLabel="All criticalities"
-          options={criticalityChoices}
-          className="w-44"
+          value={filters.department}
+          onChange={setFilter("department")}
+          allLabel="All departments"
+          options={departmentOptions}
+          className="w-64"
         />
         {activeFilters > 0 && (
           <>
@@ -286,7 +260,7 @@ export function OverviewDashboard({
       {slice.chains.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-[15px] font-semibold text-foreground">No repair lines match these filters</p>
-          <p className="mt-1 text-[13.5px] text-muted-foreground">Try another plant, vendor or criticality.</p>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">Try another plant, vendor or department.</p>
         </div>
       ) : (
         <OverviewFigures {...figures} />
@@ -300,7 +274,7 @@ export function OverviewDashboard({
           filters={{
             plant: labelOf(filters.plant, plantChoices, "All plants"),
             vendor: labelOf(filters.vendor, vendorChoices, "All vendors"),
-            criticality: labelOf(filters.criticality, criticalityChoices, "All criticalities"),
+            department: labelOf(filters.department, departmentOptions, "All departments"),
           }}
           lines={`${formatCount(slice.chains.length)} of ${formatCount(chains.length)} repair lines`}
           note={FILTER_NOTE}

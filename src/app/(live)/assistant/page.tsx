@@ -7,7 +7,6 @@ import { AiEyebrow, AiIconBadge, AiOrb } from "@/components/assistant/ai-visuals
 import { AssistantOpener } from "@/components/assistant/assistant-opener"
 import { entryFromParams, requestHref } from "@/lib/assistant/request/entry"
 import { ASSISTANT_REQUESTS, SINGLE_AS_REQUEST } from "@/lib/assistant/request/flag"
-import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "Reservation assistant — Spares AI",
@@ -18,10 +17,8 @@ export default async function AssistantPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  // The complete-flow switch is read per request, never frozen at build time.
   await connection()
   const params = await searchParams
-  const completeFlow = await loadCompleteFlowFromFeatures()
   const material = typeof params.material === "string" ? params.material : ""
   const plant = typeof params.plant === "string" ? params.plant : ""
 
@@ -107,15 +104,10 @@ export default async function AssistantPage({
               icon={<Wrench className="size-4" />}
               term="For a repairable (80-series) part"
             >
-              {/* The complete flow's wording only while it is switched on
-                  (`lib/i08-features`); the wording before it otherwise. */}
-              {completeFlow
-                ? "Whether a usable unit already exists: new or refurbished stock (damaged units are " +
-                  "shown, not counted), a repair PO with its due date and how late it is, or a repair " +
-                  "requested but not yet ordered. If you still need a new one, it records why, and you " +
-                  "can declare the faulty unit you are taking out."
-                : "Whether a unit already exists — as stock available, or on a repair order with a due " +
-                  "date — and how far past that date it is. If you still need a new one, it records why."}
+              Whether a usable unit already exists: new or refurbished stock (damaged units are shown,
+              not counted), a repair PO with its due date and how late it is, or a PR raised for repair
+              with no PO yet. If you still need a new one, it records why, and you can declare the faulty
+              unit you are taking out.
             </FeatureTile>
             <FeatureTile
               icon={<Boxes className="size-4" />}

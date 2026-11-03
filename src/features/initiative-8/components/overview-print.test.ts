@@ -25,7 +25,7 @@ describe("the PDF names the slice its figures came from", () => {
       {
         title: "Repairable Spares — Overview",
         caption: "Repair register for 80-series spares. As at 2026-10-21.",
-        filters: { plant: "Gamsberg", vendor: "All vendors", criticality: "A" },
+        filters: { plant: "Gamsberg", vendor: "All vendors", department: "10316 · Mining" },
         lines: "412 of 818 repair lines",
         note: "Vendor narrows the repair-line figures only.",
         printedAt: "21 Oct 2026, 12:45",
@@ -34,10 +34,10 @@ describe("the PDF names the slice its figures came from", () => {
     ),
   )
 
-  it("says which plant, vendor and criticality it is about", () => {
+  it("says which plant, vendor and department it is about", () => {
     expect(html).toContain("Plant: Gamsberg")
     expect(html).toContain("Vendor: All vendors")
-    expect(html).toContain("Criticality: A")
+    expect(html).toContain("Department: 10316 · Mining")
     expect(html).toContain("412 of 818 repair lines")
   })
 

@@ -51,35 +51,55 @@ export function InfoPopover({
 }
 
 /**
- * A button that opens a small panel: "More filters" and "Columns".
+ * A button that opens a small panel: "More filters", and the register's
+ * columns.
  *
  * `badge` is how many of the panel's own settings are on, so a filter tucked
- * behind the button is never invisible.
+ * behind the button is never invisible. `iconOnly` (3-Nov-2026) draws the icon
+ * alone, for the register's "+" at the end of its header row: `label` is then
+ * its name on hover and for a screen reader, and the badge sits on its corner.
  */
 export function PopoverButton({
   label,
   icon,
   badge,
   align = "start",
+  iconOnly = false,
   children,
 }: {
   label: string
   icon?: ReactNode
   badge?: number
   align?: "start" | "center" | "end"
+  iconOnly?: boolean
   children: ReactNode
 }) {
   return (
     <Popover.Root>
-      <Popover.Trigger className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-xs transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 data-[popup-open]:bg-muted [&_svg]:size-4">
-        {icon}
-        {label}
-        {badge ? (
-          <span className="inline-grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
-            {badge}
-          </span>
-        ) : null}
-      </Popover.Trigger>
+      {iconOnly ? (
+        <Popover.Trigger
+          aria-label={label}
+          title={label}
+          className="relative inline-grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background text-foreground shadow-xs transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 data-[popup-open]:bg-muted [&_svg]:size-4"
+        >
+          {icon}
+          {badge ? (
+            <span className="absolute -top-1.5 -right-1.5 inline-grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
+              {badge}
+            </span>
+          ) : null}
+        </Popover.Trigger>
+      ) : (
+        <Popover.Trigger className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-xs transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 data-[popup-open]:bg-muted [&_svg]:size-4">
+          {icon}
+          {label}
+          {badge ? (
+            <span className="inline-grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
+              {badge}
+            </span>
+          ) : null}
+        </Popover.Trigger>
+      )}
       <Popover.Portal>
         <Popover.Positioner sideOffset={6} align={align} className="isolate z-50 outline-none">
           <Popover.Popup className="i08-scope w-[min(300px,calc(100vw-2rem))] origin-(--transform-origin) rounded-xl border border-border bg-popover p-3.5 text-sm text-foreground shadow-lg outline-none duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">

@@ -13,6 +13,7 @@ import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts
 import { UploadMaterials } from "@/components/assistant/request/upload-materials"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { setRequesterActor } from "@/lib/api/actor"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
 import {
   conflictDetail,
@@ -39,7 +40,6 @@ import {
   pendingLine,
   repairableNeedsJustification,
   withSuggestedWindow,
-  withoutDeclarations,
   type DraftLine,
   type Justification,
   type NoSessionLine,
@@ -123,14 +123,9 @@ function newDraftKey(): string {
 export function RequestBuilder({
   entry = null,
   draftId = null,
-  completeFlow,
 }: {
   entry?: RequestEntry | null
   draftId?: string | null
-  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
-   *  Off: no declaring the faulty unit with the request, and no note on
-   *  what a reason does. */
-  completeFlow: boolean
 }) {
   const router = useRouter()
   const [origin, setOrigin] = useState<"BADI" | "PLATFORM">(entry?.origin === "BADI" ? "BADI" : "PLATFORM")
@@ -295,7 +290,7 @@ export function RequestBuilder({
     setRequester(draft.requester)
     setPicked({ plant: draft.departmentPlant, code: draft.department })
     setDepartmentNote(draft.departmentNote)
-    setRows(completeFlow ? result.rows : withoutDeclarations(result.rows))
+    setRows(result.rows)
   }
 
   /** The link's material is line 1 -- unless a draft is being resumed. Once: a ref survives Strict Mode's re-run. */
@@ -398,6 +393,11 @@ export function RequestBuilder({
     }
     setSubmitting(true)
     const submitted = rows.filter((row) => row.kind !== "pending")
+    // The typed Requester becomes the actor, as when one material is checked
+    // (AssistantLauncher): the request, its sessions and any faulty unit
+    // declared with it are recorded under that name rather than the
+    // no-sign-in placeholder. With sign-in, the backend uses the signed-in user.
+    setRequesterActor(requester)
     try {
       const request = await createRequest({
         idempotencyKey: draftKey.current,
@@ -581,12 +581,8 @@ export function RequestBuilder({
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
-            // Off, the backend sends no categories and refuses a declaration;
-            // none here keeps the section away even if one arrives.
-            faultCategories={completeFlow ? faultCategories : []}
+            faultCategories={faultCategories}
             recommendations={recommendations}
-            requester={requester}
-            completeFlow={completeFlow}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}

@@ -1,27 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useState, type ComponentType, type ReactNode } from "react"
-import { ArrowRight, CircleCheck, ClipboardList, Clock, TriangleAlert } from "lucide-react"
+import { type ComponentType, type ReactNode } from "react"
+import { ArrowRight, CircleCheck, Clock, FileClock } from "lucide-react"
 
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
-import { StatusDot } from "@/features/initiative-8/components/kit/status"
-import { declarationsHref } from "@/features/initiative-8/data/live-declarations"
-import { DEFAULT_EXCEPTION_STATUS, exceptionsHref } from "@/features/initiative-8/data/live-exceptions"
 import { registerHref, type RegisterFilters } from "@/features/initiative-8/data/live-register"
 import type { RepairChain, RepairStatus } from "@/features/initiative-8/types/repair"
 import { plural, stageLabel } from "@/features/initiative-8/utils/format"
-import {
-  STAGE_ORDER,
-  declarationCounts,
-  openExceptionSummary,
-  queueNote,
-  stageAging,
-  stockLines,
-  vendorRows,
-  type OpenExceptionCounts,
-  type OverviewMetrics,
-} from "@/features/initiative-8/utils/overview-view"
+import { STAGE_ORDER, stageAging, stockLines, type OverviewMetrics } from "@/features/initiative-8/utils/overview-view"
 import { isOpenRepair, isRepairOverdue } from "@/features/initiative-8/utils/status"
 import { cn, formatCount } from "@/lib/utils"
 
@@ -33,80 +20,66 @@ import { cn, formatCount } from "@/lib/utils"
  * The old page showed five tiles -- four of them read 104 -- and five charts,
  * four with one or two bars, and none of it could be clicked. Now:
  *
- * - three action cards: late repairs, lines with no condition declaration,
- *   and open exceptions, each linking to that list already filtered;
+ * - two action cards: late repairs, and PRs raised for repair that are still
+ *   waiting for a PO, each linking to that list already filtered (3-Nov-2026:
+ *   "Not declared" and "Open exceptions" were removed with the exception queue
+ *   and the declaring screens);
  * - three quiet tiles for context: the open lines, where they are in the
- *   process (the repairs requested with no PO yet first), and the repairable
+ *   process (the PRs raised with no PO yet first), and the repairable
  *   universe with its stock, usable and damaged when the backend splits it;
- * - vendors as a ranked list with short bars, each opening its repairs;
  * - FR-9's aging per stage as a stage-by-age table whose cells open exactly
- *   their lines (the register's `stageAging` filter).
+ *   their lines (the register's `stageAging` filter), with the PO lines past
+ *   their expected return in its last row (`lateAging`).
+ *
+ * The vendor list ("Where the repairs are") was removed on 3-Nov-2026: it
+ * counted repair POs by the vendor named on them, which says who a repair is
+ * ordered from, not where the unit is. The register has the Vendor column.
  *
  * `print` draws the same figures in a fixed A4-landscape grid with no motion,
  * no links and no "show all": the PDF is printed the moment it mounts, so an
  * animation would be caught half-way.
  */
 export type OverviewFiguresProps = {
-  /** The filtered repair lines. */
+  /** The filtered repair PO lines. */
   chains: RepairChain[]
+  /** The PRs raised for repair with no PO yet, under the same filters. */
+  requests: RepairChain[]
   agingBands: string[]
   metrics: OverviewMetrics
   universeLoaded: boolean
-  /** Open exception items on these lines, by type, or null when the queue
-   *  could not be read -- shown as such, never as a zero. */
-  exceptions: OpenExceptionCounts | null
-  /** Repairs requested with no PO yet under the same filters, or undefined
-   *  when the backend does not serve them. */
-  repairRequests?: number
   /** The register filters this Overview's own filters correspond to, so every
    *  link opens the same slice the figure counted. */
   linkFilters: RegisterFilters
-  /** A vendor is chosen: the universe tile says it is not narrowed by one. */
-  vendorFiltered: boolean
-  /** The I08 complete-flow switch (`lib/i08-features`). Off: the stock tile
-   *  shows the total only, and no "raised before declarations began". */
-  completeFlow: boolean
+  /** A vendor or department is chosen: the universe tile says it is not
+   *  narrowed by one. */
+  repairsOnlyFiltered: boolean
   print?: boolean
 }
 
 export function OverviewFigures({
   chains,
-  repairRequests,
+  requests,
   agingBands,
   metrics,
   universeLoaded,
-  exceptions,
   linkFilters,
-  vendorFiltered,
-  completeFlow,
+  repairsOnlyFiltered,
   print = false,
 }: OverviewFiguresProps) {
   const open = chains.filter(isOpenRepair)
   const overdue = chains.filter(isRepairOverdue).length
-  // Waiting means Required only: a Historical line was never asked for a
-  // declaration, and a Flagged one has one.
-  const { required: undeclared, historical, flagged } = declarationCounts(chains)
   const materials = new Set(open.map((c) => c.material.materialId)).size
   const vendors = new Set(open.map((c) => c.vendor ?? "none")).size
-  // Usable and damaged only with the complete flow on; the total otherwise.
-  const stockSplit =
-    completeFlow && metrics.stock.plants.some((p) => p.usable !== undefined || p.damaged !== undefined)
-  const stock = stockLines(
-    stockSplit ? metrics.stock.plants : metrics.stock.plants.map((p) => ({ ...p, usable: undefined, damaged: undefined })),
-    formatCount,
-  )
-  // `none` is the register's word for a line with no vendor; the queue would
-  // read it as a vendor code and list nothing (see `queueNote`).
-  const declarationLink = declarationsHref({
-    plant: linkFilters.plant,
-    vendor: linkFilters.vendor === "none" ? undefined : linkFilters.vendor,
-  })
-  const exceptionLink = exceptionsHref({ status: DEFAULT_EXCEPTION_STATUS, plant: linkFilters.plant })
+  // Usable and damaged when the backend knows the split; the total otherwise.
+  const stockSplit = metrics.stock.plants.some((p) => p.usable !== undefined || p.damaged !== undefined)
+  const stock = stockLines(metrics.stock.plants, formatCount)
+  // The oldest PR still waiting for its PO: purchasing's queue.
+  const oldestRequest = requests.length > 0 ? Math.max(...requests.map((r) => r.daysOpen)) : undefined
 
   return (
     <>
       <h2 className="mt-7 mb-2.5 text-[13.5px] font-semibold text-muted-foreground">Needs action</h2>
-      <div className={cn("grid gap-4", print ? "grid-cols-3" : "lg:grid-cols-3")}>
+      <div className={cn("grid gap-4", print ? "grid-cols-2" : "lg:grid-cols-2")}>
         <ActionCard
           tone="crit"
           icon={Clock}
@@ -125,34 +98,18 @@ export function OverviewFigures({
         />
         <ActionCard
           tone="warn"
-          icon={ClipboardList}
-          value={undeclared}
-          label="Not declared"
+          icon={FileClock}
+          value={requests.length}
+          label="PR raised, no PO"
           text={
-            (undeclared === 0 ? "Nothing is waiting for a condition declaration." : "No condition declaration on record.") +
-            (flagged ? ` ${plural(flagged, "line")} sent for repair against an assessment.` : "")
+            requests.length === 0
+              ? "No PR raised for repair is waiting for its PO."
+              : `Waiting for purchasing to raise the PO${
+                  oldestRequest ? `; the oldest PR was raised ${plural(oldestRequest, "day")} ago` : ""
+                }.`
           }
-          muted={completeFlow && historical ? `${formatCount(historical)} raised before declarations began` : undefined}
-          href={declarationLink}
-          cta="Declare"
-          note={queueNote(linkFilters, "declarations")}
-          print={print}
-        />
-        <ActionCard
-          tone="warn"
-          icon={TriangleAlert}
-          value={exceptions?.total ?? null}
-          label="Open exceptions"
-          text={
-            exceptions === null
-              ? "The exception queue could not be read, so this is not a zero."
-              : exceptions.total === 0
-                ? "No open exceptions on these repair lines."
-                : openExceptionSummary(exceptions.byType, formatCount)
-          }
-          href={exceptionLink}
-          cta="Open the queue"
-          note={queueNote(linkFilters, "exceptions")}
+          href={registerHref({ ...linkFilters, view: "notOrdered" })}
+          cta="View in register"
           print={print}
         />
       </div>
@@ -168,7 +125,7 @@ export function OverviewFigures({
           </div>
         </Tile>
         <Tile label="Where they are in the process">
-          <StageList chains={open} requested={repairRequests} linkFilters={linkFilters} print={print} />
+          <StageList chains={open} requested={requests.length} linkFilters={linkFilters} print={print} />
         </Tile>
         <Tile label="Repairable materials monitored">
           {universeLoaded ? (
@@ -188,9 +145,9 @@ export function OverviewFigures({
                   Stock on hand: {stock.join(" · ") || "not recorded"}
                 </div>
               )}
-              {vendorFiltered && (
+              {repairsOnlyFiltered && (
                 <div className="mt-2 text-[12.5px] text-i08-warn-ink">
-                  Not narrowed by vendor: materials have no vendor.
+                  Not narrowed by vendor or department: materials have neither.
                 </div>
               )}
             </>
@@ -202,9 +159,8 @@ export function OverviewFigures({
         </Tile>
       </div>
 
-      <div className={cn("mt-4 grid items-start gap-4", print ? "grid-cols-2" : "xl:grid-cols-[1.08fr_1fr]")}>
-        <VendorPanel chains={chains} linkFilters={linkFilters} print={print} />
-        <StagePanel chains={chains} bands={agingBands} linkFilters={linkFilters} print={print} />
+      <div className="mt-4">
+        <StagePanel chains={chains} requests={requests} bands={agingBands} linkFilters={linkFilters} print={print} />
       </div>
     </>
   )
@@ -226,8 +182,6 @@ function ActionCard({
   text,
   href,
   cta,
-  muted,
-  note,
   print,
 }: {
   tone: "crit" | "warn"
@@ -238,12 +192,6 @@ function ActionCard({
   text: string
   href: string
   cta: string
-  /** A quiet fact under the text, not a call to act: "104 raised before
-   *  declarations began". Printed too. */
-  muted?: string
-  /** Where the link opens something wider than the count. Not printed: the
-   *  PDF has no links, and its header already names the filters. */
-  note?: string
   print: boolean
 }) {
   const shown = value === null ? "neutral" : value === 0 ? "good" : tone
@@ -259,8 +207,6 @@ function ActionCard({
         {value === null ? "—" : formatCount(value)}
       </span>
       <span className="text-[13.5px] text-muted-foreground">{text}</span>
-      {muted && <span className="text-[12.5px] text-muted-foreground/80">{muted}</span>}
-      {!print && note && <span className="mt-1 text-[12.5px] text-i08-warn-ink">{note}</span>}
       {!print && (
         <span className="mt-auto flex items-center gap-1 pt-2.5 text-[13.5px] font-medium text-i08-link">
           {cta}
@@ -304,9 +250,9 @@ const STAGE_KEY: Partial<Record<RepairStatus, string>> = {
 /**
  * How many open lines sit in each stage: numbers, where a chart drew one bar.
  *
- * First, when the backend serves them, the repairs requested with no PO yet:
- * they were mentioned in the header only. Their row opens the register's "No
- * PO yet" view; the others open their stage.
+ * First, when the backend serves them, the PRs raised for repair with no PO
+ * yet. Their row opens the register's "No PO yet" view; the others open their
+ * stage.
  */
 function StageList({
   chains,
@@ -315,7 +261,7 @@ function StageList({
   print,
 }: {
   chains: RepairChain[]
-  /** Repairs requested with no PO yet; undefined when not served. */
+  /** PRs raised for repair with no PO yet. */
   requested?: number
   linkFilters: RegisterFilters
   print: boolean
@@ -365,118 +311,28 @@ function StageList({
   )
 }
 
-/** Open repair lines by vendor: a ranked list whose rows open the register. */
-function VendorPanel({
-  chains,
-  linkFilters,
-  print,
-}: {
-  chains: RepairChain[]
-  linkFilters: RegisterFilters
-  print: boolean
-}) {
-  const [all, setAll] = useState(false)
-  const rows = vendorRows(chains)
-  const shown = all && !print ? rows : rows.slice(0, 10)
-  const max = Math.max(1, ...rows.map((r) => r.open))
-
-  return (
-    <section className="rounded-xl border border-border bg-card px-5 pt-4.5 pb-4 shadow-xs">
-      <h2 className="text-[15.5px] font-semibold text-foreground">Where the repairs are</h2>
-      <p className="mt-0.5 mb-3.5 text-[13px] text-muted-foreground">
-        Open repair lines by vendor{rows.length > 10 && !all ? `, top 10 of ${rows.length}` : ""}.
-        {!print && " Click a vendor to open its repairs."}
-      </p>
-      {rows.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No open repair lines.</p>
-      ) : (
-        <div role="table" aria-label="Open repair lines by vendor">
-          <div
-            role="row"
-            className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.3fr)_44px_88px] gap-3 border-b border-border px-2 pb-1.5 text-[12.5px] text-muted-foreground"
-          >
-            <span role="columnheader">Vendor</span>
-            <span role="columnheader" aria-hidden="true" />
-            <span role="columnheader" className="text-right">
-              Open
-            </span>
-            <span role="columnheader">Late</span>
-          </div>
-          {shown.map((vendor, index) => {
-            const cells = (
-              <>
-                <span role="cell" className="truncate text-[13.5px]" title={vendor.name}>
-                  {vendor.name}
-                </span>
-                <span role="cell" aria-hidden="true" className="relative h-2.5">
-                  <span
-                    className={cn("absolute inset-y-0 left-0 rounded-r-[4px] bg-i08-bar", !print && "i08-grow")}
-                    style={{ width: `${(vendor.open / max) * 100}%`, animationDelay: `${index * 35}ms` }}
-                  />
-                </span>
-                <span role="cell" className="text-right text-[13.5px] font-semibold tabular-nums">
-                  {formatCount(vendor.open)}
-                </span>
-                <span role="cell">
-                  {vendor.late ? (
-                    <StatusDot tone="crit" small>
-                      {formatCount(vendor.late)} late
-                    </StatusDot>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </span>
-              </>
-            )
-            const className =
-              "grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.3fr)_44px_88px] items-center gap-3 rounded-lg px-2 py-2 text-foreground"
-            return print ? (
-              <div key={vendor.code} role="row" className={className}>
-                {cells}
-              </div>
-            ) : (
-              <Link
-                key={vendor.code}
-                role="row"
-                href={registerHref({ ...linkFilters, vendor: vendor.code })}
-                className={cn(className, "transition-colors hover:bg-i08-row-hover")}
-              >
-                {cells}
-              </Link>
-            )
-          })}
-        </div>
-      )}
-      {!print && rows.length > 10 && (
-        <button
-          type="button"
-          onClick={() => setAll((value) => !value)}
-          className="mt-2 rounded-sm px-2 text-[13.5px] font-medium text-i08-link hover:underline"
-        >
-          {all ? "Show the top 10" : `Show all ${rows.length} vendors`}
-        </button>
-      )}
-    </section>
-  )
-}
-
 /**
- * FR-9's aging per stage: rows are stages, columns are bands of days in that
- * stage, and each cell is shaded light (few lines) to dark (many) and opens
- * exactly its lines. The last row is the whole repair's clock, days open.
+ * FR-9's aging per stage: rows are stages -- PR raised with no PO yet, PO
+ * issued, at the vendor -- and columns are bands of days in that stage. The
+ * last row is the PO lines by days past their expected return (3-Nov-2026; it
+ * replaced "all open lines, days open", which repeated the PO-issued row).
+ * Each cell is shaded light (few lines) to dark (many) and opens exactly its
+ * lines.
  */
 function StagePanel({
   chains,
+  requests,
   bands,
   linkFilters,
   print,
 }: {
   chains: RepairChain[]
+  requests: RepairChain[]
   bands: string[]
   linkFilters: RegisterFilters
   print: boolean
 }) {
-  const aging = stageAging(chains, bands)
+  const aging = stageAging(chains, bands, requests)
   // Step 1 is kept for the legend's near-zero end, so a small count is never
   // drawn in the palest blue.
   const step = (value: number) => Math.min(7, Math.max(2, Math.ceil((value / aging.max) * 7)))
@@ -516,25 +372,26 @@ function StagePanel({
         <div>
           <h2 className="text-[15.5px] font-semibold text-foreground">How long repairs have been waiting</h2>
           <p className="mt-0.5 mb-3 text-[13px] text-muted-foreground">
-            Open repair lines by days in their current stage.{!print && " Click a cell to open those lines."}
+            Open repairs by days in their current stage, and repair POs by days past their expected return.
+            {!print && " Click a cell to open those lines."}
           </p>
         </div>
         {!print && (
           <InfoPopover title="Two clocks" align="end">
             <p>
-              <b className="font-semibold text-foreground">Days in stage</b> count from when a line entered the
-              stage it is in now: the PO date for &ldquo;PO issued&rdquo;, the dispatch date for &ldquo;At
-              vendor&rdquo;.
+              <b className="font-semibold text-foreground">Days in stage</b> count from when a repair entered the
+              stage it is in now: the PR date for &ldquo;PR raised, no PO&rdquo;, the PO date for &ldquo;PO
+              issued&rdquo;, the dispatch date (541) for &ldquo;At vendor&rdquo;.
             </p>
             <p>
-              <b className="font-semibold text-foreground">Days open</b> count the whole repair, from the PO
-              date.
+              <b className="font-semibold text-foreground">Days past expected return</b> count from the date the
+              PO expects the unit back, for the PO lines already past it. A PR has no such date yet.
             </p>
           </InfoPopover>
         )}
       </div>
       {aging.rows.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No open repair lines.</p>
+        <p className="text-[13px] text-muted-foreground">No open repairs.</p>
       ) : (
         <table className="w-full table-fixed border-separate border-spacing-[3px]">
           <thead>
@@ -553,7 +410,7 @@ function StagePanel({
             {aging.rows.map((row) => (
               <tr key={row.stage}>
                 <th scope="row" className="pr-2 text-left text-[13.5px] font-medium text-foreground">
-                  {stageLabel(row.stage)}
+                  {row.stage === "PR Raised" ? "PR raised, no PO" : stageLabel(row.stage)}
                   <small className="block text-xs font-normal text-muted-foreground">days in stage</small>
                 </th>
                 {row.cells.map((value, index) => (
@@ -567,21 +424,23 @@ function StagePanel({
                 ))}
               </tr>
             ))}
-            <tr>
-              <th scope="row" className="pt-3 pr-2 text-left text-[13.5px] font-medium text-foreground">
-                All open lines
-                <small className="block text-xs font-normal text-muted-foreground">days open</small>
-              </th>
-              {aging.total.map((value, index) => (
-                <td key={bands[index]} className="p-0 pt-3">
-                  {cell(
-                    value,
-                    registerHref({ ...linkFilters, aging: bands[index] }),
-                    `${bandDays(bands[index])} open: ${plural(value, "repair line")}`,
-                  )}
-                </td>
-              ))}
-            </tr>
+            {aging.late && (
+              <tr>
+                <th scope="row" className="pt-3 pr-2 text-left text-[13.5px] font-medium text-foreground">
+                  Days past expected return
+                  <small className="block text-xs font-normal text-muted-foreground">PO issued and at vendor</small>
+                </th>
+                {aging.late.map((value, index) => (
+                  <td key={bands[index]} className="p-0 pt-3">
+                    {cell(
+                      value,
+                      registerHref({ ...linkFilters, lateAging: bands[index] }),
+                      `${bandDays(bands[index])} past the expected return: ${plural(value, "repair line")}`,
+                    )}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tbody>
         </table>
       )}

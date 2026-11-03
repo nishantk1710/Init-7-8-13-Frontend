@@ -13,7 +13,6 @@ import {
   pendingLine,
   withDeclarationOpen,
   withSuggestedWindow,
-  withoutDeclarations,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
@@ -208,11 +207,8 @@ describe("declaring the faulty unit with the request", () => {
     declaration: {
       open: true,
       quantity: "2",
-      conditionDescription: "  Seized bearing ",
       faultCategory: "Mechanical",
       recommendation: "REPAIRABLE",
-      attestorName: " A. Planner ",
-      evidenceReference: "",
       ...overrides,
     },
   })
@@ -235,44 +231,36 @@ describe("declaring the faulty unit with the request", () => {
     const line = repair(false)
     expect(lineIssues({ ...line, declaration: { ...line.declaration, open: true, quantity: "0" } })).toEqual([
       "declared quantity",
-      "condition",
       "fault category",
       "recommendation",
-      "your name",
     ])
     expect(isReady(declared())).toBe(true)
   })
 
-  it("sends the declaration trimmed, evidence only when typed", () => {
+  it("sends three fields and no name: the requester is the declarer (3-Nov-2026)", () => {
     expect(answersOf(declared()).declaration).toEqual({
       quantity: 2,
-      conditionDescription: "Seized bearing",
       faultCategory: "Mechanical",
       recommendation: "REPAIRABLE",
-      attestorName: "A. Planner",
-    })
-    expect(answersOf(declared({ evidenceReference: " Photo 12 " })).declaration?.evidenceReference).toBe("Photo 12")
-  })
-
-  it("fills the typed name from the Requester when opened, and never replaces one", () => {
-    const closed = repair(false).declaration
-    expect(withDeclarationOpen(closed, true, " SSJ ")).toMatchObject({ open: true, attestorName: "SSJ" })
-    expect(withDeclarationOpen({ ...closed, attestorName: "Lynn" }, true, "SSJ").attestorName).toBe("Lynn")
-    expect(withDeclarationOpen(closed, true, "  ").attestorName).toBe("")
-    expect(withDeclarationOpen({ ...closed, open: true, attestorName: "SSJ" }, false, "SSJ")).toMatchObject({
-      open: false,
-      attestorName: "SSJ",
     })
   })
 
-  it("is dropped from a resumed draft while the complete flow is off", () => {
-    const untouched = repair(true)
-    const [cleared, plain] = withoutDeclarations([declared(), untouched])
-    expect((cleared as RepairableLine).declaration.open).toBe(false)
-    expect(answersOf(cleared)).not.toHaveProperty("declaration")
-    expect(isReady(declared({ conditionDescription: "" }))).toBe(false)
-    expect(isReady(withoutDeclarations([declared({ conditionDescription: "" })])[0])).toBe(true)
-    expect(plain).toBe(untouched)
+  it("does not send the fields a draft saved before 3-Nov-2026 still holds", () => {
+    const line = declared()
+    const old = {
+      ...line,
+      declaration: { ...line.declaration, conditionDescription: "Seized", attestorName: "A. Planner", evidenceReference: "" },
+    }
+    expect(isReady(old)).toBe(true)
+    expect(answersOf(old).declaration).toEqual({ quantity: 2, faultCategory: "Mechanical", recommendation: "REPAIRABLE" })
+  })
+
+  it("keeps what was chosen when closed and opened again", () => {
+    const chosen = declared().declaration
+    const closed = withDeclarationOpen(chosen, false)
+    expect(closed).toEqual({ ...chosen, open: false })
+    expect(answersOf({ ...declared(), declaration: closed })).not.toHaveProperty("declaration")
+    expect(withDeclarationOpen(closed, true)).toEqual(chosen)
   })
 
   it("survives a re-check of the row", () => {

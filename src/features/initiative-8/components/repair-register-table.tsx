@@ -2,8 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react"
-import Link from "next/link"
-import { Columns3, Download, Loader2, SlidersHorizontal } from "lucide-react"
+import { Download, Loader2, Plus, SlidersHorizontal } from "lucide-react"
 
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
@@ -21,7 +20,6 @@ import {
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { StatusDot } from "@/features/initiative-8/components/kit/status"
 import { UrlSearchInput, UrlSelect, useUrlFilters, withSelected } from "@/features/initiative-8/components/url-filters"
-import { DEFAULT_EXCEPTION_STATUS, exceptionsHref } from "@/features/initiative-8/data/live-exceptions"
 import {
   REGISTER_PATH,
   fetchAllRegisterLines,
@@ -42,11 +40,10 @@ import {
   requestedAgoShort,
   requesterText,
 } from "@/features/initiative-8/utils/repair-request"
-import { repairLineLabel, splitLineExceptions } from "@/features/initiative-8/utils/repair-line"
+import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
 import {
   OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
-  exceptionTypeLabel,
   isPrOnly,
   overdueStatusOf,
   vendorLabel,
@@ -71,12 +68,9 @@ export type RepairRegisterTableProps = {
   filters: RegisterFilters
   viewCounts: ApiRegisterViewCounts | null
   sourceLoadedAt: string | null
-  /** The backend serves repairs requested with no PO yet as rows. False on an
-   *  older backend, or when its settings could not be read. */
+  /** The backend serves PRs raised for repair with no PO yet as rows. False
+   *  on an older backend, or when its settings could not be read. */
   repairRequestsEnabled?: boolean
-  /** The I08 complete-flow switch (`lib/i08-features`). Off: no "No PO yet"
-   *  quick view. */
-  completeFlow: boolean
 }
 
 /** The repair detail page for one register line. */
@@ -87,7 +81,7 @@ export function repairHref(chain: Pick<RepairChain, "id">): string {
 /** Where the repair page's breadcrumb goes back to: the register as it was left. */
 export const REGISTER_RETURN_KEY = "i08.register.lastHref"
 
-/** The columns that are off by default, behind "Columns". */
+/** The columns that are off by default, behind the "+" at the end of the header. */
 const OPTIONAL_COLUMNS = [
   { value: "qty", label: "Qty under repair" },
   { value: "crit", label: "Criticality" },
@@ -97,11 +91,12 @@ const OPTIONAL_COLUMNS = [
 type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number]["value"]
 
 /**
- * Widths, in %, of the ten default columns. They fit the page at 1440px wide;
- * on a narrower screen the table scrolls sideways under its frozen Material
- * column rather than cut the repair line short (`DEFAULT_MIN_WIDTH`).
+ * Widths, in %, of the nine default columns and the "+" that ends the header.
+ * They fit the page at 1440px wide; on a narrower screen the table scrolls
+ * sideways under its frozen Material column rather than cut the repair line
+ * short (`DEFAULT_MIN_WIDTH`). The Exceptions column went on 3-Nov-2026.
  */
-const DEFAULT_WIDTHS = [14, 13, 8.5, 10, 11.5, 8.5, 11, 6, 9.5, 8]
+const DEFAULT_WIDTHS = [14.5, 13.5, 8.5, 10.5, 12, 8.5, 11.5, 6, 10, 3]
 const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 6, crit: 8, pr: 10, po: 10 }
 const DEFAULT_MIN_WIDTH = "min-w-[1120px]"
 const WIDE_MIN_WIDTH = "min-w-[1440px]"
@@ -111,12 +106,12 @@ const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; la
   DECLARATION_DISPLAY
 
 /** The filters that live behind "More filters". */
-const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging", "exceptions"] as const
+const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging"] as const
 
 /**
  * The Repair Register (FR-10) -- I08_Live_UI_Redesign_Plan.md, L2.
  *
- * One row per repair PO line SAP still has open. Ten columns by default: it
+ * One row per repair PO line SAP still has open. Nine columns by default: it
  * was fourteen across 2,125px, and the sideways scrollbar sat under the 25th
  * row. The material number comes first and the description once (it was shown
  * twice per row). The repair line (`4500001719/10`, or `PR 2000028756/10`)
@@ -125,22 +120,22 @@ const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging", "e
  * "113 days late" under the expected date. Colour only where it asks for
  * something: "PO issued" is plain text.
  *
- * The Exceptions badge counts what is to act on. An item raised before
- * go-live (27-Oct-2026) needs nothing, so it is named on hover only: the
- * badge then agrees with the exception queue, which lists those apart.
+ * No Exceptions column since 3-Nov-2026: the exception queue was removed, and
+ * overdue repairs say so under their expected date.
  *
- * Quick views (Overdue, Not declared, At vendor, With exceptions) sit above
- * four filters; the rest are under "More filters", and every filter that is
- * set shows as a removable chip. "Columns" brings back quantity, criticality,
- * PR and PO, and only then does the table scroll sideways -- with the pinned
- * scrollbar and the frozen Material column (`StickyScrollTable`). The Excel
+ * Quick views (Overdue, Not declared, At vendor, No PO yet) sit above four
+ * filters; the rest are under "More filters", and every filter that is set
+ * shows as a removable chip -- including the two the Overview's links set
+ * (department, and days past the expected return). The "+" at the end of the
+ * header (3-Nov-2026; it was a "Columns" button above the table) brings back
+ * quantity, criticality, PR and PO, and only then does the table scroll
+ * sideways -- with the pinned scrollbar and the frozen Material column
+ * (`StickyScrollTable`). The "+" stays pinned to the right edge. The Excel
  * export stays wide whatever is on screen.
  *
- * A repair requested on a purchase requisition with no PO yet (a PR row,
- * served since 27-Oct-2026 when the backend switches them on) is listed after
- * the PO lines. It reads "Repair requested", with "No PO yet" where the
- * expected date would be, no vendor, and no declaration: there is no PO line
- * to declare against yet, and the backend refuses one.
+ * A PR raised for repair with no PO yet (a PR row, served since 27-Oct-2026)
+ * is listed after the PO lines. It reads "PR raised", with "No PO yet" where
+ * the expected date would be, and no vendor.
  *
  * The filters, the view and the columns live in the URL, so a filtered
  * register is a link somebody can send, and back and forward work. The server
@@ -158,7 +153,6 @@ export function RepairRegisterTable({
   viewCounts,
   sourceLoadedAt,
   repairRequestsEnabled = false,
-  completeFlow,
 }: RepairRegisterTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -242,7 +236,14 @@ export function RepairRegisterTable({
       label: `Due date: ${OVERDUE_STATUS_LABEL[filters.overdue as keyof typeof OVERDUE_STATUS_LABEL] ?? filters.overdue}`,
     },
     filters.aging && { key: "aging", label: `${filters.aging.replace("-", "–")} days open` },
-    filters.exceptions && { key: "exceptions", label: "With exceptions" },
+    filters.lateAging && {
+      key: "lateAging",
+      label: `${filters.lateAging.replace("-", "–")} days past expected return${viewsWork ? "" : " (not applied)"}`,
+    },
+    filters.department && {
+      key: "department",
+      label: `Department: ${facets.departments.find((d) => d.value === filters.department)?.label ?? filters.department}`,
+    },
   ].filter((chip): chip is { key: string; label: string } => Boolean(chip))
   const moreSet = MORE_FILTERS.filter((key) => filters[key]).length
 
@@ -257,7 +258,8 @@ export function RepairRegisterTable({
       declarationStatus: undefined,
       aging: undefined,
       stageAging: undefined,
-      exceptions: undefined,
+      lateAging: undefined,
+      department: undefined,
       view: undefined,
     })
   }
@@ -315,8 +317,8 @@ export function RepairRegisterTable({
             </p>
             {repairRequestsEnabled && (
               <p>
-                After them, the repairs requested on a purchase requisition that has no PO yet. They have no
-                vendor or return date until the PO is raised, and are not counted in the open repair lines.
+                After them, the PRs raised for repair that have no PO yet. They have no vendor or return date until
+                the PO is raised, and are not counted in the open repair lines.
               </p>
             )}
             {notShown.length > 0 && (
@@ -332,23 +334,6 @@ export function RepairRegisterTable({
               Export failed: {exportError}
             </span>
           )}
-          <PopoverButton label="Columns" icon={<Columns3 />} badge={columns.length || undefined} align="end">
-            <p className="mb-2 text-[12.5px] text-muted-foreground">
-              Always shown: material, repair line, plant, vendor, department, stage, expected back, days open,
-              declaration and exceptions.
-            </p>
-            {OPTIONAL_COLUMNS.map((column) => (
-              <label key={column.value} className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-sm hover:bg-muted">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--primary)]"
-                  checked={columns.includes(column.value)}
-                  onChange={(event) => toggleColumn(column.value, event.target.checked)}
-                />
-                {column.label}
-              </label>
-            ))}
-          </PopoverButton>
           <Button size="lg" variant="outline" className="px-3.5 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action" onClick={() => void exportExcel()} disabled={exporting || total === 0}>
             {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             Export Excel
@@ -358,7 +343,7 @@ export function RepairRegisterTable({
     >
       {viewsWork && (
         <QuickViews
-          choices={registerViewChoices(viewCounts, { repairRequestsEnabled, selected: filters.view, completeFlow })}
+          choices={registerViewChoices(viewCounts, { repairRequestsEnabled, selected: filters.view })}
           value={filters.view ?? ""}
           onSelect={(value) => push({ view: value || undefined })}
         />
@@ -435,14 +420,6 @@ export function RepairRegisterTable({
                 )}
               />
             </PanelField>
-            <PanelField label="Exceptions">
-              <UrlSelect
-                value={filters.exceptions ? "1" : ""}
-                onChange={(value) => push({ exceptions: value || undefined })}
-                allLabel="With or without"
-                options={[{ value: "1", label: "With exceptions only" }]}
-              />
-            </PanelField>
           </div>
         </PopoverButton>
       </div>
@@ -479,11 +456,13 @@ export function RepairRegisterTable({
                     Days open
                   </Head>
                   <Head>Declaration</Head>
-                  <Head>Exceptions</Head>
                   {columns.includes("qty") && <Head right>Qty</Head>}
                   {columns.includes("crit") && <Head>Criticality</Head>}
                   {columns.includes("pr") && <Head>Repair PR</Head>}
                   {columns.includes("po") && <Head>Repair PO</Head>}
+                  <th className="sticky right-0 z-[2] h-[42px] bg-(--i08-head) px-1 text-center align-middle">
+                    <ColumnPicker columns={columns} onToggle={toggleColumn} />
+                  </th>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -495,7 +474,6 @@ export function RepairRegisterTable({
                   // A repair requested with no PO yet: no vendor and no date.
                   const requested = isPrOnly(c)
                   const department = requesterText(c)
-                  const raised = c.exceptions ? splitLineExceptions(c.exceptions) : undefined
                   return (
                     <TableRow
                       key={c.id}
@@ -524,7 +502,7 @@ export function RepairRegisterTable({
                       <Cell>
                         <span
                           className="font-mono text-[12.5px] whitespace-nowrap"
-                          title={requested ? "Repair requested on this PR, no PO yet" : "Repair PO and item"}
+                          title={requested ? "PR raised for repair, no PO yet" : "Repair PO and item"}
                         >
                           {repairLineLabel(c)}
                         </span>
@@ -563,7 +541,7 @@ export function RepairRegisterTable({
                       </Cell>
                       <Cell>
                         {requested ? (
-                          <div className="flex flex-col gap-0.5 leading-snug" title={`Repair ${requestedAgo(c.daysOpen)}`}>
+                          <div className="flex flex-col gap-0.5 leading-snug" title={`PR ${requestedAgo(c.daysOpen)}`}>
                             <span className="text-muted-foreground">{NO_PO_YET}</span>
                             <StatusDot tone="muted" small>
                               {requestedAgoShort(c.daysOpen)}
@@ -590,8 +568,7 @@ export function RepairRegisterTable({
                       </Cell>
                       <Cell right>{formatCount(c.daysOpen)}</Cell>
                       <Cell wrap>
-                        {/* A repair request is declared on its PR since 27-Oct-2026,
-                            so it shows its status like a PO line. */}
+                        {/* A PR row shows its declaration status like a PO line. */}
                         <span
                           title={
                             c.declaredAt
@@ -603,33 +580,6 @@ export function RepairRegisterTable({
                             {declaration.label}
                           </StatusDot>
                         </span>
-                      </Cell>
-                      <Cell>
-                        {raised === undefined ? (
-                          <span className="text-[12.5px] text-muted-foreground" title="The checks were not read for this line, so its findings are unknown.">
-                            Not checked
-                          </span>
-                        ) : raised.toAct.length === 0 ? (
-                          <span className="text-muted-foreground" title={earlierNote(raised.earlier)}>
-                            —
-                          </span>
-                        ) : (
-                          <Link
-                            href={exceptionsHref({ status: DEFAULT_EXCEPTION_STATUS, repair: c.id })}
-                            title={[
-                              raised.toAct.map((e) => exceptionTypeLabel(e.type)).join(" · "),
-                              earlierNote(raised.earlier),
-                            ]
-                              .filter(Boolean)
-                              .join(". ")}
-                            aria-label={`${plural(raised.toAct.length, "exception")} to act on: ${raised.toAct
-                              .map((e) => exceptionTypeLabel(e.type))
-                              .join(", ")}`}
-                            className="inline-grid h-[22px] min-w-[26px] place-items-center rounded-full border border-i08-warn-border bg-i08-warn-tint px-2 text-[12.5px] font-semibold text-i08-warn-ink transition-[filter] hover:brightness-95"
-                          >
-                            {raised.toAct.length}
-                          </Link>
-                        )}
                       </Cell>
                       {columns.includes("qty") && <Cell right>{formatCount(c.qtyUnderRepair)}</Cell>}
                       {columns.includes("crit") && (
@@ -665,6 +615,8 @@ export function RepairRegisterTable({
                           )}
                         </Cell>
                       )}
+                      {/* Under the "+": nothing per row. */}
+                      <td aria-hidden="true" />
                     </TableRow>
                   )
                 })}
@@ -688,15 +640,36 @@ export function RepairRegisterTable({
 }
 
 /**
- * What a badge says on hover about the items raised before go-live, which it
- * does not count: "Also 1 raised before go-live, no action needed: No
- * condition declaration". Undefined when there are none.
+ * The "+" at the end of the header row: adds and removes the optional columns,
+ * as the "Columns" button above the table did until 3-Nov-2026. Its badge
+ * says how many are on.
  */
-function earlierNote(earlier: { type: string }[]): string | undefined {
-  if (earlier.length === 0) return undefined
-  return `Also ${formatCount(earlier.length)} raised before go-live, no action needed: ${earlier
-    .map((e) => exceptionTypeLabel(e.type))
-    .join(", ")}`
+function ColumnPicker({
+  columns,
+  onToggle,
+}: {
+  columns: OptionalColumn[]
+  onToggle: (column: OptionalColumn, on: boolean) => void
+}) {
+  return (
+    <PopoverButton label="Add or remove columns" icon={<Plus />} badge={columns.length || undefined} align="end" iconOnly>
+      <p className="mb-2 text-[12.5px] text-muted-foreground">
+        Always shown: material, repair line, plant, vendor, department, stage, expected back, days open and
+        declaration.
+      </p>
+      {OPTIONAL_COLUMNS.map((column) => (
+        <label key={column.value} className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-sm hover:bg-muted">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--primary)]"
+            checked={columns.includes(column.value)}
+            onChange={(event) => onToggle(column.value, event.target.checked)}
+          />
+          {column.label}
+        </label>
+      ))}
+    </PopoverButton>
+  )
 }
 
 /** Keeps the extra columns on when moving between pages. */
