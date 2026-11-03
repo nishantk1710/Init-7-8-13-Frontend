@@ -73,6 +73,8 @@ describe("what a row shows", () => {
     expect(notificationTypeLabel("APPROVAL_REQUIRED")).toBe("Approval required")
     expect(notificationTypeLabel("EXCEPTION_ESCALATED")).toBe("Escalation required")
     expect(notificationTypeLabel("SOMETHING_NEW")).toBe("Notification")
+    expect(notificationTypeLabel("PR_RECEIVED")).toBe("Purchase requisition")
+    expect(notificationTypeLabel("PR_RECEIVED_DETAILS")).toBe("Purchase requisition")
     const everyLabel = ["APPROVAL_REQUIRED", "APPROVAL_REMINDER", "EXCEPTION_ACTION_REQUIRED", "EXCEPTION_RESPONSE_REQUIRED"].map(
       notificationTypeLabel,
     )
