@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { GlobalAction, InitiativeSummary } from "@/lib/domain/contracts"
-import type { LiveActions, LiveAuditEvents } from "@/lib/domain/live-feed"
+import type { LiveAuditEvents } from "@/lib/domain/live-feed"
 
 // Each initiative's live selectors are replaced, so these tests exercise only
 // what this file owns: how three independent outcomes are composed.
@@ -27,22 +27,11 @@ vi.mock("@/features/initiative-13/selectors/live", () => ({
 
 import {
   AUDIT_DEPTH_CAP,
-  combineActions,
   combineAuditEvents,
   failuresOf,
-  getLiveActions,
   getLiveAuditPage,
   getLiveSummaries,
 } from "@/lib/aggregation"
-
-function action(id: string, initiative: GlobalAction["initiative"]): GlobalAction {
-  return { id, initiative, title: id, severity: "warning", href: "/x", createdAt: "2026-09-01" }
-}
-
-function live(initiative: GlobalAction["initiative"], ids: string[], extra: Partial<LiveActions> = {}): LiveActions {
-  const actions = ids.map((id) => action(id, initiative))
-  return { actions, decisions: actions, total: ids.length, decisionTotal: ids.length, capped: false, ...extra }
-}
 
 function summary(id: InitiativeSummary["id"]): InitiativeSummary {
   return { id, label: id, href: "/x", health: "healthy", metrics: [], actions: [] }
@@ -85,40 +74,6 @@ describe("getLiveSummaries", () => {
     for (const m of [i7, i8, i13]) m.summary.mockRejectedValue(new Error("down"))
     const per = await getLiveSummaries()
     expect(failuresOf(per).map((f) => f.initiative)).toEqual(["initiative-7", "initiative-8", "initiative-13"])
-  })
-})
-
-describe("combineActions", () => {
-  it("merges whatever answered and sums the true populations", async () => {
-    i7.actions.mockResolvedValue(live("initiative-7", ["a", "b"], { total: 900, decisionTotal: 800, capped: true }))
-    i8.actions.mockResolvedValue(live("initiative-8", ["c"]))
-    i13.actions.mockResolvedValue(live("initiative-13", ["d", "e", "f"]))
-
-    const combined = combineActions(await getLiveActions())
-
-    expect(combined.actions.map((a) => a.id)).toEqual(["a", "b", "c", "d", "e", "f"])
-    expect(combined.total).toBe(900 + 1 + 3)
-    expect(combined.decisionTotal).toBe(800 + 1 + 3)
-    expect(combined.capped).toBe(true)
-    expect(combined.failures).toEqual([])
-  })
-
-  it("names a module that failed and counts nothing for it, rather than counting zero", async () => {
-    i7.actions.mockResolvedValue(live("initiative-7", ["a"]))
-    i8.actions.mockRejectedValue(new Error("declarations unreachable"))
-    i13.actions.mockResolvedValue(live("initiative-13", ["d"]))
-
-    const combined = combineActions(await getLiveActions())
-
-    expect(combined.actions.map((a) => a.id)).toEqual(["a", "d"])
-    expect(combined.failures).toEqual([{ initiative: "initiative-8", message: "declarations unreachable" }])
-  })
-
-  it("reports every module as failed when none answer, never an empty-looking success", async () => {
-    for (const m of [i7, i8, i13]) m.actions.mockRejectedValue(new Error("down"))
-    const combined = combineActions(await getLiveActions())
-    expect(combined.actions).toEqual([])
-    expect(combined.failures).toHaveLength(3)
   })
 })
 

@@ -16,11 +16,9 @@ const ROOTS = [
   "src/lib/aggregation.ts",
   "src/lib/domain/live-feed.ts",
   "src/components/home",
-  "src/components/approvals",
   "src/components/action-center",
   "src/components/audit",
   "src/app/(live)/home",
-  "src/app/(live)/approvals",
   "src/app/(live)/actions",
   "src/app/(live)/audit",
   "src/features/initiative-7/selectors/live.ts",
@@ -65,7 +63,7 @@ describe("shared pages never read demo data", () => {
   it("scans a meaningful set of files (guards against the walker matching nothing)", () => {
     expect(files.length).toBeGreaterThan(20)
     expect(files.some((f) => f.endsWith("aggregation.ts"))).toBe(true)
-    expect(files.some((f) => f.includes("approvals-page"))).toBe(true)
+    expect(files.some((f) => f.includes("action-center-page"))).toBe(true)
   })
 
   for (const { pattern, why } of FORBIDDEN) {

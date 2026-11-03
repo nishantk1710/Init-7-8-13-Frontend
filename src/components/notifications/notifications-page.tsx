@@ -51,7 +51,7 @@ const EMPTY_TEXT: Record<InboxFilter, { title: string; description: string }> = 
   read: { title: "No read notifications", description: "Notifications you have read will appear here." },
 }
 
-const MODULE_OPTIONS = ["Inventory Planning", "Repairable Spares", "OAR Utilization"]
+const MODULE_OPTIONS = ["Inventory Planning", "OAR Utilization"]
 
 const PRIORITY_OPTIONS: { value: NotificationSeverity; label: string }[] = [
   { value: "critical", label: "Escalated / rejected" },

@@ -36,7 +36,7 @@ frontend/
           eslint.config.mjs · components.json
 ```
 
-Routes currently built: `/`, `/approvals`, `/audit`, `/chat`, `/chat/[sessionId]`,
+Routes currently built: `/`, `/audit`, `/chat`, `/chat/[sessionId]`,
 `/chat/new/[materialId]`, `/dashboard`, `/dashboard/situation-analysis`, `/materials`.
 
 ## Backend connectivity
