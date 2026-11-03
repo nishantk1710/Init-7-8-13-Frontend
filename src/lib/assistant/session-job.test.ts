@@ -60,7 +60,7 @@ describe("the job behind a repairable session", () => {
     )
     if (view.kind !== "linked") throw new Error("expected linked")
     expect(view.repairs.map((r) => [r.label, r.href, r.status])).toEqual([
-      ["Repair request PR 0010001/00010", "/repairable-spares/repair-register/PR-0010001-00010", "Requested"],
+      ["Repair PR 0010001/00010", "/repairable-spares/repair-register/PR-0010001-00010", "Requested"],
       ["Repair PO 4500001/00010", "/repairable-spares/repair-register/4500001-00010", "PO issued"],
     ])
     expect(repairRowHref("a/b")).toBe("/repairable-spares/repair-register/a%2Fb")

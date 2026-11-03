@@ -250,7 +250,7 @@ describe("sessionDocument", () => {
       "Open repairs": "0",
       "Earliest due back": "no open repair PO",
     })
-    expect(doc.blocks.some((b) => b.kind === "table" && b.columns[0] === "Requested, not yet ordered")).toBe(false)
+    expect(doc.blocks.some((b) => b.kind === "table" && b.columns[0] === "PR raised, no PO yet")).toBe(false)
     expect(text(doc.blocks)).not.toContain("Usable stock")
   })
 
@@ -300,15 +300,15 @@ describe("sessionDocument", () => {
     const rows = fields(doc.blocks)
     expect(rows).toMatchObject({
       "Usable stock": "2 (1 damaged, not counted)",
-      "Open repairs": "0 (+2 requested, not ordered)",
+      "Open repairs": "0 (+2 PRs raised, no PO yet)",
       "Earliest due back": "not ordered yet",
     })
     expect(rows).not.toHaveProperty("Stock available")
-    const table = doc.blocks.find((b) => b.kind === "table" && b.columns[0] === "Requested, not yet ordered")
+    const table = doc.blocks.find((b) => b.kind === "table" && b.columns[0] === "PR raised, no PO yet")
     expect(table).toMatchObject({
       rows: [
-        [["PR 2000029113/10"], ["1"], ["requested 239 days ago"], ["10305 · Engineering"]],
-        [["PR 2000029200/20"], ["2"], ["request date not known"], ["not stated"]],
+        [["PR 2000029113/10"], ["1"], ["raised 239 days ago"], ["10305 · Engineering"]],
+        [["PR 2000029200/20"], ["2"], ["PR date not known"], ["not stated"]],
       ],
     })
     expect(text(doc.blocks)).toContain(advice)

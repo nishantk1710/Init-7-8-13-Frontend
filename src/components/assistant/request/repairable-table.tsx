@@ -54,8 +54,6 @@ export function RepairableTable({
   reasons,
   faultCategories = [],
   recommendations = [],
-  requester = "",
-  completeFlow,
   refusedKey,
   onChange,
   onRemove,
@@ -67,11 +65,6 @@ export function RepairableTable({
   /** From the preview; none (an older backend) hides the declaration section. */
   faultCategories?: readonly string[]
   recommendations?: readonly ApiReasonCategory[]
-  /** The request's Requester: the declaration's typed name starts from it. */
-  requester?: string
-  /** The I08 complete-flow switch (`lib/i08-features`): off hides what a
-   *  reason does, said under the justification prompt. */
-  completeFlow: boolean
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -87,8 +80,6 @@ export function RepairableTable({
             reasons={reasons}
             faultCategories={faultCategories}
             recommendations={recommendations}
-            requester={requester}
-            completeFlow={completeFlow}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -107,8 +98,6 @@ function RepairableCard({
   reasons,
   faultCategories,
   recommendations,
-  requester,
-  completeFlow,
   refused,
   onChange,
   onRemove,
@@ -119,8 +108,6 @@ function RepairableCard({
   reasons: readonly ApiReasonCategory[]
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
-  requester: string
-  completeFlow: boolean
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -210,7 +197,6 @@ function RepairableCard({
               showErrors={showErrors}
               faultCategories={faultCategories}
               recommendations={recommendations}
-              requester={requester}
               onChange={(declaration) => onChange({ ...row, declaration })}
             />
           )}
@@ -223,7 +209,7 @@ function RepairableCard({
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
-              note={completeFlow ? I08_WANT_NEW_NOTE : undefined}
+              note={I08_WANT_NEW_NOTE}
               value={row.justification}
               showErrors={showErrors}
               reasons={reasons}
@@ -296,11 +282,11 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
         )
       })}
       {requests.map((r) => (
-        // A repair request has no PO yet, so no vendor and no date to show.
+        // A PR raised for repair has no PO yet, so no vendor and no date to show.
         <li key={`pr-${r.purchaseRequisition}-${r.item}`} className="flex flex-wrap items-center gap-1.5">
-          <Chip tone="muted">{figure(r.quantity)} requested</Chip>
+          <Chip tone="muted">{figure(r.quantity)} on a PR</Chip>
           <span className="text-muted-foreground">
-            {requestReference(r)} · {requestAgePhrase(r.daysSinceRequested)}, not yet ordered
+            {requestReference(r)} · {requestAgePhrase(r.daysSinceRequested)}, no PO yet
           </span>
         </li>
       ))}

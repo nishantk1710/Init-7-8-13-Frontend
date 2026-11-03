@@ -10,7 +10,7 @@ export type OverviewPrintHeader = {
   /** The page header's description: what the page covers, as at when. */
   caption: string
   /** The filter labels the figures were drawn under. */
-  filters: { plant: string; vendor: string; criticality: string }
+  filters: { plant: string; vendor: string; department: string }
   /** "818 of 818 repair lines" -- how much of the register the filters kept. */
   lines: string
   /** What each filter narrows, as the strip under the filters says on screen. */
@@ -43,7 +43,7 @@ export function OverviewPrint(props: PropsWithChildren<OverviewPrintHeader>) {
 /**
  * What the PDF says, without the portal: the figures under a header that
  * names the slice they were drawn from. A page saved into a report has to say
- * which plant, vendor and criticality it is about; the dropdowns that say so
+ * which plant, vendor and department it is about; the dropdowns that say so
  * on screen do not print.
  */
 export function OverviewPrintDocument({
@@ -62,7 +62,7 @@ export function OverviewPrintDocument({
         <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
         <p className="mt-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Filters:</span> Plant: {filters.plant} ·
-          Vendor: {filters.vendor} · Criticality: {filters.criticality} · {lines}
+          Vendor: {filters.vendor} · Department: {filters.department} · {lines}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">Printed {printedAt}</p>

@@ -43,7 +43,6 @@ export function AssistantLauncher({
   department,
   requestedFor,
   origin,
-  completeFlow,
 }: {
   materialId: string
   plant: string
@@ -52,8 +51,6 @@ export function AssistantLauncher({
   /** Who the part is for. Optional for the same reason, and never identity. */
   requestedFor?: string
   origin: "BADI" | "PLATFORM"
-  /** The I08 complete-flow switch, read by the page (`lib/i08-features`). */
-  completeFlow: boolean
 }) {
   const [state, setState] = useState<
     | { status: "opening" }
@@ -213,7 +210,6 @@ export function AssistantLauncher({
         sessionId: response.sessionId,
         step: response.step,
       }}
-      completeFlow={completeFlow}
     />
   )
 }

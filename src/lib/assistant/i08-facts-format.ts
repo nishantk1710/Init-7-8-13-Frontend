@@ -45,10 +45,10 @@ export function repairRequestCountOf(facts: unknown): number {
  * negative age.
  */
 export function requestAgePhrase(days: number | null | undefined): string {
-  if (days === null || days === undefined || !Number.isFinite(days)) return "request date not known"
-  if (days <= 0) return "requested today"
-  if (days === 1) return "requested 1 day ago"
-  return `requested ${days} days ago`
+  if (days === null || days === undefined || !Number.isFinite(days)) return "PR date not known"
+  if (days <= 0) return "raised today"
+  if (days === 1) return "raised 1 day ago"
+  return `raised ${days} days ago`
 }
 
 /** The requesting department as `code · name`, the code alone when unnamed, null when absent. */
@@ -240,10 +240,10 @@ export function stockFigure(facts: unknown): I08StockFigure {
   }
 }
 
-/** `+N requested, not ordered` beside the open repair PO count; null when none are counted. */
+/** `+N PRs raised, no PO yet` beside the open repair PO count; null when none are counted. */
 export function openRepairsSuffix(facts: unknown): string | null {
   const count = repairRequestCountOf(facts)
-  return count > 0 ? `+${count} requested, not ordered` : null
+  return count > 0 ? `+${count} ${count === 1 ? "PR" : "PRs"} raised, no PO yet` : null
 }
 
 /** `1 unit` / `2 units`, without the trailing decimals SAP pads a quantity with. */
@@ -267,7 +267,7 @@ export function noUsableUnitText(facts: unknown): string {
   const requests = repairRequestCountOf(facts)
   const repair =
     requests > 0
-      ? `${requests} ${requests === 1 ? "repair" : "repairs"} requested, not yet ordered`
+      ? `${requests} ${requests === 1 ? "PR" : "PRs"} raised for repair, no PO yet`
       : "none on repair"
   return `${stock}, ${repair}.`
 }

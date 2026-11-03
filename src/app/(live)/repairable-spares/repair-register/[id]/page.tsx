@@ -1,13 +1,8 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
 
-import { loadLiveExceptions } from "@/features/initiative-8/data/live-exceptions"
 import { loadLiveRepairDetail } from "@/features/initiative-8/data/live-repair-detail"
 import { RepairDetailPage } from "@/features/initiative-8/pages/repair-detail-page"
-import type { ExceptionQueueRow } from "@/features/initiative-8/types/repair"
-import { withoutCompleteFlow } from "@/features/initiative-8/utils/complete-flow"
-import { getAttestations } from "@/lib/api/i8"
-import { loadCompleteFlowFromSnapshot } from "@/lib/i08-features"
 
 export async function generateMetadata({
   params,
@@ -25,6 +20,10 @@ export async function generateMetadata({
  * `RepairDetailPage` is "use client" — it opens the Material 360 drawer — and a
  * client component cannot be async. The route is already a server component, so
  * it is the natural place for the await.
+ *
+ * One fetch since 3-Nov-2026: the line and its timeline. The exception items
+ * raised against the line went with the exception queue, and the fault list
+ * went with the page's declare buttons (declaring is the assistant's now).
  */
 export default async function Page({
   params,
@@ -34,43 +33,15 @@ export default async function Page({
   const { id } = await params
 
   // Opt out of static prerendering, same as the register: otherwise the build
-  // would freeze one fetch per id into HTML, and the attestation shown on the
+  // would freeze one fetch per id into HTML, and the declaration shown on the
   // lifecycle timeline could never change afterwards.
   await connection()
 
   // The try/catch wraps ONLY the fetch, never the render.
-  //
-  // The fault-category list is fetched alongside, for the attestation form
-  // that moved here from the Declaration Queue. Best-effort: a failure costs
-  // the form its list (it then says so and cannot submit), not the page.
   let detail: Awaited<ReturnType<typeof loadLiveRepairDetail>> = null
-  let faultCategories: string[] = []
-  let exceptions: ExceptionQueueRow[] | null = null
   let loadError: string | null = null
   try {
-    // The exception fetch asks the backend for this ONE line rather than
-    // pulling the whole queue and filtering: the queue runs to thousands of
-    // items and this page needs the handful raised against one repair.
-    //
-    // The I08 complete-flow switch comes from the snapshot, best-effort (off on
-    // any failure). Off, the line is shown without what only the complete flow
-    // adds: the usable/damaged split, the assistant session behind the
-    // declaration, and a link made through the R-reference.
-    const [line, attestations, raised, completeFlow] = await Promise.all([
-      loadLiveRepairDetail(id),
-      getAttestations().catch(() => null),
-      loadLiveExceptions({ repair: id })
-        // Filtered again here, deliberately. A backend that predates the
-        // `repair` parameter ignores it and answers with the whole queue --
-        // thousands of items -- and this page would then report every one of
-        // them as raised against this line.
-        .then((data) => data.rows.filter((row) => row.repairId === id))
-        .catch(() => null),
-      loadCompleteFlowFromSnapshot(),
-    ])
-    detail = line && !completeFlow ? { ...line, chain: withoutCompleteFlow(line.chain) } : line
-    faultCategories = attestations?.faultCategories ?? []
-    exceptions = raised
+    detail = await loadLiveRepairDetail(id)
   } catch (error) {
     // A failed request -- the backend down, a timeout, a 500 -- and it must say
     // so rather than masquerading as "not found".
@@ -84,12 +55,5 @@ export default async function Page({
   // null means the backend answered and said there is no such repair line.
   // Passing no detail gives the "repair not found" empty state, which is the
   // right answer -- not an error.
-  return (
-    <RepairDetailPage
-      repairId={id}
-      detail={detail ?? undefined}
-      faultCategories={faultCategories}
-      exceptions={exceptions}
-    />
-  )
+  return <RepairDetailPage repairId={id} detail={detail ?? undefined} />
 }

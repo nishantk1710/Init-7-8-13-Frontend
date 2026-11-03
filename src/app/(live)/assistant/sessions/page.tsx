@@ -9,7 +9,6 @@ import type { ComplianceCheck } from "@/components/assistant/compliance-panel"
 import { listJustifications, listSessions } from "@/lib/api/assistant"
 import { getSessionCompliance, type SessionCompliance } from "@/lib/api/session-links"
 import { formatDay } from "@/lib/assistant/trace-format"
-import { loadCompleteFlowFromFeatures } from "@/lib/i08-features"
 
 export const metadata: Metadata = {
   title: "Assistant sessions — Spares AI",
@@ -54,9 +53,6 @@ export default async function AssistantSessionsPage({
   let sessions: Awaited<ReturnType<typeof listSessions>> | null = null
   let justifications: Awaited<ReturnType<typeof listJustifications>> | null = null
   let loadError: string | null = null
-  // Best-effort and in parallel: the I08 complete-flow switch (off on any
-  // failure), which decides the repairable cards and the Declared column.
-  const completeFlowLoad = loadCompleteFlowFromFeatures()
   // Best-effort: the log is the page; this count is one card on it.
   const compliance: SessionCompliance | null = await getSessionCompliance().catch(() => null)
   try {
@@ -70,7 +66,6 @@ export default async function AssistantSessionsPage({
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
-  const completeFlow = await completeFlowLoad
 
   const checks: ComplianceCheck[] = [
     {
@@ -168,7 +163,6 @@ export default async function AssistantSessionsPage({
             total={sessions.total}
             checks={checks}
             wentAheadIds={wentAheadSessionIds(justifications?.items ?? [])}
-            completeFlow={completeFlow}
           />
         )}
       </div>

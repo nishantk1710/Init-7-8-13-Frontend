@@ -38,22 +38,15 @@ const FLOWS: { prefix: string; stages: { label: string; ids: string[] }[] }[] = 
 export function ConversationProgress({
   stepId,
   finished,
-  completeFlow,
   className,
 }: {
   /** Id of the most recent step in the transcript. */
   stepId: string | null
   /** True once the conversation has reached its terminal step. */
   finished: boolean
-  /** The I08 complete-flow switch (`lib/i08-features`). Off: no Declare stage. */
-  completeFlow: boolean
   className?: string
 }) {
-  const known = stepId ? FLOWS.find((f) => stepId.startsWith(f.prefix)) : undefined
-  const flow = known && {
-    ...known,
-    stages: known.stages.filter((stage) => completeFlow || stage.ids !== DECLARE_STEP_IDS),
-  }
+  const flow = stepId ? FLOWS.find((f) => stepId.startsWith(f.prefix)) : undefined
   if (!flow || !stepId) return null
   const found = flow.stages.findIndex((stage) => stage.ids.includes(stepId))
   if (found === -1) return null

@@ -1,16 +1,15 @@
 /**
  * Typed client for the Initiative 8 backend — `/api/i8/*`.
  *
- * **Almost read-only, and the exception is worth knowing.** Every endpoint here
- * is a GET except one: `createAttestation` POSTs to `/api/i8/attestations`,
- * which is the single write path in the whole of Initiative 8 (W5.3). It writes
- * to a table the backend owns, it is append-only, and **nothing in Initiative 8
- * writes to SAP** — the platform reads SAP and records its own findings beside
- * it. That last part is the guarantee that matters and it has not changed.
+ * **Read-only.** Every endpoint here is a GET. Until 3-Nov-2026 two wrote: a
+ * declaration from an I08 screen (`POST /api/i8/attestations`) and the
+ * exception queue's history. A declaration is recorded by the reservation
+ * assistant now, and the exception queue was removed. **Nothing in Initiative
+ * 8 writes to SAP** — the platform reads SAP and records its own findings
+ * beside it.
  *
- * Consumed by the overview (which also reads the exception check's counts), the
- * register, the repair detail page (which holds the attestation form) and the
- * coding-candidate screen. The Home
+ * Consumed by the overview, the register, the repair detail page, the
+ * declaration log and the coding-candidate screen. The Home
  * page, the action centre, the audit log and the cross-initiative selectors
  * still read the scenario fixtures in every mode.
  *
@@ -33,7 +32,7 @@
  * Base URL comes from `NEXT_PUBLIC_API_BASE_URL` — see `client.ts`.
  */
 
-import { apiFetch, apiPost, type ApiRequestInit } from "@/lib/api/client"
+import { apiFetch, type ApiRequestInit } from "@/lib/api/client"
 
 // --- Wire types -----------------------------------------------------------
 //
@@ -232,59 +231,8 @@ export type ApiRepairChain = {
   /** The department's name for `requester`, when the department list knows
    *  the code. Null when it does not. Absent on an older backend. */
   requesterName?: string | null
-  /** Null when no reason was recorded while the line was out AND no new
-   *  purchase overlapped it without one. */
-  justification?: ApiRepairJustification | null
-  /**
-   * What the checks raise against this line, served by the register listing so
-   * a page of it need not load the whole exception queue. An empty list means
-   * the checks found nothing; null or absent means not computed here -- the
-   * detail endpoint, or a backend older than server paging.
-   */
-  exceptions?: ApiLineException[] | null
-}
-
-/** One exception raised against a register line. */
-export type ApiLineException = {
-  id: string
-  type: string
-  /** `info` only on an item raised before the control existed: the checks
-   *  raise every other item as a warning or worse. */
-  severity: "info" | "warning" | "critical"
-  /** Raised before the control existed. Not sent today: read it through
-   *  `toRegisterLine`, which falls back on the severity. */
-  preAutomation?: boolean
-}
-
-/** One NEW_ACQUISITION justification recorded while a repair line was out. */
-export type ApiRepairJustificationEntry = {
-  id: string | null
-  reasonCategory: string | null
-  freeText: string | null
-  author: string | null
-  /** ISO timestamp. */
-  recordedAt: string | null
-  sessionId: string | null
-}
-
-/** A new unit requested or bought while the line was out, with no reason on
- *  record — the `UNJUSTIFIED_ACQUISITION` exception `exceptionId` names. */
-export type ApiUnjustifiedPurchase = {
-  exceptionId: string
-  /** `type` `PR` for a new-buy purchase request (since 27-Oct-2026), `PO` for
-   *  a PO ordered directly with no PR. An older backend always sent `PO`. */
-  purchase: ApiSAPDocumentReference
-  raisedAt: string | null
-  /** Bought before the justification control existed — nobody was asked. */
-  preAutomation: boolean
-}
-
-export type ApiRepairJustification = {
-  /** MISSING whenever any overlapping purchase has no reason, even if another
-   *  one does — that is the one somebody has to act on. */
-  status: "RECORDED" | "MISSING"
-  entries: ApiRepairJustificationEntry[]
-  unjustifiedPurchases: ApiUnjustifiedPurchase[]
+  // No `justification` or `exceptions` since 3-Nov-2026: the exception queue
+  // and the register's justification cell were removed.
 }
 
 /**
@@ -351,6 +299,10 @@ export type ApiRegisterFacets = {
   criticalities: string[]
   /** Some lines' material is unrated at their plant; `criticality=none` finds them. */
   hasUnrated: boolean
+  /** The departments that raised the listed repairs (3-Nov-2026): a code, the
+   *  `department` filter's value, and its name when the department list knows
+   *  it. Absent on an older backend. */
+  departments?: { value: string; name: string | null }[]
 }
 
 export type ApiRegisterPage = ApiPage<ApiRepairChain, ApiRegisterMeta> & {
@@ -366,8 +318,7 @@ export type ApiRegisterViewCounts = {
   overdue: number
   undeclared: number
   atVendor: number
-  withExceptions: number
-  /** PR rows (repair requested, no PO yet) among the filtered lines; 0 while
+  /** PR rows (PR raised, no PO yet) among the filtered lines; 0 while
    *  the backend does not serve them. Absent on an older backend. */
   notOrdered?: number
 }
@@ -488,14 +439,6 @@ export type ApiSnapshotRules = Record<string, string | number | boolean> & {
   usableStockConditions?: string
   /** Conditions counted as damaged, comma-separated (e.g. `DAMAGED`). */
   damagedStockConditions?: string
-  /** The I08 complete-flow switch (29-Oct-2026): off until the flow is
-   *  approved. Read it through `completeFlowFromRules` in `lib/i08-features`. */
-  completeFlowEnabled?: boolean | number | string
-}
-
-/** `GET /api/i8/features`: the I08 feature switches, without the snapshot. */
-export type ApiI8Features = {
-  completeFlowEnabled?: boolean | number | string
 }
 
 // --- W5.3: attestations, declarations and exceptions ----------------------
@@ -576,143 +519,6 @@ export type ApiDeclarationPage = ApiPage<ApiDeclarationItem, ApiDeclarationMeta>
   facets?: ApiDeclarationFacets
 }
 
-/**
- * One row of `GET /api/i8/exceptions`.
- *
- * `type` is a plain string, not a closed union. Among those raised are
- * `MISSING_ATTESTATION` (a repair line went out with no condition assessment)
- * and `UNJUSTIFIED_ACQUISITION` (a new unit was requested or bought while a
- * repair of the same material and plant was open, and nobody recorded why) — and the backend
- * declares more than it raises. A type this build has not heard of must still
- * render, so nothing may switch exhaustively over it.
- */
-export type ApiExceptionItem = {
-  id: string
-  type: string
-  severity: "info" | "warning" | "critical"
-  material: ApiMaterialReference
-  plant: ApiPlantReference | null
-  /** The repair line. For `UNJUSTIFIED_ACQUISITION`, the repair that was open
-   *  when the new unit was requested or bought: `type` `PO` for a repair PO
-   *  line, `PR` (since 27-Oct-2026) for a repair PR with no PO yet. */
-  repairLine: ApiSAPDocumentReference
-  /**
-   * The new-unit purchase, for `UNJUSTIFIED_ACQUISITION`: `type` `PR` for a
-   * new-buy purchase request (the usual case since 27-Oct-2026), `PO` for a
-   * PO ordered directly with no PR. An older backend always sent a PO line.
-   * Null for the other types; optional until every backend in use serves it.
-   */
-  acquisitionLine?: ApiSAPDocumentReference | null
-  /**
-   * The 80-series reservation line with no valid R-reference, on a
-   * `MISSING_SESSION_ID` item (`type` `RESERVATION`: RSNUM and RSPOS). Absent
-   * on an older backend.
-   */
-  reservationLine?: ApiSAPDocumentReference | null
-  /**
-   * The declaration a `REPAIRED_AGAINST_ASSESSMENT` or `DECLARED_NO_REPAIR_PR`
-   * item is about, so the drawer can offer to amend it. Absent on an older
-   * backend.
-   */
-  declarationId?: string | null
-  title: string
-  /** Says what is missing AND what was searched for. */
-  detail: string
-  /** The repair line's own date, not when the check ran. */
-  raisedAt: string | null
-  /**
-   * The line predates the attestation control, so the gap is explained by when
-   * it was raised rather than by anyone failing to act. Render it as a reason,
-   * not a violation. Always false while no cutover date is configured, which is
-   * the current state.
-   */
-  preAutomation: boolean
-  /**
-   * FR-11's workflow state. Optional on the wire until every backend in use
-   * serves it: a build talking to an older API gets `undefined` and renders
-   * the queue without a lifecycle rather than claiming everything is OPEN.
-   */
-  status?: "OPEN" | "CLOSED" | LegacyExceptionStatus
-  /** Null or absent means unassigned, which is a real and common state. */
-  owner?: string | null
-  /** Whether a check still raises this. False only on an item fetched by id
-   *  after the data moved under it. */
-  stillDetected?: boolean
-  history?: ApiExceptionEvent[]
-}
-
-/** Retired on 21-Oct-2026 for OPEN and CLOSED. Served only by a backend older
- *  than that; read through `toExceptionStatus`, never sent. */
-export type LegacyExceptionStatus = "IN_PROGRESS" | "RESOLVED"
-
-/** One entry in an exception's history. */
-export type ApiExceptionEvent = {
-  id: string
-  kind: "ASSIGNED" | "COMMENT" | "STATUS" | "AUTO_RESOLVED"
-  /** The status this entry set; null on a comment or an assignment. */
-  status?: string | null
-  /** Who the item was assigned to, on an `ASSIGNED` entry. Null there means
-   *  it was unassigned — `kind` tells the two nulls apart. */
-  owner?: string | null
-  /** `system` on an AUTO_RESOLVED entry. */
-  actor: string
-  text: string
-  at: string
-}
-
-export type ApiExceptionMeta = {
-  total: number
-  byType: Record<string, number>
-  bySeverity: Record<string, number>
-  linesChecked: number
-  linesCovered: number
-  attestationWindowDays: number
-  /** Exceptions explained by predating the control rather than by a miss. */
-  preAutomation: number
-  /**
-   * `total` less `preAutomation` — the work, where `total` is the business
-   * case. Show both: quoting either alone misleads in a different direction.
-   */
-  actionable: number
-  /** The cutover these counts were measured against. Null means none is set. */
-  attestationCutoverDate: string | null
-  /**
-   * Which exception types the backend actually raises, so an empty count is
-   * distinguishable from an unimplemented check. MISSING_SESSION_ID is
-   * declared but never raised.
-   */
-  typesRaised: string[]
-  /** New 80-series purchases the UNJUSTIFIED_ACQUISITION check looked at.
-   *  Optional until every backend in use serves it. */
-  acquisitionsChecked?: number
-  /** How far either side of a purchase a NEW_ACQUISITION justification is
-   *  searched for. */
-  justificationWindowDays?: number
-  /** The justification check's own cutover — purchases before it count as
-   *  pre-automation. Null means none is set. */
-  justificationCutoverDate?: string | null
-}
-
-/**
- * The values the exception queue's filters can take. Taken after `excludeType`
- * and before every filter, so a paged screen's dropdowns list every value
- * rather than those on one page.
- */
-export type ApiExceptionFacets = {
-  plants: ApiPlantReference[]
-  /** Types present among the items; `meta.typesRaised` is the checks that run. */
-  types: string[]
-}
-
-export type ApiExceptionPage = ApiPage<ApiExceptionItem, ApiExceptionMeta> & {
-  /** Absent from a backend older than server paging. */
-  facets?: ApiExceptionFacets
-  /** Items per type after every filter but `type`: what each type tab holds.
-   *  Unlike `meta.byType`, these follow the filters, status above all.
-   *  Absent from a backend older than the redesign. */
-  typeCounts?: Record<string, number> | null
-}
-
 /** One recorded attestation. */
 export type ApiAttestation = {
   id: string
@@ -772,50 +578,6 @@ export type ApiAttestationResponse = {
   faultCategories: string[]
 }
 
-/** The condition-to-repair form, as submitted.
- *
- * Note what is absent: `attestor` and `attestedAt`. Both are set by the server
- * — an audit record whose author and timestamp are the author's to choose is
- * not an audit record. Sending an `attestor` is ignored.
- */
-export type AttestationRequest = {
-  materialId: string
-  plant: string
-  quantity: number
-  conditionDescription: string
-  /** Must be one of `faultCategories` from `GET /api/i8/attestations`. */
-  faultCategory: string
-  recommendation: "REPAIRABLE" | "BEYOND_ECONOMICAL_REPAIR" | "SCRAP"
-  serialNumber?: string
-  /** A reference string only — file upload is descoped and SharePoint is not
-   *  provisioned, so the platform does not pretend to hold the artefact. */
-  evidenceReference?: string
-  /** The attestation this one amends. Attestations are never edited: an
-   *  amendment is a new record pointing at the one it replaces. */
-  supersedes?: string
-  /**
-   * The repair line being declared against — `EKPO.EBELN` and `EKPO.EBELP`.
-   *
-   * FR-4's "link … to the repair PR or PO". Send both whenever the screen
-   * knows which line it is declaring, which is every entry point except
-   * "Declare a part". The backend then covers that line outright instead of
-   * guessing from material + plant + a ±30-day window — a guess that matches
-   * nothing on this data, because the repair lines are years old and a
-   * declaration is stamped today.
-   *
-   * Both or neither: half a key identifies no line and is refused with a 422.
-   */
-  repairDocument?: string
-  repairItem?: string
-  /** `PR` binds to an open repair PR (`repairDocument` = the PR, `repairItem`
-   *  = its item); default PO. */
-  repairDocumentType?: "PO" | "PR"
-  /** The declarer's typed name -- not a sign-in, and said so on the form. */
-  attestorName?: string
-  /** Required by the backend whenever `supersedes` is set. */
-  amendmentReason?: string
-}
-
 // --- Query parameters -----------------------------------------------------
 
 export type UniverseQuery = {
@@ -847,14 +609,15 @@ export type RegisterQuery = {
   /** The aging band of the days in the line's CURRENT stage (agingBucket bands
    *  the days it has been open). What the Overview's stage-by-age cells open. */
   stageAgingBucket?: string
-  /** Only lines a check has raised something against. */
-  withExceptions?: boolean
-  /** Comma-separated exception types left out of each line's `exceptions`
-   *  and of `withExceptions`. */
-  excludeExceptionType?: string
-  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`,
-   *  `withExceptions` or (a backend from 27-Oct-2026) `notOrdered`.
-   *  `viewCounts` counts each before it applies. */
+  /** The aging band of the days a line is past its expected return date
+   *  (3-Nov-2026): what the Overview's "days past expected return" cells open.
+   *  Only lines past their date match. */
+  lateAgingBucket?: string
+  /** A department code, as `facets.departments` lists it (3-Nov-2026). */
+  department?: string
+  /** A quick view on top of the filters: `overdue`, `undeclared`, `atVendor`
+   *  or `notOrdered` (PR raised, no PO yet). `viewCounts` counts each before
+   *  it applies. */
   view?: string
   /** Material number or description, repair line, or the PO or PR number. */
   q?: string
@@ -919,15 +682,6 @@ export function getSnapshot(): Promise<ApiSnapshot> {
   return apiFetch("/i8/snapshot")
 }
 
-/**
- * `GET /api/i8/features` -- which I08 features are switched on. Never waits
- * for the snapshot, so the assistant pages can ask it. An older backend
- * answers 404, which reads as "off" (see `lib/i08-features`).
- */
-export function getI8Features(): Promise<ApiI8Features> {
-  return apiFetch("/i8/features")
-}
-
 export type DeclarationQuery = {
   plant?: string
   /** A vendor CODE, as `facets.vendors` lists it. */
@@ -948,172 +702,11 @@ export function getDeclarations(query: DeclarationQuery = {}): Promise<ApiDeclar
   return apiFetch(`/i8/declarations${queryString(query)}`)
 }
 
-export type ExceptionQuery = {
-  type?: string
-  plant?: string
-  /** One repair line, as the register keys it — `4500000677-20`. */
-  repair?: string
-  /** OPEN / CLOSED. */
-  status?: string
-  /** An owner, or the literal `unassigned`. */
-  owner?: string
-  /** Leave out items raised before the control existed (`preAutomation`). */
-  actionableOnly?: boolean
-  /** Only the items raised before the control existed. A backend older than
-   *  28-Oct-2026 ignores it: the screen filters the rows again. */
-  preAutomationOnly?: boolean
-  /**
-   * Comma-separated types the queue does not carry. Unlike a filter, they come
-   * off the meta counts and the facets as well as the items.
-   */
-  excludeType?: string
-  /** Exception id, material number or description, or repair line. */
-  q?: string
-  page?: number
-  pageSize?: number
-}
-
-/**
- * `GET /api/i8/exceptions` — repair lines that went out with no recorded
- * condition assessment, and new units bought while a repair was open with no
- * justification on record.
- *
- * Expect this to be large. Every historical repair line raises the first kind,
- * because the control did not exist before this platform — that number is the
- * business case for W5.3, not a bug in it.
- */
-export function getExceptions(query: ExceptionQuery = {}): Promise<ApiExceptionPage> {
-  return apiFetch(`/i8/exceptions${queryString(query)}`)
-}
-
-/**
- * `GET /api/i8/exceptions/{id}` — one item, with its status, owner and history.
- *
- * For a link to one item: the queue is paged, so the item may be on any page
- * of it, or filtered off them all. An item the checks no longer raise still
- * answers while it has a history, with `stillDetected` false; an id with
- * neither is a 404.
- */
-export function getException(exceptionId: string): Promise<ApiExceptionItem> {
-  return apiFetch(`/i8/exceptions/${encodeURIComponent(exceptionId)}`)
-}
-
-/**
- * One entry of FR-11's notification log: an exception the checks found
- * actionable for the first time, logged once per exception id, for the types
- * the backend's `I8_NOTIFICATION_TYPES` names.
- *
- * Email is not sent yet (27-Oct-2026): `channel` names where it will go and
- * `emailed` is always false. The log is the list email will send.
- */
-export type ApiNotification = {
-  id: string
-  exceptionId: string
-  type: string
-  severity: string
-  title: string
-  materialId: string
-  plant: string | null
-  /** The repair line as the register keys it: `4500001719-10`, or
-   *  `PR-2000028756-10` for a repair PR. Null when the item names none;
-   *  absent on a backend older than 28-Oct-2026. */
-  repairLine?: string | null
-  /** The material's description, and the plant's name. Same story. */
-  description?: string | null
-  plantName?: string | null
-  /** ISO date-time the exception was first logged. */
-  loggedAt: string
-  channel: "EMAIL"
-  emailed: boolean
-}
-
-export type ApiNotificationsResponse = {
-  items: ApiNotification[]
-  total: number
-  page: number
-  pageSize: number
-  /** The types the log carries. */
-  types: string[]
-}
-
-export type NotificationQuery = {
-  page?: number
-  /** Default 25, at most 500. */
-  pageSize?: number
-  type?: string
-}
-
-/**
- * `GET /api/i8/notifications` — the notification log, newest first.
- *
- * Optional: absent on an older backend, which answers 404. A 404 here means
- * "this backend has no log", never "nothing was logged".
- */
-export function getNotifications(query: NotificationQuery = {}): Promise<ApiNotificationsResponse> {
-  return apiFetch(`/i8/notifications${queryString(query)}`)
-}
-
-/**
- * `POST /api/i8/exceptions/{id}/events` — append one entry to the history.
- *
- * Writes the HISTORY, never the finding: the exception itself is recomputed
- * from SAP data on every read and has no stored form to edit. Its status and
- * owner are not columns either — they are folded from this log, which is why
- * assigning, commenting and moving are one call and there is no PATCH
- * anywhere in this application.
- *
- * `ASSIGNED` with `owner: null` is an unassignment, and gets its own entry:
- * handing something back is an action, not an absence.
- *
- * Closing needs `text`: the backend answers 422 without it, because a person
- * closing an item the check may still find has to say why. Reopening does not.
- */
-export function appendExceptionEvent(
-  exceptionId: string,
-  body:
-    | { kind: "ASSIGNED"; owner: string | null }
-    | { kind: "STATUS"; status: "CLOSED"; text: string }
-    | { kind: "STATUS"; status: "OPEN"; text?: string }
-    | { kind: "COMMENT"; text: string },
-): Promise<ApiExceptionItem> {
-  return apiPost<ApiExceptionItem>(
-    `/i8/exceptions/${encodeURIComponent(exceptionId)}/events`,
-    body,
-  )
-}
-
 /** `GET /api/i8/attestations` — recorded attestations, newest first. */
 export function getAttestations(
   query: { materialId?: string; plant?: string; currentOnly?: boolean } = {},
 ): Promise<ApiAttestationResponse> {
   return apiFetch(`/i8/attestations${queryString(query)}`)
-}
-
-/**
- * `POST /api/i8/attestations` — **the only write in Initiative 8.**
- *
- * Writes one row to a table the backend owns. It does not write to SAP and
- * cannot, which is why this control can be recorded and reported but never
- * enforced.
- *
- * Attestations are never updated. To correct one, POST again with `supersedes`
- * set to the original's id: that creates a new row, leaves the original
- * readable, and the pair is the audit trail.
- *
- * **Read `coverageNote` on the result and show it.** A successful POST often
- * covers no repair line at all — see the field docs — and a UI that stays
- * silent about that looks broken.
- *
- * Throws `ApiError` with status 422 when a business rule is broken (an unknown
- * fault category, a `supersedes` pointing nowhere, a material that is not
- * 80-series or not in the repairable universe, a plant other than 1300/1500,
- * an out-of-range quantity); `detail` says what is allowed.
- */
-export function createAttestation(body: AttestationRequest): Promise<ApiAttestation> {
-  return apiFetch("/i8/attestations", {
-    method: "POST",
-    body: JSON.stringify(body),
-  })
 }
 
 /** One goods movement against a job's reservation line. Quantity as a string. */

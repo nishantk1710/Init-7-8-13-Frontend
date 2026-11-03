@@ -49,36 +49,28 @@ export const FALLBACK_RECOMMENDATIONS: readonly ApiReasonCategory[] = [
 /**
  * The faulty unit coming out, declared in the same request (option B, 27-Oct).
  * Optional: `open` false sends nothing. Quantity is kept as typed.
+ *
+ * Three fields since 3-Nov-2026: the condition text, the typed name and the
+ * evidence reference were dropped, and the declarer is the request's
+ * requester. A draft saved before then may still hold them; they are not sent.
  */
 export type DeclarationDraft = {
   open: boolean
   quantity: string
-  conditionDescription: string
   faultCategory: string
   recommendation: string
-  attestorName: string
-  evidenceReference: string
 }
 
 export const EMPTY_DECLARATION: DeclarationDraft = {
   open: false,
   quantity: "1",
-  conditionDescription: "",
   faultCategory: "",
   recommendation: "",
-  attestorName: "",
-  evidenceReference: "",
 }
 
-/**
- * Open or close the declaration. Opening it with no name typed yet fills in the
- * request's Requester, which is usually the person standing at the machine;
- * it stays editable, and a name already typed is never replaced.
- */
-export function withDeclarationOpen(d: DeclarationDraft, open: boolean, requester: string): DeclarationDraft {
-  const name = requester.trim()
-  if (!open || d.attestorName.trim() || !name) return { ...d, open }
-  return { ...d, open, attestorName: name }
+/** Open or close the declaration; what was chosen is kept either way. */
+export function withDeclarationOpen(d: DeclarationDraft, open: boolean): DeclarationDraft {
+  return { ...d, open }
 }
 
 /**
@@ -89,24 +81,18 @@ export function declarationIssues(d: DeclarationDraft | undefined): string[] {
   if (!d?.open) return []
   const issues: string[] = []
   if (parseQuantity(d.quantity) === null) issues.push("declared quantity")
-  if (!d.conditionDescription.trim()) issues.push("condition")
   if (!d.faultCategory) issues.push("fault category")
   if (!d.recommendation) issues.push("recommendation")
-  if (!d.attestorName.trim()) issues.push("your name")
   return issues
 }
 
 /** The wire form of an open declaration; undefined when none is made (or the line predates them). */
 export function declarationOf(d: DeclarationDraft | undefined): ApiLineDeclaration | undefined {
   if (!d?.open) return undefined
-  const evidence = d.evidenceReference.trim()
   return {
     quantity: parseQuantity(d.quantity) ?? 0,
-    conditionDescription: d.conditionDescription.trim(),
     faultCategory: d.faultCategory,
     recommendation: d.recommendation,
-    attestorName: d.attestorName.trim(),
-    ...(evidence ? { evidenceReference: evidence } : {}),
   }
 }
 
@@ -420,16 +406,6 @@ export function lineIssues(line: DraftLine): string[] {
     default:
       return []
   }
-}
-
-/**
- * Rows with any declaration closed: what a resumed draft holds while the
- * complete-flow switch is off (29-Oct-2026). A draft saved while it was on can
- * carry an open declaration; its section is hidden then, so the declaration
- * could neither be finished nor removed, and the backend refuses it.
- */
-export function withoutDeclarations(rows: readonly DraftLine[]): DraftLine[] {
-  return rows.map((row) => (row.kind === "i08" && row.declaration?.open ? { ...row, declaration: EMPTY_DECLARATION } : row))
 }
 
 export function isReady(line: DraftLine): boolean {

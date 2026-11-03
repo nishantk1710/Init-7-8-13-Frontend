@@ -63,17 +63,12 @@ const FLOW_SHORT: Record<string, string> = { i08: "Repairable", i13: "OAR" }
  * With Flow set to Repairable Spares the summary cards become the repairable
  * ones (followed, new unit with a reason, faulty unit declared, linked in
  * SAP); each is also a filter.
- *
- * Those cards and the Declared column belong to the I08 complete flow, and
- * show only while it is switched on (`completeFlow`, `lib/i08-features`).
- * Off, every flow gets the general cards.
  */
 export function SessionLogTable({
   sessions,
   total,
   wentAheadIds = [],
   checks = [],
-  completeFlow,
 }: {
   sessions: ApiSessionSummary[]
   total: number
@@ -81,8 +76,6 @@ export function SessionLogTable({
   wentAheadIds?: string[]
   /** The cards shown for every flow, or for OAR. */
   checks?: ComplianceCheck[]
-  /** The I08 complete-flow switch, read by the page. */
-  completeFlow: boolean
 }) {
   const [flow, setFlow] = useState<string>("all")
   const [result, setResult] = useState<string>("all")
@@ -163,7 +156,7 @@ export function SessionLogTable({
         "Department note",
         "Opened from",
         "Outcome",
-        ...(completeFlow ? ["Faulty unit declared"] : []),
+        "Faulty unit declared",
         "Linked in SAP",
       ],
       filtered.map((session) => [
@@ -181,13 +174,13 @@ export function SessionLogTable({
         session.departmentNote ?? "",
         session.origin === "BADI" ? "SAP" : "Platform",
         SESSION_OUTCOME_LABEL[sessionOutcome(session, wentAhead)],
-        ...(completeFlow ? [declaredExportCell(session)] : []),
+        declaredExportCell(session),
         reservationExportCell(session),
       ])
     )
   }
 
-  const showI08Cards = completeFlow && flow === "i08"
+  const showI08Cards = flow === "i08"
 
   return (
     <div className="flex flex-col gap-4">
@@ -305,7 +298,7 @@ export function SessionLogTable({
                 <TableHead>Plant</TableHead>
                 <TableHead>Requester · Department</TableHead>
                 <TableHead>Outcome</TableHead>
-                {completeFlow && <TableHead>Declared</TableHead>}
+                <TableHead>Declared</TableHead>
                 <TableHead>Linked in SAP</TableHead>
               </TableRow>
             </TableHeader>
@@ -353,11 +346,9 @@ export function SessionLogTable({
                     <TableCell>
                       <OutcomeChip outcome={outcome} />
                     </TableCell>
-                    {completeFlow && (
-                      <TableCell className="text-xs">
-                        <DeclaredCellView session={session} />
-                      </TableCell>
-                    )}
+                    <TableCell className="text-xs">
+                      <DeclaredCellView session={session} />
+                    </TableCell>
                     <TableCell className="text-xs">
                       <ReservationCell session={session} />
                     </TableCell>

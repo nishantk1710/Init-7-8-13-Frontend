@@ -167,13 +167,13 @@ function I08Card({
 }
 
 /**
- * Repair requests with no PO yet. No vendor and no due date exist until the
- * PO does, so the line says who asked and how long ago instead.
+ * PRs raised for repair with no PO yet. No vendor and no due date exist until
+ * the PO does, so the line says who raised it and how long ago instead.
  */
 function RequestLines({ requests }: { requests: I08OpenRepairRequest[] }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <SectionLabel>Requested, not yet ordered</SectionLabel>
+      <SectionLabel>PR raised, no PO yet</SectionLabel>
       <ul className="flex flex-col gap-1.5 pl-5">
         {requests.map((request) => {
           const department = requestDepartmentText(request)

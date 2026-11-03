@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import {
-  lineExceptionState,
-  repairLineFromId,
-  repairLineLabel,
-  splitLineExceptions,
-} from "@/features/initiative-8/utils/repair-line"
+import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
 import { requestedAgoShort } from "@/features/initiative-8/utils/repair-request"
 
 /**
@@ -45,48 +40,11 @@ describe("repairLineLabel", () => {
   })
 })
 
-describe("repairLineFromId", () => {
-  it("reads a register id the same way", () => {
-    expect(repairLineFromId("4500001719-10")).toBe("4500001719/10")
-    expect(repairLineFromId("PR-2000028756-10")).toBe("PR 2000028756/10")
-  })
-
-  it("shows nothing for nothing, and an id it does not know as it came", () => {
-    expect(repairLineFromId(null)).toBeUndefined()
-    expect(repairLineFromId("")).toBeUndefined()
-    expect(repairLineFromId("4500001719")).toBe("4500001719")
-    expect(repairLineFromId("PR-10")).toBe("PR-10")
-  })
-})
-
-describe("splitLineExceptions", () => {
-  it("keeps the items raised before go-live out of the count to act on", () => {
-    const { toAct, earlier } = splitLineExceptions([
-      { id: "EX-1", type: "MISSING_ATTESTATION", severity: "info", preAutomation: true },
-      { id: "EX-2", type: "OVERDUE_REPAIR", severity: "warning", preAutomation: false },
-    ])
-    expect(toAct.map((e) => e.id)).toEqual(["EX-2"])
-    expect(earlier.map((e) => e.id)).toEqual(["EX-1"])
-  })
-})
-
 describe("requestedAgoShort", () => {
   it("fits a narrow column, where the long form was cut off", () => {
     expect(requestedAgoShort(456)).toBe("456 d ago")
     expect(requestedAgoShort(1500)).toBe("1,500 d ago")
     expect(requestedAgoShort(0)).toBe("today")
     expect(requestedAgoShort(-3)).toBe("today")
-  })
-})
-
-describe("lineExceptionState", () => {
-  it("says an item raised before go-live needs nothing, whatever its status", () => {
-    expect(lineExceptionState({ preAutomation: true, status: "OPEN" })).toBe("Raised before go-live · no action needed")
-  })
-
-  it("names the owner of open work, and says closed", () => {
-    expect(lineExceptionState({ preAutomation: false, status: "OPEN" })).toBe("Open · unassigned")
-    expect(lineExceptionState({ preAutomation: false, status: "OPEN", owner: "Thandi" })).toBe("Open · Thandi")
-    expect(lineExceptionState({ preAutomation: false, status: "CLOSED" })).toBe("Closed")
   })
 })

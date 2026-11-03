@@ -4,13 +4,13 @@ import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
   ALL,
   NO_OVERVIEW_FILTERS,
-  declarationCounts,
+  daysPastExpected,
+  departmentOptions,
   filterOverview,
-  openExceptionCounts,
-  openExceptionSummary,
   openLinesByVendor,
   overviewPdfTitle,
   repairStatusBuckets,
+  stageAging,
   stockByPlant,
   stockLines,
   summariseOverview,
@@ -110,66 +110,6 @@ describe("stockLines", () => {
   })
 })
 
-describe("declarationCounts", () => {
-  it("counts only Required as waiting, and the Historical lines apart", () => {
-    // The card said 104 not declared while the queue said 0 waiting: it counted
-    // every line not Completed, Historical ones included.
-    const counts = declarationCounts([
-      chain({ declarationStatus: "Historical" }),
-      chain({ declarationStatus: "Historical" }),
-      chain({ declarationStatus: "Required" }),
-      chain({ declarationStatus: "Flagged" }),
-      chain({ declarationStatus: "Completed" }),
-    ])
-    expect(counts).toEqual({ required: 1, historical: 2, flagged: 1 })
-  })
-})
-
-describe("openExceptionCounts", () => {
-  const po = chain({ id: "4500001719-10" })
-  const otherPlant = chain({ id: "4500009999-10", plant: { plantId: "1500", name: "Gamsberg" } })
-  const pr = chain({ id: "PR-2000028756-10", lineKind: "PR", repairStatus: "PR Raised" })
-  const known = new Set([po.id, otherPlant.id, pr.id])
-  const items = [
-    { repairId: po.id, type: "OVERDUE_REPAIR", plantId: "1300" },
-    { repairId: otherPlant.id, type: "OVERDUE_REPAIR", plantId: "1500" },
-    { repairId: pr.id, type: "UNJUSTIFIED_ACQUISITION", plantId: "1300" },
-    // A part declared repairable with no repair PR since: on no line.
-    { repairId: undefined, type: "DECLARED_NO_REPAIR_PR", plantId: "1300" },
-    { repairId: "4500000001-10", type: "DECLARED_NO_REPAIR_PR", plantId: "1500" },
-  ]
-
-  it("counts every open item the queue lists, unfiltered", () => {
-    const counts = openExceptionCounts([po, otherPlant, pr], known, items, NO_OVERVIEW_FILTERS)
-    expect(counts.total).toBe(5)
-    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 2, UNJUSTIFIED_ACQUISITION: 1, DECLARED_NO_REPAIR_PR: 2 })
-  })
-
-  it("narrows items on a line by the slice, and items on no line by plant", () => {
-    const counts = openExceptionCounts([po, pr], known, items, { ...NO_OVERVIEW_FILTERS, plant: "1300" })
-    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 1, UNJUSTIFIED_ACQUISITION: 1, DECLARED_NO_REPAIR_PR: 1 })
-  })
-
-  it("leaves items on no line out under a vendor or criticality filter, which they cannot match", () => {
-    const counts = openExceptionCounts([po], known, items, { ...NO_OVERVIEW_FILTERS, vendor: "Some vendor" })
-    expect(counts.byType).toEqual({ OVERDUE_REPAIR: 1 })
-  })
-})
-
-describe("openExceptionSummary", () => {
-  const count = (n: number) => n.toLocaleString("en-US")
-
-  it("names every open type with its count, most first", () => {
-    expect(
-      openExceptionSummary({ REPAIRED_AGAINST_ASSESSMENT: 1, OVERDUE_REPAIR: 104, DECLARED_NO_REPAIR_PR: 4 }, count),
-    ).toBe("104 overdue · 4 no repair PR · 1 against the assessment")
-  })
-
-  it("names a type this build does not know by the queue's label, and skips empty ones", () => {
-    expect(openExceptionSummary({ SOMETHING_NEW: 2, OVERDUE_REPAIR: 0 }, count)).toBe("2 something new")
-  })
-})
-
 describe("openLinesByVendor", () => {
   it("counts open lines only, grouping lines with no vendor", () => {
     const result = openLinesByVendor([
@@ -256,6 +196,7 @@ describe("filterOverview", () => {
       plant: { plantId: "1300", name: "Black Mountain Mining" },
       vendor: "400995",
       criticality: "CRITICAL",
+      requester: "10316",
     }),
   ]
   const universe = [
@@ -279,19 +220,79 @@ describe("filterOverview", () => {
     expect(slice.universe).toHaveLength(3)
   })
 
-  it("narrows both by criticality", () => {
-    const slice = filterOverview(chains, universe, {
-      ...NO_OVERVIEW_FILTERS,
-      criticality: "CRITICAL",
-    })
+  it("narrows the repair lines by department, and leaves the universe alone", () => {
+    // A material is not raised by a department: only its repairs are.
+    const slice = filterOverview(chains, universe, { ...NO_OVERVIEW_FILTERS, department: "10316" })
     expect(slice.chains.map((c) => c.id)).toEqual(["c"])
-    expect(slice.universe).toHaveLength(1)
+    expect(slice.universe).toHaveLength(3)
   })
 
   it("keeps everything when nothing is filtered", () => {
     const slice = filterOverview(chains, universe, NO_OVERVIEW_FILTERS)
     expect(slice.chains).toHaveLength(3)
     expect(slice.universe).toHaveLength(3)
+  })
+})
+
+describe("departmentOptions", () => {
+  it("lists each department once, in code order, named when the list knows it", () => {
+    expect(
+      departmentOptions([
+        chain({ requester: "10316", requesterName: "Mining" }),
+        chain({ requester: "10201" }),
+        chain({ requester: "10316" }),
+        chain({ requester: undefined }),
+      ]),
+    ).toEqual([
+      { value: "10201", label: "10201" },
+      { value: "10316", label: "10316 · Mining" },
+    ])
+  })
+})
+
+describe("stageAging", () => {
+  const bands = ["0-15", "16-30", "31-45", "46-60", "60+"]
+
+  it("puts the PRs raised with no PO yet first, by days since the PR", () => {
+    const aging = stageAging(
+      [chain({ daysInCurrentStage: 40 }), chain({ repairStatus: "At Vendor", daysInCurrentStage: 3 })],
+      bands,
+      [chain({ lineKind: "PR", repairStatus: "PR Raised", overdueStatus: "NOT_ORDERED", daysInCurrentStage: 20 })],
+    )
+    expect(aging.rows).toEqual([
+      { stage: "PR Raised", cells: [0, 1, 0, 0, 0] },
+      { stage: "PO Issued", cells: [0, 0, 1, 0, 0] },
+      { stage: "At Vendor", cells: [1, 0, 0, 0, 0] },
+    ])
+  })
+
+  it("counts the PO lines past their expected return by days past it, and never a PR", () => {
+    const aging = stageAging(
+      [
+        chain({ daysRemainingInRepair: -5 }),
+        chain({ daysRemainingInRepair: -90 }),
+        // Not past it yet, and no date at all: neither is late.
+        chain({ daysRemainingInRepair: 12 }),
+        chain({ daysRemainingInRepair: undefined }),
+      ],
+      bands,
+      [chain({ lineKind: "PR", repairStatus: "PR Raised", daysRemainingInRepair: -30 })],
+    )
+    expect(aging.late).toEqual([1, 0, 0, 0, 1])
+  })
+
+  it("has no late row with no PO line to be late", () => {
+    const aging = stageAging([], bands, [chain({ lineKind: "PR", repairStatus: "PR Raised", daysInCurrentStage: 2 })])
+    expect(aging.late).toBeNull()
+    expect(aging.rows.map((row) => row.stage)).toEqual(["PR Raised"])
+  })
+})
+
+describe("daysPastExpected", () => {
+  it("is the days past the expected return, and nothing until the date has passed", () => {
+    expect(daysPastExpected({ daysRemainingInRepair: -61 })).toBe(61)
+    expect(daysPastExpected({ daysRemainingInRepair: 0 })).toBeUndefined()
+    expect(daysPastExpected({ daysRemainingInRepair: undefined })).toBeUndefined()
   })
 })
 

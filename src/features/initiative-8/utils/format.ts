@@ -123,12 +123,13 @@ export function plural(count: number, one: string, many = `${one}s`): string {
 }
 
 /**
- * "PR Raised" reads "Repair requested" since 27-Oct-2026: it is the stage of a
- * repair asked for on a purchase requisition with no PO yet, and "PR raised"
- * meant nothing to the stores and maintenance people who raise them.
+ * "PR Raised" reads "PR raised": the stage of a repair asked for on a purchase
+ * requisition with no PO yet. It read "Repair requested" from 27-Oct-2026; the
+ * business asked for SAP's own term back on 3-Nov-2026, the one the stores and
+ * maintenance people know.
  */
 const STAGES: Record<string, string> = {
-  "PR Raised": "Repair requested",
+  "PR Raised": "PR raised",
   "PO Issued": "PO issued",
   "At Vendor": "At vendor",
   Received: "Received",
@@ -136,7 +137,7 @@ const STAGES: Record<string, string> = {
 }
 
 /** A repair stage in sentence case: "PO Issued" -> "PO issued", "PR Raised" ->
- *  "Repair requested". */
+ *  "PR raised". */
 export function stageLabel(status: string | null | undefined): string {
   return status ? (STAGES[status] ?? status) : "—"
 }

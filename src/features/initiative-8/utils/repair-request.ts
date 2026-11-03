@@ -16,16 +16,16 @@ import { OVERDUE_STATUS_LABEL } from "@/features/initiative-8/utils/status"
 /** What a PR row says where a PO row names its vendor or due-date state. */
 export const NO_PO_YET = OVERDUE_STATUS_LABEL.NOT_ORDERED
 
-/** The stage of a PR row, in words: "Repair requested". */
+/** The stage of a PR row, in words: "PR raised". */
 export const REPAIR_REQUESTED = stageLabel("PR Raised")
 
-/** The stage of a PR row where a table column is narrow: "Requested". */
-export const REPAIR_REQUESTED_SHORT = "Requested"
+/** The stage of a PR row where a table column is narrow: "PR raised". */
+export const REPAIR_REQUESTED_SHORT = "PR raised"
 
-/** "requested today", "requested 1 day ago", "requested 12 days ago". */
+/** "raised today", "raised 1 day ago", "raised 12 days ago". */
 export function requestedAgo(days: number): string {
-  if (days <= 0) return "requested today"
-  return `requested ${days.toLocaleString("en-US")} ${days === 1 ? "day" : "days"} ago`
+  if (days <= 0) return "raised today"
+  return `raised ${days.toLocaleString("en-US")} ${days === 1 ? "day" : "days"} ago`
 }
 
 /** The same in a narrow column, where the long form was cut off: "today",
@@ -47,7 +47,7 @@ export function requesterText(chain: Pick<RepairChain, "requester" | "requesterN
 
 /**
  * The repair page's banner on a PR row:
- * `No PO yet. Repair requested 12 days ago by department 10305 (Engineering).`
+ * `No PO yet. PR raised 12 days ago by department 10305 (Engineering).`
  * Split so the page can set the first sentence in bold.
  */
 export function repairRequestBanner(
@@ -56,12 +56,12 @@ export function repairRequestBanner(
   const by = chain.requester
     ? ` by department ${chain.requester}${chain.requesterName ? ` (${chain.requesterName})` : ""}`
     : ""
-  return { lead: `${NO_PO_YET}.`, rest: `Repair ${requestedAgo(chain.daysOpen)}${by}.` }
+  return { lead: `${NO_PO_YET}.`, rest: `PR ${requestedAgo(chain.daysOpen)}${by}.` }
 }
 
 /**
- * The muted note beside a count of PO lines, saying how many repairs are
- * requested with no PO yet: `+3 repairs requested, no PO yet`.
+ * The muted note beside a count of PO lines, saying how many PRs are raised
+ * for repair with no PO yet: `+3 PRs raised, no PO yet`.
  *
  * Undefined -- no note -- unless the backend serves PR rows (its
  * `repairRequestsEnabled` switch) AND counted at least one. An older backend
@@ -69,6 +69,6 @@ export function repairRequestBanner(
  */
 export function repairRequestsNote(enabled: boolean, openRepairRequests: number | undefined): string | undefined {
   if (!enabled || openRepairRequests === undefined || openRepairRequests <= 0) return undefined
-  const noun = openRepairRequests === 1 ? "repair" : "repairs"
-  return `+${openRepairRequests.toLocaleString("en-US")} ${noun} requested, no PO yet`
+  const noun = openRepairRequests === 1 ? "PR" : "PRs"
+  return `+${openRepairRequests.toLocaleString("en-US")} ${noun} raised, no PO yet`
 }

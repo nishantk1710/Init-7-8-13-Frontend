@@ -597,7 +597,7 @@ export function i08ShownFigures(facts: unknown): ShownFigure[] {
   )
   figures.push({
     key: "requested",
-    label: "Requested, no PO yet",
+    label: "PR raised, no PO yet",
     value: String(repairRequestCountOf(f)),
     empty: "0",
     note: oldest !== null && oldest > 0 ? `oldest ${requestAgePhrase(oldest)}` : null,

@@ -69,14 +69,12 @@ export type PreviewResponse = {
  * The faulty unit coming out, declared with the request (option B, 27-Oct).
  * Recorded server-side as an unbound declaration for the line's session.
  */
+/** Three fields since 3-Nov-2026: the backend records who declared from the
+ *  requester, and no longer takes a condition text or evidence reference. */
 export type ApiLineDeclaration = {
   quantity: number
-  conditionDescription: string
   faultCategory: string
   recommendation: string
-  /** Typed, not a sign-in. */
-  attestorName: string
-  evidenceReference?: string | null
 }
 
 // --- create -------------------------------------------------------------------

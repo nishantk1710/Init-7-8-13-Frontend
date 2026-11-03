@@ -18,8 +18,9 @@ import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
  * A server component that fetches one page of the register for the filters in
  * the URL; `RepairRegisterTable` draws it and writes the URL when a filter
  * changes. `?q=`, `?plant=`, `?vendor=`, `?repairStatus=`, `?overdue=`,
- * `?criticality=`, `?declarationStatus=`, `?aging=`, `?exceptions=` and
- * `?page=` are read here, and the backend searches, filters, counts and pages.
+ * `?criticality=`, `?declarationStatus=`, `?aging=`, `?stageAging=`,
+ * `?lateAging=`, `?department=`, `?view=` and `?page=` are read here, and the
+ * backend searches, filters, counts and pages.
  *
  * Until 18-Oct-2026 it loaded all 5,063 lines and the whole exception queue
  * and filtered them in the browser: a 35 MB page that took 27 seconds, and
@@ -98,10 +99,7 @@ export async function RepairRegisterPage({
       filters={filters}
       viewCounts={data.viewCounts}
       sourceLoadedAt={data.sourceLoadedAt}
-      // Repair PRs are part of the I08 complete flow: off, none are listed,
-      // counted or explained, whatever the PR-rows rule says.
-      repairRequestsEnabled={data.completeFlowEnabled && data.repairRequestsEnabled}
-      completeFlow={data.completeFlowEnabled}
+      repairRequestsEnabled={data.repairRequestsEnabled}
     />
   )
 }

@@ -4,26 +4,27 @@ The live UI for Initiative 08, *Refurbishable Spares Tracking Automation in
 SAP*, scored against **FRS v1.2 (21-Sep-2026)**. Every screen in this module
 reads the Python backend (`/api/i8/*`, plus `/api/justifications`) with no
 fixture fallback. A failed request is shown as a failure, never as an empty
-result. Nothing here writes to SAP. The one write is the condition
-attestation, which goes to a table the platform owns.
+result. Nothing here writes to SAP, and since 3-Nov-2026 nothing here
+writes at all: a condition declaration is made in the reservation assistant
+only, which records it in a table the platform owns.
 
 ## Pages
 
 Routes live in `src/app/(live)/repairable-spares/**`. Each route wrapper
-imports and renders a page from `pages/`, except Repair Declarations, Repair
-Exceptions and Justifications, whose route files are the pages.
+imports and renders a page from `pages/`, except Repair Declarations and
+Justifications, whose route files are the pages.
 
 | Route | Page | FRS | Reads |
 |---|---|---|---|
-| `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-10 | register, universe, declaration and exception meta (`data/live-overview.ts`) |
-| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-7, FR-9, FR-10 | `GET /api/i8/register`, one page at a time, and `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
-| `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4, FR-7 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); the attestation form (`components/declare-condition-button.tsx`, `GET`/`POST /api/i8/attestations`) |
-| `/repairable-spares/declarations` | route file itself | FR-4 | `GET /api/i8/declarations`, one page at a time, and the log from `GET /api/i8/attestations` (`data/live-declarations.ts`) |
-| `/repairable-spares/exceptions` | route file itself | FR-8, FR-9, FR-11 | `GET /api/i8/exceptions`, one page at a time, and `GET /api/i8/exceptions/{id}` for a linked item (`data/live-exceptions.ts`) |
+| `/repairable-spares` | `pages/overview-page.tsx` | FR-1, FR-9, FR-10 | the register, its PO lines and its PR rows kept apart, and the universe (`data/live-overview.ts`) |
+| `/repairable-spares/repair-register` | `pages/repair-register-page.tsx` | FR-3, FR-4, FR-9, FR-10 | `GET /api/i8/register`, one page at a time, and `GET /api/i8/snapshot` for aging bands (`data/live-register.ts`) |
+| `/repairable-spares/repair-register/[id]` | `pages/repair-detail-page.tsx` | FR-3, FR-4 | `GET /api/i8/register/{doc}/{item}` (`data/live-repair-detail.ts`); read only |
+| `/repairable-spares/declarations` | route file itself | FR-4 | the declaration log, `GET /api/i8/attestations` (`data/live-declarations.ts`); a log only |
 | `/repairable-spares/coding-candidates` | `pages/coding-candidates-page.tsx` | FR-2 | `GET /api/i8/coding-candidates` (`data/live-coding-candidates.ts`) |
 | `/repairable-spares/justifications` | route file itself | FR-7 | `GET /api/justifications?kind=NEW_ACQUISITION`, one page at a time (`data/live-justifications.ts`) |
 
-The navigation for these lives in `manifest.ts`.
+The navigation for these lives in `manifest.ts`. `/repairable-spares/exceptions`
+redirects to the register: the exception queue was removed on 3-Nov-2026.
 
 ### Paging
 
@@ -31,8 +32,8 @@ The long lists draw 25 rows a page (`DEFAULT_PAGE_SIZE`, with
 `components/shared/table-pagination.tsx`). Until 18-Oct-2026 the register and
 the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
 
-- **Paged on the server:** the Repair Register, Repair Declarations, Repair
-  Exceptions and Justifications. The filters and the page live in the URL
+- **Paged on the server:** the Repair Register and Justifications. The
+  filters and the page live in the URL
   (`?q=`, `?plant=`, `?page=` and so on), and the backend searches, filters,
   counts and pages. The dropdown values come back as `facets`, because one
   page of rows cannot supply them. The controls are in
@@ -45,9 +46,7 @@ the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
   Since 21-Oct-2026 lines on a request for quotation (EKKO.BSART `AN`) are left
   out too, as `excludedRfqLines`: an RFQ orders nothing, and SAP never closes
   one, so it used to sit in the register as open with a quantity of 0.
-  Each line arrives with its exceptions, so the screen does not load the whole
-  exception queue to fill one column.
-- **Not paged:** the Overview, whose charts describe every line
+- **Not paged:** the Overview, whose figures describe every line
   (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
   fills in verdicts while you watch); the declaration log (six rows); and the
   repair detail page, which has no table.
@@ -62,17 +61,20 @@ the workspace):
   the detail page.
 - **Columns run from what a repair is doing to reference data.** Criticality,
   SOH, ROP, Repair PR and Repair PO are last. The CSV follows the same order.
-- **The queues are screens of their own again.** The Declaration and
-  Exception queues were folded into the register on 08-Oct-2026 and came back
-  on 12-Oct, after the FRS audit. The register tells you the state of one
-  line, but FR-4, FR-8, FR-9 and FR-11 ask what is outstanding across all of
-  them (see `manifest.ts`). Each register line still shows its declaration
-  status and its findings, and links to both queues.
-- **Justifications on the line, and on their own screen.** Each line shows
-  its justification (Recorded, Missing, Not asked, or a dash), with the full
-  reason on the detail page. The Justifications screen keeps the whole log,
-  because most reasons belong to no repair line: FR-5 asks for one when a unit
-  is on the shelf, or removed and not yet sent for repair.
+- **Optional columns behind the "+".** Quantity, criticality, Repair PR and
+  Repair PO are added from the "+" at the end of the header row, pinned to
+  its right edge (3-Nov-2026; it was a "Columns" button above the table).
+- **No queues.** The Declaration and Exception queues were folded into the
+  register on 08-Oct-2026 and came back on 12-Oct. Since 3-Nov-2026 a part is
+  declared in the reservation assistant when it is reserved, so the
+  Declarations screen is a log and the exception queue is gone. Each register
+  line still shows its declaration status, and an overdue repair says so
+  under its expected date.
+- **Justifications on their own screen only.** Since 3-Nov-2026 neither the
+  register, its export nor the repair page shows one. The Justifications
+  screen keeps the whole log, because most reasons belong to no repair line:
+  FR-5 asks for one when a unit is on the shelf, or removed and not yet sent
+  for repair.
 
 ### What is deliberately not here
 
@@ -98,27 +100,48 @@ flag (`I08_Delivery_Completed_Plan.md` in the workspace):
 
 - **No closed lines, no goods receipts.** Every line is open in SAP, so there
   is no partial-receipt mark, no "Blocked in SAP" badge and no "open repairs
-  only" filter on the Exceptions screen.
+  only" filter.
 - **No vendor turnaround.** The Register's Turnaround column, the detail
   page's Turnaround figure and the Overview's Vendor turnaround card are gone.
   The figure was dispatch to goods receipt over closed repairs, and stores
   post most 541s on the day of the receipt, so it measured posting practice.
 
+Removed on 3-Nov-2026, once the complete flow was approved:
+
+- **No exception queue.** The Repair Exceptions page, its seven checks and its
+  notification log; the register's Exceptions column, quick view, filter and
+  export column; the repair page's exceptions card. The backend keeps the
+  tables the queue wrote to.
+- **No declaring outside the assistant.** No "Declare a part", Declare or
+  Amend buttons. The assistant's form asks for quantity, fault and
+  recommendation; the declarer is the signed-in requester.
+- **No complete-flow switch.** `I8_COMPLETE_FLOW_ENABLED` and
+  `lib/i08-features.ts` are gone, and what the switch gated is always on.
+- **On the Overview:** no "Where the repairs are" vendor list (a repair PO
+  names who the repair is ordered from, not where the unit is), no "Not
+  declared" or "Open exceptions" card, no criticality filter (department
+  instead; the register keeps criticality) and no "all open lines, days open"
+  row, which repeated the PO-issued row. "PR raised, no PO" is a card, and
+  the waiting table's last row is days past the expected return.
+- **"Repair requested" now reads "PR raised"**, on these screens and in the
+  assistant.
+
 ## Types and helpers
 
 - `types/repair.ts` holds the domain types. `RepairStatus` is
-  `PR Raised | PO Issued | At Vendor | Received | Closed`. Live lines are
-  `PO Issued` or `At Vendor` only; `Received` and `Closed` stay for the
-  scenario fixtures. `PR Raised` is not emitted today but stays, because FRS
-  acceptance criterion 3 counts open repair PR lines. `DeclarationStatus` is
-  `Required | Completed | Flagged`; `Flagged` means the attestation did *not*
-  find the part repairable and it went for repair anyway.
+  `PR Raised | PO Issued | At Vendor | Received | Closed`. Live PO lines are
+  `PO Issued` or `At Vendor`; `PR Raised` is a PR raised for repair with no PO
+  yet (a PR row, served since 27-Oct-2026), shown as "PR raised". `Received`
+  and `Closed` stay for the scenario fixtures. `DeclarationStatus` is
+  `Required | Completed | Flagged | Historical`; `Flagged` means the
+  declaration did *not* find the part repairable and it went for repair
+  anyway, and `Historical` that the line was raised before declarations began.
 - `utils/status.ts` holds the tone maps, the status orders, and the overdue
-  and lead-time helpers.
+  and lead-time helpers; `utils/declaration.ts` how a declaration status reads.
+- `utils/overview-view.ts` holds the Overview's filters and figures, among
+  them the waiting table (`stageAging`).
 - `utils/register-view.ts` holds the register's CSV export. The CSV is built
   from every line the filters match, not from the page on screen.
-- `utils/attestation.ts` holds the attestation form's rules (conditions,
-  recommendation mapping, quantity parsing).
 - `lib/api/i8.ts` (outside this folder) is the typed client and wire
   shapes.
 
@@ -143,5 +166,5 @@ not. It waits on agreement with the Initiative 7 owner (discard review
 
 ## Tests
 
-`npm test` runs the adapter and helper tests: `data/*.test.ts`,
-`utils/status.test.ts` and `utils/attestation.test.ts`.
+`npm test` runs the adapter and helper tests: `data/*.test.ts` and
+`utils/*.test.ts`.
