@@ -3,6 +3,7 @@
 // The backend sends decimals as strings and "not available" as null. These helpers turn them into what the
 // Overview's own components take, and never turn a missing figure into 0.
 
+import { formatSignedAmount } from "@/lib/utils"
 import type {
   ApiActivityRow,
   ApiAdoptionQuarter,
@@ -94,6 +95,8 @@ export const KPI_ORDER = [
   "excess_inventory_opportunity",
   "working_capital_impact",
   "approved",
+  "oar_recommendations",
+  "min_max_conversion",
   "pending_approval", // carried only by reports saved before the card became Approved
 ] as const
 
@@ -111,9 +114,8 @@ export function kpiValueText(card: ApiKpiCard): string {
   if (card.status !== "AVAILABLE" || value === null) return "Not available"
   const isMoney = card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact"
   if (!isMoney) return value.toLocaleString("en-US", { maximumFractionDigits: 0 })
-  // From a million up it is "−2,397.30M" as ever; below that, "1.2K" or the plain amount, so a small figure is not "0.00M".
   const currency = card.unit.startsWith("amount") ? null : card.unit
-  return compactMoney(value, currency, card.key === "working_capital_impact")
+  return moneyExact(value, currency, card.key === "working_capital_impact")
 }
 
 // --- How a card reads on the page ---------------------------------------------------------------------
@@ -127,6 +129,8 @@ const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
   critical_stockout_risk: { title: "High Stockout Risk", caption: "Stock below what the lead time needs" },
   excess_inventory_opportunity: { caption: "Stock above the recommended maximum · estimate" },
   working_capital_impact: { caption: "Cash released (+) or tied up (−) · estimate" },
+  oar_recommendations: { caption: "Records for OAR material-plants, not materials" },
+  min_max_conversion: { caption: "OAR material-plants eligible to convert" },
   approved: { caption: "Approved so far · approval, not SAP adoption" },
   pending_approval: { caption: "Waiting for an approver's decision" },
 }
@@ -175,34 +179,12 @@ export function seriesGaps(points: TrendPoint[], key: "stockout" | "excessOpport
   return points.filter((point) => point[key] === null).map((point) => point.label)
 }
 
-/** "−2,397.30M", "+1.20M": money in millions with its sign, as the Overview's card shows it. */
-export function millions(value: number | null, currency: string | null, signed = false): string {
+/** Money as a figure: the exact amount with its sign and currency, in whole units with comma grouping ("−ZAR 103,950",
+ * "+ZAR 12,500,000"), or "—" when it was not measured. Never abbreviated to "M" or "K": an abbreviated amount is a rounded one. A
+ * currency that is not stated has no prefix. Charts use it too, for their labels and tooltips. */
+export function moneyExact(value: number | null, currency: string | null, signed = false): string {
   if (value === null) return "—"
-  const sign = value < 0 ? "−" : signed && value > 0 ? "+" : ""
-  const prefix = currency ? `${currency} ` : ""
-  return `${sign}${prefix}${(Math.abs(value) / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
-}
-
-/** Money with its sign in the unit that reads best: "−2,397.30M", "+1.20M" from a million up, then "1.2K", then the plain
- * amount -- so a small figure is not shown as "0.00M". The trends use it; the cards keep `millions`. */
-export function compactMoney(value: number | null, currency: string | null, signed = false): string {
-  if (value === null) return "—"
-  const abs = Math.abs(value)
-  const thousands = abs / 1_000
-  if (thousands >= 999.95) return millions(value, currency, signed) // 999.96K reads as 1,000K; call it 1.00M
-  const sign = value < 0 ? "−" : signed && value > 0 ? "+" : ""
-  const prefix = currency ? `${currency} ` : ""
-  if (thousands >= 1) return `${sign}${prefix}${thousands.toLocaleString("en-US", { maximumFractionDigits: 1 })}K`
-  return `${sign}${prefix}${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
-}
-
-/** A money axis tick: "−2M", "1.5K", "250" -- short, and never "0M" for every tick of a small series. */
-export function axisMoney(value: number): string {
-  const abs = Math.abs(value)
-  const sign = value < 0 ? "−" : ""
-  if (abs >= 1_000_000) return `${sign}${+(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `${sign}${+(abs / 1_000).toFixed(1)}K`
-  return `${sign}${Math.round(abs)}`
+  return formatSignedAmount(value, currency ? `${currency} ` : "", signed)
 }
 
 /** What a month's row says about how it was measured, in a few words. */

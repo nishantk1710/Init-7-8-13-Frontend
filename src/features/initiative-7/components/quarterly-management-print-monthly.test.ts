@@ -243,6 +243,14 @@ describe("a monthly PDF", () => {
     expect(out).toContain("SAP implementation has no monthly series.")
   })
 
+  it("prints an amount under a million in full, not rounded to millions", () => {
+    const small = figures({ excess_opportunity: "103950.00", net_rop_value_impact: "-8442.00" })
+    const out = html(management({ position: small, plant_positions: [{ plant: null, figures: small }] }))
+    expect(out).toContain("ZAR 103,950")
+    expect(out).toContain("−ZAR 8,442")
+    expect(out).not.toContain("0.10M")
+  })
+
   it("prints the approval stages apart from SAP adoption, with no adoption rate until SAP has evidence", () => {
     const out = html(management())
     expect(out).toContain("Approval Status")

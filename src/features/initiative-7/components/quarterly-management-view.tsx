@@ -12,7 +12,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Clock, Info, Layers, Search, Wallet } from "lucide-react"
+import { AlertTriangle, ArrowLeftRight, Boxes, CheckCircle2, ClipboardList, Clock, Info, Layers, Repeat, Search, Wallet } from "lucide-react"
 
 import { ChartCard } from "@/components/shared/chart-card"
 import type { InfoTone } from "@/components/shared/info-popup"
@@ -35,6 +35,7 @@ import {
   KpiGuide,
   PerspectiveTag,
 } from "@/features/initiative-7/components/monthly-report-sections"
+import { MinMaxConversionDialog } from "@/features/initiative-7/components/min-max-conversion-dialog"
 import { PerformanceTrends } from "@/features/initiative-7/components/performance-trends-section"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { MonthlyTrends, QuarterEndCard } from "@/features/initiative-7/components/quarterly-trends-section"
@@ -133,13 +134,15 @@ const CARD_LOOK: Record<string, { icon: ReactNode; tone: InfoTone }> = {
   working_capital_impact: { icon: <Wallet className="size-3.5" />, tone: "success" },
   pending_approval: { icon: <Clock className="size-3.5" />, tone: "warning" },
   approved: { icon: <CheckCircle2 className="size-3.5" />, tone: "success" },
+  oar_recommendations: { icon: <Repeat className="size-3.5" />, tone: "info" },
+  min_max_conversion: { icon: <ArrowLeftRight className="size-3.5" />, tone: "success" },
 }
 
 /** One card, drawn as the Overview draws its own, without the (i): the figure, one plain line, and what it covers. What
  * a reader must not miss stays on the card: when a figure is not available it says why, and a figure worked out from
  * current data (rather than a saved month-end snapshot) says so. The report's longer explanation and notes for the card
  * are in the PDF and the Excel. */
-function ManagementKpiCard({ card }: { card: ApiKpiCard }) {
+function ManagementKpiCard({ card, onOpen }: { card: ApiKpiCard; onOpen?: () => void }) {
   const available = card.status === "AVAILABLE" && num(card.value) !== null
   const look = CARD_LOOK[card.key] ?? { icon: <Info className="size-3.5" />, tone: "info" as const }
   const title = cardTitle(card)
@@ -150,7 +153,7 @@ function ManagementKpiCard({ card }: { card: ApiKpiCard }) {
   const covers =
     card.denominator !== null ? ` · of ${formatCount(card.denominator)} ${card.denominator_label ?? ""}`.trimEnd() : ""
   const measuredNow = available && card.kind === "MEASUREMENT" && card.basis === "current_calculation"
-  return (
+  const body = (
     <PortfolioKpiCard
       title={title}
       icon={look.icon}
@@ -168,7 +171,28 @@ function ManagementKpiCard({ card }: { card: ApiKpiCard }) {
       {!available && card.unavailable_reason && (
         <span className="text-xs leading-relaxed text-warning">{card.unavailable_reason}</span>
       )}
+      {onOpen && available && <span className="text-xs font-medium text-action">Click to see the materials</span>}
     </PortfolioKpiCard>
+  )
+  if (!onOpen) return body
+  // A card that opens the list of materials behind its number: a button in behaviour, still the Overview's card to look at.
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-haspopup="dialog"
+      aria-label={`${title}: show the materials`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
+      className="cursor-pointer rounded-xl focus-visible:ring-2 focus-visible:ring-action/40 focus-visible:outline-none"
+    >
+      {body}
+    </div>
   )
 }
 
@@ -668,6 +692,7 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
   const staleReason = `${stockout.stale_note ?? "The stockout usage has not been built, so nothing can be judged."} This is not zero risk: it was not measured for the period.`
   const positions = plantPositionsOf(management)
   const adoption = adoptionSummaryOf(management.adoption)
+  const [minMaxOpen, setMinMaxOpen] = useState(false)
 
   return (
     <>
@@ -676,10 +701,17 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
       {/* --- Cards: each says what kind of figure it is, when it was measured and over what --------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {orderedKpis(management.kpis).map((card) => (
-          <ManagementKpiCard key={card.key} card={card} />
+          <ManagementKpiCard key={card.key} card={card} onOpen={card.key === "min_max_conversion" ? () => setMinMaxOpen(true) : undefined} />
         ))}
       </div>
       <KpiGuide cards={management.kpis} />
+      <MinMaxConversionDialog
+        open={minMaxOpen}
+        onOpenChange={setMinMaxOpen}
+        generatedFrom={`${report.metadata.period_start}T00:00:00`}
+        generatedTo={`${dayAfter(report.metadata.period_end)}T00:00:00`}
+        periodLabel={report.metadata.quarter}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* --- What happened, month by month ------------------------------------------------------- */}

@@ -181,6 +181,8 @@ const MATERIALS_PAGE_SIZE = 5
 const PDF_MATERIALS_SIZE = 50
 /** The PDF's "Current SAP vs I07" rows: the page's own list (recommendations with a recommended value), newest first. */
 const PDF_COMPARISON_SIZE = 25
+/** The PDF's "Min-Max conversion" rows: the list the card opens on the page. */
+const PDF_CONVERSION_SIZE = 25
 
 /** Rows backing the on-screen charts. Printed verbatim in the PDF's
  * disclosure so a sample is never implied to be the whole quarter. */
@@ -377,6 +379,22 @@ export function QuarterlyReportsWorkspace() {
       : {},
   )
 
+  // The material-plants the "Min-Max conversion" card counted, as the same list its click-through shows (OAR, eligible, this period).
+  const { data: pdfConversion, total: pdfConversionTotal, loading: pdfConversionLoading } = useLiveRecommendations(
+    report?.management && printRequested
+      ? {
+          sort: "generated_at",
+          sortDesc: true,
+          page: 1,
+          pageSize: PDF_CONVERSION_SIZE,
+          type: "oar",
+          conversionEligibility: "ELIGIBLE",
+          generatedFrom: `${report.metadata.period_start}T00:00:00`,
+          generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
+        }
+      : {},
+  )
+
   // Open the print dialog only when everything the PDF needs is on the page.
   //
   // Waits on: the report itself, the 50-row material fetch, and -- via
@@ -387,7 +405,7 @@ export function QuarterlyReportsWorkspace() {
   useEffect(() => {
     if (!printRequested) return
     if (!report) return
-    if (pdfMaterialsLoading || pdfComparisonLoading) return
+    if (pdfMaterialsLoading || pdfComparisonLoading || pdfConversionLoading) return
 
     let cancelled = false
 
@@ -426,7 +444,7 @@ export function QuarterlyReportsWorkspace() {
     return () => {
       cancelled = true
     }
-  }, [printRequested, report, pdfMaterialsLoading, pdfComparisonLoading])
+  }, [printRequested, report, pdfMaterialsLoading, pdfComparisonLoading, pdfConversionLoading])
 
   // Guard against a stuck "Preparing…" if the dialog never opens.
   useEffect(() => {
@@ -805,6 +823,8 @@ export function QuarterlyReportsWorkspace() {
                 materialsTotal={pdfMaterialsTotal}
                 comparison={pdfComparison ?? []}
                 comparisonTotal={pdfComparisonTotal}
+                conversion={pdfConversion ?? []}
+                conversionTotal={pdfConversionTotal}
               />
             ) : (
               <ReportPrintView

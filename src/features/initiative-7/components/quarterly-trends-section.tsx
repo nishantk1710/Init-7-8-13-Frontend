@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterTrends } from "@/features/initiative-7/types/api"
 import {
-  compactMoney,
+  moneyExact,
   hasPoints,
   num,
   seriesGaps,
@@ -75,7 +75,7 @@ function TrendTooltip({ active, payload, label, money, currency }: TooltipConten
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="font-medium text-foreground">{label}</div>
       <div className="mt-1 text-muted-foreground">
-        {money ? compactMoney(value, currency, true) : formatCount(Math.round(value))}
+        {money ? moneyExact(value, currency, true) : formatCount(Math.round(value))}
       </div>
     </div>
   )
@@ -98,7 +98,7 @@ function TrendCard({
   const drawable = hasPoints(points, series.key)
   const gaps = seriesGaps(points, series.key)
   const show = (value: number) =>
-    series.money ? compactMoney(value, currency, series.key === "workingCapital") : formatCount(Math.round(value))
+    series.money ? moneyExact(value, currency, series.key === "workingCapital") : formatCount(Math.round(value))
   // Why a month has no figure, and what the report says about how it was measured: for the (i), not the card.
   const notes = [...trends.months.filter((m) => m.note).map((m) => `${m.label}: ${m.note}`), ...trends.notes]
   return (
