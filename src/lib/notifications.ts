@@ -51,6 +51,8 @@ const TYPE_LABELS: Record<string, string> = {
   EXCEPTION_ACTION_REQUIRED: "Inventory exception",
   EXCEPTION_RESPONSE_REQUIRED: "Inventory exception",
   EXCEPTION_ESCALATED: "Escalation required",
+  PR_RECEIVED: "Purchase requisition",
+  PR_RECEIVED_DETAILS: "Purchase requisition",
 }
 
 export function notificationTypeLabel(eventType: string): string {
