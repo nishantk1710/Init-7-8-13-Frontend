@@ -6,6 +6,7 @@ import { ArrowRight, Boxes, CircleSlash, Loader2, PiggyBank, Plus, Save, Search,
 import { toast } from "sonner"
 
 import { DepartmentPicker } from "@/components/assistant/department-picker"
+import { createdRequestPath } from "@/components/assistant/request/request-created-dialog"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
 import { deleteDraft, getDraft, saveDraft, type RequestDraft } from "@/components/assistant/request/request-drafts"
@@ -411,7 +412,7 @@ export function RequestBuilder({
         lines: submitted.map(answersOf),
       })
       if (savedDraftId.current) deleteDraft(savedDraftId.current)
-      router.push(`/assistant/requests/${request.requestId}`)
+      router.push(createdRequestPath(request.requestId))
       return
     } catch (error) {
       const conflict = conflictDetail(error)

@@ -22,6 +22,14 @@ export function isDeclined(line: Pick<ApiRequestLine, "decision">): boolean {
   return line.decision === "not_needed" || line.decision === "use_existing"
 }
 
+/**
+ * The lines that will be reserved in SAP and have no reservation linked yet --
+ * the ones the 1-day reminder names (the backend applies the same rule).
+ */
+export function awaitingReservation(request: Pick<ApiRequest, "lines">): ApiRequestLine[] {
+  return request.lines.filter((line) => !isDeclined(line) && line.linkedReservations.length === 0)
+}
+
 function plain(value: string | null): string {
   if (value === null) return "—"
   const n = Number(value)

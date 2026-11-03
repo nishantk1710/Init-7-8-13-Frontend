@@ -23,6 +23,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import { matchesDepartment } from "@/components/assistant/department-picker"
 import {
+  awaitingReservation,
   departmentLabel,
   departmentText,
   departmentsOf,
@@ -455,6 +456,24 @@ describe("a recorded request", () => {
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)
     expect(departmentsOf(sampleRequest())).toEqual(["10100", "10300"])
+  })
+
+  it("waits for a reservation only on lines that will be reserved and are not linked", () => {
+    const request = sampleRequest()
+    expect(awaitingReservation(request).map((l) => l.lineNo)).toEqual([1, 2])
+    request.lines[0].linkedReservations = [
+      {
+        reservationNumber: "12345678",
+        reservationItem: "0001",
+        material: request.lines[0].materialId,
+        plant: "1300",
+        source: "SGTXT",
+        sgtxt: request.requestId,
+        firstSeenAt: "2026-10-15T09:00:00Z",
+        note: null,
+      },
+    ]
+    expect(awaitingReservation(request).map((l) => l.lineNo)).toEqual([2])
   })
 })
 

@@ -6,6 +6,7 @@ import { CircleSlash, FlaskConical, Loader2, PiggyBank } from "lucide-react"
 import { toast } from "sonner"
 
 import { LinkReservation } from "@/components/assistant/request/link-reservation"
+import { RequestCreatedDialog } from "@/components/assistant/request/request-created-dialog"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
 import { Chip, CopyReferenceButton, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
@@ -56,6 +57,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <RequestCreatedDialog request={request} />
       <section
         aria-label="Request reference"
         className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
