@@ -183,6 +183,8 @@ export interface ApiRecommendationSummaryStats {
   normal_count: number
   awaiting_approval_count: number
   ready_for_review_count: number
+  /** The part of `ready_for_review_count` that proposes a change in SAP; absent on an older backend. */
+  ready_for_review_actionable_count?: number
   not_evaluable_count: number
   /** Currency of every money figure here, when all priced materials share one. */
   currency?: string | null

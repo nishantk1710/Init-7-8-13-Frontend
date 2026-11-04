@@ -178,10 +178,14 @@ export function LivePipelineWorkspace() {
   //  - SEVERAL statuses (In flight, Completed): the backend takes one status per request, so it cannot page their
   //    union. Each is loaded up to LIVE_PIPELINE_PAGE_SIZE and the merged rows are paged here.
   const singleStatus = activeStatuses.length === 1 ? activeStatuses[0] : null
-  const paramsFor = (raw: (typeof ALL_RAW_STATUSES)[number]) =>
-    raw === singleStatus
-      ? { status: raw, page: requestedPage, pageSize: PAGE_SIZE, search: searchTerm || undefined }
-      : { status: raw, pageSize: LIVE_PIPELINE_PAGE_SIZE }
+  // Ready for Review lists only the recommendations that propose a change in SAP (the `actionable` rule), the same set its count above
+  // it uses: one whose values SAP already holds, or an OAR material not eligible for Min-Max, has nothing for a reviewer to send on.
+  const paramsFor = (raw: (typeof ALL_RAW_STATUSES)[number]) => {
+    const actionable = raw === "READY_FOR_REVIEW" ? { actionable: true } : {}
+    return raw === singleStatus
+      ? { status: raw, page: requestedPage, pageSize: PAGE_SIZE, search: searchTerm || undefined, ...actionable }
+      : { status: raw, pageSize: LIVE_PIPELINE_PAGE_SIZE, ...actionable }
+  }
 
   // One hook call per fixed status -- see ALL_RAW_STATUSES's own comment on
   // why this is a fixed, not dynamic, hook count.
@@ -206,16 +210,24 @@ export function LivePipelineWorkspace() {
   const refetch = () => active.forEach((f) => f.refetch())
   const data = active.every((f) => f.data) ? active.flatMap((f) => f.data ?? []) : null
 
+  // Ready for Review counts the recommendations that propose a change in SAP; the total computed -- those whose values SAP already holds
+  // included -- stays in `summary.readyForReviewCount`, and the gap between the two is said under the stage strip. A backend that does
+  // not send the actionable count keeps the total.
+  const countOf = (row: { status: string; count: number }) =>
+    row.status === "READY_FOR_REVIEW" ? (summary?.readyForReviewActionableCount ?? row.count) : row.count
+  const noChangeCount = summary && summary.readyForReviewActionableCount !== null ? Math.max(summary.readyForReviewCount - summary.readyForReviewActionableCount, 0) : 0
+
   const stageCounts = useMemo(() => {
     const counts = new Map<string, number>(STAGES.map((s) => [s, 0]))
     if (summary) {
       for (const row of summary.byStatus) {
         if (row.status === "NOT_EVALUABLE") continue
         const status = mapStatus(row.status)
-        if (counts.has(status)) counts.set(status, (counts.get(status) ?? 0) + row.count)
+        if (counts.has(status)) counts.set(status, (counts.get(status) ?? 0) + countOf(row))
       }
     }
     return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary])
 
   const tabCounts = useMemo(() => {
@@ -223,10 +235,11 @@ export function LivePipelineWorkspace() {
     if (summary) {
       for (const row of summary.byStatus) {
         if (row.status === "NOT_EVALUABLE") continue
-        counts[tabForStatus(mapStatus(row.status))] += row.count
+        counts[tabForStatus(mapStatus(row.status))] += countOf(row)
       }
     }
     return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary])
 
   // Several statuses in view: the search narrows the merged rows here. One status: the backend already searched.
@@ -330,6 +343,12 @@ export function LivePipelineWorkspace() {
             )
           })}
         </div>
+        {noChangeCount > 0 && (
+          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+            Pending Review counts the recommendations that propose a change in SAP. {formatCount(noChangeCount)} more were computed but are not
+            listed: SAP already holds the recommended values, or the OAR material is not eligible for the Min-Max conversion.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

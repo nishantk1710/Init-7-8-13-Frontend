@@ -551,7 +551,10 @@ export interface RecommendationSummaryStats {
   oarCount: number
   normalCount: number
   awaitingApprovalCount: number
+  /** Every computed recommendation not yet sent for approval -- the total, whether or not it proposes a change in SAP. */
   readyForReviewCount: number
+  /** The part of it with something to adopt in SAP (the `actionable` rule); null on a backend that does not send it. */
+  readyForReviewActionableCount: number | null
   notEvaluableCount: number
   /** Currency of the money figures, when every priced material shares one. */
   currency: string | null
@@ -601,6 +604,7 @@ export async function fetchRecommendationSummary(
     normalCount: response.normal_count,
     awaitingApprovalCount: response.awaiting_approval_count,
     readyForReviewCount: response.ready_for_review_count,
+    readyForReviewActionableCount: response.ready_for_review_actionable_count ?? null,
     notEvaluableCount: response.not_evaluable_count,
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),
