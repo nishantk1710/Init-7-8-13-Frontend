@@ -35,6 +35,23 @@ export const TEST_USER_ACTORS: Readonly<Record<string, string>> = {
   hod: "00000000-0000-0000-0000-000000000012",
 }
 
+/**
+ * The approval role each test username acts as in the I07 decision panel. Without this the panel
+ * always acts as "End User", so every later step's buttons stay disabled for the next approver.
+ * Only the usernames that stand for an approval step are listed; admin, requester and hod have no
+ * approval role and keep the panel's default.
+ */
+export const TEST_USER_APPROVAL_ROLES: Readonly<Record<string, string>> = {
+  "end.user": "End User",
+  "engineering.manager": "Engineering Manager",
+  "commercial.manager": "Commercial Manager",
+  "warehouse.supervisor": "Warehouse Supervisor",
+  "inventory.controller": "Inventory Controller",
+  "engineering.head": "Engineering Head",
+  "plant.head": "Plant Head",
+  "commercial.head": "Commercial Head",
+}
+
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** True when the build has the test mapping switched on. */
@@ -50,4 +67,18 @@ export function resolveTestActor(username: string | null | undefined): string | 
   const listed = TEST_USER_ACTORS[key]
   if (listed) return listed
   return GUID.test(key) ? key : null
+}
+
+/**
+ * The approval role for a test username (or for a GUID username, the role of the listed person it
+ * stands for), or null when it has none.
+ */
+export function resolveTestApprovalRole(username: string | null | undefined): string | null {
+  const key = (username ?? "").trim().toLowerCase()
+  if (!key) return null
+  const direct = TEST_USER_APPROVAL_ROLES[key]
+  if (direct) return direct
+  if (!GUID.test(key)) return null
+  const listedName = Object.keys(TEST_USER_ACTORS).find((name) => TEST_USER_ACTORS[name] === key)
+  return listedName ? (TEST_USER_APPROVAL_ROLES[listedName] ?? null) : null
 }
