@@ -126,15 +126,40 @@ export function kpiValueText(card: ApiKpiCard): string {
  * and stay behind the card's (i); the PDF prints them in full. `title` is set only where a card was renamed: a saved
  * report keeps the title it was generated with, so this is what lets a rename reach the reports saved before it. */
 const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
-  materials_assessed: { title: "Material-plants with a computed recommendation", caption: "Different material-plants with a result" },
-  recommendations_generated: { caption: "Records created this period, not materials" },
+  materials_assessed: { title: "Material-plants with a computed recommendation", caption: "Materials we made a recommendation for" },
+  recommendations_generated: { caption: "Recommendations created in this period" },
   critical_stockout_risk: { title: "High Stockout Risk", caption: "Stock below what the lead time needs" },
-  excess_inventory_opportunity: { caption: "Stock above the recommended maximum · estimate" },
-  working_capital_impact: { caption: "Cash released (+) or tied up (−) · estimate" },
-  oar_recommendations: { caption: "Records for OAR material-plants, not materials" },
-  min_max_conversion: { caption: "OAR material-plants converted in SAP" },
-  approved: { caption: "Approved so far · approval, not SAP adoption" },
+  excess_inventory_opportunity: { caption: "Stock above the recommended maximum" },
+  working_capital_impact: { caption: "Cash freed (+) or tied up (−)" },
+  oar_recommendations: { caption: "OAR recommendations created in this period" },
+  min_max_conversion: { caption: "OAR materials moved to Min-Max in SAP" },
+  approved: { caption: "Approved, but not yet changed in SAP" },
   pending_approval: { caption: "Waiting for an approver's decision" },
+}
+
+/** The report page's own plain words for a card. The PDF and the Excel keep the report's own titles and labels (`cardTitle`,
+ * `card.denominator_label`), which are the full record; this is only how the page reads. A card with no entry keeps the report's. */
+const PAGE_TITLE: Record<string, string> = {
+  materials_assessed: "Materials with a recommendation",
+}
+
+const PAGE_DENOMINATOR: Record<string, string> = {
+  materials_assessed: "materials looked at",
+  recommendations_generated: "recommendations",
+  oar_recommendations: "recommendations created",
+  min_max_conversion: "OAR materials that can move",
+  critical_stockout_risk: "materials that could be checked",
+  excess_inventory_opportunity: "materials",
+  working_capital_impact: "materials included",
+  approved: "recommendations created",
+}
+
+export function pageCardTitle(card: ApiKpiCard): string {
+  return PAGE_TITLE[card.key] ?? cardTitle(card)
+}
+
+export function pageDenominatorLabel(card: ApiKpiCard): string {
+  return PAGE_DENOMINATOR[card.key] ?? card.denominator_label ?? ""
 }
 
 /** The card's title as the page and the PDF show it. */

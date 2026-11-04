@@ -15,16 +15,16 @@ export type Perspective = "monthly" | "snapshot" | "current"
 
 export const PERSPECTIVE_LABEL: Record<Perspective, { label: string; hint: string }> = {
   monthly: {
-    label: "Monthly activity",
-    hint: "Things that happened during the period, counted by the date they happened.",
+    label: "This month's activity",
+    hint: "Things that happened during the period, counted on the day they happened.",
   },
   snapshot: {
-    label: "Month-end snapshot",
-    hint: "A reading saved at the end of the month. It is never rebuilt from today's data.",
+    label: "Saved at month end",
+    hint: "Figures saved at the end of the month. They are never rebuilt from today's data.",
   },
   current: {
-    label: "Current position",
-    hint: "How things stand on the day this report was generated, not at the end of the period.",
+    label: "As of today",
+    hint: "How things stand on the day this report was made, not at the end of the period.",
   },
 }
 

@@ -20,7 +20,7 @@ import { Row, Section, Table } from "@/features/initiative-7/components/report-p
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import type { Recommendation, StockParameters } from "@/features/initiative-7/types/inventory"
 import { reportKindOf, reportNoun } from "@/features/initiative-7/utils/report-period"
 import { approvalStageRows, coverageItemsOf } from "@/features/initiative-7/utils/quarterly-sections"
 import {
@@ -43,6 +43,12 @@ const KIND_LABEL = {
   MEASUREMENT: "Measurement",
   AGGREGATE: "Total over the period",
 } as const
+
+/** A recommended figure, or a dash when there is none -- never a 0 that nothing set. */
+const recommendedFigure = (rec: Recommendation, key: keyof StockParameters) => {
+  const value = stockFigure(rec, "recommended", key)
+  return value === null ? "—" : formatCount(value)
+}
 
 const date = (iso: string | null) => (iso ? formatIsoDateDMY(iso.slice(0, 10)) : NOT_AVAILABLE)
 const share = (part: number, whole: number) => (whole <= 0 ? "—" : `${((part / whole) * 100).toFixed(1)}%`)
@@ -237,9 +243,9 @@ export function ManagementPrintView({ report, management, materials, materialsTo
                   </span>,
                   rec.plantId,
                   rec.criticality,
-                  <span key="s" className="print-mono">{formatCount(rec.recommended.safetyStock)}</span>,
-                  <span key="r" className="print-mono">{formatCount(rec.recommended.rop)}</span>,
-                  <span key="x" className="print-mono">{formatCount(rec.recommended.maxStock)}</span>,
+                  <span key="s" className="print-mono">{recommendedFigure(rec, "safetyStock")}</span>,
+                  <span key="r" className="print-mono">{recommendedFigure(rec, "rop")}</span>,
+                  <span key="x" className="print-mono">{recommendedFigure(rec, "maxStock")}</span>,
                   rec.status,
                   rec.generatedAt,
                 ])}

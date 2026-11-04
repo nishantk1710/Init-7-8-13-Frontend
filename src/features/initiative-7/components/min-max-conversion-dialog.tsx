@@ -21,12 +21,18 @@ import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashb
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
+import { stockFigure } from "@/features/initiative-7/utils/stock-figure"
 
 const PAGE_SIZE = 10
 
 type View = "converted" | "eligible"
 
-const VIEW_LABEL: Record<View, string> = { converted: "Converted in SAP", eligible: "All eligible" }
+const VIEW_LABEL: Record<View, string> = { converted: "Moved in SAP", eligible: "Can move" }
+
+/** A recommended figure, or a dash when the system has none for it -- never a 0 that nothing set. */
+function figureCell(value: number | null) {
+  return value === null ? <span className="text-muted-foreground">—</span> : formatCount(value)
+}
 
 /** The list for one view. Mounted only while the dialog is open. */
 function MaterialList({ view, generatedFrom, generatedTo }: { view: View; generatedFrom: string; generatedTo: string }) {
@@ -38,6 +44,9 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
     pageSize: PAGE_SIZE,
     type: "oar",
     conversionEligibility: "ELIGIBLE",
+    // Only material-plants that have a recommended value: one the rule allows but that has no value has nothing to move, and is not in the
+    // card's count either. The same filter, so the card and this list agree.
+    hasRecommended: true,
     adoptedInSap: view === "converted" ? true : undefined,
     generatedFrom,
     generatedTo,
@@ -48,8 +57,8 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
     return (
       <p className="text-sm text-muted-foreground">
         {view === "converted"
-          ? "None of this period's eligible OAR material-plants has been converted in SAP yet. Switch to “All eligible” to see the ones that may convert."
-          : "No OAR material-plant from this period is eligible for Min-Max conversion."}
+          ? "None of this period's OAR materials that can move has moved to Min-Max in SAP yet. Switch to “Can move” to see them."
+          : "No OAR material from this period can move to Min-Max yet."}
       </p>
     )
   }
@@ -85,9 +94,15 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
                 </TableCell>
                 <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
                 <TableCell className="text-xs">{CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}</TableCell>
-                <TableCell className="text-right font-mono text-[13px] tabular-nums">{formatCount(rec.recommended.safetyStock)}</TableCell>
-                <TableCell className="text-right font-mono text-[13px] tabular-nums">{formatCount(rec.recommended.rop)}</TableCell>
-                <TableCell className="text-right font-mono text-[13px] tabular-nums">{formatCount(rec.recommended.maxStock)}</TableCell>
+                <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                  {figureCell(stockFigure(rec, "recommended", "safetyStock"))}
+                </TableCell>
+                <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                  {figureCell(stockFigure(rec, "recommended", "rop"))}
+                </TableCell>
+                <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                  {figureCell(stockFigure(rec, "recommended", "maxStock"))}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{rec.status}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{rec.generatedAt}</TableCell>
               </TableRow>
@@ -154,8 +169,8 @@ export function MinMaxConversionDialog({
         <DialogHeader>
           <DialogTitle>Min-Max conversion</DialogTitle>
           <DialogDescription>
-            OAR material-plants from {periodLabel} converted to Min-Max ordering in SAP, or eligible to convert by the rule. Eligible is the
-            rule&apos;s verdict; converted is what SAP shows, as the SAP adoption check finds it. Approval alone is not conversion.
+            OAR materials from {periodLabel} that have moved to Min-Max in SAP, or can move. “Can move” means the rule allows it and a
+            recommended value has been worked out. Approval alone is not a move.
           </DialogDescription>
         </DialogHeader>
         {open && <Body generatedFrom={generatedFrom} generatedTo={generatedTo} />}

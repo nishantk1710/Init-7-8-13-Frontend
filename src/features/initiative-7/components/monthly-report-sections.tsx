@@ -7,12 +7,14 @@
 // Everything is read from the saved report through `utils/quarterly-sections.ts`. A figure that was not measured says so
 // and says why; it is never drawn as 0, and the current calculation is never shown where a month-end snapshot is meant.
 
+import type { ReactNode } from "react"
+
 import { ChartCard } from "@/components/shared/chart-card"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount } from "@/lib/utils"
 import type { ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import { cardTitle, moneyExact, orderedKpis } from "@/features/initiative-7/utils/quarterly-management"
+import { moneyExact, orderedKpis, pageCardTitle } from "@/features/initiative-7/utils/quarterly-management"
 import {
   approvalStageRows,
   coverageItemsOf,
@@ -21,6 +23,16 @@ import {
   type CoverageStatus,
   type Perspective,
 } from "@/features/initiative-7/utils/quarterly-sections"
+
+/** The detail behind a short line, folded away: one click to read it, nothing to scroll past until then. */
+export function MoreInfo({ summary, children, className }: { summary: string; children: ReactNode; className?: string }) {
+  return (
+    <details className={cn("text-[11px] text-muted-foreground", className)}>
+      <summary className="cursor-pointer font-medium text-foreground">{summary}</summary>
+      <div className="mt-1 leading-relaxed">{children}</div>
+    </details>
+  )
+}
 
 /** A small label saying which kind of figure a section shows: what happened in the period, a saved month-end reading, or
  * how things stand now. The full sentence is in the tooltip. */
@@ -47,11 +59,11 @@ export function KpiGuide({ cards }: { cards: ApiKpiCard[] }) {
   if (shown.length === 0) return null
   return (
     <details className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer font-medium text-foreground">How each figure above is measured</summary>
+      <summary className="cursor-pointer font-medium text-foreground">How each number is worked out</summary>
       <dl className="mt-2 flex flex-col gap-2.5">
         {shown.map((card) => (
           <div key={card.key}>
-            <dt className="font-medium text-foreground">{cardTitle(card)}</dt>
+            <dt className="font-medium text-foreground">{pageCardTitle(card)}</dt>
             <dd className="leading-relaxed">
               {card.explanation}
               {card.note ? ` ${card.note}` : ""}
@@ -99,10 +111,10 @@ export function ExcessByPlantValues({ management }: { management: ApiQuarterMana
           </TableBody>
         </Table>
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        These are potential figures, estimated from I07&apos;s recommendations. Realised savings are not measured: nothing records stock
-        that was actually released or a purchase that was actually avoided, so no amount here is a saving.
-      </p>
+      <MoreInfo summary="About these amounts" className="mt-2">
+        These are expected figures, worked out from I07&apos;s recommendations. Money actually saved is not measured: nothing records stock that
+        was actually released or a purchase that was actually avoided, so no amount here is a saving.
+      </MoreInfo>
     </div>
   )
 }
@@ -148,10 +160,11 @@ export function ApprovalStagesCard({ adoption }: { adoption: ApiAdoptionQuarter 
       ) : (
         <p className="text-xs text-muted-foreground">The approval stages were not saved with this report. Generate it again to see them.</p>
       )}
-      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-        {formatCount(total)} recommendation records as of the day this report was generated. Approved is not adopted, and SAP&apos;s
-        “pending” counts recommendations with no SAP change evidence yet, whether or not they were approved.
-      </p>
+      <p className="mt-3 text-[11px] text-muted-foreground">{formatCount(total)} recommendations, as they stand today.</p>
+      <MoreInfo summary="What do these mean?" className="mt-1">
+        Approved is not the same as changed in SAP: whether SAP was changed is shown in the SAP adoption card. SAP&apos;s “pending” counts
+        recommendations SAP has not been checked on yet, whether or not they were approved.
+      </MoreInfo>
     </ChartCard>
   )
 }
@@ -166,20 +179,25 @@ const COVERAGE_TONE: Record<CoverageStatus, "success" | "warning" | "danger" | "
   "Insufficient history": "warning",
 }
 
-/** Every important date and source, with a plain status and the reason when it is not Available. */
-export function CoverageStatusTable({ management }: { management: ApiQuarterManagement }) {
-  const items = coverageItemsOf(management)
+/** The sources the figures rest on, with a plain status and the reason when one is not Available. By default only the ones that need
+ * attention are listed (`problemsOnly`); the full list is one click away in the coverage card. */
+export function CoverageStatusTable({ management, problemsOnly = false }: { management: ApiQuarterManagement; problemsOnly?: boolean }) {
+  const all = coverageItemsOf(management)
   // A report made before the backend saved the statuses has none: the dates and warnings below still say what they did.
-  if (items === null) return null
+  if (all === null) return null
+  const items = problemsOnly ? all.filter((item) => item.status !== "Available") : all
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground">Everything this report uses is up to date.</p>
+  }
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead>Data</TableHead>
-            <TableHead>As of</TableHead>
+            <TableHead>What</TableHead>
+            <TableHead>Last data</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>What it means</TableHead>
+            <TableHead>What this means</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

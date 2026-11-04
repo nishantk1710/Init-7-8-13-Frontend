@@ -389,6 +389,7 @@ export function QuarterlyReportsWorkspace() {
           pageSize: PDF_CONVERSION_SIZE,
           type: "oar",
           conversionEligibility: "ELIGIBLE",
+          hasRecommended: true,
           adoptedInSap: true,
           generatedFrom: `${report.metadata.period_start}T00:00:00`,
           generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
