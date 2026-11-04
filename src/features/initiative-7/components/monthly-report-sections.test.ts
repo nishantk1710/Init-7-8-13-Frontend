@@ -184,7 +184,7 @@ describe("approval stages and SAP adoption", () => {
     const out = html(ApprovalStagesCard, { adoption: adoption() })
     expect(out).toContain("Awaiting approval")
     expect(out).toContain("Approved, awaiting SAP")
-    expect(out).toContain("Approved is not adopted")
+    expect(out).toContain("Approved is not the same as changed in SAP")
     expect(adoption().pending).toBe(50) // SAP's pending is a different set from the 5 awaiting approval
     expect(adoption().stages!.awaiting_approval).toBe(5)
   })

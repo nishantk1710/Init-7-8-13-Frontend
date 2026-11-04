@@ -96,20 +96,20 @@ const render = (m: ApiQuarterManagement) => renderToStaticMarkup(createElement(Q
 describe("the cards", () => {
   it("each carry what it is, when it was measured and what it is out of", () => {
     const html = render(management())
-    expect(html).toContain("Material-plants with a computed recommendation") // renamed, so a saved report reads the same
-    expect(html).toContain("Different material-plants with a result") // the one plain line
+    expect(html).toContain("Materials with a recommendation") // the page says it in plain words; the PDF keeps the report's own title
+    expect(html).toContain("Materials we made a recommendation for") // the one plain line
     expect(html).toContain("18,627")
-    expect(html).toContain("of 18,700 material-plants with a recommendation")
+    expect(html).toContain("of 18,700 materials looked at")
     expect(html).toContain("as of 15 Jan 2027")
   })
 
   it("have no (i) and no long explanation on the card, only the figure and one plain line", () => {
     const html = render(management())
     expect(html).not.toContain("is calculated") // the (i) button's label
-    // The longer explanation is folded away under "How each figure above is measured", not on the card.
+    // The longer explanation is folded away under "How each number is worked out", not on the card.
     const outsideGuide = html.replace(/<details[\s\S]*?<\/details>/g, "")
     expect(outsideGuide).not.toContain("Explains materials_assessed.")
-    expect(html).toContain("How each figure above is measured")
+    expect(html).toContain("How each number is worked out")
     expect(html).not.toContain("Status on a date") // the old jargon badge
     expect(html).toContain("before:bg-primary") // still the Overview's card: the accent bar down its edge
   })
@@ -123,10 +123,10 @@ describe("the cards", () => {
 
   it("say, on the card, when a measurement is worked out from current data rather than a month-end snapshot", () => {
     const current = render(management({ kpis: [card("excess_inventory_opportunity", { kind: "MEASUREMENT", basis: "current_calculation" })] }))
-    expect(current).toContain("Current figures, no month-end snapshot")
+    expect(current).toContain("Based on today")
     const saved = render(management({ kpis: [card("excess_inventory_opportunity", { kind: "MEASUREMENT", basis: "snapshot" })] }))
-    expect(saved).not.toContain("Current figures, no month-end snapshot")
-    expect(saved).toContain("Saved month-end snapshot")
+    expect(saved).not.toContain("Based on today")
+    expect(saved).toContain("Saved at month end")
   })
 
   it("say Not available and why, never 0, when a figure has no value", () => {
@@ -249,7 +249,7 @@ describe("the activity table", () => {
     expect(html).toContain("Quarter total")
     expect(html).toContain("18,627")
     expect(html).toContain("Not measured by month.")
-    expect(html).toContain("it is not a count of zero")
+    expect(html).toContain("It is not a zero")
   })
 })
 
@@ -392,8 +392,8 @@ describe("trends and the quarter-end position in the page", () => {
 
   it("says on a card when its figure is a saved month-end snapshot", () => {
     const html = render(management({ kpis: [card("excess_inventory_opportunity", { basis: "snapshot", period_label: "Dec 2026 month-end" })] }))
-    expect(html).toContain("Saved month-end snapshot")
+    expect(html).toContain("Saved at month end")
     expect(html).toContain("Dec 2026 month-end")
-    expect(render(management({ kpis: [card("excess_inventory_opportunity")] }))).not.toContain("Saved month-end snapshot")
+    expect(render(management({ kpis: [card("excess_inventory_opportunity")] }))).not.toContain("Saved at month end")
   })
 })

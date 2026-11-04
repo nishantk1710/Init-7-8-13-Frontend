@@ -86,8 +86,8 @@ describe("the section", () => {
     const html = render(full)
     for (const title of ["Monthly performance and trends", "Excess inventory trend", "Recommendations generated", "Approval activity"])
       expect(html).toContain(title)
-    expect(html).toContain("Month-end snapshot") // the excess line is from saved snapshots
-    expect(html).toContain("Monthly activity") // the other two are events in the month
+    expect(html).toContain("Saved at month end") // the excess line is from saved figures
+    expect(html).toContain("activity") // the other two are events in the month
     expect(html).toContain("distinct material-plants they cover") // records are never presented as distinct material-plants
     expect(html).toContain("No month-end snapshot for Oct 2026.") // the gap is named, not drawn as zero
   })

@@ -123,9 +123,9 @@ describe("the OAR cards", () => {
     expect(html).toContain("OAR recommendations")
     expect(html).toContain("1,200")
     expect(html).toContain("recommendation records")
-    expect(html).toContain("of 21,343 recommendations generated in the period")
-    expect(html).toContain("of 40 OAR material-plants")
-    expect(html).toContain("Records for OAR material-plants, not materials")
+    expect(html).toContain("of 21,343 recommendations created")
+    expect(html).toContain("of 40 OAR materials that can move")
+    expect(html).toContain("OAR recommendations created in this period")
   })
 
   it("make only the Min-Max card clickable, and tell the reader so", () => {
@@ -149,14 +149,14 @@ describe("the OAR cards", () => {
     )
     expect(html).toContain("Not yet measured")
     expect(html).toContain("Not yet measured: no SAP change evidence.")
-    expect(html).toContain("of 21 eligible")
+    expect(html).toContain("of 21 OAR materials that can move")
     expect(html).toContain("Click to see the materials")
   })
 
   it("show the converted count when SAP has evidence, out of those eligible", () => {
     const html = page(management([card("min_max_conversion", { value: "3", denominator: 21, denominator_label: "eligible to convert" })]))
-    expect(html).toContain("OAR material-plants converted in SAP")
-    expect(html).toContain("of 21 eligible to convert")
+    expect(html).toContain("OAR materials moved to Min-Max in SAP")
+    expect(html).toContain("of 21 OAR materials that can move")
   })
 
   it("do not offer a click when no material-plant is eligible at all", () => {
@@ -175,8 +175,8 @@ describe("the OAR cards", () => {
 describe("the list behind the Min-Max card", () => {
   it("opens on the converted material-plants and can show every eligible one", () => {
     expect(dialogSource).toContain('useState<View>("converted")')
-    expect(dialogSource).toContain('converted: "Converted in SAP"')
-    expect(dialogSource).toContain('eligible: "All eligible"')
+    expect(dialogSource).toContain('converted: "Moved in SAP"')
+    expect(dialogSource).toContain('eligible: "Can move"')
     expect(dialogSource).toContain('adoptedInSap: view === "converted" ? true : undefined')
   })
 
@@ -191,8 +191,8 @@ describe("the list behind the Min-Max card", () => {
   it("pages the list, says how many it holds and what to do when none is converted", () => {
     expect(dialogSource).toContain("TablePagination")
     expect(dialogSource).toContain("material-plant")
-    expect(dialogSource).toContain("None of this period's eligible OAR material-plants has been converted in SAP yet")
-    expect(dialogSource).toContain("Approval alone is not conversion")
+    expect(dialogSource).toContain("None of this period's OAR materials that can move has moved to Min-Max in SAP yet")
+    expect(dialogSource).toContain("Approval alone is not a move")
   })
 })
 
@@ -251,5 +251,74 @@ describe("the PDF", () => {
     expect(workspace).toContain("adoptedInSap: true")
     expect(workspace).toContain("conversion={pdfConversion ?? []}")
     expect(workspace).toContain("pdfConversionLoading")
+  })
+})
+
+describe("the Min-Max list counts the same materials as the card", () => {
+  it("lists only OAR material-plants that have a recommended value, like the card's count", () => {
+    // 21 are eligible by the rule but only the ones with a calculated value can move; the card and the list use the same filter.
+    expect(dialogSource).toContain("hasRecommended: true")
+    expect(workspace).toContain("hasRecommended: true")
+    expect(workspace).toMatch(/conversionEligibility: "ELIGIBLE",\s+hasRecommended: true,\s+adoptedInSap: true/)
+  })
+
+  it("shows a dash for a recommended value the system does not have, never a 0", () => {
+    expect(dialogSource).toContain('stockFigure(rec, "recommended", "safetyStock")')
+    expect(dialogSource).toContain('stockFigure(rec, "recommended", "rop")')
+    expect(dialogSource).toContain('stockFigure(rec, "recommended", "maxStock")')
+    expect(dialogSource).not.toContain("formatCount(rec.recommended.")
+    expect(dialogSource).toContain("never a 0 that nothing set")
+  })
+
+  it("keeps a space between the period and the words after it in the heading", () => {
+    expect(dialogSource).toContain("from {periodLabel} that have moved")
+  })
+
+  it("reads a missing figure as missing and a real zero as zero", async () => {
+    const { stockFigure } = await import("@/features/initiative-7/utils/stock-figure")
+    const rec = {
+      recommended: { rop: 0, safetyStock: 0, maxStock: 10 },
+      current: { rop: 0, safetyStock: 0, maxStock: 0 },
+      present: {
+        recommended: { rop: false, safetyStock: true, maxStock: true },
+        current: { rop: true, safetyStock: true, maxStock: true },
+      },
+    } as unknown as Recommendation
+    expect(stockFigure(rec, "recommended", "rop")).toBeNull() // no value was worked out
+    expect(stockFigure(rec, "recommended", "safetyStock")).toBe(0) // a recommended 0 is a real 0
+    expect(stockFigure(rec, "recommended", "maxStock")).toBe(10)
+    expect(stockFigure({ ...rec, present: undefined } as Recommendation, "recommended", "rop")).toBe(0) // an older mapper
+  })
+
+  it("prints a dash for a missing value in the PDF list too", () => {
+    const row = {
+      id: "A",
+      material: { materialId: "A", description: "Material A" },
+      plantId: "1300",
+      criticality: "High",
+      demandPattern: "Lumpy",
+      status: "Pending Review",
+      generatedAt: "31 Oct 2026",
+      current: { rop: 0, safetyStock: 0, maxStock: 0 },
+      recommended: { rop: 0, safetyStock: 0, maxStock: 0 },
+      present: {
+        recommended: { rop: false, safetyStock: false, maxStock: false },
+        current: { rop: true, safetyStock: true, maxStock: true },
+      },
+    } as unknown as Recommendation
+    const m = management([card("min_max_conversion", { value: "0", denominator: 4, denominator_label: "eligible to convert" })])
+    const out = renderToStaticMarkup(
+      createElement(ManagementPrintView, {
+        report: report(m),
+        management: m,
+        materials: [],
+        materialsTotal: 0,
+        conversion: [row],
+        conversionTotal: 4,
+      }),
+    )
+    expect(out).toContain("Material A")
+    expect(out).toContain(">—<") // each missing recommended value is a dash
+    expect(out).not.toMatch(/print-mono">0</) // not a 0
   })
 })
