@@ -161,7 +161,9 @@ export function UtilizationLedgerTable({
               <TableHead>Material</TableHead>
               <TableHead>PO / PR</TableHead>
               <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
-              <TableHead title="Quantity issued, with the goods-issue date (MKPF-BUDAT) underneath">Issued</TableHead>
+              <TableHead title="Quantity used from this line's deliveries, with the goods-issue date (MKPF-BUDAT) underneath. Estimated oldest stock first unless the line was raised by a reservation">
+                Used from this delivery
+              </TableHead>
               <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead title="The earliest open reservation expected to draw on this line's stock">
                 Next planned issue
