@@ -49,6 +49,12 @@ describe("fromAssistant", () => {
     // were told at the time, which is half the evidence.
     expect(fromAssistant(REAL).sessionId).toBeTruthy()
   })
+
+  it("shows a request line as R…/n, an older session by its own ID", () => {
+    expect(fromAssistant({ ...REAL, sessionReference: "RRXVC7GKT6/2" }).sessionReference).toBe("RRXVC7GKT6/2")
+    // A backend without the field: the ID, as before.
+    expect(fromAssistant({ ...REAL, sessionReference: undefined }).sessionReference).toBe(REAL.sessionId)
+  })
 })
 
 describe("fromActConfirmation", () => {

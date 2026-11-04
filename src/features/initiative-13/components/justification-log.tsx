@@ -120,7 +120,7 @@ export function JustificationLog({
       if (reason !== ALL && entry.reasonCategory !== reason) return false
       if (
         needle &&
-        ![entry.material, entry.freeText, entry.author, entry.sessionId, entry.reasonCategory]
+        ![entry.material, entry.freeText, entry.author, entry.sessionReference, entry.sessionId, entry.reasonCategory]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(needle))
       ) {
@@ -162,7 +162,7 @@ export function JustificationLog({
         entry.freeText,
         entry.author,
         entry.recordedAt,
-        entry.sessionId ?? "",
+        entry.sessionReference ?? entry.sessionId ?? "",
         entry.exceptionId ?? "",
       ])
     )
@@ -303,7 +303,7 @@ export function JustificationLog({
                 {entry.author}
               </span>
               {isPlaceholderActor(entry.author) && " (no sign-in — provisional)"}
-              {entry.sessionId && ` · session ${entry.sessionId}`}
+              {entry.sessionId && ` · ${sessionWord(entry)} ${entry.sessionReference ?? entry.sessionId}`}
               {entry.exceptionId && ` · exception ${entry.exceptionId}`}
             </p>
           </div>
@@ -356,4 +356,9 @@ function LogSelect({
       </SelectContent>
     </Select>
   )
+}
+
+/** "request line" for `R…/n`, "session" for an older single-material `S…`. */
+function sessionWord(entry: Pick<UnifiedJustification, "sessionId" | "sessionReference">): string {
+  return entry.sessionReference && entry.sessionReference !== entry.sessionId ? "request line" : "session"
 }
