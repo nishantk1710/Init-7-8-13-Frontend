@@ -437,7 +437,9 @@ export type DeclarationView = {
   repairLine: string | null
 }
 
-function fromRecord(d: ApiSessionDeclaration): DeclarationView {
+/** One declaration record as the screens word it: the session trace, and a
+ *  request line (4-Nov-2026). */
+export function declarationViewOf(d: ApiSessionDeclaration): DeclarationView {
   const document = d.repairDocument
     ? `${d.repairDocumentType === "PR" ? "PR" : "PO"} ${d.repairDocument}${d.repairItem ? `/${d.repairItem}` : ""}`
     : null
@@ -462,7 +464,7 @@ function fromRecord(d: ApiSessionDeclaration): DeclarationView {
 export function declarationViews(
   trace: Pick<SessionTraceResponse, "turns"> & { declarations?: ApiSessionDeclaration[] }
 ): DeclarationView[] {
-  if (trace.declarations && trace.declarations.length > 0) return trace.declarations.map(fromRecord)
+  if (trace.declarations && trace.declarations.length > 0) return trace.declarations.map(declarationViewOf)
   if (trace.declarations !== undefined) return []
   const turn = trace.turns.find((t) => t.stepId === "i08_declaration" && t.answer !== null)
   if (!turn?.answer) return []

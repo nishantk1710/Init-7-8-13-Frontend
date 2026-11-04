@@ -6,6 +6,7 @@
 
 import { formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
 import type { ApiRequest, ApiRequestLine } from "@/lib/api/assistant-requests"
+import { declarationViewOf } from "@/lib/assistant/session-view"
 import { formatInstant } from "@/lib/assistant/trace-format"
 import {
   departmentLabel,
@@ -24,14 +25,33 @@ import {
   type ExportFormat,
 } from "@/lib/export-document"
 
-export const LINE_COLUMNS = [
-  "Reference",
-  "Material",
-  "Decision",
-  "Window · purpose",
-  "Reason given",
-  "SAP link",
-] as const
+/**
+ * The line table's columns for this request. "Window · purpose" belongs to an
+ * OAR plan and "Declaration" to a repairable line (4-Nov-2026): each is there
+ * only when the request has a line of that kind, so a repairable-only request
+ * no longer carries a column of dashes.
+ */
+export function lineColumns(lines: readonly Pick<ApiRequestLine, "flow">[]): string[] {
+  const oar = lines.some((l) => l.flow === "i13")
+  const repairable = lines.some((l) => l.flow !== "i13")
+  return [
+    "Reference",
+    "Material",
+    "Decision",
+    ...(oar ? ["Window · purpose"] : []),
+    ...(repairable ? ["Declaration"] : []),
+    "Reason given",
+    "SAP link",
+  ]
+}
+
+/** A declaration in a line of text: "2 units · Seal leak · Repairable, declared by J Miller". */
+export function declarationText(line: Pick<ApiRequestLine, "declaration">): string | null {
+  if (!line.declaration) return null
+  const d = declarationViewOf(line.declaration)
+  const units = `${d.quantity} unit${d.quantity === "1" ? "" : "s"}`
+  return `${units} · ${d.fault} · ${d.assessment}, declared by ${d.name}`
+}
 
 export type RequestExportModel = {
   title: string
@@ -39,6 +59,8 @@ export type RequestExportModel = {
   generatedAt: string
   details: [string, string][]
   note: string
+  /** The line table's columns (`lineColumns`) and its rows, cell for cell. */
+  columns: string[]
   lines: ExportCell[][]
   skipped: { materialId: string; plant: string; reason: string }[]
   linkSummary: string
@@ -50,7 +72,7 @@ function plain(value: string | null): string {
   return Number.isFinite(n) ? String(n) : value
 }
 
-function lineCells(line: ApiRequestLine): ExportCell[] {
+function lineCells(line: ApiRequestLine, columns: readonly string[]): ExportCell[] {
   const procured = line.flow === "i13" && line.decision === "proceed"
   const material = [
     `${line.materialId} (${line.flow === "i13" ? "OAR" : "Repairable"})`,
@@ -76,11 +98,22 @@ function lineCells(line: ApiRequestLine): ExportCell[] {
       : line.linkedReservations.map(
           (l) => `${l.reservationNumber}/${l.reservationItem} · SGTXT "${l.sgtxt}"${l.note ? ` · ${l.note}` : ""}`
         )
-  return [[line.reference], material, decision, window, reason, link]
+  const declared = declarationText(line)
+  const declaration = [line.flow === "i13" ? "—" : (declared ?? "Not declared")]
+  return [
+    [line.reference],
+    material,
+    decision,
+    ...(columns.includes("Window · purpose") ? [line.flow === "i13" ? window : ["—"]] : []),
+    ...(columns.includes("Declaration") ? [declaration] : []),
+    reason,
+    link,
+  ]
 }
 
 /** Everything the summary page shows, as text. */
 export function requestExportModel(request: ApiRequest, now: Date = new Date()): RequestExportModel {
+  const columns = lineColumns(request.lines)
   const toReserve = request.lines.filter((l) => !isDeclined(l)).length
   const linked = request.lines.reduce((n, l) => n + l.linkedReservations.length, 0)
   const savings = requestSavings(request)
@@ -112,7 +145,8 @@ export function requestExportModel(request: ApiRequest, now: Date = new Date()):
     note:
       `Create one SAP reservation for this request and type ${request.requestId} into its header text, without /1, /2. ` +
       "SAP copies it to every item's text (SGTXT), and each item is matched to its line by material and plant.",
-    lines: request.lines.map(lineCells),
+    columns,
+    lines: request.lines.map((line) => lineCells(line, columns)),
     skipped: request.skipped.map((s) => ({ materialId: s.materialId, plant: s.plant, reason: s.reason })),
     linkSummary:
       linked === 0
@@ -131,7 +165,7 @@ export function requestDocument(model: RequestExportModel): ExportDocument {
       { kind: "fields", rows: model.details },
       { kind: "paragraph", text: model.note },
       { kind: "heading", text: "Lines" },
-      { kind: "table", columns: [...LINE_COLUMNS], rows: model.lines },
+      { kind: "table", columns: model.columns, rows: model.lines },
       ...(model.skipped.length > 0
         ? ([
             { kind: "heading", text: "No session: reserve as usual" },
