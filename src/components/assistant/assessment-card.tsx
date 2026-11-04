@@ -15,13 +15,13 @@ import {
 } from "lucide-react"
 
 import { AiIconBadge } from "@/components/assistant/ai-visuals"
+import { RepairEvidenceList } from "@/components/assistant/repair-evidence"
 import {
   factsCaveats,
   factsHeadline,
   isI08Facts,
   isI13Facts,
   type I08Facts,
-  type I08OpenRepairRequest,
   type I13Facts,
 } from "@/lib/api/assistant-facts"
 import {
@@ -29,11 +29,7 @@ import {
   needDateAdviceOf,
   openRepairsSuffix,
   repairRequestsOf,
-  requestAgePhrase,
-  requestDepartmentText,
-  requestReference,
   stockFigure,
-  unitsText,
   usableBreakdownText,
 } from "@/lib/assistant/i08-facts-format"
 import { formatQuantity, readableText } from "@/lib/assistant/session-view"
@@ -160,83 +156,8 @@ function I08Card({
           sent, never built here. */}
       {needDateAdvice && <Flag tone="info">{readableText(needDateAdvice)}</Flag>}
 
-      {facts.openRepairs.length > 0 && <RepairLines repairs={facts.openRepairs} />}
-      {requests.length > 0 && <RequestLines requests={requests} />}
+      <RepairEvidenceList repairs={facts.openRepairs} requests={requests} compact />
     </Card>
-  )
-}
-
-/**
- * PRs raised for repair with no PO yet. No vendor and no due date exist until
- * the PO does, so the line says who raised it and how long ago instead.
- */
-function RequestLines({ requests }: { requests: I08OpenRepairRequest[] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <SectionLabel>PR raised, no PO yet</SectionLabel>
-      <ul className="flex flex-col gap-1.5 pl-5">
-        {requests.map((request) => {
-          const department = requestDepartmentText(request)
-          return (
-            <li
-              key={`pr-${request.purchaseRequisition}-${request.item}`}
-              className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl border border-dashed border-border bg-background/60 px-3 py-2 text-xs"
-            >
-              <span className="font-medium text-foreground">{requestReference(request)}</span>
-              <span className="text-muted-foreground">{unitsText(request.quantity)}</span>
-              <span className="text-muted-foreground">{requestAgePhrase(request.daysSinceRequested)}</span>
-              {department && <span className="text-muted-foreground">{department}</span>}
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-function RepairLines({ repairs }: { repairs: I08Facts["openRepairs"] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <SectionLabel>Open repair lines</SectionLabel>
-      <ul className="relative flex flex-col gap-1.5 pl-5">
-        <span
-          aria-hidden
-          className="absolute top-2 bottom-2 left-[7px] w-px bg-gradient-to-b from-ai-1/50 via-ai-2/40 to-transparent"
-        />
-        {repairs.map((repair) => (
-          <li
-            key={`${repair.purchasingDocument}-${repair.item}`}
-            className="relative flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl border border-border bg-background/60 px-3 py-2 text-xs"
-          >
-            <TimelineDot overdue={repair.daysOverdue !== null && repair.daysOverdue > 0} />
-            <span className="font-medium text-foreground">
-              {repair.purchasingDocument}/{repair.item}
-            </span>
-            <span className="text-muted-foreground">{unitsText(repair.quantity)}</span>
-            <span className="text-muted-foreground">
-              {/* The supplier master covers 106 of 454 service suppliers, so a
-                  missing name is expected. Show the code rather than a blank,
-                  and never invent a name. */}
-              {repair.vendorName ?? repair.vendor ?? "vendor not named"}
-            </span>
-            <span className="text-muted-foreground">{repair.status}</span>
-            {repair.daysOverdue !== null && repair.daysOverdue > 0 && (
-              <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
-                {repair.daysOverdue} days overdue
-              </span>
-            )}
-            {/* Zero open lines in this extract carry a dispatch movement, so
-                the assistant never claims the vendor physically has the unit.
-                Saying so is more useful than leaving it unsaid. */}
-            {!repair.dispatched && (
-              <span className="text-muted-foreground">
-                no dispatch movement recorded
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }
 
@@ -491,22 +412,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
       {children}
     </p>
-  )
-}
-
-function TimelineDot({ overdue }: { overdue: boolean }) {
-  return (
-    <span aria-hidden className="absolute top-3 -left-[17px] flex size-2.5">
-      {overdue && (
-        <span className="animate-ai-ping absolute inline-flex size-full rounded-full bg-destructive/60" />
-      )}
-      <span
-        className={cn(
-          "relative inline-flex size-2.5 rounded-full ring-2 ring-card",
-          overdue ? "bg-destructive" : "ai-gradient"
-        )}
-      />
-    </span>
   )
 }
 

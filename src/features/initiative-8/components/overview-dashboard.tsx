@@ -16,6 +16,7 @@ import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
 import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
+import { FILTER_LIST_CLASS } from "@/features/initiative-8/components/url-filters"
 import { registerHref, type RegisterFilters } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
@@ -318,6 +319,8 @@ function FilterSelect({
     <Select value={value} onValueChange={(v) => onChange(v ?? ALL)}>
       <SelectTrigger
         aria-label={allLabel}
+        // The whole name on hover: the button keeps to one line.
+        title={labelOf(value, options, allLabel)}
         className={cn(
           "h-9 bg-background",
           set && "border-primary/60 bg-accent font-medium text-accent-foreground",
@@ -332,7 +335,7 @@ function FilterSelect({
           }
         </SelectValue>
       </SelectTrigger>
-      <SelectContent className="i08-scope">
+      <SelectContent className={FILTER_LIST_CLASS} alignItemWithTrigger={false} align="start">
         <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>

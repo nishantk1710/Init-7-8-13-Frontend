@@ -15,6 +15,15 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
+ * A filter's open list: under its button, at least as wide as it, and wider
+ * when a name needs it -- up to 30rem, wrapping beyond that. Long vendor and
+ * department names were cut off at the button's width (4-Nov-2026). Exported
+ * for the Overview's own dropdowns.
+ */
+export const FILTER_LIST_CLASS =
+  "i08-scope w-auto min-w-(--anchor-width) max-w-[min(30rem,calc(100vw-2rem))] [&_[data-slot=select-item]_*]:whitespace-normal"
+
+/**
  * The filter controls of I08's server-paged screens: Justifications, Repair
  * Declarations and Repair Exceptions.
  *
@@ -94,6 +103,8 @@ export function UrlSelect({
   className?: string
 }) {
   const labels = Object.fromEntries(options.map((o) => [o.value, o.label]))
+  // The whole name on hover: the button keeps to one line.
+  const shown = value ? (labels[value] ?? value) : allLabel
   return (
     <Select
       value={value || ALL}
@@ -105,6 +116,7 @@ export function UrlSelect({
       {/* A set filter looks set -- tinted, in the link colour -- so a page
           narrowed by one is never mistaken for the whole list. */}
       <SelectTrigger
+        title={shown}
         className={cn(
           "h-9 w-full bg-background",
           value && "border-primary/60 bg-accent font-medium text-accent-foreground",
@@ -115,8 +127,9 @@ export function UrlSelect({
           {(selected: string) => (selected === ALL ? allLabel : labels[selected] ?? selected)}
         </SelectValue>
       </SelectTrigger>
-      {/* Portalled out of the page, so it carries the I08 look itself. */}
-      <SelectContent className="i08-scope">
+      {/* Portalled out of the page, so it carries the I08 look itself. Opens
+          under the button rather than over it, so it can be wider. */}
+      <SelectContent className={FILTER_LIST_CLASS} alignItemWithTrigger={false} align="start">
         <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>

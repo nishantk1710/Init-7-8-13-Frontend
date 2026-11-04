@@ -95,7 +95,6 @@ export async function RepairRegisterPage({
       page={page}
       pageSize={DEFAULT_PAGE_SIZE}
       facets={data.facets}
-      agingBands={data.agingBands}
       filters={filters}
       viewCounts={data.viewCounts}
       sourceLoadedAt={data.sourceLoadedAt}

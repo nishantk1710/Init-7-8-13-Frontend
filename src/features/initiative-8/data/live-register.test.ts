@@ -756,6 +756,18 @@ describe("registerDescription", () => {
     expect(text).not.toContain("deleted")
   })
 
+  it("names the lines received in SAP whose PO is not closed (4-Nov-2026)", () => {
+    const alone = registerDescription({ ...meta, excludedReceivedLines: 2 }, "2026-11-04")
+    expect(alone).toContain("Not shown: 2 received in SAP, PO not closed.")
+
+    const besides = registerDescription(
+      { ...meta, excludedDeliveryCompletedLines: 5015, excludedReceivedLines: 1 },
+      "2026-11-04",
+    )
+    expect(besides).toContain("Not shown: 5,015 delivery completed in SAP.")
+    expect(besides).toContain("Also not shown: 1 received in SAP, PO not closed.")
+  })
+
   it("names the requests for quotation apart from what SAP closed", () => {
     const text = registerDescription(
       {

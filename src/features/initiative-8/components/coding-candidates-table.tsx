@@ -425,6 +425,28 @@ export function CodingCandidatesTable({
         </div>
       )}
 
+      {/* The nudge (4-Nov-2026): rows a data reload brought in, or whose text
+          changed in SAP, wait for the AI until somebody runs it. The menu's
+          badge on Repair Candidates says the same on every page. */}
+      {unscreenedCount > 0 && !screening && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-i08-warn-border bg-i08-warn-tint px-4 py-3 text-[13.5px] text-i08-warn-ink">
+          <span>
+            <b className="font-semibold">{plural(unscreenedCount, "candidate")} not screened yet</b>: new, or their
+            PO, PR or movement text changed since the last run. Run AI screen to judge{" "}
+            {unscreenedCount === 1 ? "it" : "them"}.
+          </span>
+          {verdict !== UNSCREENED && (
+            <button
+              type="button"
+              onClick={() => setVerdict(UNSCREENED)}
+              className="font-medium underline underline-offset-2 hover:text-foreground"
+            >
+              Show {unscreenedCount === 1 ? "it" : "them"}
+            </button>
+          )}
+        </div>
+      )}
+
       <QuickViews
         label="Verdicts"
         value={verdict}

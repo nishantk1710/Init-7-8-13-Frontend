@@ -274,6 +274,10 @@ export type ApiRegisterMeta = {
    *  which orders nothing. Left out since 21-Oct-2026; optional until every
    *  backend in use serves it. */
   excludedRfqLines?: number
+  /** Repair lines received in full (goods receipts) that SAP has not closed
+   *  yet: back from the vendor, so not out for repair. Left out since
+   *  4-Nov-2026; absent on an older backend. */
+  excludedReceivedLines?: number
 
   // Open repair PRs with no PO yet (since 27-Oct-2026). `totalLines` and
   // `openLines` above stay PO lines only. All absent on an older backend.
@@ -939,6 +943,16 @@ export type CodingCandidatesQuery = {
  * the run, and which `provider` answered. `provider: "stub"` means no model
  * judged anything and every verdict is UNSCREENED.
  */
+/**
+ * `GET /api/i8/coding-candidates/unscreened` -- how many candidates wait for
+ * the AI screen, for the menu's badge (4-Nov-2026). `unscreened` is null when
+ * the backend has not built the screen since it started: it never builds one
+ * to answer, so this is cheap enough to ask on every page.
+ */
+export function getCodingUnscreened(): Promise<{ unscreened: number | null }> {
+  return apiFetch("/i8/coding-candidates/unscreened")
+}
+
 export function getCodingCandidates(
   query: CodingCandidatesQuery = {},
   init?: ApiRequestInit,

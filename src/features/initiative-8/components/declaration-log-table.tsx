@@ -26,16 +26,18 @@ import { downloadExcel } from "@/lib/utils"
  *
  * Read-only since 3-Nov-2026: declarations are made in the reservation
  * assistant, and there is no Amend. Records are never edited or deleted; one
- * amended before then is a new row pointing at the one it replaced, and both
- * stay listed -- which is why a superseded row is marked rather than removed.
- * The condition text and evidence reference the form no longer asks for are
- * not shown; a declaration made before then keeps them in the export.
+ * amended before then is a new row pointing at the one it replaced. Since
+ * 4-Nov-2026 only the record in force is listed and exported -- nothing can
+ * supersede one any more, so the "In force only" filter and the faded
+ * superseded rows went. The condition text and evidence reference the form no
+ * longer asks for are not shown; a declaration made before then keeps them in
+ * the export.
  */
-export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow[] }) {
+export function DeclarationLogTable({ rows: everyRow }: { rows: DeclarationLogRow[] }) {
   const [search, setSearch] = useState("")
   const [condition, setCondition] = useState("")
   const [plant, setPlant] = useState("")
-  const [inForceOnly, setInForceOnly] = useState(false)
+  const allRows = useMemo(() => everyRow.filter((r) => !r.supersededBy), [everyRow])
 
   const conditions = useMemo(() => [...new Set(allRows.map((r) => r.condition).filter(Boolean))].sort(), [allRows])
   const plants = useMemo(() => {
@@ -49,7 +51,6 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
     return allRows.filter((r) => {
       if (condition && r.condition !== condition) return false
       if (plant && r.plant?.plantId !== plant) return false
-      if (inForceOnly && r.supersededBy) return false
       if (
         needle &&
         ![r.id, r.material.materialCode, r.material.description, r.attestor, humanize(r.faultCategory), r.repairId]
@@ -60,29 +61,26 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
       }
       return true
     })
-  }, [allRows, search, condition, plant, inForceOnly])
+  }, [allRows, search, condition, plant])
 
   const { paged, page, pageSize, total, setPage } = usePaginatedRows(rows, {
-    resetKey: [search, condition, plant, inForceOnly].join("|"),
+    resetKey: [search, condition, plant].join("|"),
   })
 
   const chips = [
     search.trim() && { key: "q", label: `Search: “${search.trim()}”` },
     condition && { key: "condition", label: `Condition: ${conditionLabel(condition)}` },
     plant && { key: "plant", label: `Plant: ${plants.find(([id]) => id === plant)?.[1] ?? plant}` },
-    inForceOnly && { key: "inForce", label: "In force only" },
   ].filter((chip): chip is { key: string; label: string } => Boolean(chip))
   const remove = (key: string) => {
     if (key === "q") setSearch("")
     if (key === "condition") setCondition("")
     if (key === "plant") setPlant("")
-    if (key === "inForce") setInForceOnly(false)
   }
   const clearAll = () => {
     setSearch("")
     setCondition("")
     setPlant("")
-    setInForceOnly(false)
   }
 
   return (
@@ -108,13 +106,6 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
           allLabel="All plants"
           options={plants.map(([id, name]) => ({ value: id, label: name }))}
           className="sm:w-44"
-        />
-        <UrlSelect
-          value={inForceOnly ? "1" : ""}
-          onChange={(value) => setInForceOnly(value === "1")}
-          allLabel="Including superseded"
-          options={[{ value: "1", label: "In force only" }]}
-          className="sm:w-48"
         />
         {/* The log as filtered, every column. */}
         <Button
@@ -167,7 +158,7 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
               </TableHeader>
               <TableBody>
                 {paged.map((r) => (
-                  <TableRow key={r.id} className={r.supersededBy ? "opacity-60" : undefined}>
+                  <TableRow key={r.id}>
                     <Cell>
                       <div className="flex flex-col leading-snug">
                         <span>{r.attestedAt ?? "—"}</span>
@@ -217,7 +208,6 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
                             {conditionLabel(r.condition)}
                           </StatusDot>
                         )}
-                        {r.supersededBy && <span className="text-[12px] text-muted-foreground">Superseded by {r.supersededBy}</span>}
                         {r.isAmendment && (
                           <span className="text-[12px] text-muted-foreground" title={r.amendmentReason}>
                             Amendment{r.amendmentReason ? `: ${r.amendmentReason}` : ""}
@@ -244,7 +234,8 @@ export function DeclarationLogTable({ rows: allRows }: { rows: DeclarationLogRow
   )
 }
 
-/** The log as the user filtered it, for Export Excel: every column, wide. */
+/** The log as the user filtered it, for Export Excel: every column, wide.
+ *  In-force records only (4-Nov-2026), so no "Superseded By" column. */
 export function declarationLogRowsForExcel(rows: DeclarationLogRow[]): (string | number)[][] {
   return rows.map((r) => [
     r.attestedAt ?? "",
@@ -261,7 +252,6 @@ export function declarationLogRowsForExcel(rows: DeclarationLogRow[]): (string |
     r.id,
     r.repairId ?? "",
     r.isAmendment ? "Yes" : "No",
-    r.supersededBy ?? "",
     r.amendmentReason ?? "",
   ])
 }
@@ -281,6 +271,5 @@ export const DECLARATION_LOG_HEADERS = [
   "Declaration",
   "Repair Line",
   "Amendment",
-  "Superseded By",
   "Amendment Reason",
 ]
