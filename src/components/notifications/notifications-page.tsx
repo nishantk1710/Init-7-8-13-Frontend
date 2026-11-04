@@ -1,8 +1,8 @@
 "use client"
 
-import { Bell, CheckCheck, CircleCheck, Clock, Info, TriangleAlert, type LucideIcon } from "lucide-react"
+import { Bell, BellOff, CheckCheck, CircleCheck, Clock, Info, TriangleAlert, type LucideIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -43,6 +43,7 @@ import {
   withRead,
   type NotificationSeverity,
 } from "@/lib/notifications"
+import { isSoundOn, playChime, setSoundOn, subscribeSound, unlockSound } from "@/lib/notification-sound"
 import { cn } from "@/lib/utils"
 
 const EMPTY_TEXT: Record<InboxFilter, { title: string; description: string }> = {
@@ -81,6 +82,15 @@ function announceChange() {
 export function NotificationsPage() {
   const router = useRouter()
   const user = useCurrentUser()
+  // The chime preference is kept in this browser (lib/notification-sound.ts); on until turned off.
+  const soundOn = useSyncExternalStore(subscribeSound, isSoundOn, () => true)
+  const toggleSound = () => {
+    const next = !soundOn
+    // This click is the gesture that lets the browser play sound; turning it on plays the chime once so it can be heard.
+    unlockSound()
+    setSoundOn(next)
+    if (next) window.setTimeout(playChime, 50)
+  }
   const [filter, setFilter] = useState<InboxFilter>("all")
   const [page, setPage] = useState(1)
   // What was last fetched, and for which request. "Loading" is then just "the latest
@@ -213,6 +223,16 @@ export function NotificationsPage() {
           description={unread > 0 ? `${unread} unread` : "Everything you need to act on, across all modules."}
           actions={
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSound}
+                aria-pressed={soundOn}
+                title={soundOn ? "A chime plays when a new notification arrives. Click to turn it off." : "Chime is off. Click to turn it on."}
+              >
+                {soundOn ? <Bell /> : <BellOff />}
+                {soundOn ? "Sound on" : "Sound off"}
+              </Button>
               <Button variant="outline" size="sm" onClick={markAllRead} disabled={unread === 0}>
                 <CheckCheck />
                 Mark all as read
