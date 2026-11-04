@@ -181,7 +181,7 @@ const MATERIALS_PAGE_SIZE = 5
 const PDF_MATERIALS_SIZE = 50
 /** The PDF's "Current SAP vs I07" rows: the page's own list (recommendations with a recommended value), newest first. */
 const PDF_COMPARISON_SIZE = 25
-/** The PDF's "Min-Max conversion" rows: the list the card opens on the page. */
+/** The PDF's "Min-Max conversion" rows: the converted ones, the list the card opens on the page. */
 const PDF_CONVERSION_SIZE = 25
 
 /** Rows backing the on-screen charts. Printed verbatim in the PDF's
@@ -389,6 +389,7 @@ export function QuarterlyReportsWorkspace() {
           pageSize: PDF_CONVERSION_SIZE,
           type: "oar",
           conversionEligibility: "ELIGIBLE",
+          adoptedInSap: true,
           generatedFrom: `${report.metadata.period_start}T00:00:00`,
           generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
         }

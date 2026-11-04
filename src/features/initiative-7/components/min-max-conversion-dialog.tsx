@@ -1,17 +1,19 @@
 "use client"
 
-// The materials behind the "Min-Max conversion" card: the OAR material-plants whose newest recommendation from the period is eligible
-// to be converted to Min-Max ordering.
+// The materials behind the "Min-Max conversion" card.
 //
-// The list is the Recommendations list, asked for the same thing the card counted (OAR, eligible, generated in the period): the card
-// is worked out with that list's own filters on the backend, so the count on the card and the total here are the same number. It is
-// fetched only once the dialog is open, so an ordinary page view never pays for it.
+// It opens on the OAR material-plants converted in SAP -- the number on the card -- and a switch shows every one the rule says may
+// convert, so the ones still waiting are visible too. The list is the Recommendations list, asked for the same thing the card counted
+// (OAR, eligible, generated in the period, and for the first view SAP now matches): the backend works the card out with that list's own
+// filters, so the count on the card and the total here are the same number. It is fetched only once the dialog is open.
 
 import Link from "next/link"
+import { useState } from "react"
 
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount } from "@/lib/utils"
@@ -19,12 +21,15 @@ import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashb
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
-import { useState } from "react"
 
 const PAGE_SIZE = 10
 
-/** The same list the card counted. Mounted only while the dialog is open. */
-function EligibleList({ generatedFrom, generatedTo }: { generatedFrom: string; generatedTo: string }) {
+type View = "converted" | "eligible"
+
+const VIEW_LABEL: Record<View, string> = { converted: "Converted in SAP", eligible: "All eligible" }
+
+/** The list for one view. Mounted only while the dialog is open. */
+function MaterialList({ view, generatedFrom, generatedTo }: { view: View; generatedFrom: string; generatedTo: string }) {
   const [page, setPage] = useState(1)
   const { data, total, loading } = useLiveRecommendations({
     sort: "generated_at",
@@ -33,13 +38,20 @@ function EligibleList({ generatedFrom, generatedTo }: { generatedFrom: string; g
     pageSize: PAGE_SIZE,
     type: "oar",
     conversionEligibility: "ELIGIBLE",
+    adoptedInSap: view === "converted" ? true : undefined,
     generatedFrom,
     generatedTo,
   })
-  const view = pagedTableView(loading, data)
-  if (view === "skeleton") return <LoadingSpinner label="Loading materials" className="h-48 w-full" />
-  if (view !== "rows" || !data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground">No OAR material-plant from this period is eligible for Min-Max conversion.</p>
+  const state = pagedTableView(loading, data)
+  if (state === "skeleton") return <LoadingSpinner label="Loading materials" className="h-48 w-full" />
+  if (state !== "rows" || !data || data.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {view === "converted"
+          ? "None of this period's eligible OAR material-plants has been converted in SAP yet. Switch to “All eligible” to see the ones that may convert."
+          : "No OAR material-plant from this period is eligible for Min-Max conversion."}
+      </p>
+    )
   }
   return (
     <div className="flex flex-col gap-3">
@@ -97,6 +109,30 @@ function EligibleList({ generatedFrom, generatedTo }: { generatedFrom: string; g
   )
 }
 
+/** The body of the dialog: the switch and the list. A different view is a different list, so it starts again on its first page. */
+function Body({ generatedFrom, generatedTo }: { generatedFrom: string; generatedTo: string }) {
+  const [view, setView] = useState<View>("converted")
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-2" role="group" aria-label="Which material-plants to list">
+        {(Object.keys(VIEW_LABEL) as View[]).map((key) => (
+          <Button
+            key={key}
+            type="button"
+            size="sm"
+            variant={view === key ? "default" : "outline"}
+            aria-pressed={view === key}
+            onClick={() => setView(key)}
+          >
+            {VIEW_LABEL[key]}
+          </Button>
+        ))}
+      </div>
+      <MaterialList key={view} view={view} generatedFrom={generatedFrom} generatedTo={generatedTo} />
+    </div>
+  )
+}
+
 /** The dialog the Min-Max conversion card opens. The period is the report's own, half-open: a record stamped late on the last day is in
  * it, one on the next day is not. */
 export function MinMaxConversionDialog({
@@ -116,13 +152,13 @@ export function MinMaxConversionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Eligible for Min-Max conversion</DialogTitle>
+          <DialogTitle>Min-Max conversion</DialogTitle>
           <DialogDescription>
-            OAR material-plants whose newest recommendation from {periodLabel} is eligible to be converted to Min-Max ordering. Eligible is
-            the rule&apos;s verdict, not a change made in SAP.
+            OAR material-plants from {periodLabel} converted to Min-Max ordering in SAP, or eligible to convert by the rule. Eligible is the
+            rule&apos;s verdict; converted is what SAP shows, as the SAP adoption check finds it. Approval alone is not conversion.
           </DialogDescription>
         </DialogHeader>
-        {open && <EligibleList generatedFrom={generatedFrom} generatedTo={generatedTo} />}
+        {open && <Body generatedFrom={generatedFrom} generatedTo={generatedTo} />}
       </DialogContent>
     </Dialog>
   )

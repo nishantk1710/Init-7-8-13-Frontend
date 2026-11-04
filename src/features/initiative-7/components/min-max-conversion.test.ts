@@ -135,19 +135,51 @@ describe("the OAR cards", () => {
     expect(html).toContain("Click to see the materials")
   })
 
-  it("do not offer a click on a Min-Max card that has no figure", () => {
-    const html = page(management([card("min_max_conversion", { value: null, status: "NOT_AVAILABLE" })]))
+  it("say Not yet measured, never 0, when SAP has no change evidence, and still offer the list of eligible material-plants", () => {
+    const html = page(
+      management([
+        card("min_max_conversion", {
+          value: null,
+          status: "UNKNOWN",
+          unavailable_reason: "Not yet measured: no SAP change evidence.",
+          denominator: 21,
+          denominator_label: "eligible to convert",
+        }),
+      ]),
+    )
+    expect(html).toContain("Not yet measured")
+    expect(html).toContain("Not yet measured: no SAP change evidence.")
+    expect(html).toContain("of 21 eligible")
+    expect(html).toContain("Click to see the materials")
+  })
+
+  it("show the converted count when SAP has evidence, out of those eligible", () => {
+    const html = page(management([card("min_max_conversion", { value: "3", denominator: 21, denominator_label: "eligible to convert" })]))
+    expect(html).toContain("OAR material-plants converted in SAP")
+    expect(html).toContain("of 21 eligible to convert")
+  })
+
+  it("do not offer a click when no material-plant is eligible at all", () => {
+    const html = page(management([card("min_max_conversion", { value: null, status: "UNKNOWN", denominator: 0 })]))
     expect(html).not.toContain("Click to see the materials")
+    expect(html.match(/role="button"/g)).toBeNull()
   })
 
   it("keep the dialog closed, and its list unfetched, until the card is clicked", () => {
-    expect(page(management(kpis))).not.toContain("Eligible for Min-Max conversion")
-    expect(dialogSource).toContain("{open && <EligibleList")
+    expect(page(management(kpis))).not.toContain("converted to Min-Max ordering in SAP")
+    expect(dialogSource).toContain("{open && <Body")
     expect(viewSource).toContain("useState(false)")
   })
 })
 
 describe("the list behind the Min-Max card", () => {
+  it("opens on the converted material-plants and can show every eligible one", () => {
+    expect(dialogSource).toContain('useState<View>("converted")')
+    expect(dialogSource).toContain('converted: "Converted in SAP"')
+    expect(dialogSource).toContain('eligible: "All eligible"')
+    expect(dialogSource).toContain('adoptedInSap: view === "converted" ? true : undefined')
+  })
+
   it("is the Recommendations list asked for the same thing the card counted: OAR, eligible, this period", () => {
     expect(dialogSource).toContain('type: "oar"')
     expect(dialogSource).toContain('conversionEligibility: "ELIGIBLE"')
@@ -156,10 +188,11 @@ describe("the list behind the Min-Max card", () => {
     expect(viewSource).toContain("generatedTo={`${dayAfter(report.metadata.period_end)}T00:00:00`}") // the period, half-open
   })
 
-  it("pages the list and says how many material-plants it holds", () => {
+  it("pages the list, says how many it holds and what to do when none is converted", () => {
     expect(dialogSource).toContain("TablePagination")
     expect(dialogSource).toContain("material-plant")
-    expect(dialogSource).toContain("not a change made in SAP") // said in the dialog's own words
+    expect(dialogSource).toContain("None of this period's eligible OAR material-plants has been converted in SAP yet")
+    expect(dialogSource).toContain("Approval alone is not conversion")
   })
 })
 
@@ -171,7 +204,7 @@ describe("the PDF", () => {
       plantId: "1300",
       criticality: "High",
       demandPattern: "Lumpy",
-      status: "Pending Review",
+      status: "Implemented",
       generatedAt: "31 Oct 2026",
       current: { rop: 2, safetyStock: 1, maxStock: 10 },
       recommended: { rop: 12, safetyStock: 3, maxStock: 8 },
@@ -188,21 +221,34 @@ describe("the PDF", () => {
       }),
     )
 
-  it("prints the materials the card counted, since a PDF cannot be clicked", () => {
-    const out = pdf(management([card("min_max_conversion")]), [rec("A"), rec("B")])
+  it("prints the converted material-plants the card counted, since a PDF cannot be clicked", () => {
+    const out = pdf(management([card("min_max_conversion", { value: "7", denominator: 21 })]), [rec("A"), rec("B")])
     expect(out).toContain("Min-Max Conversion")
-    expect(out).toContain("2 of 7 eligible material-plants")
+    expect(out).toContain("7 converted in SAP, of 21 eligible to convert")
+    expect(out).toContain("2 of 7 converted material-plants")
     expect(out).toContain("Material A")
-    expect(out).toContain("not a change made in SAP")
+    expect(out).toContain("approval alone is not conversion")
   })
 
-  it("says none are eligible rather than printing an empty table, and leaves the section out of a report without the card", () => {
-    expect(pdf(management([card("min_max_conversion")]), [])).toContain("No OAR material-plant from this period is eligible")
+  it("says Not yet measured when SAP has no evidence, rather than printing a 0", () => {
+    const out = pdf(
+      management([
+        card("min_max_conversion", { value: null, status: "UNKNOWN", unavailable_reason: "No SAP change evidence.", denominator: 21 }),
+      ]),
+      [],
+    )
+    expect(out).toContain("Not yet measured")
+    expect(out).toContain("21 are eligible to convert")
+    expect(out).toContain("No OAR material-plant from this period has been converted in SAP.")
+  })
+
+  it("leaves the section out of a report without the card", () => {
     expect(pdf(management([]), [rec("A")])).not.toContain("Min-Max Conversion")
   })
 
-  it("fetches those rows with the same query as the click-through, and waits for them before printing", () => {
+  it("fetches those rows with the same query as the click-through (the converted ones), and waits for them before printing", () => {
     expect(workspace).toContain('conversionEligibility: "ELIGIBLE"')
+    expect(workspace).toContain("adoptedInSap: true")
     expect(workspace).toContain("conversion={pdfConversion ?? []}")
     expect(workspace).toContain("pdfConversionLoading")
   })

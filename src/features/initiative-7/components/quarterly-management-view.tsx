@@ -171,7 +171,7 @@ function ManagementKpiCard({ card, onOpen }: { card: ApiKpiCard; onOpen?: () => 
       {!available && card.unavailable_reason && (
         <span className="text-xs leading-relaxed text-warning">{card.unavailable_reason}</span>
       )}
-      {onOpen && available && <span className="text-xs font-medium text-action">Click to see the materials</span>}
+      {onOpen && (card.denominator ?? 0) > 0 && <span className="text-xs font-medium text-action">Click to see the materials</span>}
     </PortfolioKpiCard>
   )
   if (!onOpen) return body
@@ -701,7 +701,7 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
       {/* --- Cards: each says what kind of figure it is, when it was measured and over what --------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {orderedKpis(management.kpis).map((card) => (
-          <ManagementKpiCard key={card.key} card={card} onOpen={card.key === "min_max_conversion" ? () => setMinMaxOpen(true) : undefined} />
+          <ManagementKpiCard key={card.key} card={card} onOpen={card.key === "min_max_conversion" && (card.denominator ?? 0) > 0 ? () => setMinMaxOpen(true) : undefined} />
         ))}
       </div>
       <KpiGuide cards={management.kpis} />
