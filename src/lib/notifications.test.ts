@@ -20,6 +20,8 @@ import {
   referenceOf,
   safeActionPath,
   severityOf,
+  TYPE_FILTER_OPTIONS,
+  typeFamilyOf,
   unreadBadge,
   withRead,
 } from "@/lib/notifications"
@@ -113,6 +115,20 @@ describe("how urgent, where from, and when", () => {
     expect(severityOf("APPROVAL_COMPLETED")).toBe("success")
     expect(severityOf("APPROVAL_REQUIRED")).toBe("info")
     expect(severityOf("SOMETHING_NEW")).toBe("info")
+  })
+
+  it("sorts every event into the family the Type filter offers", () => {
+    expect(typeFamilyOf("PR_RECEIVED")).toBe("pr")
+    expect(typeFamilyOf("PR_RECEIVED_DETAILS")).toBe("pr")
+    expect(typeFamilyOf("APPROVAL_REQUIRED")).toBe("approval")
+    expect(typeFamilyOf("EXCEPTION_ESCALATED")).toBe("exception")
+    expect(typeFamilyOf("RESERVATION_LINKED")).toBe("reservation")
+    expect(typeFamilyOf("SOMETHING_NEW")).toBe("other")
+  })
+
+  it("offers purchase requisitions first among the Type choices", () => {
+    expect(TYPE_FILTER_OPTIONS[0]).toEqual({ value: "pr", label: "Purchase requisitions" })
+    expect(TYPE_FILTER_OPTIONS.map((option) => option.value)).not.toContain("other")
   })
 
   it("matches a notification to a day or a range of days, by local date", () => {
