@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { useRoles } from "@/hooks/use-roles"
+import { currentActorId } from "@/lib/api/actor"
+import { testUserActorsEnabled } from "@/lib/auth/test-actors"
 import { roleLabel } from "@/lib/auth/roles"
 import { updateProfile, type MockUser } from "@/lib/auth/mock-auth"
 import { signOutEverywhere } from "@/lib/auth/sign-out"
@@ -131,6 +133,11 @@ function ProfileContent({ user }: { user: MockUser }) {
             <DetailRow icon={ShieldCheck} label={roles.length === 1 ? "Role" : "Roles"}>
               <RoleList />
             </DetailRow>
+            {testUserActorsEnabled() && (
+              <DetailRow icon={UserRound} label="Test identity (notifications)">
+                {currentActorId()}
+              </DetailRow>
+            )}
             <DetailRow icon={CalendarDays} label="Member since">
               {formatWhen(user.createdAt)}
             </DetailRow>
