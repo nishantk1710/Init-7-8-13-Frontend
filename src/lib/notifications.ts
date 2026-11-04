@@ -121,6 +121,25 @@ export function severityOf(eventType: string): NotificationSeverity {
   return SEVERITY[eventType] ?? "info"
 }
 
+export type NotificationTypeFamily = "pr" | "approval" | "exception" | "reservation" | "other"
+
+/** The inbox's Type filter: each family of events someone may want on its own, PRs first. */
+export const TYPE_FILTER_OPTIONS: { value: NotificationTypeFamily; label: string }[] = [
+  { value: "pr", label: "Purchase requisitions" },
+  { value: "approval", label: "Approvals" },
+  { value: "exception", label: "Exceptions" },
+  { value: "reservation", label: "Reservations" },
+]
+
+/** The family an event belongs to, by the prefix the backend names its events with. */
+export function typeFamilyOf(eventType: string): NotificationTypeFamily {
+  if (eventType.startsWith("PR_")) return "pr"
+  if (eventType.startsWith("APPROVAL_")) return "approval"
+  if (eventType.startsWith("EXCEPTION_")) return "exception"
+  if (eventType.startsWith("RESERVATION_")) return "reservation"
+  return "other"
+}
+
 const MODULE_PREFIXES: { prefix: string; label: string }[] = [
   { prefix: "/inventory-planning", label: "Inventory Planning" },
   { prefix: "/oar-utilization", label: "OAR Utilization" },

@@ -28,6 +28,7 @@ import {
   INBOX_PAGE_SIZE,
   DATE_SEARCH_LIMIT,
   EMAIL_SIGN_OFF,
+  TYPE_FILTER_OPTIONS,
   UNREAD_CHANGED_EVENT,
   actionLabelOf,
   greetingFor,
@@ -40,6 +41,7 @@ import {
   parseFilter,
   safeActionPath,
   severityOf,
+  typeFamilyOf,
   withRead,
   type NotificationSeverity,
 } from "@/lib/notifications"
@@ -99,9 +101,10 @@ export function NotificationsPage() {
   const [failed, setFailed] = useState<{ key: string; message: string } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  // Module and priority narrow the page already fetched; only Status is asked of the backend.
+  // Module, type and priority narrow the page already fetched; only Status is asked of the backend.
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [moduleFilter, setModuleFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
 
   // Day range, as `YYYY-MM-DD` from a date input. The backend cannot narrow by day, so while one is set the
@@ -194,6 +197,7 @@ export function NotificationsPage() {
   const items = (data?.items ?? []).filter(
     (item) =>
       (moduleFilter === "all" || moduleOf(item) === moduleFilter) &&
+      (typeFilter === "all" || typeFamilyOf(item.eventType) === typeFilter) &&
       (priorityFilter === "all" || severityOf(item.eventType) === priorityFilter) &&
       inDateRange(item.createdAt, dateFrom, dateTo)
   )
@@ -203,7 +207,8 @@ export function NotificationsPage() {
     setSelectedId(item.id)
     void markRead(item)
   }
-  const activeFilters = (filter !== "all" ? 1 : 0) + (moduleFilter !== "all" ? 1 : 0) + (priorityFilter !== "all" ? 1 : 0) +
+  const activeFilters = (filter !== "all" ? 1 : 0) + (moduleFilter !== "all" ? 1 : 0) + (typeFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0) +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0)
   const clearFilters = () => {
@@ -212,6 +217,7 @@ export function NotificationsPage() {
     setFilter("all")
     setPage(1)
     setModuleFilter("all")
+    setTypeFilter("all")
     setPriorityFilter("all")
   }
 
@@ -264,6 +270,12 @@ export function NotificationsPage() {
             value={moduleFilter}
             onChange={setModuleFilter}
             options={[{ value: "all", label: "All" }, ...MODULE_OPTIONS.map((name) => ({ value: name, label: name }))]}
+          />
+          <FilterSelect
+            label="Type"
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[{ value: "all", label: "All" }, ...TYPE_FILTER_OPTIONS]}
           />
           <FilterSelect
             label="Priority"
