@@ -68,6 +68,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
   const stages = approvalStageRows(management.adoption)
   const performance = management.performance
   const coverageItems = coverageItemsOf(management)
+  const minMax = management.kpis.find((card) => card.key === "min_max_conversion")
   const usable = stockoutUsable(management)
   const stockout = management.position.stockout
   const adoption = adoptionSummaryOf(management.adoption)
@@ -212,16 +213,21 @@ export function ManagementPrintView({ report, management, materials, materialsTo
         </Section>
       )}
 
-      {management.kpis.some((card) => card.key === "min_max_conversion") && (
+      {minMax && (
         <Section
           number={next()}
           title="Min-Max Conversion"
-          subtitle="OAR material-plants whose newest recommendation from this period is eligible to be converted to Min-Max ordering."
+          subtitle="OAR material-plants converted to Min-Max ordering in SAP, out of those eligible to convert by the rule."
         >
+          <p className="print-disclosure">
+            {minMax.status === "AVAILABLE"
+              ? `${formatCount(num(minMax.value) ?? 0)} converted in SAP, of ${formatCount(minMax.denominator ?? 0)} eligible to convert.`
+              : `Not yet measured. ${minMax.unavailable_reason ?? ""} ${formatCount(minMax.denominator ?? 0)} are eligible to convert.`}
+          </p>
           {conversion.length > 0 ? (
             <>
               <p className="print-disclosure">
-                {`${formatCount(conversion.length)} of ${formatCount(conversionTotal)} eligible material-plants, newest first. This is the list the card opens on the page.`}
+                {`${formatCount(conversion.length)} of ${formatCount(conversionTotal)} converted material-plants, newest first. This is the list the card opens on the page.`}
               </p>
               <Table
                 headers={["Material", "Plant", "Crit.", "Safety stock", "Reorder point", "Max stock", "Status", "Generated"]}
@@ -240,10 +246,11 @@ export function ManagementPrintView({ report, management, materials, materialsTo
               />
             </>
           ) : (
-            <p className="print-empty">No OAR material-plant from this period is eligible for Min-Max conversion.</p>
+            <p className="print-empty">No OAR material-plant from this period has been converted in SAP.</p>
           )}
           <p className="print-disclosure">
-            Eligible is the conversion rule&apos;s verdict, not a change made in SAP: whether SAP was changed is the SAP adoption section.
+            Eligible is the conversion rule&apos;s verdict. Converted means the SAP adoption check finds SAP holding Min-Max ordering with its
+            minimum and maximum filled in; approval alone is not conversion.
           </p>
         </Section>
       )}

@@ -111,6 +111,8 @@ export function orderedKpis(cards: ApiKpiCard[]): ApiKpiCard[] {
 /** What a card shows as its big value: the number with its unit, or why it has none. */
 export function kpiValueText(card: ApiKpiCard): string {
   const value = num(card.value)
+  // Never measured is not the same as measured and nothing there: it is said in its own words, and is never a 0.
+  if (card.status === "UNKNOWN" && value === null) return "Not yet measured"
   if (card.status !== "AVAILABLE" || value === null) return "Not available"
   const isMoney = card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact"
   if (!isMoney) return value.toLocaleString("en-US", { maximumFractionDigits: 0 })
@@ -130,7 +132,7 @@ const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
   excess_inventory_opportunity: { caption: "Stock above the recommended maximum · estimate" },
   working_capital_impact: { caption: "Cash released (+) or tied up (−) · estimate" },
   oar_recommendations: { caption: "Records for OAR material-plants, not materials" },
-  min_max_conversion: { caption: "OAR material-plants eligible to convert" },
+  min_max_conversion: { caption: "OAR material-plants converted in SAP" },
   approved: { caption: "Approved so far · approval, not SAP adoption" },
   pending_approval: { caption: "Waiting for an approver's decision" },
 }

@@ -466,6 +466,9 @@ export interface RecommendationListParams {
   /** Only recommendations with at least one recommended value (reorder point, safety stock or max
    * stock) -- leaves out those where nothing could be computed. Applied in SQL. */
   hasRecommended?: boolean
+  /** Only recommendations SAP now matches (the reconciliation's ADOPTED result) -- for an OAR material, converted to Min-Max ordering.
+   * One with no SAP change evidence yet is left out. Applied in SQL. */
+  adoptedInSap?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -507,6 +510,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
   if (params.actionable) search.set("actionable", "true")
   if (params.hasRecommended) search.set("has_recommended", "true")
+  if (params.adoptedInSap) search.set("adopted_in_sap", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
