@@ -9,13 +9,16 @@
 // from here, so there is nothing for a request body to impersonate.
 //
 // AUTHORISATION LIMITATION (unchanged): the approval ROLE is still a placeholder. A single fixed role
-// acts, and is derived from the backend's own pending_role for this recommendation
-// (GET .../workflow-state) -- never a free choice. If pending_role does not
-// match DEMO_ACTOR_ROLE, the actions are disabled with an explanation rather
+// acts ("End User"), never a free choice. If the backend's own pending_role for this recommendation
+// (GET .../workflow-state) is not that role, the actions are disabled with an explanation rather
 // than let the user pick a role that was never theirs; the backend would
 // reject a mismatched role anyway (HTTP 409 INVALID_WORKFLOW_ACTION), but the
 // UI should not offer an action it already knows will fail. The backend does not yet check the role
 // against the user's token roles.
+//
+// The one exception is the NONPROD test sign-in (NEXT_PUBLIC_TEST_USER_ACTORS, lib/auth/test-actors.ts):
+// there the signed-in test user's own approval role acts (engineering.manager acts as Engineering
+// Manager), so each approver in the chain can decide their step. Every other build is unchanged.
 
 "use client"
 
@@ -30,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7/hooks/use-live-approval"
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
+import { testLoginApprovalRole } from "@/lib/api/actor"
 import {
   decisionPanelMode,
   panelContentFor,
@@ -53,11 +57,16 @@ const DECISION_TOAST: Record<"APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HO
 function actorLabel(actorId: string): string {
   return actorId.replace(/^demo-/, "")
 }
-const DEMO_ACTOR_ROLE: ApiApprovalRole = "End User"
+const DEFAULT_ACTOR_ROLE: ApiApprovalRole = "End User"
+
+/** The role this person acts as: the test sign-in's own approval role on nonprod test builds, else End User. */
+function actingRole(): ApiApprovalRole {
+  return (testLoginApprovalRole() as ApiApprovalRole | null) ?? DEFAULT_ACTOR_ROLE
+}
 
 /**
- * Decision controls for a LIVE recommendation. The acting role is always
- * DEMO_ACTOR_ROLE (see above) -- never chosen per action -- and the pending
+ * Decision controls for a LIVE recommendation. The acting role is fixed per person
+ * (actingRole, see above) -- never chosen per action -- and the pending
  * role comes from the backend's own workflow state, instead of a role picker.
  *
  * `surface` decides what is offered. On a recommendation page ("recommendation", the default) a planner
@@ -99,7 +108,7 @@ export function LiveDecisionActions({
   const rejectReasonId = useId()
 
   async function handle(action: "APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD") {
-    const accepted = await act(DEMO_ACTOR_ROLE, action, comment.trim() || undefined)
+    const accepted = await act(actingRole(), action, comment.trim() || undefined)
     if (accepted) toast.success(DECISION_TOAST[action])
     setComment("")
   }
@@ -138,7 +147,8 @@ export function LiveDecisionActions({
   const pendingRole = workflow?.pending_role ?? null
   const mode = decisionPanelMode(rawStatus, pendingRole)
   const content = panelContentFor(mode, surface)
-  const canAct = !submitting && pendingRole === DEMO_ACTOR_ROLE
+  const actorRole = actingRole()
+  const canAct = !submitting && pendingRole === actorRole
 
   if (content === "not-reviewable") {
     return (
@@ -285,9 +295,9 @@ export function LiveDecisionActions({
         <span className="font-medium text-foreground">{pendingRole}</span>
       </div>
 
-      {pendingRole !== DEMO_ACTOR_ROLE && (
+      {pendingRole !== actorRole && (
         <p className="text-[12px] text-muted-foreground">
-          Acting as {DEMO_ACTOR_ROLE} — this step is awaiting {pendingRole}.
+          Acting as {actorRole} — this step is awaiting {pendingRole}.
         </p>
       )}
 
@@ -313,7 +323,7 @@ export function LiveDecisionActions({
           onClick={() => handle("APPROVE")}
         >
           <CircleCheck className="size-3.5" />
-          Approve as {DEMO_ACTOR_ROLE}
+          Approve as {actorRole}
         </Button>
         <Button size="sm" variant="outline" disabled={!canAct} onClick={() => handle("ADJUST")}>
           <SlidersHorizontal className="size-3.5" />

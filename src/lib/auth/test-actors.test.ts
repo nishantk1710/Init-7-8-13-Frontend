@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { resolveTestActor, TEST_USER_ACTORS, testUserActorsEnabled } from "@/lib/auth/test-actors"
+import {
+  resolveTestActor,
+  resolveTestApprovalRole,
+  TEST_USER_ACTORS,
+  TEST_USER_APPROVAL_ROLES,
+  testUserActorsEnabled,
+} from "@/lib/auth/test-actors"
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -38,6 +44,30 @@ describe("resolveTestActor", () => {
 
   it("is valid as a sign-up username (2-40 letters, digits, dots, dashes, underscores)", () => {
     for (const username of Object.keys(TEST_USER_ACTORS)) expect(username).toMatch(/^[a-z0-9._-]{2,40}$/)
+  })
+})
+
+describe("resolveTestApprovalRole", () => {
+  it("gives each approval step's test user that step's role, ignoring case and spaces", () => {
+    expect(resolveTestApprovalRole("end.user")).toBe("End User")
+    expect(resolveTestApprovalRole(" Engineering.Manager ")).toBe("Engineering Manager")
+    expect(resolveTestApprovalRole("warehouse.supervisor")).toBe("Warehouse Supervisor")
+    expect(resolveTestApprovalRole("commercial.head")).toBe("Commercial Head")
+  })
+
+  it("follows a GUID username back to the listed person's role", () => {
+    expect(resolveTestApprovalRole("00000000-0000-0000-0000-000000000002")).toBe("Engineering Manager")
+  })
+
+  it("has no role for admin, requester, hod, strangers and blanks, so the panel keeps its default", () => {
+    for (const username of ["admin", "requester", "hod", "simone", "00000000-0000-0000-0000-000000000099", "", null, undefined]) {
+      expect(resolveTestApprovalRole(username)).toBeNull()
+    }
+  })
+
+  it("only lists usernames that are also test people, and only the eight real approval roles", () => {
+    for (const username of Object.keys(TEST_USER_APPROVAL_ROLES)) expect(TEST_USER_ACTORS[username]).toBeDefined()
+    expect(new Set(Object.values(TEST_USER_APPROVAL_ROLES)).size).toBe(8)
   })
 })
 

@@ -1,6 +1,6 @@
 import { browserAuthMode } from "@/lib/auth/mode"
 import { currentUser } from "@/lib/auth/mock-auth"
-import { resolveTestActor, testUserActorsEnabled } from "@/lib/auth/test-actors"
+import { resolveTestActor, resolveTestApprovalRole, testUserActorsEnabled } from "@/lib/auth/test-actors"
 
 /**
  * Who the backend records as the author of everything this app writes.
@@ -98,10 +98,22 @@ function requesterActor(): string | null {
  * browser, the app runs the test sign-in (not Entra) and the username is one the
  * mapping knows. Null otherwise, so every other build behaves exactly as before.
  */
-function testLoginActor(): string | null {
+function testLoginUsername(): string | null {
   if (!testUserActorsEnabled() || typeof window === "undefined") return null
   if (browserAuthMode() !== "mock") return null
-  return resolveTestActor(currentUser()?.username)
+  return currentUser()?.username ?? null
+}
+
+function testLoginActor(): string | null {
+  return resolveTestActor(testLoginUsername())
+}
+
+/**
+ * The I07 approval role the signed-in test user acts as (nonprod builds with the test mapping on),
+ * or null, in which case the decision panel keeps its default. Browser only.
+ */
+export function testLoginApprovalRole(): string | null {
+  return resolveTestApprovalRole(testLoginUsername())
 }
 
 /**
