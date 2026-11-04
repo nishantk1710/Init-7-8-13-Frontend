@@ -82,6 +82,10 @@ jobs:
           # (src/lib/api/client.ts). Repository variable API_GET_TIMEOUT_MS
           # overrides the 60 s default; App Service cuts requests at 230 s.
           NEXT_PUBLIC_API_GET_TIMEOUT_MS: ${{ vars.API_GET_TIMEOUT_MS || '60000' }}
+          # Who the app acts as while there is no sign-in: sent as X-Actor-Id on every
+          # request (src/lib/api/actor.ts). Repository variable ACTOR_ID, a GUID, so the
+          # notification inbox shows that person's notices. Unset = the app's own default.
+          NEXT_PUBLIC_ACTOR_ID: ${{ vars.ACTOR_ID }}
         run: npm run build
 
       # The standalone output deliberately omits public/ and .next/static/ --
