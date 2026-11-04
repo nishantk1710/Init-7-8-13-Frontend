@@ -140,7 +140,6 @@ export async function ExceptionsPage({
             <ActExceptionsBoard
               exceptions={live.rows}
               reasonCategories={reasonCategories}
-              sessionsByKey={live.sessionsByKey}
             />
             <TablePagination
               page={page}
