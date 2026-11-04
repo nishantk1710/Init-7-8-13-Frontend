@@ -737,6 +737,8 @@ export interface ReservationLedgerRow {
   lastIssueDate: string | null
   lifecycleStatus: string
   sessionId: string | null
+  /** The linked session as the requester knows it: `R.../n` for a request line, else the session ID. */
+  sessionReference: string | null
   sgtxt: string | null
   uatSimulated: boolean
   /**
