@@ -23,7 +23,7 @@ describe("every live route opens with the hourglass", () => {
   it("finds the routes", () => {
     expect(ROUTES).toEqual(
       expect.arrayContaining([
-        "home", "actions", "approvals", "audit", "assistant",
+        "home", "actions", "audit", "assistant",
         "inventory-planning", "oar-utilization", "profile",
       ]),
     )

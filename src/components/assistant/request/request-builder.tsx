@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Boxes, CircleSlash, Loader2, Plus, Save, Search, Wrench } from "lucide-react"
+import { ArrowRight, Boxes, CircleSlash, Loader2, PiggyBank, Plus, Save, Search, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { DepartmentPicker } from "@/components/assistant/department-picker"
+import { createdRequestPath } from "@/components/assistant/request/request-created-dialog"
 import { OarTable } from "@/components/assistant/request/oar-table"
 import { RepairableTable } from "@/components/assistant/request/repairable-table"
 import { deleteDraft, getDraft, saveDraft, type RequestDraft } from "@/components/assistant/request/request-drafts"
@@ -13,6 +14,7 @@ import { Chip, SELECT_CLASS } from "@/components/assistant/request/request-parts
 import { UploadMaterials } from "@/components/assistant/request/upload-materials"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { setRequesterActor } from "@/lib/api/actor"
 import type { ApiMaterialMatch } from "@/lib/api/assistant"
 import {
   conflictDetail,
@@ -38,8 +40,8 @@ import {
   opensSession,
   pendingLine,
   repairableNeedsJustification,
+  requestSaving,
   withSuggestedWindow,
-  withoutDeclarations,
   type DraftLine,
   type Justification,
   type NoSessionLine,
@@ -48,7 +50,7 @@ import {
 } from "@/lib/assistant/request/lines"
 import type { UploadContext, UploadPlan } from "@/lib/assistant/request/upload"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
-import { cn } from "@/lib/utils"
+import { cn, formatZAR } from "@/lib/utils"
 import { formatInstant } from "@/lib/assistant/trace-format"
 
 /** The sites a request can be for: the two plants VZI's delivery names. */
@@ -123,14 +125,9 @@ function newDraftKey(): string {
 export function RequestBuilder({
   entry = null,
   draftId = null,
-  completeFlow,
 }: {
   entry?: RequestEntry | null
   draftId?: string | null
-  /** The I08 complete-flow switch, read by the page (`lib/i08-features`).
-   *  Off: no declaring the faulty unit with the request, and no note on
-   *  what a reason does. */
-  completeFlow: boolean
 }) {
   const router = useRouter()
   const [origin, setOrigin] = useState<"BADI" | "PLATFORM">(entry?.origin === "BADI" ? "BADI" : "PLATFORM")
@@ -176,6 +173,7 @@ export function RequestBuilder({
   const department = requestPlant && picked.plant === requestPlant ? picked.code : ""
 
   const readyCount = sessionRows.filter(isReady).length
+  const saving = requestSaving(rows)
   const headerReady = fromSap || (requester.trim().length > 0 && department.length > 0)
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
@@ -295,7 +293,7 @@ export function RequestBuilder({
     setRequester(draft.requester)
     setPicked({ plant: draft.departmentPlant, code: draft.department })
     setDepartmentNote(draft.departmentNote)
-    setRows(completeFlow ? result.rows : withoutDeclarations(result.rows))
+    setRows(result.rows)
   }
 
   /** The link's material is line 1 -- unless a draft is being resumed. Once: a ref survives Strict Mode's re-run. */
@@ -398,6 +396,11 @@ export function RequestBuilder({
     }
     setSubmitting(true)
     const submitted = rows.filter((row) => row.kind !== "pending")
+    // The typed Requester becomes the actor, as when one material is checked
+    // (AssistantLauncher): the request, its sessions and any faulty unit
+    // declared with it are recorded under that name rather than the
+    // no-sign-in placeholder. With sign-in, the backend uses the signed-in user.
+    setRequesterActor(requester)
     try {
       const request = await createRequest({
         idempotencyKey: draftKey.current,
@@ -409,7 +412,7 @@ export function RequestBuilder({
         lines: submitted.map(answersOf),
       })
       if (savedDraftId.current) deleteDraft(savedDraftId.current)
-      router.push(`/assistant/requests/${request.requestId}`)
+      router.push(createdRequestPath(request.requestId))
       return
     } catch (error) {
       const conflict = conflictDetail(error)
@@ -581,12 +584,8 @@ export function RequestBuilder({
             lineNumbers={lineNumbers}
             showErrors={showErrors}
             reasons={reasons}
-            // Off, the backend sends no categories and refuses a declaration;
-            // none here keeps the section away even if one arrives.
-            faultCategories={completeFlow ? faultCategories : []}
+            faultCategories={faultCategories}
             recommendations={recommendations}
-            requester={requester}
-            completeFlow={completeFlow}
             refusedKey={refusedKey}
             onChange={update}
             onRemove={remove}
@@ -647,6 +646,21 @@ export function RequestBuilder({
                 style={{ width: `${(readyCount / sessionRows.length) * 100}%` }}
               />
             </div>
+          )}
+          {saving.units > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-xs font-semibold text-success"
+              title="What you asked for less what you locked, at each plant's MBEW price (VERPR ÷ PEINH). An estimate until SAP is reserved."
+            >
+              <PiggyBank className="size-3.5" aria-hidden />
+              Suggestions save {saving.units} unit{saving.units === 1 ? "" : "s"}
+              {saving.value > 0 && ` · ${formatZAR(saving.value)}`}
+              {saving.unpriced > 0 && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  ({saving.unpriced} line{saving.unpriced === 1 ? "" : "s"} without a price)
+                </span>
+              )}
+            </span>
           )}
           <span className="text-xs font-medium text-foreground">
             {!headerReady

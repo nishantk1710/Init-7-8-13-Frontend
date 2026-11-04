@@ -272,6 +272,10 @@ export type ApiJustificationKind =
 export type ApiJustification = {
   id: string
   sessionId: string | null
+  /** How the session is quoted on screen: `R…/n` for a request line, the
+   *  session ID for an older single-material session. Absent on a backend
+   *  that predates it, and on routes other than the justification list. */
+  sessionReference?: string | null
   exceptionId: string | null
   kind: ApiJustificationKind
   reasonCategory: string

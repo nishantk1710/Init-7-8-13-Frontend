@@ -15,6 +15,8 @@ import { ReservationLedgerTable } from "@/features/initiative-13/components/rese
 import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative-13/data/live-loaders"
 import { percentLabel } from "@/features/initiative-13/utils/oar-display"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
+import { getSession } from "@/lib/api/assistant"
+import { sessionIdentity } from "@/lib/assistant/trace-format"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
 
@@ -115,25 +117,46 @@ function ViewToggle({ searchParams, active }: { searchParams: I13SearchParams; a
 }
 
 /**
+ * The heading when the tab is opened from one session, quoted as the requester
+ * saw it: a request line is `R…/n` (SAP carries the bare `R…`), only an older
+ * single-material session is its own `S…` ID. The URL keeps the session ID --
+ * it is what the filter matches on.
+ */
+async function sessionHeading(sessionId: string | undefined): Promise<string | null> {
+  if (!sessionId) return null
+  const identity = await getSession(sessionId)
+    .then(sessionIdentity)
+    .catch(() => null)
+  if (identity?.requestId) {
+    return `Reservations linked to request line ${identity.label} (item text ${identity.sapText}).`
+  }
+  return `Reservations whose item text carries session ${identity?.label ?? sessionId}.`
+}
+
+/**
  * Server-paged: 105k reservation items is not a list to send to a browser, and
  * the route pages in SQL with a total.
  */
 async function ReservationsView({ searchParams }: { searchParams: I13SearchParams }) {
   const page = searchParams.page ?? 1
   let live: Awaited<ReturnType<typeof loadLiveReservationLedger>> | null = null
+  let sessionLabel: string | null = null
   let loadError: string | null = null
   try {
-    live = await loadLiveReservationLedger(
-      {
-        plant: searchParams.plant,
-        material: searchParams.material,
-        session: searchParams.session,
-        reservation: searchParams.reservation,
-        reservationStatus: searchParams.reservationStatus,
-        issued: searchParams.issued,
-      },
-      { page, pageSize: DEFAULT_PAGE_SIZE }
-    )
+    ;[live, sessionLabel] = await Promise.all([
+      loadLiveReservationLedger(
+        {
+          plant: searchParams.plant,
+          material: searchParams.material,
+          session: searchParams.session,
+          reservation: searchParams.reservation,
+          reservationStatus: searchParams.reservationStatus,
+          issued: searchParams.issued,
+        },
+        { page, pageSize: DEFAULT_PAGE_SIZE }
+      ),
+      sessionHeading(searchParams.session),
+    ])
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
@@ -147,9 +170,8 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
         <OarPageHeader
           title="Utilization Ledger"
           subtitle={
-            searchParams.session
-              ? `Reservations whose item text carries session ${searchParams.session}.`
-              : "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
+            sessionLabel ??
+            "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
           }
         />
         {live && (

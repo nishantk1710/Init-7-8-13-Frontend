@@ -7,7 +7,9 @@ import {
   needDateAdviceOf,
   noUsableUnitText,
   openRepairsSuffix,
+  repairPoReference,
   repairRequestCountOf,
+  repairsByDueDate,
   repairRequestsOf,
   requestAgePhrase,
   requestDepartmentText,
@@ -68,20 +70,37 @@ describe("repairRequestsOf", () => {
   })
 })
 
+describe("repair POs on the card (4-Nov-2026)", () => {
+  it("names the PO and its item as the register does, without the item's padding", () => {
+    expect(repairPoReference({ purchasingDocument: "4500001641", item: "00700" })).toBe("PO 4500001641/700")
+    expect(repairPoReference({ purchasingDocument: "4500001723", item: "80" })).toBe("PO 4500001723/80")
+    expect(repairPoReference({ purchasingDocument: "4500001723", item: "" })).toBe("PO 4500001723")
+  })
+
+  it("lists the earliest due back first, and one with no due date last", () => {
+    const sorted = repairsByDueDate([
+      { id: "a", dueDate: "2026-07-31" },
+      { id: "b", dueDate: null },
+      { id: "c", dueDate: "2026-06-30" },
+    ])
+    expect(sorted.map((r) => r.id)).toEqual(["c", "a", "b"])
+  })
+})
+
 describe("requestAgePhrase", () => {
   it("words the stored age", () => {
-    expect(requestAgePhrase(0)).toBe("requested today")
-    expect(requestAgePhrase(1)).toBe("requested 1 day ago")
-    expect(requestAgePhrase(239)).toBe("requested 239 days ago")
+    expect(requestAgePhrase(0)).toBe("raised today")
+    expect(requestAgePhrase(1)).toBe("raised 1 day ago")
+    expect(requestAgePhrase(239)).toBe("raised 239 days ago")
   })
 
   it("says the date is not known when there is none", () => {
-    expect(requestAgePhrase(null)).toBe("request date not known")
-    expect(requestAgePhrase(undefined)).toBe("request date not known")
+    expect(requestAgePhrase(null)).toBe("PR date not known")
+    expect(requestAgePhrase(undefined)).toBe("PR date not known")
   })
 
   it("never shows a negative age", () => {
-    expect(requestAgePhrase(-2)).toBe("requested today")
+    expect(requestAgePhrase(-2)).toBe("raised today")
   })
 })
 
@@ -240,7 +259,8 @@ describe("repair request wording", () => {
   it("adds the requested count beside the open repair POs", () => {
     expect(openRepairsSuffix(legacy)).toBeNull()
     expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 0 })).toBeNull()
-    expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 2 })).toBe("+2 requested, not ordered")
+    expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 2 })).toBe("+2 PRs raised, no PO yet")
+    expect(openRepairsSuffix({ ...legacy, openRepairRequestLines: 1 })).toBe("+1 PR raised, no PO yet")
   })
 
   it("words a quantity as units", () => {
@@ -259,7 +279,7 @@ describe("repair request wording", () => {
     const damagedOnly = { ...legacy, stockOnHand: "1", usableStock: "0", damagedStock: "1", stockConditionKnown: true }
     expect(noUsableUnitText(damagedOnly)).toBe("Nothing usable in stock (1 damaged, not usable), none on repair.")
     expect(noUsableUnitText({ ...legacy, stockOnHand: "0", openRepairRequestLines: 2 })).toBe(
-      "None in stock, 2 repairs requested, not yet ordered."
+      "None in stock, 2 PRs raised for repair, no PO yet."
     )
   })
 

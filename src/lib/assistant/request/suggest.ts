@@ -105,7 +105,9 @@ export function suggestionLabel(suggested: number | null): string {
  *
  * Above the suggestion: yes. At or under it: no -- under-ordering is not the
  * risk this guards against. With no suggestion to compare against, any
- * quantity needs a reason, since nothing else supports it.
+ * quantity needs a reason, since nothing else supports it. (A request row
+ * also asks when the requester keeps their own number below the suggestion --
+ * see `oarNeedsJustification`.)
  */
 export function needsJustification(suggested: number | null, quantity: number | null): boolean {
   if (quantity === null || !(quantity > 0)) return false
@@ -117,7 +119,9 @@ export function needsJustification(suggested: number | null, quantity: number | 
 export function justificationPrompt(suggested: number | null, quantity: number): string {
   switch (suggestionKind(suggested)) {
     case "suggested":
-      return `${quantity} is above the suggested ${suggested}. Why the larger quantity?`
+      return suggested !== null && quantity < suggested
+        ? `${quantity} is below the suggested ${suggested}. Why the smaller quantity?`
+        : `${quantity} is above the suggested ${suggested}. Why the larger quantity?`
     case "covered":
       return `Stock and open orders already cover the next 12 months. Why procure ${quantity} more?`
     case "none":

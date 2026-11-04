@@ -15,17 +15,20 @@
 //
 // Reports saved before the management view keep the older print view (report-print-view.tsx), unchanged.
 
+import { stockChange, stockFigure } from "@/features/initiative-7/components/quarterly-management-view"
 import { Row, Section, Table } from "@/features/initiative-7/components/report-print-view"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
-import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import type { Recommendation, StockParameters } from "@/features/initiative-7/types/inventory"
+import { reportKindOf, reportNoun } from "@/features/initiative-7/utils/report-period"
+import { approvalStageRows, coverageItemsOf } from "@/features/initiative-7/utils/quarterly-sections"
 import {
   activityCell,
   adoptionSummaryOf,
   cardTitle,
   kpiValueText,
-  millions,
+  moneyExact,
   monthBasisLabel,
   num,
   orderedKpis,
@@ -41,6 +44,12 @@ const KIND_LABEL = {
   AGGREGATE: "Total over the period",
 } as const
 
+/** A recommended figure, or a dash when there is none -- never a 0 that nothing set. */
+const recommendedFigure = (rec: Recommendation, key: keyof StockParameters) => {
+  const value = stockFigure(rec, "recommended", key)
+  return value === null ? "—" : formatCount(value)
+}
+
 const date = (iso: string | null) => (iso ? formatIsoDateDMY(iso.slice(0, 10)) : NOT_AVAILABLE)
 const share = (part: number, whole: number) => (whole <= 0 ? "—" : `${((part / whole) * 100).toFixed(1)}%`)
 
@@ -50,10 +59,22 @@ export interface ManagementPrintProps {
   /** The period's recommendations, newest first -- a list, not the population the figures are over. */
   materials: Recommendation[]
   materialsTotal: number
+  /** The recommendations the page's "Current SAP vs I07" table lists: those with at least one recommended value. */
+  comparison?: Recommendation[]
+  comparisonTotal?: number
+  /** The material-plants the "Min-Max conversion" card counted: the list its click-through shows, as a table. */
+  conversion?: Recommendation[]
+  conversionTotal?: number
 }
 
-export function ManagementPrintView({ report, management, materials, materialsTotal }: ManagementPrintProps) {
+export function ManagementPrintView({ report, management, materials, materialsTotal, comparison = [], comparisonTotal = 0, conversion = [], conversionTotal = 0 }: ManagementPrintProps) {
   const meta = report.metadata
+  const kind = reportKindOf(meta.quarter)
+  const noun = reportNoun(kind)
+  const stages = approvalStageRows(management.adoption)
+  const performance = management.performance
+  const coverageItems = coverageItemsOf(management)
+  const minMax = management.kpis.find((card) => card.key === "min_max_conversion")
   const usable = stockoutUsable(management)
   const stockout = management.position.stockout
   const adoption = adoptionSummaryOf(management.adoption)
@@ -69,7 +90,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
     <div className="print-root" data-testid="report-print-view" data-quarter={meta.quarter}>
       <header className="print-cover">
         <p className="print-eyebrow">Initiative 07 — Predictive Inventory &amp; Safety Stock</p>
-        <h1 className="print-title">Quarterly Deep-Dive Report</h1>
+        <h1 className="print-title">{kind === "monthly" ? "Monthly Report" : "Quarterly Deep-Dive Report"}</h1>
         <p className="print-quarter">{meta.quarter}</p>
         <dl className="print-meta">
           <div>
@@ -94,7 +115,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           </div>
           <div>
             <dt>Figures are</dt>
-            <dd>{coverage.basis === "snapshot" ? "Quarter-end snapshot, with current calculations" : "Current calculations"}</dd>
+            <dd>{coverage.basis === "snapshot" ? `${noun.endPosition.replace(" position", "")} snapshot, with current calculations` : "Current calculations"}</dd>
           </div>
         </dl>
       </header>
@@ -120,9 +141,9 @@ export function ManagementPrintView({ report, management, materials, materialsTo
         ))}
       </Section>
 
-      <Section number={next()} title="Activity by Month" subtitle="Events counted in the month they happened in. The months add up to the quarter total.">
+      <Section number={next()} title="Activity by Month" subtitle={`Events counted in the month they happened in. The months add up to the ${noun.singular} total.`}>
         <Table
-          headers={["Metric", ...management.monthly_activity.months.map((m) => m.label), "Quarter total"]}
+          headers={["Metric", ...management.monthly_activity.months.map((m) => m.label), noun.total]}
           rows={management.monthly_activity.rows.map((row) => [
             `${row.label} (${row.unit})`,
             ...row.months.map((value) => (num(value) === null ? NOT_AVAILABLE : activityCell(value))),
@@ -171,8 +192,8 @@ export function ManagementPrintView({ report, management, materials, materialsTo
             usable ? formatCount(entry.figures.stockout.at_risk) : NOT_AVAILABLE,
             usable ? formatCount(entry.figures.stockout.evaluated) : NOT_AVAILABLE,
             formatCount(entry.figures.excess_count),
-            millions(num(entry.figures.excess_opportunity), entry.figures.currency),
-            millions(num(entry.figures.net_rop_value_impact), entry.figures.working_capital_currency ?? entry.figures.currency, true),
+            moneyExact(num(entry.figures.excess_opportunity), entry.figures.currency),
+            moneyExact(num(entry.figures.net_rop_value_impact), entry.figures.working_capital_currency ?? entry.figures.currency, true),
           ])}
         />
         <p className="print-disclosure">
@@ -180,6 +201,65 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           Money figures are estimates of what the recommendations would change, not realised savings.
         </p>
       </Section>
+
+      {stages && (
+        <Section
+          number={next()}
+          title="Approval Status"
+          subtitle="Where this period's recommendations stand in the approval chain, on the day the report was generated. SAP adoption is separate."
+        >
+          <Table
+            headers={["Stage", "Records", "Share"]}
+            rows={stages.map((row) => [row.label, formatCount(row.count), share(row.count, management.adoption.stages?.total ?? 0)])}
+          />
+          <p className="print-disclosure">
+            {formatCount(management.adoption.stages?.total ?? 0)} recommendation records. Approved is not adopted: whether SAP changed is the next
+            section, and its &ldquo;pending&rdquo; counts recommendations with no SAP change evidence yet, whether or not they were approved.
+          </p>
+        </Section>
+      )}
+
+      {minMax && (
+        <Section
+          number={next()}
+          title="Min-Max Conversion"
+          subtitle="OAR material-plants converted to Min-Max ordering in SAP, out of those eligible to convert by the rule."
+        >
+          <p className="print-disclosure">
+            {minMax.status === "AVAILABLE"
+              ? `${formatCount(num(minMax.value) ?? 0)} converted in SAP, of ${formatCount(minMax.denominator ?? 0)} eligible to convert.`
+              : `Not yet measured. ${minMax.unavailable_reason ?? ""} ${formatCount(minMax.denominator ?? 0)} are eligible to convert.`}
+          </p>
+          {conversion.length > 0 ? (
+            <>
+              <p className="print-disclosure">
+                {`${formatCount(conversion.length)} of ${formatCount(conversionTotal)} converted material-plants, newest first. This is the list the card opens on the page.`}
+              </p>
+              <Table
+                headers={["Material", "Plant", "Crit.", "Safety stock", "Reorder point", "Max stock", "Status", "Generated"]}
+                rows={conversion.map((rec) => [
+                  <span key="m">
+                    {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
+                  </span>,
+                  rec.plantId,
+                  rec.criticality,
+                  <span key="s" className="print-mono">{recommendedFigure(rec, "safetyStock")}</span>,
+                  <span key="r" className="print-mono">{recommendedFigure(rec, "rop")}</span>,
+                  <span key="x" className="print-mono">{recommendedFigure(rec, "maxStock")}</span>,
+                  rec.status,
+                  rec.generatedAt,
+                ])}
+              />
+            </>
+          ) : (
+            <p className="print-empty">No OAR material-plant from this period has been converted in SAP.</p>
+          )}
+          <p className="print-disclosure">
+            Eligible is the conversion rule&apos;s verdict. Converted means the SAP adoption check finds SAP holding Min-Max ordering with its
+            minimum and maximum filled in; approval alone is not conversion.
+          </p>
+        </Section>
+      )}
 
       <Section number={next()} title="SAP Adoption" subtitle="Recommendations with a change to adopt, checked against SAP change history.">
         {adoption ? (
@@ -190,6 +270,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
               ["Partially adopted", formatCount(adoption.partiallyAdoptedCount)],
               ["Not adopted", formatCount(adoption.notAdoptedCount)],
               ["Pending (no SAP change recorded yet)", formatCount(adoption.unknownCount)],
+              ["Adoption rate (of those with SAP evidence)", adoption.adoptionRatePercentage === null ? "Not yet measured" : `${adoption.adoptionRatePercentage}%`],
             ]}
           />
         ) : (
@@ -200,7 +281,38 @@ export function ManagementPrintView({ report, management, materials, materialsTo
         </p>
       </Section>
 
-      {trends && (
+      {performance && kind === "monthly" && (
+        <Section
+          number={next()}
+          title="Monthly Performance and Trends"
+          subtitle="The last months, from what was recorded at the time. A month with no figure is not available, not zero."
+        >
+          <Table
+            headers={["Month", "Recommendation records", "Distinct material-plants", "Sent for approval", "Approval decisions", "Rejections", "Sent back", "Excess value (month-end)"]}
+            rows={performance.months.map((m) => [
+              m.label,
+              m.records_generated === null ? NOT_AVAILABLE : formatCount(m.records_generated),
+              m.material_plants_generated === null ? NOT_AVAILABLE : formatCount(m.material_plants_generated),
+              m.submitted === null ? NOT_AVAILABLE : formatCount(m.submitted),
+              m.approved === null ? NOT_AVAILABLE : formatCount(m.approved),
+              m.rejected === null ? NOT_AVAILABLE : formatCount(m.rejected),
+              m.sent_back === null ? NOT_AVAILABLE : formatCount(m.sent_back),
+              m.excess_state === "MONTH_END" && num(m.excess_opportunity) !== null ? moneyExact(num(m.excess_opportunity), m.currency) : NOT_AVAILABLE,
+            ])}
+          />
+          <p className="print-disclosure">
+            Records are recommendation runs; distinct material-plants count each once. Approval events are counted in the month they happened, from the
+            dated approval history. Excess is the saved month-end snapshot, and an estimate, not a saving.
+          </p>
+          {performance.notes.map((note) => (
+            <p key={note} className="print-disclosure">
+              {note}
+            </p>
+          ))}
+        </Section>
+      )}
+
+      {trends && kind === "quarterly" && (
         <>
           <Section number={next()} title="Monthly Trends" subtitle="What was measured at the time, from saved monthly snapshots. A month with no snapshot is not available, not zero.">
             <Table
@@ -210,9 +322,9 @@ export function ManagementPrintView({ report, management, materials, materialsTo
                 monthBasisLabel(m),
                 date(m.measured_on),
                 m.stockout_at_risk === null ? NOT_AVAILABLE : `${formatCount(m.stockout_at_risk)}${m.stockout_evaluated !== null ? ` of ${formatCount(m.stockout_evaluated)}` : ""}`,
-                m.state === "MISSING" ? NOT_AVAILABLE : millions(num(m.excess_opportunity), m.currency),
-                m.state === "MISSING" ? NOT_AVAILABLE : millions(num(m.net_rop_value_impact), m.currency, true),
-                num(m.net_rop_change_from_previous) === null ? NOT_AVAILABLE : millions(num(m.net_rop_change_from_previous), m.currency, true),
+                m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.excess_opportunity), m.currency),
+                m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.net_rop_value_impact), m.currency, true),
+                num(m.net_rop_change_from_previous) === null ? NOT_AVAILABLE : moneyExact(num(m.net_rop_change_from_previous), m.currency, true),
               ])}
             />
             {trends.months.filter((m) => m.note).map((m) => (
@@ -283,7 +395,38 @@ export function ManagementPrintView({ report, management, materials, materialsTo
               : []
           })}
         />
-        <p className="print-disclosure">A value not set in SAP is not a stock level of zero.</p>
+        {comparison.length > 0 && (
+          <>
+            <p className="print-disclosure">
+              {`${formatCount(comparison.length)} of ${formatCount(comparisonTotal)} recommendations with a recommended value, newest first. Those with no recommended value are not listed.`}
+            </p>
+            <Table
+              headers={["Material", "Plant", "Safety stock: SAP → rec. (diff.)", "Reorder point: SAP → rec. (diff.)", "Max stock: SAP → rec. (diff.)", "Generated"]}
+              rows={comparison.map((rec) => [
+                <span key="m">
+                  {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
+                </span>,
+                rec.plantId,
+                ...(["safetyStock", "rop", "maxStock"] as const).map((key) => {
+                  const current = stockFigure(rec, "current", key)
+                  const recommended = stockFigure(rec, "recommended", key)
+                  const change = stockChange(current, recommended)
+                  return (
+                    <span key={key} className="print-mono">
+                      {current === null ? "—" : formatCount(current)} &rarr; {recommended === null ? "—" : formatCount(recommended)}
+                      {change === null ? "" : ` (${change.delta >= 0 ? "+" : "−"}${formatCount(Math.abs(change.delta))})`}
+                    </span>
+                  )
+                }),
+                rec.generatedAt,
+              ])}
+            />
+          </>
+        )}
+        <p className="print-disclosure">
+          A dash means no value is set in SAP: it is not a stock level of zero. The SAP figure is the one stored on each recommendation when it was
+          generated; SAP is not read again for this report.
+        </p>
       </Section>
 
       <Section number={next()} title="Forecast vs Actual Demand" subtitle="The champion models' one-month-ahead forecast against what was actually used in the same month.">
@@ -345,6 +488,12 @@ export function ManagementPrintView({ report, management, materials, materialsTo
       </Section>
 
       <Section number={next()} title="Data Coverage and Limitations" subtitle="What these figures are based on, and why anything may be missing or old.">
+        {coverageItems ? (
+          <Table
+            headers={["Data", "As of", "Status", "What it means"]}
+            rows={coverageItems.map((item) => [item.label, item.value ?? NOT_AVAILABLE, item.status, item.detail ?? ""])}
+          />
+        ) : (
         <div className="print-rows">
           <Row label="Latest consumption (goods issue)" value={date(coverage.latest_consumption_date)} />
           <Row label="Staged consumption ends" value={coverage.latest_consumption_month ? formatIsoDateDMY(coverage.latest_consumption_month).replace(/^\d+ /, "") : NOT_AVAILABLE} />
@@ -353,6 +502,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           <Row label="Recommendations counted" value={formatCount(coverage.eligible_recommendations)} />
           <Row label="Material-plants assessed" value={formatCount(coverage.eligible_material_plants)} />
         </div>
+        )}
         <Table
           headers={["Month", "SAP consumption data", "Recommendations generated"]}
           rows={coverage.months.map((m) => [

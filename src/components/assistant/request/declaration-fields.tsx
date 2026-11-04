@@ -3,17 +3,17 @@
 import { SELECT_CLASS } from "@/components/assistant/request/request-parts"
 import { RequiredMark } from "@/components/assistant/step-form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import { parseQuantity, withDeclarationOpen, type DeclarationDraft } from "@/lib/assistant/request/lines"
 import { faultCategoryLabel } from "@/lib/assistant/session-view"
 import { cn } from "@/lib/utils"
 
 /**
- * Option B (27-Oct): the faulty unit coming out is declared with the request,
- * so nobody has to come back to the Declarations screen for it. Optional:
- * left closed, the line sends nothing. The name is typed, not a sign-in; on
- * opening it is filled from the request's Requester and stays editable.
+ * Option B (27-Oct): the faulty unit coming out is declared with the request.
+ * Since 3-Nov-2026 this is the only place a declaration is made, and it asks
+ * three things: the quantity, the fault and the recommendation. Who declared
+ * is the request's requester, recorded by the platform rather than typed, and
+ * the fault says what is wrong. Optional: left closed, the line sends nothing.
  * Options come from the preview, never a list of our own.
  */
 export function DeclarationFields({
@@ -22,13 +22,10 @@ export function DeclarationFields({
   showErrors,
   faultCategories,
   recommendations,
-  requester = "",
   onChange,
 }: {
   idPrefix: string
   value: DeclarationDraft
-  /** The request's Requester, filled into "Your name" when the section opens. */
-  requester?: string
   showErrors: boolean
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
@@ -42,7 +39,7 @@ export function DeclarationFields({
         <input
           type="checkbox"
           checked={value.open}
-          onChange={(e) => onChange(withDeclarationOpen(value, e.target.checked, requester))}
+          onChange={(e) => onChange(withDeclarationOpen(value, e.target.checked))}
         />
         Taking out a faulty unit? Declare it
       </label>
@@ -89,38 +86,6 @@ export function DeclarationFields({
                 </option>
               ))}
             </select>
-          </Field>
-          <div className="col-span-2 @xl:col-span-3">
-            <Field id={`${idPrefix}-dcond`} label="Condition of the unit" required>
-              <Textarea
-                id={`${idPrefix}-dcond`}
-                rows={1}
-                value={value.conditionDescription}
-                aria-invalid={missing(!value.conditionDescription.trim())}
-                onChange={(e) => set({ conditionDescription: e.target.value })}
-                className="min-h-8 text-sm"
-              />
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field id={`${idPrefix}-dname`} label="Your name (typed, not a sign-in)" required>
-              <Input
-                id={`${idPrefix}-dname`}
-                value={value.attestorName}
-                maxLength={128}
-                aria-invalid={missing(!value.attestorName.trim())}
-                onChange={(e) => set({ attestorName: e.target.value })}
-                className="h-8"
-              />
-            </Field>
-          </div>
-          <Field id={`${idPrefix}-dev`} label="Evidence reference (optional)" className="col-span-2 @xl:col-span-1">
-            <Input
-              id={`${idPrefix}-dev`}
-              value={value.evidenceReference}
-              onChange={(e) => set({ evidenceReference: e.target.value })}
-              className="h-8"
-            />
           </Field>
         </div>
       )}

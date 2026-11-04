@@ -13,7 +13,7 @@
  * untyped record, and a malformed value must read as "not sent", never crash.
  */
 
-import type { I08OpenRepairRequest } from "@/lib/api/assistant-facts"
+import type { I08OpenRepair, I08OpenRepairRequest } from "@/lib/api/assistant-facts"
 
 // --- repair requests ----------------------------------------------------------
 
@@ -45,16 +45,33 @@ export function repairRequestCountOf(facts: unknown): number {
  * negative age.
  */
 export function requestAgePhrase(days: number | null | undefined): string {
-  if (days === null || days === undefined || !Number.isFinite(days)) return "request date not known"
-  if (days <= 0) return "requested today"
-  if (days === 1) return "requested 1 day ago"
-  return `requested ${days} days ago`
+  if (days === null || days === undefined || !Number.isFinite(days)) return "PR date not known"
+  if (days <= 0) return "raised today"
+  if (days === 1) return "raised 1 day ago"
+  return `raised ${days} days ago`
 }
 
 /** The requesting department as `code · name`, the code alone when unnamed, null when absent. */
 export function requestDepartmentText(request: Pick<I08OpenRepairRequest, "department" | "departmentName">): string | null {
   if (!request.department) return request.departmentName ?? null
   return request.departmentName ? `${request.department} · ${request.departmentName}` : request.department
+}
+
+/** `PO {number}/{item}`, the reference a planner types into SAP; the item
+ *  without its padding ("00070" reads 70), as the register shows it. */
+export function repairPoReference(repair: Pick<I08OpenRepair, "purchasingDocument" | "item">): string {
+  const item = (repair.item ?? "").replace(/^0+(?=\d)/, "")
+  return item ? `PO ${repair.purchasingDocument}/${item}` : `PO ${repair.purchasingDocument}`
+}
+
+/** The open repairs, earliest due back first; one with no due date last. */
+export function repairsByDueDate<T extends Pick<I08OpenRepair, "dueDate">>(repairs: readonly T[]): T[] {
+  return [...repairs].sort((a, b) => {
+    if (a.dueDate === b.dueDate) return 0
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate < b.dueDate ? -1 : 1
+  })
 }
 
 /** `PR {number}/{item}`, the reference a planner types into SAP. */
@@ -240,10 +257,10 @@ export function stockFigure(facts: unknown): I08StockFigure {
   }
 }
 
-/** `+N requested, not ordered` beside the open repair PO count; null when none are counted. */
+/** `+N PRs raised, no PO yet` beside the open repair PO count; null when none are counted. */
 export function openRepairsSuffix(facts: unknown): string | null {
   const count = repairRequestCountOf(facts)
-  return count > 0 ? `+${count} requested, not ordered` : null
+  return count > 0 ? `+${count} ${count === 1 ? "PR" : "PRs"} raised, no PO yet` : null
 }
 
 /** `1 unit` / `2 units`, without the trailing decimals SAP pads a quantity with. */
@@ -267,7 +284,7 @@ export function noUsableUnitText(facts: unknown): string {
   const requests = repairRequestCountOf(facts)
   const repair =
     requests > 0
-      ? `${requests} ${requests === 1 ? "repair" : "repairs"} requested, not yet ordered`
+      ? `${requests} ${requests === 1 ? "PR" : "PRs"} raised for repair, no PO yet`
       : "none on repair"
   return `${stock}, ${repair}.`
 }

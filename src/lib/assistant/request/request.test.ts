@@ -11,14 +11,19 @@ import {
   lineIssues,
   oarNeedsJustification,
   pendingLine,
+  requestSaving,
+  savingOf,
+  suggestionSavingOf,
+  withChoice,
   withDeclarationOpen,
+  withRequired,
   withSuggestedWindow,
-  withoutDeclarations,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
 import { matchesDepartment } from "@/components/assistant/department-picker"
 import {
+  awaitingReservation,
   departmentLabel,
   departmentText,
   departmentsOf,
@@ -26,7 +31,7 @@ import {
   lineReference,
   outcomeSentence,
 } from "@/lib/assistant/request/record"
-import { needsJustification, suggestWindow, suggestionKind } from "@/lib/assistant/request/suggest"
+import { justificationPrompt, needsJustification, suggestWindow, suggestionKind } from "@/lib/assistant/request/suggest"
 
 const TODAY = new Date(2026, 9, 15) // 15 Oct 2026
 
@@ -92,22 +97,50 @@ describe("the suggestion the backend served", () => {
 })
 
 describe("rows built from the preview", () => {
-  it("prefill the OAR quantity and window from the backend's suggestion", () => {
+  it("prefill nothing: the requester names the quantity they need first", () => {
     const line = oar("4")
-    expect([line.suggested, line.quantity, line.windowStart, line.windowEnd, line.rate]).toEqual([
-      4,
-      "4",
-      "2026-10-15",
-      "2027-06-15",
-      0.5,
+    expect([line.suggested, line.required, line.choice, line.quantity, line.windowStart, line.rate]).toEqual([
+      4, "", null, "", "", 0.5,
     ])
-    expect(lineIssues(line)).toEqual(["purpose"])
+    expect(lineIssues(line)).toEqual(["required quantity", "window start", "window end", "purpose"])
   })
 
-  it("leave the quantity blank when nothing is suggested, and then ask a reason for any", () => {
-    const line = oar(null)
-    expect(line.quantity).toBe("")
-    const typed = withSuggestedWindow({ ...line, quantity: "3" }, TODAY)
+  it("then ask which number to lock, and size the window from the locked one", () => {
+    const typed = withRequired(oar("4"), "6", null, TODAY)
+    expect([typed.choice, typed.quantity]).toEqual([null, ""])
+    expect(lineIssues(typed)[0]).toBe("suggested or your quantity")
+
+    const suggested = withChoice(typed, "suggested", TODAY)
+    expect([suggested.quantity, suggested.windowStart, suggested.windowEnd]).toEqual(["4", "2026-10-15", "2027-06-15"])
+    expect(lineIssues(suggested)).toEqual(["purpose"])
+
+    const own = withChoice(typed, "own", TODAY)
+    expect(own.quantity).toBe("6")
+    expect(oarNeedsJustification(own)).toBe(true)
+  })
+
+  it("unlock when the required quantity changes, but let your own number follow it", () => {
+    const suggested = withChoice(withRequired(oar("4"), "6"), "suggested")
+    expect(withRequired(suggested, "7").choice).toBeNull()
+    const own = withChoice(withRequired(oar("4"), "6"), "own")
+    expect(withRequired(own, "7", "own").quantity).toBe("7")
+  })
+
+  it("ask a reason for your own number below the suggestion too", () => {
+    const below = withChoice(withRequired(oar("4"), "2"), "own")
+    expect(oarNeedsJustification(below)).toBe(true)
+    expect(justificationPrompt(4, 2)).toBe("2 is below the suggested 4. Why the smaller quantity?")
+    expect(oarNeedsJustification(withChoice(withRequired(oar("4"), "4"), "own"))).toBe(false)
+  })
+
+  it("mark the row not needed when a suggestion of 0 is taken", () => {
+    const taken = withChoice(withRequired(oar("0"), "5"), "suggested")
+    expect([taken.decision, isReady(taken)]).toEqual(["not_needed", true])
+  })
+
+  it("use your own number when nothing is suggested, and then ask a reason for any", () => {
+    const typed = withRequired(oar(null), "3", null, TODAY)
+    expect([typed.choice, typed.quantity]).toEqual(["own", "3"])
     expect(oarNeedsJustification(typed)).toBe(true)
     expect(lineIssues(typed)).toEqual(["reason", "explanation", "purpose"])
   })
@@ -150,18 +183,88 @@ describe("rows built from the preview", () => {
   })
 
   it("re-checked after a 409 keep what was typed and take the new figures", () => {
-    const typed: OarLine = { ...oar("4"), quantity: "6", purpose: "Mill 3" }
-    const rechecked = lineFromPreview(oarPreview("3"), typed.key, typed) as OarLine
-    expect([rechecked.suggested, rechecked.quantity, rechecked.purpose]).toEqual([3, "6", "Mill 3"])
+    const own: OarLine = { ...withChoice(withRequired(oar("4"), "6"), "own"), purpose: "Mill 3" }
+    const rechecked = lineFromPreview(oarPreview("3"), own.key, own) as OarLine
+    expect([rechecked.suggested, rechecked.required, rechecked.quantity, rechecked.purpose]).toEqual([3, "6", "6", "Mill 3"])
     expect(rechecked.changed).toBe(true)
+
+    // A locked suggestion was the old figure: chosen again.
+    const took = withChoice(withRequired(oar("4"), "6"), "suggested")
+    const moved = lineFromPreview(oarPreview("3"), took.key, took) as OarLine
+    expect([moved.choice, moved.quantity]).toEqual([null, ""])
+  })
+
+  it("take a draft saved before the required quantity existed as needing one", () => {
+    const old = { ...oar("4"), quantity: "4" } as OarLine
+    delete old.required
+    delete old.choice
+    expect(lineIssues(old)[0]).toBe("required quantity")
+    expect(answersOf(old)).not.toHaveProperty("requiredQuantity")
+  })
+})
+
+describe("what the suggestion saves", () => {
+  const priced = (quantity: string | null, price: string | null = "250.5") =>
+    lineFromPreview(
+      oarPreview(quantity, {
+        unitPrice: { price, currency: price ? "ZAR" : null, missing: price ? null : "price_not_staged", note: price ? null : "No price: not in the I07 price data for this plant" },
+      })
+    ) as OarLine
+
+  it("is what was asked for less what was locked, at the plant's price", () => {
+    expect(savingOf(withChoice(withRequired(priced("4"), "6"), "suggested"))).toEqual({ units: 2, value: 501, priceNote: null })
+    expect(savingOf(withChoice(withRequired(priced("4"), "6"), "own"))?.units).toBe(0)
+    expect(savingOf(withChoice(withRequired(priced("4"), "2"), "own"))?.units).toBe(0)
+  })
+
+  it("is nothing until a quantity is typed and locked", () => {
+    expect(savingOf(priced("4"))).toBeNull()
+    expect(savingOf(withRequired(priced("4"), "6"))).toBeNull()
+  })
+
+  it("counts no units when nothing could be suggested", () => {
+    expect(savingOf(withRequired(priced(null), "3"))?.units).toBeNull()
+  })
+
+  it("is the whole quantity when stock already covers it, but not when dropped against a positive suggestion", () => {
+    expect(savingOf(withChoice(withRequired(priced("0"), "5"), "suggested"))?.units).toBe(5)
+    expect(savingOf({ ...withRequired(priced("4"), "5"), decision: "not_needed" })?.units).toBe(0)
+  })
+
+  it("keeps the units and leaves the value out without a price", () => {
+    const unpriced = savingOf(withChoice(withRequired(priced("4", null), "6"), "suggested"))
+    expect(unpriced).toEqual({ units: 2, value: null, priceNote: "No price: not in the I07 price data for this plant" })
+  })
+
+  it("is shown beside the suggestion before anything is locked", () => {
+    expect(suggestionSavingOf(priced("4"))).toBeNull()
+    expect(suggestionSavingOf(withRequired(priced(null), "6"))).toBeNull()
+    expect(suggestionSavingOf(withRequired(priced("4"), "6"))).toEqual({ units: 2, value: 501, priceNote: null })
+    expect(suggestionSavingOf(withChoice(withRequired(priced("4"), "6"), "own"))?.units).toBe(2)
+    expect(suggestionSavingOf(withRequired(priced("0"), "5"))?.units).toBe(5)
+  })
+
+  it("totals over the request", () => {
+    const rows = [
+      withChoice(withRequired(priced("4"), "6"), "suggested"),
+      withChoice(withRequired(priced("4", null), "5"), "suggested"),
+      withChoice(withRequired(priced("4"), "9"), "own"),
+    ]
+    expect(requestSaving(rows)).toEqual({ units: 3, value: 501, unpriced: 1 })
+  })
+
+  it("is sent with the lock", () => {
+    const answers = answersOf(withChoice(withRequired(priced("4"), "6"), "suggested"))
+    expect(answers).toMatchObject({ quantity: "4", requiredQuantity: "6", quantityChoice: "suggested", seenSuggestedQuantity: "4" })
+    const declined = answersOf(withChoice(withRequired(priced("0"), "5"), "suggested"))
+    expect(declined).toMatchObject({ decision: "not_needed", requiredQuantity: "5", quantityChoice: "suggested" })
   })
 })
 
 describe("what submit sends", () => {
   it("sends an OAR line's answers, a reason only when one is needed, and what was shown as suggested", () => {
     const line: OarLine = {
-      ...oar("4"),
-      quantity: "6",
+      ...withChoice(withRequired(oar("4"), "6"), "own", TODAY),
       purpose: " Mill 3 ",
       justification: { reasonCategory: "OTHER", freeText: " two spares " },
     }
@@ -171,13 +274,15 @@ describe("what submit sends", () => {
       decision: "proceed",
       quantity: "6",
       windowStart: "2026-10-15",
-      windowEnd: "2027-06-15",
+      windowEnd: "2027-10-15",
       purpose: "Mill 3",
       reasonCategory: "OTHER",
       freeText: "two spares",
       seenSuggestedQuantity: "4",
+      requiredQuantity: "6",
+      quantityChoice: "own",
     })
-    expect(answersOf({ ...line, quantity: "4" }).reasonCategory).toBeNull()
+    expect(answersOf(withChoice(line, "suggested")).reasonCategory).toBeNull()
   })
 
   it("sends a declined OAR line with nothing but the decision", () => {
@@ -208,11 +313,8 @@ describe("declaring the faulty unit with the request", () => {
     declaration: {
       open: true,
       quantity: "2",
-      conditionDescription: "  Seized bearing ",
       faultCategory: "Mechanical",
       recommendation: "REPAIRABLE",
-      attestorName: " A. Planner ",
-      evidenceReference: "",
       ...overrides,
     },
   })
@@ -235,44 +337,36 @@ describe("declaring the faulty unit with the request", () => {
     const line = repair(false)
     expect(lineIssues({ ...line, declaration: { ...line.declaration, open: true, quantity: "0" } })).toEqual([
       "declared quantity",
-      "condition",
       "fault category",
       "recommendation",
-      "your name",
     ])
     expect(isReady(declared())).toBe(true)
   })
 
-  it("sends the declaration trimmed, evidence only when typed", () => {
+  it("sends three fields and no name: the requester is the declarer (3-Nov-2026)", () => {
     expect(answersOf(declared()).declaration).toEqual({
       quantity: 2,
-      conditionDescription: "Seized bearing",
       faultCategory: "Mechanical",
       recommendation: "REPAIRABLE",
-      attestorName: "A. Planner",
-    })
-    expect(answersOf(declared({ evidenceReference: " Photo 12 " })).declaration?.evidenceReference).toBe("Photo 12")
-  })
-
-  it("fills the typed name from the Requester when opened, and never replaces one", () => {
-    const closed = repair(false).declaration
-    expect(withDeclarationOpen(closed, true, " SSJ ")).toMatchObject({ open: true, attestorName: "SSJ" })
-    expect(withDeclarationOpen({ ...closed, attestorName: "Lynn" }, true, "SSJ").attestorName).toBe("Lynn")
-    expect(withDeclarationOpen(closed, true, "  ").attestorName).toBe("")
-    expect(withDeclarationOpen({ ...closed, open: true, attestorName: "SSJ" }, false, "SSJ")).toMatchObject({
-      open: false,
-      attestorName: "SSJ",
     })
   })
 
-  it("is dropped from a resumed draft while the complete flow is off", () => {
-    const untouched = repair(true)
-    const [cleared, plain] = withoutDeclarations([declared(), untouched])
-    expect((cleared as RepairableLine).declaration.open).toBe(false)
-    expect(answersOf(cleared)).not.toHaveProperty("declaration")
-    expect(isReady(declared({ conditionDescription: "" }))).toBe(false)
-    expect(isReady(withoutDeclarations([declared({ conditionDescription: "" })])[0])).toBe(true)
-    expect(plain).toBe(untouched)
+  it("does not send the fields a draft saved before 3-Nov-2026 still holds", () => {
+    const line = declared()
+    const old = {
+      ...line,
+      declaration: { ...line.declaration, conditionDescription: "Seized", attestorName: "A. Planner", evidenceReference: "" },
+    }
+    expect(isReady(old)).toBe(true)
+    expect(answersOf(old).declaration).toEqual({ quantity: 2, faultCategory: "Mechanical", recommendation: "REPAIRABLE" })
+  })
+
+  it("keeps what was chosen when closed and opened again", () => {
+    const chosen = declared().declaration
+    const closed = withDeclarationOpen(chosen, false)
+    expect(closed).toEqual({ ...chosen, open: false })
+    expect(answersOf({ ...declared(), declaration: closed })).not.toHaveProperty("declaration")
+    expect(withDeclarationOpen(closed, true)).toEqual(chosen)
   })
 
   it("survives a re-check of the row", () => {
@@ -362,6 +456,24 @@ describe("a recorded request", () => {
     expect(outcomeSentence(motor)).toMatch(/existing unit/)
     expect(isDeclined(motor)).toBe(true)
     expect(departmentsOf(sampleRequest())).toEqual(["10100", "10300"])
+  })
+
+  it("waits for a reservation only on lines that will be reserved and are not linked", () => {
+    const request = sampleRequest()
+    expect(awaitingReservation(request).map((l) => l.lineNo)).toEqual([1, 2])
+    request.lines[0].linkedReservations = [
+      {
+        reservationNumber: "12345678",
+        reservationItem: "0001",
+        material: request.lines[0].materialId,
+        plant: "1300",
+        source: "SGTXT",
+        sgtxt: request.requestId,
+        firstSeenAt: "2026-10-15T09:00:00Z",
+        note: null,
+      },
+    ]
+    expect(awaitingReservation(request).map((l) => l.lineNo)).toEqual([2])
   })
 })
 

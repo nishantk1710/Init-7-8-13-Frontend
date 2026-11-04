@@ -20,6 +20,8 @@ import {
   referenceOf,
   safeActionPath,
   severityOf,
+  TYPE_FILTER_OPTIONS,
+  typeFamilyOf,
   unreadBadge,
   withRead,
 } from "@/lib/notifications"
@@ -80,6 +82,7 @@ describe("what a row shows", () => {
   it("labels the type in business words, never a module name", () => {
     expect(notificationTypeLabel("APPROVAL_REQUIRED")).toBe("Approval required")
     expect(notificationTypeLabel("EXCEPTION_ESCALATED")).toBe("Escalation required")
+    expect(notificationTypeLabel("EXCEPTION_RESPONSE_REQUIRED")).toBe("Confirm exception")
     expect(notificationTypeLabel("SOMETHING_NEW")).toBe("Notification")
     expect(notificationTypeLabel("PR_RECEIVED")).toBe("Purchase requisition")
     expect(notificationTypeLabel("PR_RECEIVED_DETAILS")).toBe("Purchase requisition")
@@ -114,6 +117,20 @@ describe("how urgent, where from, and when", () => {
     expect(severityOf("SOMETHING_NEW")).toBe("info")
   })
 
+  it("sorts every event into the family the Type filter offers", () => {
+    expect(typeFamilyOf("PR_RECEIVED")).toBe("pr")
+    expect(typeFamilyOf("PR_RECEIVED_DETAILS")).toBe("pr")
+    expect(typeFamilyOf("APPROVAL_REQUIRED")).toBe("approval")
+    expect(typeFamilyOf("EXCEPTION_ESCALATED")).toBe("exception")
+    expect(typeFamilyOf("RESERVATION_LINKED")).toBe("reservation")
+    expect(typeFamilyOf("SOMETHING_NEW")).toBe("other")
+  })
+
+  it("offers purchase requisitions first among the Type choices", () => {
+    expect(TYPE_FILTER_OPTIONS[0]).toEqual({ value: "pr", label: "Purchase requisitions" })
+    expect(TYPE_FILTER_OPTIONS.map((option) => option.value)).not.toContain("other")
+  })
+
   it("matches a notification to a day or a range of days, by local date", () => {
     const at = new Date(2026, 10, 2, 23, 30).toISOString()
     expect(dayKeyOf(at)).toBe("2026-11-02")
@@ -140,15 +157,28 @@ describe("how urgent, where from, and when", () => {
     expect(actionLabelOf("APPROVAL_ESCALATED")).toBe("Open Review Workspace")
     expect(actionLabelOf("EXCEPTION_ACTION_REQUIRED")).toBe("Open Exception")
     expect(actionLabelOf("GENERAL")).toBe("Open")
+    expect(actionLabelOf("RESERVATION_LINKED")).toBe("Open Request")
+    expect(actionLabelOf("RESERVATION_LINK_REMINDER")).toBe("Open Request")
+  })
+
+  it("names a request's reservation notices", () => {
+    const linked = item({ eventType: "RESERVATION_LINKED", actionPath: "/assistant/requests/RSA1MT7EKP" })
+    expect(notificationTypeLabel("RESERVATION_LINKED")).toBe("Reservation linked")
+    expect(notificationTypeLabel("RESERVATION_LINK_REMINDER")).toBe("Reservation not linked")
+    expect(severityOf("RESERVATION_LINKED")).toBe("success")
+    expect(severityOf("RESERVATION_LINK_REMINDER")).toBe("warning")
+    expect(moduleOf(linked)).toBe("Reservation assistant")
   })
 
   it("names the module in words from the page it opens", () => {
     expect(moduleOf(item())).toBe("Inventory Planning")
-    expect(moduleOf(item({ actionPath: "/repairable-spares/exceptions" }))).toBe("Repairable Spares")
     expect(moduleOf(item({ actionPath: "/oar-utilization/watch" }))).toBe("OAR Utilization")
-    expect(moduleOf(item({ actionPath: null, eventType: "EXCEPTION_ESCALATED" }))).toBe("Repairable Spares")
+    expect(moduleOf(item({ actionPath: "/oar-utilization/aging-exceptions?material=4000002200&plant=1300" }))).toBe("OAR Utilization")
+    // Exception notifications are OAR's now; Repairable Spares sends none and has no module name here.
+    expect(moduleOf(item({ actionPath: null, eventType: "EXCEPTION_ESCALATED" }))).toBe("OAR Utilization")
+    expect(moduleOf(item({ actionPath: "/repairable-spares/exceptions", eventType: "APPROVAL_REQUIRED" }))).toBeNull()
     expect(moduleOf(item({ actionPath: null }))).toBeNull()
-    for (const label of ["/inventory-planning", "/repairable-spares", "/oar-utilization"].map((actionPath) => moduleOf(item({ actionPath })))) {
+    for (const label of ["/inventory-planning", "/oar-utilization"].map((actionPath) => moduleOf(item({ actionPath })))) {
       expect(label).not.toMatch(/\bI\s?0?(7|8|13)\b/i)
     }
   })

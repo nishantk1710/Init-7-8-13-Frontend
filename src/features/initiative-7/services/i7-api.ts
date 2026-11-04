@@ -463,6 +463,12 @@ export interface RecommendationListParams {
    * conversion, or a stock item whose reorder point, safety stock or max stock differs from SAP's
    * current value. The set the SAP adoption counts cover. Applied in SQL. */
   actionable?: boolean
+  /** Only recommendations with at least one recommended value (reorder point, safety stock or max
+   * stock) -- leaves out those where nothing could be computed. Applied in SQL. */
+  hasRecommended?: boolean
+  /** Only recommendations SAP now matches (the reconciliation's ADOPTED result) -- for an OAR material, converted to Min-Max ordering.
+   * One with no SAP change evidence yet is left out. Applied in SQL. */
+  adoptedInSap?: boolean
   criticality?: string
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
@@ -503,6 +509,8 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.conversionEligibility) search.set("conversion_eligibility", params.conversionEligibility)
   if (params.consumptionAboveThreshold) search.set("consumption_above_threshold", "true")
   if (params.actionable) search.set("actionable", "true")
+  if (params.hasRecommended) search.set("has_recommended", "true")
+  if (params.adoptedInSap) search.set("adopted_in_sap", "true")
   if (params.criticality) search.set("criticality", params.criticality)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
@@ -543,7 +551,10 @@ export interface RecommendationSummaryStats {
   oarCount: number
   normalCount: number
   awaitingApprovalCount: number
+  /** Every computed recommendation not yet sent for approval -- the total, whether or not it proposes a change in SAP. */
   readyForReviewCount: number
+  /** The part of it with something to adopt in SAP (the `actionable` rule); null on a backend that does not send it. */
+  readyForReviewActionableCount: number | null
   notEvaluableCount: number
   /** Currency of the money figures, when every priced material shares one. */
   currency: string | null
@@ -593,6 +604,7 @@ export async function fetchRecommendationSummary(
     normalCount: response.normal_count,
     awaitingApprovalCount: response.awaiting_approval_count,
     readyForReviewCount: response.ready_for_review_count,
+    readyForReviewActionableCount: response.ready_for_review_actionable_count ?? null,
     notEvaluableCount: response.not_evaluable_count,
     currency: response.currency ?? null,
     netSafetyStockValueImpact: toNumber(response.net_safety_stock_value_impact),

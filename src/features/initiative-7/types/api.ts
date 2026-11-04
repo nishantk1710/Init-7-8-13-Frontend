@@ -183,6 +183,8 @@ export interface ApiRecommendationSummaryStats {
   normal_count: number
   awaiting_approval_count: number
   ready_for_review_count: number
+  /** The part of `ready_for_review_count` that proposes a change in SAP; absent on an older backend. */
+  ready_for_review_actionable_count?: number
   not_evaluable_count: number
   /** Currency of every money figure here, when all priced materials share one. */
   currency?: string | null
@@ -888,6 +890,21 @@ export interface ApiPositionFigures {
   working_capital_currency?: string | null
   /** Material-plants of the population left out of `net_rop_value_impact`. */
   working_capital_excluded_count?: number
+  // Stock held, in ZAR, over the same population. Absent (or null) on a report or snapshot made before they existed;
+  // null is "not measured", never 0.
+  inventory_value?: ApiDecimal
+  inventory_priced_count?: number
+  safety_stock_value?: ApiDecimal
+  safety_stock_priced_count?: number
+  below_reorder_count?: number | null
+  /** How many material-plants `below_reorder_count` is out of. */
+  below_reorder_judged?: number
+  /** When the stock on hand behind the three figures above was loaded. */
+  inventory_stock_as_of?: string | null
+  /** Why those figures are null: no stock load, or one too far from the cutoff. */
+  inventory_unavailable_reason?: string | null
+  /** The newest recommendation in the population: the date of the SAP values stored on the recommendations. */
+  recommendation_reference_date?: string | null
 }
 
 export interface ApiPlantPosition {
@@ -937,7 +954,23 @@ export interface ApiAdoptionQuarter {
   adopted?: number | null
   partially_adopted?: number | null
   not_adopted?: number | null
+  /** No SAP change evidence yet, whether or not the recommendation was approved. Not "awaiting approval". */
   pending?: number | null
+  /** A share between 0 and 1 by the Overview's adoption-rate formula; null until some recommendation has SAP evidence. */
+  adoption_rate?: ApiDecimal
+  /** Where the period's recommendations stand in the approval chain; separate from SAP adoption. */
+  stages?: ApiWorkflowStages | null
+}
+
+export interface ApiWorkflowStages {
+  total: number
+  not_submitted: number
+  awaiting_approval: number
+  adjusted_in_chain: number
+  approved_awaiting_sap: number
+  implemented_in_sap: number
+  rejected_or_sent_back: number
+  other: number
 }
 
 export interface ApiMonthCoverage {
@@ -945,6 +978,16 @@ export interface ApiMonthCoverage {
   label: string
   consumption_status: ApiSourceMonthStatus
   recommendations_generated: number
+}
+
+/** One source the figures rest on, with a plain status and the reason when it is not Available. */
+export interface ApiCoverageItem {
+  key: string
+  label: string
+  value: string | null
+  /** `Available`, `Stale`, `Not available`, `Not covered` or `Insufficient history`. */
+  status: string
+  detail: string | null
 }
 
 export interface ApiDataCoverage {
@@ -958,6 +1001,8 @@ export interface ApiDataCoverage {
   /** `current_calculation` or `snapshot`. */
   basis: string
   warnings: string[]
+  /** Each source with a status and why, worked out by the backend. Absent on a report made before they existed. */
+  items?: ApiCoverageItem[]
 }
 
 /** One month of the trend, from its saved snapshot. `null` is "not measured", never 0. */
@@ -981,6 +1026,10 @@ export interface ApiTrendMonth {
   /** How that estimate moved since the previous month; null unless both months have one, made the same way. */
   net_rop_change_from_previous: ApiDecimal
   currency: string | null
+  /** Stock held in ZAR as measured with that snapshot; null for a snapshot taken before it was captured. */
+  inventory_value?: ApiDecimal
+  safety_stock_value?: ApiDecimal
+  below_reorder_count?: number | null
   revision: number | null
   calc_version: string | null
   note: string | null
@@ -1017,6 +1066,35 @@ export interface ApiQuarterTrends {
   notes: string[]
 }
 
+/** One month of the performance trends. `null` is "no figure for this month", never 0. */
+export interface ApiPerformanceMonth {
+  month: string
+  label: string
+  /** `ended`, `in_progress` or `not_started`. */
+  state: string
+  /** Recommendation records generated in the month (runs, not materials). */
+  records_generated: number | null
+  /** Distinct material-plants with a recommendation generated in the month. */
+  material_plants_generated: number | null
+  /** Approval events from the dated approval history, counted in the month they happened. */
+  submitted: number | null
+  approved: number | null
+  rejected: number | null
+  sent_back: number | null
+  /** `MONTH_END` (a final snapshot valid for the month's end), `ROLLING` (kept out of the trend) or `MISSING`. */
+  excess_state: "MONTH_END" | "ROLLING" | "MISSING"
+  excess_count: number | null
+  excess_opportunity: ApiDecimal
+  currency: string | null
+}
+
+export interface ApiPerformanceTrends {
+  months: ApiPerformanceMonth[]
+  recommendation_history_from: string | null
+  approval_history_from: string | null
+  notes: string[]
+}
+
 export interface ApiQuarterManagement {
   period: ApiPeriodInfo
   monthly_activity: ApiMonthlyActivity
@@ -1031,6 +1109,8 @@ export interface ApiQuarterManagement {
   trends?: ApiQuarterTrends | null
   /** `snapshot` when `position` / `plant_positions` are the valid quarter-end snapshot's, else `current_calculation`. */
   position_basis?: string
+  /** The last months' recommendation, approval and excess trends. Absent on a report made before they existed. */
+  performance?: ApiPerformanceTrends | null
   definitions: string[]
 }
 

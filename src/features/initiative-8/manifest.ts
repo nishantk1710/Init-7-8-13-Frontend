@@ -4,7 +4,7 @@ export const initiative8Manifest: InitiativeManifest = {
   id: "initiative-8",
   name: "Repairable Spares",
   description:
-    "Repair register, condition attestation and reservation-time compliance for 80-series spares",
+    "Repair register, condition declarations and reservation-time compliance for 80-series spares",
   // The module's own overview page — also where Home's summary card "open"
   // link lands.
   href: "/repairable-spares",
@@ -23,24 +23,17 @@ export const initiative8Manifest: InitiativeManifest = {
       // gave the same answer with neither.
       //
       // The Declaration and Exception queues were folded into the register on
-      // 08-Oct-2026 and brought back on 12-Oct, after the 09-Oct FRS audit.
-      // The reasoning for folding them in was that the register shows each
-      // line's own findings, which it does -- but that answers "what is the
-      // state of THIS line", and FR-4, FR-8, FR-9 and FR-11 ask "what is
-      // outstanding across all of them". Acceptance criteria 5 and 11 ask for
-      // the queue by name. You cannot work a queue you have to assemble from
-      // a register sorted by something else.
+      // 08-Oct-2026 and brought back on 12-Oct, after the 09-Oct FRS audit. On
+      // 3-Nov-2026 the business ruled again: declarations are made only in the
+      // reservation assistant, so Repair Declarations is the log of them, and
+      // the Repair Exceptions screen was removed with its checks (overdue
+      // repairs are shown on the register).
       {
         // Distinct from Justifications' clipboard below: one records a
         // condition that WAS assessed, the other a purchase made anyway.
         label: "Repair Declarations",
         icon: "check-circle",
         href: "/repairable-spares/declarations",
-      },
-      {
-        label: "Repair Exceptions",
-        icon: "alert-triangle",
-        href: "/repairable-spares/exceptions",
       },
       {
         // FR-2's miscoding screen: materials whose requisition, order or

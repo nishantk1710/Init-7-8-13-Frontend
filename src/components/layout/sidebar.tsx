@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants"
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications"
+import { CODING_CANDIDATES_PATH, useUnscreenedCandidates } from "@/hooks/use-unscreened-candidates"
 import { NOTIFICATIONS_PATH, unreadBadge } from "@/lib/notifications"
 import { cn } from "@/lib/utils"
 
@@ -93,6 +94,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const opened = useGroupToggles()
   const unreadNotifications = useUnreadNotifications()
+  // Repair Candidates waiting for the AI screen (4-Nov-2026).
+  const unscreenedCandidates = useUnscreenedCandidates(pathname)
 
   const home = QUICK_ACTIONS.find((action) => action.href === "/home")
   const groups: NavGroup[] = [
@@ -112,7 +115,12 @@ export function Sidebar() {
     },
     ...INITIATIVE_NAV_SECTIONS.map((section) => ({
       title: section.title,
-      links: section.items.map((item) => ({ label: item.label, href: item.href, icon: ICONS[item.icon] })),
+      links: section.items.map((item) => ({
+        label: item.label,
+        href: item.href,
+        icon: ICONS[item.icon],
+        badge: item.href === CODING_CANDIDATES_PATH ? unscreenedCandidates : undefined,
+      })),
     })),
     {
       title: "More",
@@ -139,15 +147,24 @@ export function Sidebar() {
       <aside className="flex w-[232px] flex-col overflow-hidden rounded-[28px] bg-nav-bg text-nav-fg shadow-xl ring-1 ring-nav-border">
         <div className="px-5 pt-5 pb-3">
           <Link href="/home" aria-label="Spares AI home" className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-            {/* The logo has a white ground, so it sits on a white chip (invisible on a light panel). */}
-            <span className="inline-flex rounded-lg bg-white px-2 py-1">
+            {/* Transparent-ground marks, one per theme: brand colours on the light
+                panel, a white wordmark (globe unchanged) on the dark one. */}
+            <span className="inline-flex py-1">
               <Image
                 src="/brand/vedanta-zinc-logo.png"
                 alt="Vedanta Zinc International"
                 width={245}
                 height={70}
                 priority
-                className="h-8 w-auto"
+                className="h-9 w-auto dark:hidden"
+              />
+              <Image
+                src="/brand/vedanta-zinc-logo-dark.png"
+                alt="Vedanta Zinc International"
+                width={245}
+                height={70}
+                priority
+                className="hidden h-9 w-auto dark:block"
               />
             </span>
             <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>

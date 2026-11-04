@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { AlertTriangle, CheckCircle2, Layers, Wallet } from "lucide-react"
 
 import { ChartLoader } from "@/components/shared/chart-loader"
-import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY } from "@/lib/utils"
+import { cn, commonCurrency, currencyPrefix, formatCount, formatIsoDateDMY, formatSignedAmount } from "@/lib/utils"
 import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
 import type { OverviewInfoId } from "@/features/initiative-7/data/overview-info"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
@@ -49,14 +49,6 @@ function pct(part: number, whole: number): string {
   // ordinary share (>= 0.1%) keeps the original one-decimal display.
   if (value > 0 && value < 0.1) return value.toFixed(2)
   return value.toFixed(1)
-}
-
-/** Compact signed amount in millions, e.g. -1048500 -> "−R 1.05M", in the
- * recommendations' own currency (see formatMoney / currencyPrefix). */
-function formatCompactSigned(amount: number, currency?: string | null): string {
-  const sign = amount < 0 ? "−" : amount > 0 ? "+" : ""
-  const millions = Math.abs(amount) / 1_000_000
-  return `${sign}${currencyPrefix(currency)}${millions.toFixed(2)}M`
 }
 
 /**
@@ -335,7 +327,7 @@ export function InventoryPortfolioKpis({
         infoId={showInfo ? "workingCapital" : undefined}
         icon={<Wallet className="size-3.5" />}
         tone="success"
-        value={netImpact === null ? "Not available" : formatCompactSigned(netImpact, impactCurrency)}
+        value={netImpact === null ? "Not available" : formatSignedAmount(netImpact, currencyPrefix(impactCurrency), true)}
         caption={
           netImpact === null
             ? "needs a unit price and a calculated reorder point"

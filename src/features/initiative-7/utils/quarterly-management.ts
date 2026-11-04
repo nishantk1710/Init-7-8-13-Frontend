@@ -3,6 +3,7 @@
 // The backend sends decimals as strings and "not available" as null. These helpers turn them into what the
 // Overview's own components take, and never turn a missing figure into 0.
 
+import { formatSignedAmount } from "@/lib/utils"
 import type {
   ApiActivityRow,
   ApiAdoptionQuarter,
@@ -56,8 +57,19 @@ export function adoptionSummaryOf(adoption: ApiAdoptionQuarter): AdoptionSummary
     partiallyAdoptedCount: partially,
     notAdoptedCount: notAdopted,
     unknownCount: adoption.pending ?? 0,
-    adoptionRatePercentage: known > 0 ? Math.round(((adopted + partially) / known) * 1000) / 10 : null,
+    adoptionRatePercentage: adoptionRatePercent(adoption, adopted, partially, known),
   }
+}
+
+/** The adoption rate as a percentage. The backend works it out with the Overview's own formula (the one on the
+ * Calculation page), so a report that carries it is read as sent -- null when nothing is measured. Only a report made
+ * before the backend sent it falls back to the default formula's shape. */
+function adoptionRatePercent(adoption: ApiAdoptionQuarter, adopted: number, partially: number, known: number): number | null {
+  if (adoption.adoption_rate !== undefined) {
+    const rate = num(adoption.adoption_rate)
+    return rate === null ? null : Math.round(rate * 1000) / 10
+  }
+  return known > 0 ? Math.round(((adopted + partially) / known) * 1000) / 10 : null
 }
 
 /** One activity cell for display: a count, or "—" when it is not available. */
@@ -82,7 +94,10 @@ export const KPI_ORDER = [
   "critical_stockout_risk",
   "excess_inventory_opportunity",
   "working_capital_impact",
-  "pending_approval",
+  "approved",
+  "oar_recommendations",
+  "min_max_conversion",
+  "pending_approval", // carried only by reports saved before the card became Approved
 ] as const
 
 export function orderedKpis(cards: ApiKpiCard[]): ApiKpiCard[] {
@@ -96,12 +111,13 @@ export function orderedKpis(cards: ApiKpiCard[]): ApiKpiCard[] {
 /** What a card shows as its big value: the number with its unit, or why it has none. */
 export function kpiValueText(card: ApiKpiCard): string {
   const value = num(card.value)
+  // Never measured is not the same as measured and nothing there: it is said in its own words, and is never a 0.
+  if (card.status === "UNKNOWN" && value === null) return "Not yet measured"
   if (card.status !== "AVAILABLE" || value === null) return "Not available"
   const isMoney = card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact"
   if (!isMoney) return value.toLocaleString("en-US", { maximumFractionDigits: 0 })
-  // From a million up it is "−2,397.30M" as ever; below that, "1.2K" or the plain amount, so a small figure is not "0.00M".
   const currency = card.unit.startsWith("amount") ? null : card.unit
-  return compactMoney(value, currency, card.key === "working_capital_impact")
+  return moneyExact(value, currency, card.key === "working_capital_impact")
 }
 
 // --- How a card reads on the page ---------------------------------------------------------------------
@@ -110,12 +126,40 @@ export function kpiValueText(card: ApiKpiCard): string {
  * and stay behind the card's (i); the PDF prints them in full. `title` is set only where a card was renamed: a saved
  * report keeps the title it was generated with, so this is what lets a rename reach the reports saved before it. */
 const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
-  materials_assessed: { caption: "Materials we made a recommendation for" },
+  materials_assessed: { title: "Material-plants with a computed recommendation", caption: "Materials we made a recommendation for" },
   recommendations_generated: { caption: "Recommendations created in this period" },
   critical_stockout_risk: { title: "High Stockout Risk", caption: "Stock below what the lead time needs" },
-  excess_inventory_opportunity: { caption: "Stock above the recommended maximum · estimate" },
-  working_capital_impact: { caption: "Cash released (+) or tied up (−) · estimate" },
-  pending_approval: { caption: "Waiting for a decision" },
+  excess_inventory_opportunity: { caption: "Stock above the recommended maximum" },
+  working_capital_impact: { caption: "Cash freed (+) or tied up (−)" },
+  oar_recommendations: { caption: "OAR recommendations created in this period" },
+  min_max_conversion: { caption: "OAR materials moved to Min-Max in SAP" },
+  approved: { caption: "Approved, but not yet changed in SAP" },
+  pending_approval: { caption: "Waiting for an approver's decision" },
+}
+
+/** The report page's own plain words for a card. The PDF and the Excel keep the report's own titles and labels (`cardTitle`,
+ * `card.denominator_label`), which are the full record; this is only how the page reads. A card with no entry keeps the report's. */
+const PAGE_TITLE: Record<string, string> = {
+  materials_assessed: "Materials with a recommendation",
+}
+
+const PAGE_DENOMINATOR: Record<string, string> = {
+  materials_assessed: "materials looked at",
+  recommendations_generated: "recommendations",
+  oar_recommendations: "recommendations created",
+  min_max_conversion: "OAR materials that can move",
+  critical_stockout_risk: "materials that could be checked",
+  excess_inventory_opportunity: "materials",
+  working_capital_impact: "materials included",
+  approved: "recommendations created",
+}
+
+export function pageCardTitle(card: ApiKpiCard): string {
+  return PAGE_TITLE[card.key] ?? cardTitle(card)
+}
+
+export function pageDenominatorLabel(card: ApiKpiCard): string {
+  return PAGE_DENOMINATOR[card.key] ?? card.denominator_label ?? ""
 }
 
 /** The card's title as the page and the PDF show it. */
@@ -162,34 +206,12 @@ export function seriesGaps(points: TrendPoint[], key: "stockout" | "excessOpport
   return points.filter((point) => point[key] === null).map((point) => point.label)
 }
 
-/** "−2,397.30M", "+1.20M": money in millions with its sign, as the Overview's card shows it. */
-export function millions(value: number | null, currency: string | null, signed = false): string {
+/** Money as a figure: the exact amount with its sign and currency, in whole units with comma grouping ("−ZAR 103,950",
+ * "+ZAR 12,500,000"), or "—" when it was not measured. Never abbreviated to "M" or "K": an abbreviated amount is a rounded one. A
+ * currency that is not stated has no prefix. Charts use it too, for their labels and tooltips. */
+export function moneyExact(value: number | null, currency: string | null, signed = false): string {
   if (value === null) return "—"
-  const sign = value < 0 ? "−" : signed && value > 0 ? "+" : ""
-  const prefix = currency ? `${currency} ` : ""
-  return `${sign}${prefix}${(Math.abs(value) / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
-}
-
-/** Money with its sign in the unit that reads best: "−2,397.30M", "+1.20M" from a million up, then "1.2K", then the plain
- * amount -- so a small figure is not shown as "0.00M". The trends use it; the cards keep `millions`. */
-export function compactMoney(value: number | null, currency: string | null, signed = false): string {
-  if (value === null) return "—"
-  const abs = Math.abs(value)
-  const thousands = abs / 1_000
-  if (thousands >= 999.95) return millions(value, currency, signed) // 999.96K reads as 1,000K; call it 1.00M
-  const sign = value < 0 ? "−" : signed && value > 0 ? "+" : ""
-  const prefix = currency ? `${currency} ` : ""
-  if (thousands >= 1) return `${sign}${prefix}${thousands.toLocaleString("en-US", { maximumFractionDigits: 1 })}K`
-  return `${sign}${prefix}${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
-}
-
-/** A money axis tick: "−2M", "1.5K", "250" -- short, and never "0M" for every tick of a small series. */
-export function axisMoney(value: number): string {
-  const abs = Math.abs(value)
-  const sign = value < 0 ? "−" : ""
-  if (abs >= 1_000_000) return `${sign}${+(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `${sign}${+(abs / 1_000).toFixed(1)}K`
-  return `${sign}${Math.round(abs)}`
+  return formatSignedAmount(value, currency ? `${currency} ` : "", signed)
 }
 
 /** What a month's row says about how it was measured, in a few words. */

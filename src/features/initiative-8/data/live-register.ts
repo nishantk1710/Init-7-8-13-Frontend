@@ -56,7 +56,6 @@ import { single, type RawSearchParams } from "@/features/initiative-8/data/url-p
 import type {
   DeclarationCondition,
   RepairChain,
-  RepairJustification,
   RepairStatus,
 } from "@/features/initiative-8/types/repair"
 import {
@@ -72,13 +71,11 @@ import type {
   ApiRegisterViewCounts,
   ApiRepairChain,
   ApiRegisterMeta,
-  ApiRepairJustification,
   RegisterQuery,
 } from "@/lib/api/i8"
 import { getRegister, getSnapshot, toNumber } from "@/lib/api/i8"
-import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
+import { i08Date } from "@/features/initiative-8/utils/format"
 import { formatApiDateTime } from "@/lib/api/format"
-import { completeFlowFromRules, switchIsOn } from "@/lib/i08-features"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
 
@@ -123,33 +120,6 @@ function document_(
     type: reference.type as SAPDocumentReference["type"],
     documentNumber: reference.documentNumber,
     line: orUndefined(reference.line),
-  }
-}
-
-/**
- * The line's Justification cell. Every display value the backend leaves null
- * stays undefined: a justification with no author is "not recorded", never a
- * blank name.
- */
-export function toRepairJustification(
-  value: ApiRepairJustification,
-): RepairJustification {
-  return {
-    status: value.status === "MISSING" ? "MISSING" : "RECORDED",
-    entries: value.entries.map((entry) => ({
-      id: orUndefined(entry.id),
-      reasonCategory: orUndefined(entry.reasonCategory),
-      freeText: orUndefined(entry.freeText),
-      author: orUndefined(entry.author),
-      recordedAt: entry.recordedAt ? i08DateTime(entry.recordedAt) : undefined,
-      sessionId: orUndefined(entry.sessionId),
-    })),
-    unjustifiedPurchases: value.unjustifiedPurchases.map((purchase) => ({
-      exceptionId: purchase.exceptionId,
-      purchase: document_(purchase.purchase) ?? { type: "PO", documentNumber: "—" },
-      raisedAt: purchase.raisedAt ? i08Date(purchase.raisedAt) : undefined,
-      preAutomation: purchase.preAutomation,
-    })),
   }
 }
 
@@ -262,6 +232,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     declarationId: orUndefined(row.declarationId),
     declarationLink: orUndefined(row.declarationLink),
     declarationSessionId: orUndefined(row.declarationSessionId),
+    declarationSessionReference: orUndefined(row.declarationSessionReference ?? row.declarationSessionId),
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --
@@ -273,32 +244,6 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     requester: orUndefined(row.requester),
     // Only when the department list knows the code -- never a guessed name.
     requesterName: orUndefined(row.requesterName),
-    justification: row.justification ? toRepairJustification(row.justification) : undefined,
-  }
-}
-
-/**
- * A register row with the exceptions the backend served on it, for the
- * Register screen and its export.
- *
- * Kept out of `toRepairChain` on purpose: the Overview adapts every line with
- * that, and its charts never read a line's exceptions -- carrying them would
- * add about half a megabyte to its page for nothing.
- */
-export function toRegisterLine(row: ApiRepairChain): RepairChain {
-  return {
-    ...toRepairChain(row),
-    // Undefined, not [], when the backend did not compute them: the column
-    // then says "Not checked" instead of implying the line is clean.
-    exceptions: row.exceptions?.map((item) => ({
-      id: item.id,
-      type: item.type,
-      severity: item.severity,
-      // The line's own exceptions carry no flag today. The checks raise an
-      // item `info` only when it predates the control (go-live, 27-Oct-2026)
-      // and every other one as a warning or worse, so the severity says it.
-      preAutomation: item.preAutomation ?? item.severity === "info",
-    })),
   }
 }
 
@@ -401,6 +346,11 @@ export function registerDescription(
   if (notShown.length > 0) {
     text += ` Not shown: ${notShown.join(", and ")}.`
   }
+  // Since 4-Nov-2026: back from the vendor, but SAP has not closed the PO.
+  const received = meta.excludedReceivedLines
+  if (received) {
+    text += ` ${notShown.length > 0 ? "Also not shown" : "Not shown"}: ${received.toLocaleString()} received in SAP, PO not closed.`
+  }
   if (sourceLoadedAt) {
     text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`
   }
@@ -421,7 +371,10 @@ function listed(parts: string[]): string {
  * on.
  */
 export function ruleIsOn(value: string | number | boolean | undefined | null): boolean {
-  return switchIsOn(value)
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase())
+  return false
 }
 
 type RegisterSettings = {
@@ -431,9 +384,6 @@ type RegisterSettings = {
    *  `repairRequestsEnabled` rule). False when it does not, when it is older
    *  than that rule, or when the snapshot could not be read. */
   repairRequestsEnabled: boolean
-  /** The I08 complete-flow switch (`lib/i08-features`). False when the
-   *  backend does not send it or the snapshot could not be read. */
-  completeFlowEnabled: boolean
 }
 
 /**
@@ -456,7 +406,6 @@ async function loadRegisterSettings(
       agingBands: parsed.length > 0 ? parsed : DEFAULT_AGING_BUCKETS,
       sourceLoadedAt: snapshot.sourceLoadedAt ?? null,
       repairRequestsEnabled: ruleIsOn(snapshot.rules.repairRequestsEnabled),
-      completeFlowEnabled: completeFlowFromRules(snapshot.rules),
     }
   } catch {
     // Keep the defaults silently -- this is presentation, not data integrity.
@@ -465,7 +414,6 @@ async function loadRegisterSettings(
       agingBands: DEFAULT_AGING_BUCKETS,
       sourceLoadedAt: null,
       repairRequestsEnabled: false,
-      completeFlowEnabled: false,
     }
   }
 }
@@ -488,8 +436,6 @@ export type LiveRegister = RegisterOptions & {
   /** The backend serves repair PRs with no PO yet as rows. False on an older
    *  backend or when the snapshot could not be read. */
   repairRequestsEnabled: boolean
-  /** The I08 complete-flow switch; false when unknown. */
-  completeFlowEnabled: boolean
 }
 
 /**
@@ -517,7 +463,7 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     page += 1
   }
 
-  const { agingBands, sourceLoadedAt, repairRequestsEnabled, completeFlowEnabled } = await loadRegisterSettings()
+  const { agingBands, sourceLoadedAt, repairRequestsEnabled } = await loadRegisterSettings()
 
   return {
     chains,
@@ -527,7 +473,6 @@ export async function loadLiveRegister(): Promise<LiveRegister> {
     referenceDate,
     sourceLoadedAt,
     repairRequestsEnabled,
-    completeFlowEnabled,
   }
 }
 
@@ -560,10 +505,12 @@ export type RegisterFilters = {
   /** The aging band of the days in the current stage: what one cell of the
    *  Overview's stage-by-age table opens. */
   stageAging?: string
-  /** `?exceptions=1`: only lines a check has raised something against. */
-  exceptions?: boolean
-  /** A quick view: `overdue`, `undeclared`, `atVendor`, `withExceptions` or
-   *  `notOrdered`. */
+  /** The aging band of the days past the expected return date: what one cell
+   *  of the Overview's "days past expected return" row opens (3-Nov-2026). */
+  lateAging?: string
+  /** A department code: the Overview's Department filter (3-Nov-2026). */
+  department?: string
+  /** A quick view: `overdue`, `undeclared`, `atVendor` or `notOrdered`. */
   view?: string
 }
 
@@ -575,7 +522,6 @@ export const REGISTER_VIEWS = [
   { value: "overdue", label: "Overdue" },
   { value: "undeclared", label: "Not declared" },
   { value: "atVendor", label: "At vendor" },
-  { value: "withExceptions", label: "With exceptions" },
   { value: "notOrdered", label: "No PO yet" },
 ] as const
 
@@ -595,7 +541,7 @@ export const REGISTER_VIEWS = [
  */
 export function registerViewChoices(
   viewCounts: ApiRegisterViewCounts,
-  screen?: { repairRequestsEnabled: boolean; selected?: string; completeFlow?: boolean },
+  screen?: { repairRequestsEnabled: boolean; selected?: string },
 ): { value: string; label: string; count: number }[] {
   return REGISTER_VIEWS.flatMap((view) => {
     const count = viewCounts[view.value === "" ? "all" : view.value]
@@ -604,9 +550,8 @@ export function registerViewChoices(
       screen &&
       view.value === "notOrdered" &&
       screen.selected !== view.value &&
-      // With the complete flow off there are no repair PRs to list, whatever
-      // the count says.
-      (screen.completeFlow === false || (!screen.repairRequestsEnabled && count === 0))
+      !screen.repairRequestsEnabled &&
+      count === 0
     ) {
       return []
     }
@@ -623,6 +568,9 @@ export type RegisterFacets = {
   repairStatuses: string[]
   /** Most severe first; `none` ("Not recorded") last when any line is unrated. */
   criticalities: { value: string; label: string }[]
+  /** The departments that raised the listed repairs, by code, named when the
+   *  department list knows the code (3-Nov-2026). */
+  departments: { value: string; label: string }[]
 }
 
 export type RegisterPage = {
@@ -637,8 +585,6 @@ export type RegisterPage = {
   sourceLoadedAt: string | null
   /** The backend serves repair PRs with no PO yet as rows. */
   repairRequestsEnabled: boolean
-  /** The I08 complete-flow switch; false when unknown. */
-  completeFlowEnabled: boolean
   /** Each quick view's count over the filtered lines; null from a backend
    *  older than the quick views, when the buttons show no numbers. */
   viewCounts: ApiRegisterViewCounts | null
@@ -656,6 +602,8 @@ const TEXT_FILTERS = [
   "declarationStatus",
   "aging",
   "stageAging",
+  "lateAging",
+  "department",
   "view",
 ] as const
 
@@ -663,7 +611,7 @@ export function parseRegisterParams(raw: RawSearchParams): {
   filters: RegisterFilters
   page: number
 } {
-  const filters: RegisterFilters = { exceptions: single(raw.exceptions) === "1" }
+  const filters: RegisterFilters = {}
   for (const key of TEXT_FILTERS) filters[key] = single(raw[key])
   return { filters, page: parsePage(raw.page) ?? 1 }
 }
@@ -683,19 +631,14 @@ export function registerHref(filters: RegisterFilters, page = 1): string {
     const value = filters[key]
     if (value) params.set(key, value)
   }
-  if (filters.exceptions) params.set("exceptions", "1")
   if (page > 1) params.set("page", String(page))
   const query = params.toString()
   return query ? `${REGISTER_PATH}?${query}` : REGISTER_PATH
 }
 
 /**
- * The request for what the screen shows.
- *
- * Nothing is held back: every line the backend serves is open in SAP, and
- * the Exceptions column carries every check the exception queue does. It
- * sent `excludeExceptionType=UNJUSTIFIED_ACQUISITION` from 14-Oct until
- * 27-Oct-2026, while the queue left that check out (see `live-exceptions.ts`).
+ * The request for what the screen shows. Nothing is held back: every line the
+ * backend serves is open in SAP.
  */
 function registerQuery(filters: RegisterFilters): RegisterQuery {
   return {
@@ -708,7 +651,8 @@ function registerQuery(filters: RegisterFilters): RegisterQuery {
     declarationStatus: filters.declarationStatus,
     agingBucket: filters.aging,
     stageAgingBucket: filters.stageAging,
-    withExceptions: filters.exceptions || undefined,
+    lateAgingBucket: filters.lateAging,
+    department: filters.department,
     view: filters.view,
   }
 }
@@ -750,7 +694,20 @@ function facetsOf(body: ApiRegisterPage, chains: RepairChain[]): RegisterFacets 
         .map((rating) => ({ value: rating, label: rating })),
       ...(facets.hasUnrated ? [{ value: NONE, label: NO_CRITICALITY }] : []),
     ],
+    departments: (body.facets?.departments ?? departmentsOf(chains)).map((department) => ({
+      value: department.value,
+      label: department.name ? `${department.value} · ${department.name}` : department.value,
+    })),
   }
+}
+
+/** The departments on a page's rows, for a backend older than the facet. */
+function departmentsOf(chains: RepairChain[]): { value: string; name: string | null }[] {
+  const names = new Map<string, string | null>()
+  for (const chain of chains) {
+    if (chain.requester) names.set(chain.requester, chain.requesterName ?? names.get(chain.requester) ?? null)
+  }
+  return [...names].map(([value, name]) => ({ value, name })).sort((a, b) => a.value.localeCompare(b.value))
 }
 
 /**
@@ -776,7 +733,7 @@ export async function loadRegisterPage(
     fetchPage({ ...registerQuery(filters), page, pageSize }),
     loadRegisterSettings(fetchSnapshot),
   ])
-  const chains = body.items.map(toRegisterLine)
+  const chains = body.items.map(toRepairChain)
   return {
     chains,
     total: body.total,
@@ -801,7 +758,7 @@ export async function fetchAllRegisterLines(
   const byId = new Map<string, RepairChain>()
   for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
     const body = await fetchPage({ ...registerQuery(filters), page, pageSize: PAGE_SIZE })
-    for (const chain of body.items.map(toRegisterLine)) {
+    for (const chain of body.items.map(toRepairChain)) {
       if (!byId.has(chain.id)) byId.set(chain.id, chain)
     }
     if (body.items.length < PAGE_SIZE || page * PAGE_SIZE >= body.total) break

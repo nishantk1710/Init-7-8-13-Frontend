@@ -2,18 +2,18 @@
 
 import { Check, Trash2 } from "lucide-react"
 
+import { RepairEvidenceList } from "@/components/assistant/repair-evidence"
 import { DeclarationFields } from "@/components/assistant/request/declaration-fields"
 import { RowStatus, figure } from "@/components/assistant/request/oar-table"
-import { Chip, JustificationFields, formatDate } from "@/components/assistant/request/request-parts"
+import { Chip, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
+import type { I08OpenRepair } from "@/lib/api/assistant-facts"
 import type { ApiReasonCategory } from "@/lib/api/assistant-requests"
 import {
   I08_WANT_NEW_NOTE,
   isPositiveQuantity,
   noUsableUnitText,
   repairRequestsOf,
-  requestAgePhrase,
-  requestReference,
   stockView,
   usableBreakdownText,
   type I08StockView,
@@ -38,15 +38,6 @@ import { cn } from "@/lib/utils"
  * before the 27-Oct usable/damaged split and repair requests shows as before.
  */
 
-type OpenRepair = {
-  purchasingDocument: string
-  item?: string
-  quantity: string
-  dueDate: string | null
-  daysOverdue: number | null
-  vendorName: string | null
-  vendor: string | null
-}
 export function RepairableTable({
   rows,
   lineNumbers,
@@ -54,8 +45,6 @@ export function RepairableTable({
   reasons,
   faultCategories = [],
   recommendations = [],
-  requester = "",
-  completeFlow,
   refusedKey,
   onChange,
   onRemove,
@@ -67,11 +56,6 @@ export function RepairableTable({
   /** From the preview; none (an older backend) hides the declaration section. */
   faultCategories?: readonly string[]
   recommendations?: readonly ApiReasonCategory[]
-  /** The request's Requester: the declaration's typed name starts from it. */
-  requester?: string
-  /** The I08 complete-flow switch (`lib/i08-features`): off hides what a
-   *  reason does, said under the justification prompt. */
-  completeFlow: boolean
   refusedKey: string | null
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -87,8 +71,6 @@ export function RepairableTable({
             reasons={reasons}
             faultCategories={faultCategories}
             recommendations={recommendations}
-            requester={requester}
-            completeFlow={completeFlow}
             refused={row.key === refusedKey}
             onChange={onChange}
             onRemove={onRemove}
@@ -107,8 +89,6 @@ function RepairableCard({
   reasons,
   faultCategories,
   recommendations,
-  requester,
-  completeFlow,
   refused,
   onChange,
   onRemove,
@@ -119,8 +99,6 @@ function RepairableCard({
   reasons: readonly ApiReasonCategory[]
   faultCategories: readonly string[]
   recommendations: readonly ApiReasonCategory[]
-  requester: string
-  completeFlow: boolean
   refused: boolean
   onChange: (next: RepairableLine) => void
   onRemove: (key: string) => void
@@ -210,7 +188,6 @@ function RepairableCard({
               showErrors={showErrors}
               faultCategories={faultCategories}
               recommendations={recommendations}
-              requester={requester}
               onChange={(declaration) => onChange({ ...row, declaration })}
             />
           )}
@@ -223,7 +200,7 @@ function RepairableCard({
             <JustificationFields
               idPrefix={row.key}
               prompt="A unit already exists. Why is a new one needed?"
-              note={completeFlow ? I08_WANT_NEW_NOTE : undefined}
+              note={I08_WANT_NEW_NOTE}
               value={row.justification}
               showErrors={showErrors}
               reasons={reasons}
@@ -268,7 +245,7 @@ function Segment({
 function ExistingUnits({ row }: { row: RepairableLine }) {
   const f = row.preview.facts ?? {}
   const view = stockView(f)
-  const repairs = Array.isArray(f.openRepairs) ? (f.openRepairs as OpenRepair[]) : []
+  const repairs = Array.isArray(f.openRepairs) ? (f.openRepairs as I08OpenRepair[]) : []
   const requests = repairRequestsOf(f)
   const leadTime = typeof f.newUnitLeadTimeDays === "number" ? f.newUnitLeadTimeDays : null
   const lead = leadTime !== null ? `A new unit takes about ${leadTime} days.` : ""
@@ -282,28 +259,12 @@ function ExistingUnits({ row }: { row: RepairableLine }) {
   return (
     <ul className="flex flex-col gap-2 text-sm">
       <StockItems view={view} breakdown={usableBreakdownText(f)} legacyStock={toNumber(f.stockOnHand) ?? 0} />
-      {repairs.map((r) => {
-        const overdue = (r.daysOverdue ?? 0) > 0
-        return (
-          // Keyed by PO and item: two items of one repair PO are two rows.
-          <li key={`po-${r.purchasingDocument}-${r.item ?? ""}`} className="flex flex-wrap items-center gap-1.5">
-            <Chip tone={overdue ? "warn" : "muted"}>{figure(r.quantity)} on repair</Chip>
-            <span className="text-muted-foreground">
-              {r.vendorName ?? r.vendor ?? "vendor"}, due {formatDate(r.dueDate)}
-              {overdue ? <span className="text-destructive"> · {r.daysOverdue} days overdue</span> : " · on time"}
-            </span>
-          </li>
-        )
-      })}
-      {requests.map((r) => (
-        // A repair request has no PO yet, so no vendor and no date to show.
-        <li key={`pr-${r.purchaseRequisition}-${r.item}`} className="flex flex-wrap items-center gap-1.5">
-          <Chip tone="muted">{figure(r.quantity)} requested</Chip>
-          <span className="text-muted-foreground">
-            {requestReference(r)} · {requestAgePhrase(r.daysSinceRequested)}, not yet ordered
-          </span>
+      {/* The same list the chat's card shows (4-Nov-2026). */}
+      {(repairs.length > 0 || requests.length > 0) && (
+        <li>
+          <RepairEvidenceList repairs={repairs} requests={requests} />
         </li>
-      ))}
+      )}
       {lead && <li className="text-xs text-muted-foreground">{lead}</li>}
     </ul>
   )

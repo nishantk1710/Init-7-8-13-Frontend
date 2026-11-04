@@ -16,23 +16,19 @@
 // depends on which backends answered cannot be destructured by index.
 
 import {
-  getInitiative7LiveActions,
   getInitiative7LiveAuditEvents,
   getInitiative7LiveSummary,
 } from "@/features/initiative-7/selectors/live"
 import {
-  getInitiative8LiveActions,
   getInitiative8LiveAuditEvents,
   getInitiative8LiveSummary,
 } from "@/features/initiative-8/selectors/live"
 import {
-  getInitiative13LiveActions,
   getInitiative13LiveAuditEvents,
   getInitiative13LiveSummary,
 } from "@/features/initiative-13/selectors/live"
 import type {
   AuditEvent,
-  GlobalAction,
   InitiativeId,
   InitiativeSummary,
 } from "@/lib/domain/contracts"
@@ -40,7 +36,6 @@ import {
   settle,
   type AuditQuery,
   type InitiativeFailure,
-  type LiveActions,
   type LiveAuditEvents,
   type Section,
 } from "@/lib/domain/live-feed"
@@ -67,55 +62,12 @@ export function getLiveSummaries(): Promise<PerInitiative<InitiativeSummary>> {
   })
 }
 
-export function getLiveActions(): Promise<PerInitiative<LiveActions>> {
-  return fanOut({
-    "initiative-7": getInitiative7LiveActions,
-    "initiative-8": getInitiative8LiveActions,
-    "initiative-13": getInitiative13LiveActions,
-  })
-}
-
 /** Which initiatives failed, and why — what a page lists so a gap is never silent. */
 export function failuresOf<T>(per: PerInitiative<T>): InitiativeFailure[] {
   return INITIATIVE_IDS.flatMap((initiative) => {
     const section = per[initiative]
     return section.status === "ready" ? [] : [{ initiative, message: section.message }]
   })
-}
-
-export interface CombinedActions {
-  actions: GlobalAction[]
-  decisions: GlobalAction[]
-  total: number
-  decisionTotal: number
-  capped: boolean
-  failures: InitiativeFailure[]
-}
-
-/**
- * Merge whatever answered. A failed initiative contributes nothing to the lists
- * and **is named in `failures`**, so the page can say "Repairable Spares could
- * not be loaded" next to a list that would otherwise look complete.
- */
-export function combineActions(per: PerInitiative<LiveActions>): CombinedActions {
-  const combined: CombinedActions = {
-    actions: [],
-    decisions: [],
-    total: 0,
-    decisionTotal: 0,
-    capped: false,
-    failures: failuresOf(per),
-  }
-  for (const initiative of INITIATIVE_IDS) {
-    const section = per[initiative]
-    if (section.status !== "ready") continue
-    combined.actions.push(...section.data.actions)
-    combined.decisions.push(...section.data.decisions)
-    combined.total += section.data.total
-    combined.decisionTotal += section.data.decisionTotal
-    combined.capped ||= section.data.capped
-  }
-  return combined
 }
 
 export function getLiveAuditEvents(query: AuditQuery): Promise<PerInitiative<LiveAuditEvents>> {

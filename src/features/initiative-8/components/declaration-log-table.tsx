@@ -9,7 +9,6 @@ import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
-import { DeclarationFormDialog } from "@/features/initiative-8/components/declaration-form-dialog"
 import { FilterChips, MaterialCell, ResultsCard } from "@/features/initiative-8/components/kit/list"
 import { Actor, StatusDot } from "@/features/initiative-8/components/kit/status"
 import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
@@ -23,30 +22,22 @@ import { downloadExcel } from "@/lib/utils"
 /**
  * The declaration log: every condition declaration recorded, newest first --
  * what was judged, by whom, on what (I08_Live_UI_Redesign_Plan.md, L4).
+ * Loaded whole (it holds a handful of rows) and filtered here.
  *
- * It was four screens down, under the queue, with its own second filter bar;
- * it is a tab now. Loaded whole (it holds a handful of rows) and filtered here.
- *
- * Records are never edited or deleted: a correction is a new row pointing at
- * the one it replaced, and both stay listed -- which is why a superseded row is
- * marked rather than removed.
+ * Read-only since 3-Nov-2026: declarations are made in the reservation
+ * assistant, and there is no Amend. Records are never edited or deleted; one
+ * amended before then is a new row pointing at the one it replaced. Since
+ * 4-Nov-2026 only the record in force is listed and exported -- nothing can
+ * supersede one any more, so the "In force only" filter and the faded
+ * superseded rows went. The condition text and evidence reference the form no
+ * longer asks for are not shown; a declaration made before then keeps them in
+ * the export.
  */
-export function DeclarationLogTable({
-  rows: allRows,
-  faultCategories = [],
-}: {
-  rows: DeclarationLogRow[]
-  /** For Amend's form. Empty when that fetch failed: the form says so. */
-  faultCategories?: string[]
-}) {
-  // The declaration being amended. Only one in force is offered Amend: a
-  // superseded record is history, and amending it would fork the chain.
-  const [amending, setAmending] = useState<DeclarationLogRow | null>(null)
-  const [formKey, setFormKey] = useState(0)
+export function DeclarationLogTable({ rows: everyRow }: { rows: DeclarationLogRow[] }) {
   const [search, setSearch] = useState("")
   const [condition, setCondition] = useState("")
   const [plant, setPlant] = useState("")
-  const [inForceOnly, setInForceOnly] = useState(false)
+  const allRows = useMemo(() => everyRow.filter((r) => !r.supersededBy), [everyRow])
 
   const conditions = useMemo(() => [...new Set(allRows.map((r) => r.condition).filter(Boolean))].sort(), [allRows])
   const plants = useMemo(() => {
@@ -60,10 +51,9 @@ export function DeclarationLogTable({
     return allRows.filter((r) => {
       if (condition && r.condition !== condition) return false
       if (plant && r.plant?.plantId !== plant) return false
-      if (inForceOnly && r.supersededBy) return false
       if (
         needle &&
-        ![r.id, r.material.materialCode, r.material.description, r.conditionDescription, r.serialNumber, r.evidenceReference, humanize(r.faultCategory), r.repairId]
+        ![r.id, r.material.materialCode, r.material.description, r.attestor, humanize(r.faultCategory), r.repairId]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(needle))
       ) {
@@ -71,29 +61,26 @@ export function DeclarationLogTable({
       }
       return true
     })
-  }, [allRows, search, condition, plant, inForceOnly])
+  }, [allRows, search, condition, plant])
 
   const { paged, page, pageSize, total, setPage } = usePaginatedRows(rows, {
-    resetKey: [search, condition, plant, inForceOnly].join("|"),
+    resetKey: [search, condition, plant].join("|"),
   })
 
   const chips = [
     search.trim() && { key: "q", label: `Search: “${search.trim()}”` },
     condition && { key: "condition", label: `Condition: ${conditionLabel(condition)}` },
     plant && { key: "plant", label: `Plant: ${plants.find(([id]) => id === plant)?.[1] ?? plant}` },
-    inForceOnly && { key: "inForce", label: "In force only" },
   ].filter((chip): chip is { key: string; label: string } => Boolean(chip))
   const remove = (key: string) => {
     if (key === "q") setSearch("")
     if (key === "condition") setCondition("")
     if (key === "plant") setPlant("")
-    if (key === "inForce") setInForceOnly(false)
   }
   const clearAll = () => {
     setSearch("")
     setCondition("")
     setPlant("")
-    setInForceOnly(false)
   }
 
   return (
@@ -102,7 +89,7 @@ export function DeclarationLogTable({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search material, notes or declaration id"
+          placeholder="Search material, declarer or declaration id"
           aria-label="Search declarations"
           className="h-9 w-full bg-background sm:w-72"
         />
@@ -119,13 +106,6 @@ export function DeclarationLogTable({
           allLabel="All plants"
           options={plants.map(([id, name]) => ({ value: id, label: name }))}
           className="sm:w-44"
-        />
-        <UrlSelect
-          value={inForceOnly ? "1" : ""}
-          onChange={(value) => setInForceOnly(value === "1")}
-          allLabel="Including superseded"
-          options={[{ value: "1", label: "In force only" }]}
-          className="sm:w-48"
         />
         {/* The log as filtered, every column. */}
         <Button
@@ -147,8 +127,8 @@ export function DeclarationLogTable({
           <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
             <p className="text-[15px] font-semibold text-foreground">No declarations recorded yet</p>
             <p className="max-w-md text-[13.5px] text-muted-foreground">
-              Declare a part with the button above, or from any repair line in the To declare tab or on its repair
-              page.
+              A declaration is made in the reservation assistant, by the person taking the faulty unit out. Each one
+              recorded there is listed here.
             </p>
           </div>
         ) : rows.length === 0 ? (
@@ -160,9 +140,9 @@ export function DeclarationLogTable({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName="table-fixed min-w-[1080px]">
+            <StickyScrollTable tableClassName="table-fixed min-w-[900px]">
               <colgroup>
-                {[16, 20, 11, 15, 11, 11, 10, 6].map((width, index) => (
+                {[17, 27, 12, 17, 14, 13].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -173,16 +153,12 @@ export function DeclarationLogTable({
                   <Head>Plant</Head>
                   <Head>Condition</Head>
                   <Head>Fault</Head>
-                  <Head>Notes</Head>
-                  <Head>By</Head>
-                  <Head>
-                    <span className="sr-only">Action</span>
-                  </Head>
+                  <Head>Declared by</Head>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paged.map((r) => (
-                  <TableRow key={r.id} className={r.supersededBy ? "opacity-60" : undefined}>
+                  <TableRow key={r.id}>
                     <Cell>
                       <div className="flex flex-col leading-snug">
                         <span>{r.attestedAt ?? "—"}</span>
@@ -232,7 +208,6 @@ export function DeclarationLogTable({
                             {conditionLabel(r.condition)}
                           </StatusDot>
                         )}
-                        {r.supersededBy && <span className="text-[12px] text-muted-foreground">Superseded by {r.supersededBy}</span>}
                         {r.isAmendment && (
                           <span className="text-[12px] text-muted-foreground" title={r.amendmentReason}>
                             Amendment{r.amendmentReason ? `: ${r.amendmentReason}` : ""}
@@ -241,32 +216,8 @@ export function DeclarationLogTable({
                       </div>
                     </Cell>
                     <Cell wrap>{humanize(r.faultCategory)}</Cell>
-                    <Cell>
-                      <span className="block truncate" title={r.conditionDescription}>
-                        {r.conditionDescription || "—"}
-                      </span>
-                      {r.evidenceReference && (
-                        <span className="block truncate text-[12px] text-muted-foreground" title={r.evidenceReference}>
-                          Evidence: {r.evidenceReference}
-                        </span>
-                      )}
-                    </Cell>
                     <Cell wrap>
                       <Actor actor={r.attestor} />
-                    </Cell>
-                    <Cell right>
-                      {!r.supersededBy && r.plant && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setFormKey((k) => k + 1)
-                            setAmending(r)
-                          }}
-                        >
-                          Amend
-                        </Button>
-                      )}
                     </Cell>
                   </TableRow>
                 ))}
@@ -279,30 +230,12 @@ export function DeclarationLogTable({
         )}
       </ResultsCard>
 
-      {amending && (
-        <DeclarationFormDialog
-          key={formKey}
-          open
-          onClose={() => setAmending(null)}
-          target={{
-            materialId: amending.material.materialId,
-            plantId: amending.plant?.plantId,
-            label: `${amending.material.materialCode} · ${amending.material.description} · ${amending.plant?.name ?? "an unknown plant"}${amending.repairId ? ` · repair line ${amending.repairId}` : ""}`,
-            defaultQuantity: amending.quantity,
-            supersedes: amending.id,
-            // The amendment names the same line the original did, if any.
-            repairDocument: amending.repairDocument,
-            repairItem: amending.repairItem,
-            repairDocumentType: amending.repairDocumentType,
-          }}
-          faultCategories={faultCategories}
-        />
-      )}
     </>
   )
 }
 
-/** The log as the user filtered it, for Export Excel: every column, wide. */
+/** The log as the user filtered it, for Export Excel: every column, wide.
+ *  In-force records only (4-Nov-2026), so no "Superseded By" column. */
 export function declarationLogRowsForExcel(rows: DeclarationLogRow[]): (string | number)[][] {
   return rows.map((r) => [
     r.attestedAt ?? "",
@@ -319,7 +252,6 @@ export function declarationLogRowsForExcel(rows: DeclarationLogRow[]): (string |
     r.id,
     r.repairId ?? "",
     r.isAmendment ? "Yes" : "No",
-    r.supersededBy ?? "",
     r.amendmentReason ?? "",
   ])
 }
@@ -339,6 +271,5 @@ export const DECLARATION_LOG_HEADERS = [
   "Declaration",
   "Repair Line",
   "Amendment",
-  "Superseded By",
   "Amendment Reason",
 ]

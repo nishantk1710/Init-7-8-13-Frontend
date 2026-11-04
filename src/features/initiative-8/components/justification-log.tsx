@@ -27,7 +27,7 @@ import {
 } from "@/features/initiative-8/data/live-justifications"
 import { i08DateTime, plural, reasonLabel } from "@/features/initiative-8/utils/format"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
-import { cn, downloadExcel, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 
 const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
 
@@ -47,9 +47,7 @@ const EXPORT_FILENAME = "i08-new-acquisition-justifications.xlsx"
  *
  * "By" names the requester typed on the session when nobody signed in, and a
  * Purchase column says which new-buy PR or PO the reason covered, or "No
- * purchase yet" (28-Oct-2026; see `live-justifications.ts`). The Purchase
- * column is part of the I08 complete flow, shown only while it is switched on
- * (`completeFlow`, `lib/i08-features`).
+ * purchase yet" (28-Oct-2026; see `live-justifications.ts`).
  *
  * Its own component rather than the shared one I13 renders: I13's log merges
  * two sources in the browser, so it cannot page on the server. An audit view
@@ -65,7 +63,6 @@ export function I08JustificationLog({
   facets,
   descriptions = {},
   purchasesChecked = true,
-  completeFlow,
 }: {
   items: I08Justification[]
   /** Matching the filters. */
@@ -81,8 +78,6 @@ export function I08JustificationLog({
   /** False when the backend could not match purchases yet: the column then
    *  says "Not checked yet", not "No purchase yet". */
   purchasesChecked?: boolean
-  /** The I08 complete-flow switch, read by the page. Off: no Purchase column. */
-  completeFlow: boolean
 }) {
   const { push, isPending } = useUrlFilters(JUSTIFICATIONS_PATH)
   const [exporting, setExporting] = useState(false)
@@ -103,7 +98,7 @@ export function I08JustificationLog({
           "Reason",
           "Note",
           "Recorded By",
-          ...(completeFlow ? ["Purchase"] : []),
+          "Purchase",
           "Session",
           "Exception",
         ],
@@ -114,8 +109,8 @@ export function I08JustificationLog({
           reasonLabel(entry.reasonCategory),
           entry.freeText,
           justificationAuthorText(entry),
-          ...(completeFlow ? [purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? ""] : []),
-          entry.sessionId ?? "",
+          purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? "",
+          entry.sessionReference ?? entry.sessionId ?? "",
           entry.exceptionId ?? "",
         ]),
       )
@@ -177,16 +172,9 @@ export function I08JustificationLog({
           options={withSelected(facets.plants, filters.plant).map((p) => ({ value: p, label: sapPlantName(p) }))}
           className="sm:w-44"
         />
-        <UrlSelect
-          value={filters.reason ?? ""}
-          onChange={(value) => push({ reason: value })}
-          allLabel="All reasons"
-          options={withSelected(facets.reasonCategories, filters.reason).map((r) => ({
-            value: r,
-            label: reasonLabel(r),
-          }))}
-          className="sm:w-56"
-        />
+        {/* No reason filter since 4-Nov-2026: the categories are few and
+            the column beside them says it. A link that still carries one
+            shows it as a chip, which removes it. */}
         <div className="flex items-center gap-2 sm:ml-auto">
           {exportError && (
             <span role="alert" className="text-[12.5px] text-i08-crit-ink">
@@ -227,9 +215,9 @@ export function I08JustificationLog({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName={cn("table-fixed", completeFlow ? "min-w-[1040px]" : "min-w-[960px]")}>
+            <StickyScrollTable tableClassName="table-fixed min-w-[1040px]">
               <colgroup>
-                {(completeFlow ? [14, 19, 10, 12, 13, 10, 12, 10] : [15, 21, 12, 14, 16, 11, 11]).map((width, index) => (
+                {[14, 19, 10, 12, 13, 10, 12, 10].map((width, index) => (
                   <col key={index} style={{ width: `${width}%` }} />
                 ))}
               </colgroup>
@@ -241,7 +229,7 @@ export function I08JustificationLog({
                   <Head>Reason</Head>
                   <Head>Note</Head>
                   <Head>By</Head>
-                  {completeFlow && <Head>Purchase</Head>}
+                  <Head>Purchase</Head>
                   <Head>Session</Head>
                 </TableRow>
               </TableHeader>
@@ -278,19 +266,17 @@ export function I08JustificationLog({
                           </span>
                         )}
                       </Cell>
-                      {completeFlow && (
-                        <Cell wrap>
-                          {purchase === undefined ? (
-                            <span className="text-muted-foreground" title="Not known on this backend">
-                              —
-                            </span>
-                          ) : entry.purchase ? (
-                            <span className="text-[13.5px]">{purchase}</span>
-                          ) : (
-                            <span className="text-[13.5px] text-muted-foreground">{purchase}</span>
-                          )}
-                        </Cell>
-                      )}
+                      <Cell wrap>
+                        {purchase === undefined ? (
+                          <span className="text-muted-foreground" title="Not known on this backend">
+                            —
+                          </span>
+                        ) : entry.purchase ? (
+                          <span className="text-[13.5px]">{purchase}</span>
+                        ) : (
+                          <span className="text-[13.5px] text-muted-foreground">{purchase}</span>
+                        )}
+                      </Cell>
                       <Cell>
                         {entry.sessionId ? (
                           <Link
@@ -298,7 +284,7 @@ export function I08JustificationLog({
                             className="font-mono text-[13px] text-i08-link hover:underline"
                             title="Open the assistant session this was recorded in"
                           >
-                            {entry.sessionId}
+                            {entry.sessionReference ?? entry.sessionId}
                           </Link>
                         ) : (
                           <span className="text-muted-foreground">—</span>

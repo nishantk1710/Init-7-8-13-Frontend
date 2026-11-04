@@ -60,7 +60,7 @@ function movements(list: ApiJobMovement[] | undefined): JobMovementRow[] {
 
 /** A register stage as the Repairable Spares screens word it. */
 const STAGE_LABELS: Record<string, string> = {
-  "PR Raised": "Repair requested",
+  "PR Raised": "PR raised",
   "PO Issued": "PO issued",
   "At Vendor": "At vendor",
 }
@@ -96,7 +96,7 @@ export function sessionJobView(job: ApiSessionJob | null): SessionJobView {
     repairs: repairs.map((r) => ({
       rowId: r.rowId,
       href: repairRowHref(r.rowId),
-      label: `${r.type === "PR" ? "Repair request PR" : "Repair PO"} ${r.document}/${r.item}`,
+      label: `${r.type === "PR" ? "Repair PR" : "Repair PO"} ${r.document}/${r.item}`,
       status: stageText(r.status),
     })),
   }

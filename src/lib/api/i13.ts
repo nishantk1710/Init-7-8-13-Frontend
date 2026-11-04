@@ -1304,6 +1304,8 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     lastIssueDate: str(raw.last_issue_date),
     lifecycleStatus: String(raw.lifecycle_status ?? ""),
     sessionId: str(raw.session_id),
+    // Older backends send no reference; the session ID is still a correct name for it.
+    sessionReference: str(raw.session_reference) ?? str(raw.session_id),
     sgtxt: str(raw.sgtxt),
     uatSimulated: Boolean(raw.uat_simulated),
     issuedBeforeHistory: Boolean(raw.issued_before_history),

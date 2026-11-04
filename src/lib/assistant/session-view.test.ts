@@ -384,7 +384,7 @@ describe("what the assistant showed (I08)", () => {
       { key: "usable", label: "Usable stock", value: "0", empty: "0", note: null, tone: "default" },
       { key: "damaged", label: "Damaged", value: "0", empty: "0", note: null, tone: "default" },
       { key: "repairs", label: "Open repair POs", value: "8", empty: "0", note: "8 past the promised date", tone: "warning" },
-      { key: "requested", label: "Requested, no PO yet", value: "6", empty: "0", note: "oldest requested 287 days ago", tone: "default" },
+      { key: "requested", label: "PR raised, no PO yet", value: "6", empty: "0", note: "oldest raised 287 days ago", tone: "default" },
       { key: "lead", label: "New unit takes", value: null, empty: "Not set in SAP", note: null, tone: "default" },
     ])
   })
@@ -422,7 +422,7 @@ describe("what the assistant showed (I08)", () => {
       {
         key: "2000029040-10-0",
         reference: "PR 2000029040/10",
-        age: "Requested 287 days ago",
+        age: "Raised 287 days ago",
         department: "40200 · GAMSBERG OPS - SAFETY DEPARTMENT",
         quantity: "1",
       },

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CircleSlash, FlaskConical, Loader2 } from "lucide-react"
+import { CircleSlash, FlaskConical, Loader2, PiggyBank } from "lucide-react"
 import { toast } from "sonner"
 
 import { LinkReservation } from "@/components/assistant/request/link-reservation"
+import { RequestCreatedDialog } from "@/components/assistant/request/request-created-dialog"
 import { NotEnabledNotice } from "@/components/assistant/request/request-builder"
 import { downloadRequest } from "@/components/assistant/request/request-export"
 import { Chip, CopyReferenceButton, formatDate, reasonLabel } from "@/components/assistant/request/request-parts"
@@ -21,9 +22,16 @@ import {
   type ApiRequestLine,
 } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
-import { departmentLabel, isDeclined, outcomeSentence } from "@/lib/assistant/request/record"
+import {
+  departmentLabel,
+  isDeclined,
+  outcomeSentence,
+  requestSavings,
+  savingSentence,
+} from "@/lib/assistant/request/record"
+import { declarationViewOf } from "@/lib/assistant/session-view"
 import { formatInstant } from "@/lib/assistant/trace-format"
-import { cn } from "@/lib/utils"
+import { cn, formatZAR } from "@/lib/utils"
 
 /**
  * A submitted request: the reference to type into SAP, every line's `R…/n`, and
@@ -50,6 +58,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <RequestCreatedDialog request={request} />
       <section
         aria-label="Request reference"
         className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
@@ -106,6 +115,7 @@ export function RequestSummary({ requestId }: { requestId: string }) {
             Each SAP item is matched to its line by material and plant.
           </span>
         </div>
+        <SavingsTotal request={request} />
         <ul className="flex flex-col gap-3">
           {request.lines.map((line) => (
             <li key={line.lineNo}>
@@ -234,15 +244,37 @@ function decisionOf(line: ApiRequestLine): { headline: string; pill: string; ton
   }
   if (line.decision === "not_needed") return { headline: "Not needed", pill: "Nothing reserved", tone: "muted" }
   const headline = `Procure ${plain(line.plannedQuantity)}`
-  if (line.suggestedQuantity === null) return { headline, pill: "No suggestion possible", tone: "caution" }
+  // The saving carries the suggestion as shown; the suggestion record's is
+  // capped at the plan, so a quantity below it would read as "suggested".
+  const shown = line.saving ? line.saving.suggestedQuantity : line.suggestedQuantity
+  if (shown === null) return { headline, pill: "No suggestion possible", tone: "caution" }
   const planned = Number(line.plannedQuantity)
-  const suggested = Number(line.suggestedQuantity)
+  const suggested = Number(shown)
   if (planned === suggested) return { headline, pill: "Suggested quantity", tone: "action" }
   return {
     headline,
-    pill: planned < suggested ? `Below the suggested ${plain(line.suggestedQuantity)}` : `Above the suggested ${plain(line.suggestedQuantity)}`,
+    pill: planned < suggested ? `Below the suggested ${plain(shown)}` : `Above the suggested ${plain(shown)}`,
     tone: "caution",
   }
+}
+
+/** The request's total saving from quantity suggestions, when there is one. */
+function SavingsTotal({ request }: { request: ApiRequest }) {
+  const total = requestSavings(request)
+  if (total.units === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/30 bg-success/5 px-4 py-3 text-sm">
+      <PiggyBank className="size-5 text-success" aria-hidden />
+      <span className="font-semibold text-foreground">
+        Quantity suggestions saved {total.units} unit{total.units === 1 ? "" : "s"}
+        {total.value > 0 && ` · ${formatZAR(total.value)}`}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        What was asked for less what was locked, at each plant&rsquo;s MBEW price (VERPR ÷ PEINH). An estimate at submit.
+        {total.unpriced > 0 && ` ${total.unpriced} line${total.unpriced === 1 ? " has" : "s have"} no price.`}
+      </span>
+    </div>
+  )
 }
 
 function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
@@ -264,6 +296,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** One line of the request as a card: what it is, what was decided, and whether SAP has linked it. */
+/**
+ * A repairable line's condition declaration, as the session trace words it.
+ * "Not declared" only when the backend says so: an older one sends nothing.
+ */
+function LineDeclaration({ line }: { line: ApiRequestLine }) {
+  if (line.declaration === undefined) return <span className="text-sm text-muted-foreground">—</span>
+  if (line.declaration === null) return <span className="text-sm text-muted-foreground">Not declared</span>
+  const d = declarationViewOf(line.declaration)
+  return (
+    <>
+      <Chip tone={d.assessment === "Repairable" ? "ready" : "warn"}>{d.assessment}</Chip>
+      <span className="text-sm font-semibold text-foreground">
+        {d.quantity} unit{d.quantity === "1" ? "" : "s"} · {d.fault}
+      </span>
+      <span className="text-sm text-muted-foreground">Declared by {d.name}</span>
+    </>
+  )
+}
+
 function LineCard({ line }: { line: ApiRequestLine }) {
   const procured = line.flow === "i13" && line.decision === "proceed"
   const decision = decisionOf(line)
@@ -311,19 +362,38 @@ function LineCard({ line }: { line: ApiRequestLine }) {
           </span>
           <Pill tone={decision.tone}>{decision.pill}</Pill>
           <span className="text-sm text-muted-foreground">{outcomeSentence(line)}</span>
-        </Field>
-        <Field label="Window and purpose">
-          {procured ? (
-            <>
-              <span className="text-sm font-semibold text-foreground">
-                {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
-              </span>
-              <span className="text-sm text-muted-foreground">{line.purpose}</span>
-            </>
-          ) : (
-            <span className="text-sm text-muted-foreground">Not asked for this line</span>
+          {savingSentence(line) && (
+            <span
+              className={cn(
+                "inline-flex w-fit items-center gap-1 text-sm font-semibold",
+                Number(line.saving?.unitsSaved ?? 0) > 0 ? "text-success" : "text-muted-foreground"
+              )}
+            >
+              <PiggyBank className="size-4" aria-hidden />
+              {savingSentence(line)}
+            </span>
           )}
         </Field>
+        {/* A window and a purpose belong to an OAR plan; a repairable line shows
+            the declaration made on it in their place (4-Nov-2026). */}
+        {line.flow === "i13" ? (
+          <Field label="Window and purpose">
+            {procured ? (
+              <>
+                <span className="text-sm font-semibold text-foreground">
+                  {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
+                </span>
+                <span className="text-sm text-muted-foreground">{line.purpose}</span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">Not asked for this line</span>
+            )}
+          </Field>
+        ) : (
+          <Field label="Declaration">
+            <LineDeclaration line={line} />
+          </Field>
+        )}
         <Field label="Reason given">
           {line.justification ? (
             <>

@@ -54,7 +54,9 @@ const LIFECYCLE_EDGE: Record<"default" | "success" | "warning", string> = {
  * The **Session** column is the link FR-4 asks for: the requester typed the
  * session ID into the reservation's item text (SGTXT) in SAP, the extract
  * carried it here, and the backend matched it to a real session for the same
- * part. A reservation marked UAT exists only in the UAT overlay.
+ * part. A line of a multi-material request shows as `R.../n` (the request
+ * reference the requester typed, and the line), not the line's internal
+ * session ID. A reservation marked UAT exists only in the UAT overlay.
  */
 export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] }) {
   if (rows.length === 0) {
@@ -119,7 +121,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                     className="inline-flex items-center gap-1 font-mono text-[11px] text-action underline-offset-4 hover:underline"
                   >
                     <MessagesSquare className="size-3" aria-hidden />
-                    {row.sessionId}
+                    {row.sessionReference ?? row.sessionId}
                   </Link>
                 ) : row.sgtxt ? (
                   <span

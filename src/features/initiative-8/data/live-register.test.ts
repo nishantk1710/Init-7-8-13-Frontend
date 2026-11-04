@@ -10,7 +10,6 @@ import {
   registerHref,
   registerViewChoices,
   ruleIsOn,
-  toRegisterLine,
   toRepairChain,
 } from "@/features/initiative-8/data/live-register"
 import {
@@ -22,16 +21,10 @@ import {
   isOpenRepair,
   isPrOnly,
   isRepairOverdue,
-  justificationCellOf,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
-import type {
-  ApiRegisterMeta,
-  ApiRegisterPage,
-  ApiRepairChain,
-  ApiRepairJustification,
-} from "@/lib/api/i8"
+import type { ApiRegisterMeta, ApiRegisterPage, ApiRepairChain } from "@/lib/api/i8"
 
 /**
  * W5.4 — the adapter between the API and the domain type.
@@ -142,12 +135,19 @@ describe("toRepairChain", () => {
         damagedStock: "2.000000",
         stockConditionKnown: true,
         declarationSessionId: "SJWYMF3H1H",
+        declarationSessionReference: "RRXVC7GKT6/2",
       }),
     )
     expect(chain.usableStock).toBe(1)
     expect(chain.damagedStock).toBe(2)
     expect(chain.stockConditionKnown).toBe(true)
     expect(chain.declarationSessionId).toBe("SJWYMF3H1H")
+    expect(chain.declarationSessionReference).toBe("RRXVC7GKT6/2")
+  })
+
+  it("quotes the session by its ID on a backend without the reference", () => {
+    const chain = toRepairChain(apiRow({ declarationSessionId: "SJWYMF3H1H" }))
+    expect(chain.declarationSessionReference).toBe("SJWYMF3H1H")
   })
 
   it("leaves the split unknown on an older backend, never 0", () => {
@@ -156,6 +156,7 @@ describe("toRepairChain", () => {
     expect(chain.damagedStock).toBeUndefined()
     expect(chain.stockConditionKnown).toBeUndefined()
     expect(chain.declarationSessionId).toBeUndefined()
+    expect(chain.declarationSessionReference).toBeUndefined()
   })
 
   it("keeps unknown stock as undefined, never as zero", () => {
@@ -316,9 +317,9 @@ describe("buildRegisterOptions", () => {
 /**
  * The Register screen pages on the server. What these pin: the URL reads back
  * as the filters it was written from, the listing's own parameter goes on
- * every request, the dropdowns are the server's in the order the screen always
- * had them, and each line's exceptions arrive with it. The filters themselves
- * run in the backend and are tested there (`tests/test_i8_queue_paging.py`).
+ * every request, and the dropdowns are the server's in the order the screen
+ * always had them. The filters themselves run in the backend and are tested
+ * there (`tests/test_i8_queue_paging.py`).
  */
 
 describe("parseRegisterParams and registerHref", () => {
@@ -333,7 +334,8 @@ describe("parseRegisterParams and registerHref", () => {
         criticality: "CRITICAL",
         declarationStatus: "Required",
         aging: "60+",
-        exceptions: "1",
+        lateAging: "16-30",
+        department: "10316",
         page: "4",
       }),
     ).toEqual({
@@ -346,7 +348,8 @@ describe("parseRegisterParams and registerHref", () => {
         criticality: "CRITICAL",
         declarationStatus: "Required",
         aging: "60+",
-        exceptions: true,
+        lateAging: "16-30",
+        department: "10316",
       },
       page: 4,
     })
@@ -354,13 +357,17 @@ describe("parseRegisterParams and registerHref", () => {
 
   it("treat a blank, repeated or malformed value as absent", () => {
     expect(
-      parseRegisterParams({ q: " ", plant: ["1300", "1500"], exceptions: "yes", page: "x" }),
-    ).toEqual({ filters: { exceptions: false }, page: 1 })
+      parseRegisterParams({ q: " ", plant: ["1300", "1500"], page: "x" }),
+    ).toEqual({ filters: {}, page: 1 })
+  })
+
+  it("ignore the exceptions filter a link from before 3-Nov-2026 may still carry", () => {
+    expect(parseRegisterParams({ exceptions: "1", plant: "1300" })).toEqual({ filters: { plant: "1300" }, page: 1 })
   })
 
   it("link to a page, keeping the filters and dropping page 1", () => {
-    expect(registerHref({ q: "pump seal", exceptions: true }, 2)).toBe(
-      "/repairable-spares/repair-register?q=pump+seal&exceptions=1&page=2",
+    expect(registerHref({ q: "pump seal", department: "10316" }, 2)).toBe(
+      "/repairable-spares/repair-register?q=pump+seal&department=10316&page=2",
     )
     expect(registerHref({})).toBe("/repairable-spares/repair-register")
   })
@@ -375,7 +382,8 @@ describe("parseRegisterParams and registerHref", () => {
       criticality: "none",
       declarationStatus: "Flagged",
       aging: "0-15",
-      exceptions: true,
+      lateAging: "60+",
+      department: "10316",
     }
     const raw = Object.fromEntries(new URL(registerHref(filters, 3), "http://x").searchParams)
 
@@ -384,9 +392,9 @@ describe("parseRegisterParams and registerHref", () => {
 })
 
 describe("activeRegisterFilters", () => {
-  it("counts each filter set, and the exceptions switch only when it is on", () => {
-    expect(activeRegisterFilters({ exceptions: false })).toBe(0)
-    expect(activeRegisterFilters({ q: "pump", plant: "1300", exceptions: true })).toBe(3)
+  it("counts each filter set", () => {
+    expect(activeRegisterFilters({})).toBe(0)
+    expect(activeRegisterFilters({ q: "pump", plant: "1300", department: "10316" })).toBe(3)
   })
 })
 
@@ -419,7 +427,7 @@ describe("loadRegisterPage", () => {
   it("asks for one page, with the listing's own parameter always on", async () => {
     const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
 
-    await loadRegisterPage({ plant: "1300", q: "pump", exceptions: true }, 3, {
+    await loadRegisterPage({ plant: "1300", q: "pump", department: "10316", lateAging: "31-45" }, 3, {
       pageSize: 25,
       fetchPage,
       fetchSnapshot,
@@ -427,13 +435,13 @@ describe("loadRegisterPage", () => {
 
     // No excludeHeld since 19-Oct-2026: every line the backend serves is open
     // in SAP, so there is nothing to hold back from the listing. No
-    // excludeExceptionType since 27-Oct-2026: the Exceptions column carries
-    // "bought new while a repair was open" again, as the queue does.
+    // withExceptions since 3-Nov-2026: the exception queue was removed.
     expect(fetchPage).toHaveBeenCalledTimes(1)
     expect(fetchPage).toHaveBeenCalledWith({
       q: "pump",
       plant: "1300",
-      withExceptions: true,
+      department: "10316",
+      lateAgingBucket: "31-45",
       page: 3,
       pageSize: 25,
     })
@@ -505,61 +513,40 @@ describe("loadRegisterPage", () => {
     expect(facets.criticalities.map((c) => c.value)).toEqual(["CRITICAL", "none"])
   })
 
-  it("brings each line's exceptions with it, and leaves 'not computed' undefined", async () => {
+  it("lists the departments the backend sends, named when it knows the name", async () => {
     const fetchPage = vi.fn().mockResolvedValue(
-      registerPage([
-        apiRow({
-          id: "raised",
-          exceptions: [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning" }],
-        }),
-        apiRow({ id: "clean", exceptions: [] }),
-        // A backend older than paging sends none: the column says "Not checked".
-        apiRow({ id: "unknown" }),
-      ]),
-    )
-
-    const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
-
-    expect(chains.map((c) => c.exceptions)).toEqual([
-      [{ id: "EX-1", type: "MISSING_ATTESTATION", severity: "warning", preAutomation: false }],
-      [],
-      undefined,
-    ])
-  })
-
-  it("reads an item raised before go-live off its severity, or its own flag when sent", async () => {
-    // The checks raise an item `info` only when it predates the control; the
-    // register's badge leaves those out of its count.
-    const fetchPage = vi.fn().mockResolvedValue(
-      registerPage([
-        apiRow({
-          id: "historical",
-          exceptions: [
-            { id: "EX-1", type: "MISSING_ATTESTATION", severity: "info" },
-            { id: "EX-2", type: "OVERDUE_REPAIR", severity: "warning" },
-            { id: "EX-3", type: "SOMETHING_NEW", severity: "warning", preAutomation: true },
+      registerPage([apiRow()], {
+        facets: {
+          plants: [],
+          vendors: [],
+          hasUnknownVendor: false,
+          repairStatuses: [],
+          criticalities: [],
+          hasUnrated: false,
+          departments: [
+            { value: "10201", name: null },
+            { value: "10316", name: "Mining" },
           ],
-        }),
-      ]),
+        },
+      }),
     )
 
-    const { chains } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+    const { facets } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
 
-    expect(chains[0].exceptions?.map((e) => e.preAutomation)).toEqual([true, false, true])
-  })
-})
-
-describe("toRegisterLine", () => {
-  it("carries the line's exceptions, which toRepairChain leaves off for the Overview", () => {
-    const row = apiRow({
-      exceptions: [{ id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical" }],
-    })
-
-    expect(toRegisterLine(row).exceptions).toEqual([
-      { id: "EX-1", type: "OVERDUE_REPAIR", severity: "critical", preAutomation: false },
+    expect(facets.departments).toEqual([
+      { value: "10201", label: "10201" },
+      { value: "10316", label: "10316 · Mining" },
     ])
-    // Its charts never read them, and every line it loads would carry them.
-    expect(toRepairChain(row).exceptions).toBeUndefined()
+  })
+
+  it("reads the departments off the page's rows on a backend older than that facet", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      registerPage([apiRow({ requester: "10316", requesterName: "Mining" }), apiRow({ requester: null })]),
+    )
+
+    const { facets } = await loadRegisterPage({}, 1, { fetchPage, fetchSnapshot })
+
+    expect(facets.departments).toEqual([{ value: "10316", label: "10316 · Mining" }])
   })
 })
 
@@ -589,23 +576,7 @@ describe("fetchAllRegisterLines", () => {
   })
 })
 
-describe("toRepairChain: what the Declaration Queue and Justifications screens showed", () => {
-  // Folded into the register on 08-Oct-2026, so it travels on the line.
-  const recorded: ApiRepairJustification = {
-    status: "RECORDED",
-    entries: [
-      {
-        id: "J-1",
-        reasonCategory: "URGENT_BREAKDOWN",
-        freeText: "Line down.",
-        author: "T. Mokoena",
-        recordedAt: "2026-10-08T09:30:00Z",
-        sessionId: "S-1",
-      },
-    ],
-    unjustifiedPurchases: [],
-  }
-
+describe("toRepairChain: who declared, and who raised the repair", () => {
   it("carries who declared, when, the condition, the next action and the requester", () => {
     const chain = toRepairChain(
       apiRow({
@@ -633,52 +604,12 @@ describe("toRepairChain: what the Declaration Queue and Justifications screens s
     expect(chain.condition).toBeUndefined()
   })
 
-  it("leaves everything undefined when no attestation or justification exists", () => {
+  it("leaves everything undefined when no declaration exists", () => {
     // Also what an older backend, which sends none of these fields, produces.
     const chain = toRepairChain(apiRow())
     expect(chain.declaredBy).toBeUndefined()
     expect(chain.declaredAt).toBeUndefined()
     expect(chain.condition).toBeUndefined()
-    expect(chain.justification).toBeUndefined()
-    expect(justificationCellOf(chain)).toBe("NONE")
-  })
-
-  it("carries a recorded justification, newest first, with its session", () => {
-    const chain = toRepairChain(apiRow({ justification: recorded }))
-    expect(justificationCellOf(chain)).toBe("RECORDED")
-    const [entry] = chain.justification!.entries
-    expect(entry.reasonCategory).toBe("URGENT_BREAKDOWN")
-    expect(entry.sessionId).toBe("S-1")
-    expect(entry.recordedAt).toContain("2026")
-  })
-
-  it("reads a purchase with no reason as Missing, and one nobody was asked about as Not asked", () => {
-    const purchase = {
-      exceptionId: "EX-UNJUSTIFIED_ACQUISITION-4100100001-10",
-      purchase: { type: "PO" as const, documentNumber: "4100100001", line: "10" },
-      raisedAt: "2026-05-10",
-      preAutomation: false,
-    }
-    const missing = toRepairChain(
-      apiRow({
-        justification: { status: "MISSING", entries: [], unjustifiedPurchases: [purchase] },
-      }),
-    )
-    expect(justificationCellOf(missing)).toBe("MISSING")
-    expect(missing.justification!.unjustifiedPurchases[0].purchase.documentNumber).toBe(
-      "4100100001",
-    )
-
-    const notAsked = toRepairChain(
-      apiRow({
-        justification: {
-          status: "MISSING",
-          entries: [],
-          unjustifiedPurchases: [{ ...purchase, preAutomation: true }],
-        },
-      }),
-    )
-    expect(justificationCellOf(notAsked)).toBe("NOT_ASKED")
   })
 })
 
@@ -742,16 +673,20 @@ describe("registerRowsToCsv", () => {
     expect(cell("Lead-time status")).toBe("")
   })
 
-  it("follows the screen: status first, declaration and justification next, reference columns last", () => {
+  it("follows the screen: status first, declaration next, reference columns last", () => {
     const at = (header: string) => REGISTER_CSV_HEADERS.indexOf(header)
     expect(at("Repair status")).toBeLessThan(at("Declaration status"))
-    expect(at("Declaration status")).toBeLessThan(at("Justification"))
     for (const reference of ["Criticality", "Stock on hand", "Reorder point", "Repair PR", "Repair PO"]) {
-      expect(at(reference)).toBeGreaterThan(at("Justification"))
+      expect(at(reference)).toBeGreaterThan(at("Declared at"))
     }
   })
 
-  it("exports who declared and the justification, empty when there is none", () => {
+  it("exports no justification or exceptions column (3-Nov-2026)", () => {
+    expect(REGISTER_CSV_HEADERS).not.toContain("Justification")
+    expect(REGISTER_CSV_HEADERS).not.toContain("Exceptions")
+  })
+
+  it("exports who declared, empty when no one has", () => {
     const cell = (row: (string | number)[], header: string) =>
       row[REGISTER_CSV_HEADERS.indexOf(header)]
     const [declared, bare] = registerRowsToCsv([
@@ -760,16 +695,13 @@ describe("registerRowsToCsv", () => {
           declarationStatus: "Completed",
           declaredBy: "R. Kruger",
           declaredAt: "2026-09-12T09:30:00Z",
-          justification: { status: "RECORDED", entries: [], unjustifiedPurchases: [] },
         }),
       ),
       toRepairChain(apiRow()),
     ])
     expect(cell(declared, "Declared by")).toBe("R. Kruger")
-    expect(cell(declared, "Justification")).toBe("Recorded")
     // A dash is screen punctuation; in a spreadsheet it is a value.
     expect(cell(bare, "Declared by")).toBe("")
-    expect(cell(bare, "Justification")).toBe("")
   })
 
   it("exports no turnaround, partial-receipt or blocked column", () => {
@@ -822,6 +754,18 @@ describe("registerDescription", () => {
     expect(text).toContain("Not shown: 7 delivery completed in SAP.")
     expect(text).not.toContain("blocked")
     expect(text).not.toContain("deleted")
+  })
+
+  it("names the lines received in SAP whose PO is not closed (4-Nov-2026)", () => {
+    const alone = registerDescription({ ...meta, excludedReceivedLines: 2 }, "2026-11-04")
+    expect(alone).toContain("Not shown: 2 received in SAP, PO not closed.")
+
+    const besides = registerDescription(
+      { ...meta, excludedDeliveryCompletedLines: 5015, excludedReceivedLines: 1 },
+      "2026-11-04",
+    )
+    expect(besides).toContain("Not shown: 5,015 delivery completed in SAP.")
+    expect(besides).toContain("Also not shown: 1 received in SAP, PO not closed.")
   })
 
   it("names the requests for quotation apart from what SAP closed", () => {
@@ -963,7 +907,7 @@ describe("repair PRs with no PO yet (27-Oct-2026)", () => {
     expect(pr).toHaveLength(REGISTER_CSV_HEADERS.length)
     expect(cell(pr, "Line")).toBe("PR-2000029113-10")
     expect(cell(pr, "Vendor")).toBe("No PO yet")
-    expect(cell(pr, "Repair status")).toBe("Repair requested")
+    expect(cell(pr, "Repair status")).toBe("PR raised")
     expect(cell(pr, "Overdue status")).toBe("No PO yet")
     expect(cell(pr, "Expected return")).toBe("")
     expect(cell(pr, "Repair PR")).toBe("2000029113/10")
@@ -984,16 +928,15 @@ describe("repair PRs with no PO yet (27-Oct-2026)", () => {
 })
 
 describe("registerViewChoices", () => {
-  const counts = { all: 120, overdue: 40, undeclared: 104, atVendor: 3, withExceptions: 90 }
+  const counts = { all: 120, overdue: 40, undeclared: 104, atVendor: 3 }
 
   it("leaves out the No PO yet pill when an older backend sends no count for it", () => {
-    expect(registerViewChoices(counts).map((c) => c.value)).toEqual([
-      "",
-      "overdue",
-      "undeclared",
-      "atVendor",
-      "withExceptions",
-    ])
+    expect(registerViewChoices(counts).map((c) => c.value)).toEqual(["", "overdue", "undeclared", "atVendor"])
+  })
+
+  it("offers no With exceptions pill, even when an older backend still counts it", () => {
+    const older = { ...counts, withExceptions: 90 }
+    expect(registerViewChoices(older).map((c) => c.value)).not.toContain("withExceptions")
   })
 
   it("offers it, with its count, when the backend sends one", () => {
@@ -1010,7 +953,7 @@ describe("registerViewChoices", () => {
       // can only find nothing is noise.
       const choices = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: false })
       expect(values(choices)).not.toContain("notOrdered")
-      expect(values(choices)).toHaveLength(5)
+      expect(values(choices)).toHaveLength(4)
     })
 
     it("shows it while the switch is on, even at 0 under a filter", () => {
@@ -1034,33 +977,6 @@ describe("registerViewChoices", () => {
     it("still leaves it out when an older backend sends no count", () => {
       const choices = registerViewChoices(counts, { repairRequestsEnabled: true, selected: "notOrdered" })
       expect(values(choices)).not.toContain("notOrdered")
-    })
-
-    describe("with the complete flow switched off", () => {
-      it("hides the No PO yet pill whatever it counts and whatever the PR-rows rule says", () => {
-        for (const notOrdered of [0, 4]) {
-          const choices = registerViewChoices(
-            { ...counts, notOrdered },
-            { repairRequestsEnabled: true, completeFlow: false },
-          )
-          expect(values(choices)).toEqual(["", "overdue", "undeclared", "atVendor", "withExceptions"])
-        }
-      })
-
-      it("keeps it only while a stale link has it selected", () => {
-        const choices = registerViewChoices(
-          { ...counts, notOrdered: 0 },
-          { repairRequestsEnabled: false, selected: "notOrdered", completeFlow: false },
-        )
-        expect(values(choices)).toContain("notOrdered")
-      })
-
-      it("changes nothing when on", () => {
-        const on = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true, completeFlow: true })
-        const unset = registerViewChoices({ ...counts, notOrdered: 0 }, { repairRequestsEnabled: true })
-        expect(on).toEqual(unset)
-        expect(values(on)).toContain("notOrdered")
-      })
     })
   })
 })
@@ -1095,34 +1011,5 @@ describe("ruleIsOn", () => {
       fetchSnapshot: vi.fn().mockRejectedValue(new Error("down")),
     })
     expect(failed.repairRequestsEnabled).toBe(false)
-  })
-
-  it("reads the complete-flow switch beside it: on only when the snapshot says so", async () => {
-    const fetchPage = vi.fn().mockResolvedValue(registerPage([apiRow()]))
-    const on = await loadRegisterPage({}, 1, {
-      fetchPage,
-      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { completeFlowEnabled: true, repairRequestsEnabled: 1 } }),
-    })
-    expect(on.completeFlowEnabled).toBe(true)
-
-    const off = await loadRegisterPage({}, 1, {
-      fetchPage,
-      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { completeFlowEnabled: false, repairRequestsEnabled: 1 } }),
-    })
-    expect(off.completeFlowEnabled).toBe(false)
-    // The PR-rows rule is still reported as sent; the screen ANDs the two.
-    expect(off.repairRequestsEnabled).toBe(true)
-
-    const older = await loadRegisterPage({}, 1, {
-      fetchPage,
-      fetchSnapshot: vi.fn().mockResolvedValue({ rules: { repairRequestsEnabled: 1 } }),
-    })
-    expect(older.completeFlowEnabled).toBe(false)
-
-    const failed = await loadRegisterPage({}, 1, {
-      fetchPage,
-      fetchSnapshot: vi.fn().mockRejectedValue(new Error("down")),
-    })
-    expect(failed.completeFlowEnabled).toBe(false)
   })
 })

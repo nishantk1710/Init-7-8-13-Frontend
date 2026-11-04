@@ -1,110 +1,28 @@
 /**
- * The live declaration queue — `GET /api/i8/declarations` as the rows the
- * Declarations screen renders.
+ * The declaration log — `GET /api/i8/attestations` as the rows the Repair
+ * Declarations screen lists.
  *
- * Note what this is NOT: `data/declarations.ts` in this same folder is six
- * hand-written rows with invented people's names on them, and it is read by
- * the cross-initiative selectors that feed Home and the Action Center. Those
- * rows are the subject of audit finding 11.4 ("Live screens that still show
- * invented data"). This module is the real thing, and the screen reads this
- * one — a queue that shows made-up work is worse than no queue.
- *
- * ## Paged on the server
- *
- * The screen asks for ONE page, and the backend searches, filters and counts.
- * It used to follow the pages to the end -- every repair line is undeclared,
- * so that was the whole 5,153-line register -- and filter in the browser,
- * which made a 17 MB page. The filters and the page live in the URL, as on
- * the Justifications screen (`live-justifications.ts`).
- *
- * ## Two lists (28-Oct-2026)
- *
- * "To declare" is the queue: Required and Flagged. "Historical" is the open
- * lines raised before declarations began, which nobody was asked to declare.
- * They used to be reachable from nowhere on this screen, which then said
- * "every repair line has a condition declaration" -- untrue for 211 lines.
- * They can still be declared, voluntarily, from that tab.
+ * Log only since 3-Nov-2026. A declaration is made in the reservation
+ * assistant, and the screen's queue ("To declare", "Historical"), which read
+ * `GET /api/i8/declarations` page by page, went with the declare buttons. The
+ * register still reads that endpoint's status for its Declaration column.
  */
 
-import { single, type RawSearchParams } from "@/features/initiative-8/data/url-params"
-import type {
-  DeclarationQueueRow,
-  DeclarationQueueSummary,
-  RepairStatus,
-} from "@/features/initiative-8/types/repair"
-import type {
-  ApiDeclarationItem,
-  ApiDeclarationMeta,
-  ApiDeclarationPage,
-  DeclarationQuery,
-} from "@/lib/api/i8"
 import type { ApiAttestation } from "@/lib/api/i8"
-import { getAttestations, getDeclarations, getRegister } from "@/lib/api/i8"
-import { i08Date, i08DateTime } from "@/features/initiative-8/utils/format"
-import { DEFAULT_PAGE_SIZE, parsePage } from "@/lib/pagination"
+import { getAttestations } from "@/lib/api/i8"
+import { i08DateTime } from "@/features/initiative-8/utils/format"
 
 /** `null` -> `undefined`, matching every other live-* adapter in this module. */
 function orUndefined<T>(value: T | null | undefined): T | undefined {
   return value ?? undefined
 }
 
-function toRow(row: ApiDeclarationItem): DeclarationQueueRow {
-  return {
-    id: row.id,
-    material: {
-      materialId: row.material.materialId,
-      materialCode: row.material.materialCode ?? row.material.materialId,
-      description: row.material.description ?? row.material.materialId,
-    },
-    plant: row.plant
-      ? { plantId: row.plant.plantId, name: row.plant.name }
-      : undefined,
-    // A CODE, not a name: no person directory was delivered, so EKPO's
-    // requisitioner is served as what it is. An invented name would read as
-    // provenance this record does not have.
-    requester: orUndefined(row.requester),
-    requesterName: orUndefined(row.requesterName),
-    // Carried so the row offers Amend (superseding it) rather than Declare.
-    declarationId: orUndefined(row.declarationId),
-    purchaseRequisition: row.pr ? row.pr.documentNumber : undefined,
-    relatedRepairId: row.relatedRepairId,
-    repairPO: row.repairPo
-      ? {
-          type: "PO",
-          documentNumber: row.repairPo.documentNumber,
-          line: row.repairPo.line ?? undefined,
-        }
-      : undefined,
-    // Name when LFA1 gave one, else the code. A code is a fact; an invented
-    // name is not, and "Unknown vendor" is reserved for a line with neither.
-    vendor: row.vendorName ?? row.vendor ?? undefined,
-    repairStatus: (row.repairStatus as RepairStatus | null) ?? undefined,
-    status: row.status,
-    declaredBy: orUndefined(row.declaredBy),
-    declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
-    condition: orUndefined(row.condition),
-    nextAction: row.nextAction,
-    createdAt: row.createdAt ? i08Date(row.createdAt) : undefined,
-  }
-}
-
-function toSummary(meta: ApiDeclarationMeta): DeclarationQueueSummary {
-  return {
-    total: meta.total,
-    outstanding: meta.outstanding,
-    byStatus: meta.byStatus,
-    attestationWindowDays: meta.attestationWindowDays,
-  }
-}
-
 /**
  * One recorded attestation, for the declaration LOG.
  *
- * The queue above answers "who still owes one". This answers "what was
- * actually judged, by whom, on what" -- the FR-4 fields the queue has no room
- * for: quantity, fault category, the condition description somebody typed,
- * and the optional serial. `GET /api/i8/attestations` has been live
- * throughout with nothing calling it.
+ * What was actually judged, by whom, on what: quantity, fault category and
+ * the assessment, and on a declaration made before 3-Nov-2026 the condition
+ * text somebody typed and the optional serial and evidence.
  */
 export type DeclarationLogRow = {
   id: string
@@ -115,8 +33,8 @@ export type DeclarationLogRow = {
   faultCategory: string
   conditionDescription: string
   serialNumber?: string
-  /** The name the declarer typed when there is one, else what the server
-   *  stamped (a placeholder: there is no sign-in). Shown as recorded. */
+  /** Who declared: the requester's name the assistant recorded (typed into
+   *  the form before 3-Nov-2026), else what the server stamped. As recorded. */
   attestor: string
   /** A reference someone can follow (a photo or report number). */
   evidenceReference?: string
@@ -131,7 +49,7 @@ export type DeclarationLogRow = {
   /** The repair line it was declared against, as the register keys it --
    *  absent for a part declared with no repair line. */
   repairId?: string
-  /** The same line, unjoined, so Amend can name it again. */
+  /** The same line, unjoined. */
   repairDocument?: string
   repairItem?: string
   repairDocumentType?: "PO" | "PR"
@@ -174,8 +92,7 @@ export function toLogRow(row: ApiAttestation): DeclarationLogRow {
 
 /**
  * Every recorded attestation, newest first, for the declaration log. Null when
- * the call failed: the queue is still worth showing without the log, but an
- * empty log must not be served in place of a failed one.
+ * the call failed: an empty log must not be served in place of a failed one.
  *
  * Not paged. It holds what people have declared -- six rows today -- and grows
  * only as fast as they declare. Superseded rows are kept: they are the audit
@@ -185,278 +102,4 @@ export async function loadDeclarationLog(): Promise<DeclarationLogRow[] | null> 
   return getAttestations()
     .then((body) => body.items.map(toLogRow))
     .catch(() => null)
-}
-
-// --- One page of the queue --------------------------------------------------
-
-export const DECLARATIONS_PATH = "/repairable-spares/declarations"
-
-/** The backend's max_page_size: as few export round trips as the API allows. */
-const EXPORT_PAGE_SIZE = 500
-
-/** A ceiling on export requests, so a backend that ignored `page` and kept
- *  returning full pages could never loop forever. 200 x 500 rows. */
-const MAX_EXPORT_PAGES = 200
-
-/**
- * The screen's tabs, as `?tab=`: the queue (no parameter), the lines raised
- * before declarations began, and the log.
- */
-export type DeclarationTab = "queue" | "historical" | "log"
-
-/** The two tabs that list repair lines. */
-export type DeclarationList = Exclude<DeclarationTab, "log">
-
-export function parseDeclarationTab(raw: RawSearchParams): DeclarationTab {
-  const tab = single(raw.tab)
-  return tab === "log" || tab === "historical" ? tab : "queue"
-}
-
-/** What the queue can be narrowed by. Each is a URL parameter of the same name. */
-export type DeclarationFilters = {
-  q?: string
-  plant?: string
-  /** A vendor CODE, as the facets list it. */
-  vendor?: string
-  /** Where the repair stands -- PO Issued, At Vendor, Closed. */
-  repairStatus?: string
-}
-
-export type DeclarationFacets = {
-  plants: { plantId: string; name: string }[]
-  /** `value` is the code the filter takes; `label` is the name, else the code. */
-  vendors: { value: string; label: string }[]
-  repairStatuses: string[]
-}
-
-export type DeclarationsPage = {
-  rows: DeclarationQueueRow[]
-  /** Matching the filters. */
-  total: number
-  /** The whole queue's counts, whatever the filters. */
-  summary: DeclarationQueueSummary
-  facets: DeclarationFacets
-}
-
-type FetchDeclarations = typeof getDeclarations
-
-export function parseDeclarationParams(raw: RawSearchParams): {
-  filters: DeclarationFilters
-  page: number
-} {
-  return {
-    filters: {
-      q: single(raw.q),
-      plant: single(raw.plant),
-      vendor: single(raw.vendor),
-      repairStatus: single(raw.repairStatus),
-    },
-    page: parsePage(raw.page) ?? 1,
-  }
-}
-
-export function isDeclarationFiltered(filters: DeclarationFilters): boolean {
-  return Boolean(filters.q || filters.plant || filters.vendor || filters.repairStatus)
-}
-
-/**
- * The link to one page of the queue, keeping the filters and the tab. Page 1
- * drops `page` and the queue drops `tab`, so the plain screen is one URL.
- */
-export function declarationsHref(filters: DeclarationFilters, page = 1, tab: DeclarationTab = "queue"): string {
-  const params = new URLSearchParams()
-  if (tab !== "queue") params.set("tab", tab)
-  if (filters.q) params.set("q", filters.q)
-  if (filters.plant) params.set("plant", filters.plant)
-  if (filters.vendor) params.set("vendor", filters.vendor)
-  if (filters.repairStatus) params.set("repairStatus", filters.repairStatus)
-  if (page > 1) params.set("page", String(page))
-  const query = params.toString()
-  return query ? `${DECLARATIONS_PATH}?${query}` : DECLARATIONS_PATH
-}
-
-/**
- * Outstanding rows only, and not as a default somebody can switch off: the
- * table has no declaration-status column, so a Completed row would look
- * exactly like an undeclared one (see `DeclarationsTable`).
- */
-function declarationQuery(filters: DeclarationFilters, list: DeclarationList = "queue"): DeclarationQuery {
-  return {
-    // The Historical tab asks for that status alone; the queue for the rows
-    // somebody owes a declaration.
-    ...(list === "historical" ? { status: "Historical" } : { outstandingOnly: true }),
-    q: filters.q,
-    plant: filters.plant,
-    vendor: filters.vendor,
-    repairStatus: filters.repairStatus,
-  }
-}
-
-/**
- * The dropdown values. The backend takes them before the filters, so choosing
- * one plant does not take the other out of the list. A backend older than
- * paging sends none; the page's rows are then the best there is.
- */
-function facetsOf(body: ApiDeclarationPage): DeclarationFacets {
-  if (body.facets) {
-    return {
-      plants: body.facets.plants.map((p) => ({ plantId: p.plantId, name: p.name })),
-      vendors: body.facets.vendors.map((v) => ({ value: v.vendor, label: v.name ?? v.vendor })),
-      repairStatuses: body.facets.repairStatuses,
-    }
-  }
-  const plants = new Map<string, string>()
-  const vendors = new Map<string, string>()
-  const statuses = new Set<string>()
-  for (const item of body.items) {
-    if (item.plant) plants.set(item.plant.plantId, item.plant.name)
-    if (item.vendor) {
-      vendors.set(item.vendor, item.vendorName ?? vendors.get(item.vendor) ?? item.vendor)
-    }
-    if (item.repairStatus) statuses.add(item.repairStatus)
-  }
-  return {
-    plants: [...plants]
-      .map(([plantId, name]) => ({ plantId, name }))
-      .sort((a, b) => a.plantId.localeCompare(b.plantId)),
-    vendors: [...vendors]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    repairStatuses: [...statuses].sort(),
-  }
-}
-
-/**
- * One page of the queue, with the counts and dropdown values around it.
- *
- * Unfiltered, that is one request. With a filter, a second one-row request
- * without it reads the counts, because they describe the whole queue: "how
- * much of the register is undeclared" must not change because somebody looked
- * at one plant. The dropdown values come from the page's own request either
- * way -- the backend takes them before the filters.
- *
- * Throws on failure, so a failed request is never shown as an empty queue.
- */
-export async function loadDeclarationsPage(
-  filters: DeclarationFilters,
-  page: number,
-  {
-    pageSize = DEFAULT_PAGE_SIZE,
-    fetchPage = getDeclarations,
-    list = "queue",
-  }: { pageSize?: number; fetchPage?: FetchDeclarations; list?: DeclarationList } = {},
-): Promise<DeclarationsPage> {
-  const request = { ...declarationQuery(filters, list), page, pageSize }
-  // The summary is always the queue's: the header says how many are waiting,
-  // whichever tab is open.
-  const [matching, whole] =
-    isDeclarationFiltered(filters) || list !== "queue"
-      ? await Promise.all([
-          fetchPage(request),
-          fetchPage({ ...declarationQuery({}), pageSize: 1 }),
-        ])
-      : await fetchPage(request).then((body) => [body, body] as const)
-
-  return {
-    rows: matching.items.map(toRow),
-    total: matching.total,
-    summary: toSummary(whole.meta),
-    facets: facetsOf(matching),
-  }
-}
-
-/**
- * Every row the filters match, for the export: the queue, not the page.
- *
- * Deduplicated by id, in case a page boundary moves while the export runs. A
- * declaration recorded mid-export takes its row out of the queue and pulls the
- * rest up one, so the row after it is missed: an export of a moving queue is
- * as of when each page was read.
- */
-export async function fetchAllDeclarations(
-  filters: DeclarationFilters,
-  fetchPage: FetchDeclarations = getDeclarations,
-  list: DeclarationList = "queue",
-): Promise<DeclarationQueueRow[]> {
-  const byId = new Map<string, DeclarationQueueRow>()
-  for (let page = 1; page <= MAX_EXPORT_PAGES; page++) {
-    const body = await fetchPage({ ...declarationQuery(filters, list), page, pageSize: EXPORT_PAGE_SIZE })
-    for (const row of body.items.map(toRow)) {
-      if (!byId.has(row.id)) byId.set(row.id, row)
-    }
-    if (body.items.length < EXPORT_PAGE_SIZE || page * EXPORT_PAGE_SIZE >= body.total) break
-  }
-  return [...byId.values()]
-}
-
-// --- Lines raised before declarations began, and where a part can be declared
-
-export type HistoricalLines = {
-  /** Open lines raised before declarations began. */
-  total: number
-  /** Their plants: one source of "Declare a part"'s choices. */
-  plants: { plantId: string; name: string }[]
-}
-
-/**
- * How many open lines were raised before declarations began, for the tab's
- * count and the queue's empty state. Null when that could not be read: the
- * screen then says less, never "0 historical".
- */
-export async function loadHistoricalLines(
-  fetchPage: FetchDeclarations = getDeclarations,
-): Promise<HistoricalLines | null> {
-  try {
-    const body = await fetchPage({ ...declarationQuery({}, "historical"), pageSize: 1 })
-    return { total: body.total, plants: facetsOf(body).plants }
-  } catch {
-    return null
-  }
-}
-
-/**
- * The plants a declaration may name when nothing else lists them. The backend
- * refuses any other plant (`POST /api/i8/attestations` answers 422), so this
- * is the rule written down, not a guess.
- */
-export const DECLARABLE_PLANTS: readonly { plantId: string; name: string }[] = [
-  { plantId: "1300", name: "Black Mountain Mining" },
-  { plantId: "1500", name: "Gamsberg" },
-]
-
-/**
- * "Declare a part"'s plant choices: every plant the given sources list, once,
- * by name -- and the two the backend accepts when none lists any.
- *
- * The button took its plants from the queue's facets alone and vanished when
- * the queue was empty (27-Oct-2026: every open line Historical). It must
- * never be offered an empty list again.
- */
-export function declarablePlants(
-  sources: { plantId: string; name: string }[][],
-): { plantId: string; name: string }[] {
-  const byId = new Map<string, string>()
-  for (const plants of sources) for (const p of plants) if (p.plantId && !byId.has(p.plantId)) byId.set(p.plantId, p.name)
-  if (byId.size === 0) return DECLARABLE_PLANTS.map((p) => ({ ...p }))
-  return [...byId]
-    .map(([plantId, name]) => ({ plantId, name }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-}
-
-/** The register's plants, for "Declare a part" when the queues list none.
- *  Empty on failure: `declarablePlants` then falls back. */
-export async function registerPlants(fetchRegister: typeof getRegister = getRegister): Promise<{ plantId: string; name: string }[]> {
-  try {
-    const body = await fetchRegister({ pageSize: 1 })
-    return (body.facets?.plants ?? []).map((p) => ({ plantId: p.plantId, name: p.name }))
-  } catch {
-    return []
-  }
-}
-
-/** The day declarations began, from the snapshot's rules, as `YYYY-MM-DD`.
- *  Undefined when it is not set or not a date. */
-export function cutoverFromRules(rules: Record<string, unknown> | null | undefined): string | undefined {
-  const value = rules?.attestationCutoverDate
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : undefined
 }

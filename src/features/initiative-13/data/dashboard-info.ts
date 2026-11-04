@@ -7,8 +7,10 @@
 //   movement bands   days since the last goods issue: <= 365 fast, <= 730 slow, else or never: non-moving
 //                    (app/initiatives/i13/aging.py, I13_AGING_FAST_MAX_DAYS / I13_AGING_SLOW_MAX_DAYS)
 //   GR not issued    oldest receipt still not issued >= 30 days, per material and plant (watch.py)
-//   plan overdue     planned usage window end + 14 days passed, nothing issued (exceptions.py)
-//   non-AI           OAR reservation line, not deleted, no consumption plan matched (exceptions.py)
+//   plan overdue     planned usage window end + 14 days passed, nothing issued (act/detection.py)
+//   non-AI           OAR reservation line, not deleted, no consumption plan matched (act/service.py)
+//                    both cards count the exception queue, unresolved only -- the Exceptions screen's
+//                    rows (summary.with_queue_exception_counts); 4 Nov 2026
 //   acquired vs plan issued vs planned (plan quantity, or reserved for an OAR reservation no plan owns);
 //                    on/below/above, exact; overdue = below and date passed (plan_vs_issued.py); 2 Nov 2026
 // The thresholds are backend settings; if one changes, change its text here. dashboard-info.test.ts
@@ -185,6 +187,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "Only open plans count: a closed plan cannot be overdue.",
       "A captured plan not yet linked to a reservation is matched by material, plant and usage window.",
       "Each plan counts once.",
+      "The same plans as Planned overdue on the Exceptions screen, until each one is closed. A plan appears once detection has checked it, which the nightly run does.",
     ],
     example: {
       subject: "One plan captured in the assistant",
@@ -209,6 +212,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     steps: [
       "Counted per reservation line, not per PO line: a line split over several POs counts once.",
       "A reservation made through the assistant links to its plan through the request reference in its item text, once SAP's next data load carries it.",
+      "The same reservations as Non-AI on the Exceptions screen, until each one is closed. A reservation appears once detection has checked its material, which the nightly run does.",
     ],
     example: {
       subject: "Three reservation lines",

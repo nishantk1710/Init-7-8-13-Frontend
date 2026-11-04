@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { toUniverseRows, withoutRepairRequests } from "@/features/initiative-8/data/live-overview"
 import { buildRegisterOptions, type LiveRegister } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { stageAging, summariseOverview, vendorRows } from "@/features/initiative-8/utils/overview-view"
+import { stageAging, summariseOverview } from "@/features/initiative-8/utils/overview-view"
 import type { ApiRegisterMeta, ApiUniverseItem } from "@/lib/api/i8"
 
 /**
@@ -95,7 +95,7 @@ describe("withoutRepairRequests", () => {
     }
   }
 
-  /** A repair requested with no PO yet, at a plant and criticality no PO line has. */
+  /** A PR raised for repair with no PO yet, at a plant and criticality no PO line has. */
   function prLine(overrides: Partial<RepairChain> = {}): RepairChain {
     return poLine({
       id: "PR-2000029113-10",
@@ -125,7 +125,6 @@ describe("withoutRepairRequests", () => {
       referenceDate: "2026-06-09",
       sourceLoadedAt: null,
       repairRequestsEnabled: true,
-      completeFlowEnabled: true,
     }
   }
 
@@ -141,7 +140,6 @@ describe("withoutRepairRequests", () => {
     expect(metrics.qtyUnderRepair).toBe(2)
     expect(metrics.overdueLines).toBe(1)
     expect(live.chains.filter((c) => c.declarationStatus !== "Completed")).toHaveLength(2)
-    expect(vendorRows(live.chains).map((row) => row.code)).toEqual(["400709"])
     expect(stageAging(live.chains, live.agingBands).rows.map((row) => row.stage)).toEqual(["PO Issued"])
   })
 

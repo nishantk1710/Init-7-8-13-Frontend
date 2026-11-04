@@ -49,10 +49,12 @@ const TYPE_LABELS: Record<string, string> = {
   APPROVAL_REMINDER: "Reminder",
   APPROVAL_ESCALATED: "Escalation required",
   EXCEPTION_ACTION_REQUIRED: "Inventory exception",
-  EXCEPTION_RESPONSE_REQUIRED: "Inventory exception",
+  EXCEPTION_RESPONSE_REQUIRED: "Confirm exception",
   EXCEPTION_ESCALATED: "Escalation required",
   PR_RECEIVED: "Purchase requisition",
   PR_RECEIVED_DETAILS: "Purchase requisition",
+  RESERVATION_LINKED: "Reservation linked",
+  RESERVATION_LINK_REMINDER: "Reservation not linked",
 }
 
 export function notificationTypeLabel(eventType: string): string {
@@ -83,6 +85,7 @@ export function formatNotificationTime(iso: string): string {
 export function actionLabelOf(eventType: string): string {
   if (eventType.startsWith("APPROVAL_")) return "Open Review Workspace"
   if (eventType.startsWith("EXCEPTION_")) return "Open Exception"
+  if (eventType.startsWith("RESERVATION_")) return "Open Request"
   return "Open"
 }
 
@@ -103,11 +106,13 @@ const SEVERITY: Record<string, NotificationSeverity> = {
   EXCEPTION_ESCALATED: "critical",
   APPROVAL_REJECTED: "critical",
   APPROVAL_REMINDER: "warning",
+  RESERVATION_LINK_REMINDER: "warning",
   APPROVAL_ON_HOLD: "warning",
   APPROVAL_SENT_BACK: "warning",
   EXCEPTION_ACTION_REQUIRED: "warning",
   EXCEPTION_RESPONSE_REQUIRED: "warning",
   APPROVAL_COMPLETED: "success",
+  RESERVATION_LINKED: "success",
   APPROVAL_HOLD_RELEASED: "success",
 }
 
@@ -116,10 +121,29 @@ export function severityOf(eventType: string): NotificationSeverity {
   return SEVERITY[eventType] ?? "info"
 }
 
+export type NotificationTypeFamily = "pr" | "approval" | "exception" | "reservation" | "other"
+
+/** The inbox's Type filter: each family of events someone may want on its own, PRs first. */
+export const TYPE_FILTER_OPTIONS: { value: NotificationTypeFamily; label: string }[] = [
+  { value: "pr", label: "Purchase requisitions" },
+  { value: "approval", label: "Approvals" },
+  { value: "exception", label: "Exceptions" },
+  { value: "reservation", label: "Reservations" },
+]
+
+/** The family an event belongs to, by the prefix the backend names its events with. */
+export function typeFamilyOf(eventType: string): NotificationTypeFamily {
+  if (eventType.startsWith("PR_")) return "pr"
+  if (eventType.startsWith("APPROVAL_")) return "approval"
+  if (eventType.startsWith("EXCEPTION_")) return "exception"
+  if (eventType.startsWith("RESERVATION_")) return "reservation"
+  return "other"
+}
+
 const MODULE_PREFIXES: { prefix: string; label: string }[] = [
   { prefix: "/inventory-planning", label: "Inventory Planning" },
-  { prefix: "/repairable-spares", label: "Repairable Spares" },
   { prefix: "/oar-utilization", label: "OAR Utilization" },
+  { prefix: "/assistant", label: "Reservation assistant" },
 ]
 
 /** The module a notification belongs to, by the page it opens; null when it opens none of them. */
@@ -127,7 +151,8 @@ export function moduleOf(item: Pick<ApiInboxItem, "actionPath" | "eventType">): 
   const path = safeActionPath(item.actionPath)
   const byPath = path ? MODULE_PREFIXES.find((m) => path === m.prefix || path.startsWith(`${m.prefix}/`) || path.startsWith(`${m.prefix}?`)) : undefined
   if (byPath) return byPath.label
-  return item.eventType.startsWith("EXCEPTION_") ? "Repairable Spares" : null
+  // Exception notifications now come from OAR Utilization only (Repairable Spares no longer sends any).
+  return item.eventType.startsWith("EXCEPTION_") ? "OAR Utilization" : null
 }
 
 export type DateGroup = "Today" | "Yesterday" | "Earlier"

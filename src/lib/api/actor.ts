@@ -1,3 +1,7 @@
+import { browserAuthMode } from "@/lib/auth/mode"
+import { currentUser } from "@/lib/auth/mock-auth"
+import { resolveTestActor, resolveTestApprovalRole, testUserActorsEnabled } from "@/lib/auth/test-actors"
+
 /**
  * Who the backend records as the author of everything this app writes.
  *
@@ -90,14 +94,41 @@ function requesterActor(): string | null {
 }
 
 /**
+ * The GUID for the signed-in test user, when the nonprod mapping is on, we are in the
+ * browser, the app runs the test sign-in (not Entra) and the username is one the
+ * mapping knows. Null otherwise, so every other build behaves exactly as before.
+ */
+function testLoginUsername(): string | null {
+  if (!testUserActorsEnabled() || typeof window === "undefined") return null
+  if (browserAuthMode() !== "mock") return null
+  return currentUser()?.username ?? null
+}
+
+function testLoginActor(): string | null {
+  return resolveTestActor(testLoginUsername())
+}
+
+/**
+ * The I07 approval role the signed-in test user acts as (nonprod builds with the test mapping on),
+ * or null, in which case the decision panel keeps its default. Browser only.
+ */
+export function testLoginApprovalRole(): string | null {
+  return resolveTestApprovalRole(testLoginUsername())
+}
+
+/**
  * Who we claim to be. Never returns empty: an empty header is indistinguishable
  * from no header, which would silently hand the row back to the backend default
  * and undo the point of this module.
  *
- * Order: the requester typed into the assistant, then `NEXT_PUBLIC_ACTOR_ID`,
- * then the loud placeholder.
+ * Order: the test sign-in's mapped user (nonprod builds with
+ * `NEXT_PUBLIC_TEST_USER_ACTORS=true` only; see lib/auth/test-actors.ts), then the
+ * requester typed into the assistant, then `NEXT_PUBLIC_ACTOR_ID`, then the loud
+ * placeholder.
  */
 export function currentActorId(): string {
+  const testUser = testLoginActor()
+  if (testUser) return testUser
   const requester = requesterActor()
   if (requester) return requester
   const configured = process.env.NEXT_PUBLIC_ACTOR_ID?.trim()

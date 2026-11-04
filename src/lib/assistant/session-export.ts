@@ -153,7 +153,7 @@ function assessmentBlocks(facts: unknown): ExportBlock[] {
     if (requests.length > 0) {
       blocks.push({
         kind: "table",
-        columns: ["Requested, not yet ordered", "Quantity", "Requested", "Department"],
+        columns: ["PR raised, no PO yet", "Quantity", "Raised", "Department"],
         rows: requests.map((r) => [
           [requestReference(r)],
           [formatQuantity(r.quantity)],

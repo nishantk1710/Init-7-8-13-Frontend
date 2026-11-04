@@ -13,7 +13,7 @@ function stats(overrides: Partial<RecommendationSummaryStats> = {}): Recommendat
   return {
     total: 1000,
     byStatus: [], byCriticality: [], byCircuit: [], byRisk: [], byPlant: [],
-    oarCount: 0, normalCount: 0, awaitingApprovalCount: 0, readyForReviewCount: 0, notEvaluableCount: 0,
+    oarCount: 0, normalCount: 0, awaitingApprovalCount: 0, readyForReviewCount: 0, readyForReviewActionableCount: null, notEvaluableCount: 0,
     currency: null,
     netSafetyStockValueImpact: -1_317_618_228_488,
     netRopValueImpact: -1_317_618_228_488,

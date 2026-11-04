@@ -1,10 +1,8 @@
 import type { RepairChain } from "@/features/initiative-8/types/repair"
 import {
-  JUSTIFICATION_CELL_LABEL,
   LEAD_TIME_VERDICT_LABEL,
   OVERDUE_STATUS_LABEL,
   isPrOnly,
-  justificationCellOf,
   overdueStatusOf,
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
@@ -33,13 +31,14 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
 
 /**
  * The export's columns, in the order the screen shows them: what a repair is
- * doing first, the declaration and justification next, then the reference
- * columns (criticality, stock, SAP documents) the screen keeps at the end.
- * "Repair line" and "Department" arrived with the screen's own columns on
- * 28-Oct-2026.
+ * doing first, the declaration next, then the reference columns (criticality,
+ * stock, SAP documents) the screen keeps at the end. "Repair line" and
+ * "Department" arrived with the screen's own columns on 28-Oct-2026.
  *
  * No turnaround, partial-receipt or blocked columns since 19-Oct-2026: every
- * line is open in SAP, and goods receipts are not read.
+ * line is open in SAP, and goods receipts are not read. No Justification or
+ * Exceptions columns since 3-Nov-2026: the exception queue was removed, and the
+ * reasons for buying new are on the Justifications page.
  */
 export const REGISTER_CSV_HEADERS = [
   "Line",
@@ -63,8 +62,6 @@ export const REGISTER_CSV_HEADERS = [
   "Declaration status",
   "Declared by",
   "Declared at",
-  "Justification",
-  "Exceptions",
   "Criticality",
   "Stock on hand",
   "Reorder point",
@@ -81,14 +78,13 @@ export const REGISTER_CSV_HEADERS = [
  * column's caveats beside it, and an exported 0 asserts "none" where the
  * source only said "not recorded".
  *
- * A repair requested with no PO yet (a PR row, since 27-Oct-2026) reads "No PO
- * yet" in the vendor and overdue columns and "Repair requested" as its status,
+ * A PR raised for repair with no PO yet (a PR row, since 27-Oct-2026) reads "No
+ * PO yet" in the vendor and overdue columns and "PR raised" as its status,
  * as on screen: "Unknown vendor" would say a PO exists whose vendor is
  * missing, and nothing has been ordered from anybody.
  */
 export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] {
   return chains.map((c) => {
-    const justification = justificationCellOf(c)
     const requested = isPrOnly(c)
     return [
       c.id,
@@ -121,13 +117,6 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
       c.declarationStatus,
       c.declaredBy ?? "",
       c.declaredAt ?? "",
-      // Empty, not "—", for a line nothing touched: a dash is screen
-      // punctuation, and in a spreadsheet it is a value.
-      justification === "NONE" ? "" : JUSTIFICATION_CELL_LABEL[justification],
-      // The types raised, not a count: a spreadsheet filter on "2" tells
-      // nobody which two checks fired. Empty where the fetch failed, for the
-      // same reason an unknown number is never exported as 0.
-      c.exceptions ? c.exceptions.map((e) => e.type).join(" ") : "",
       c.criticality ?? "",
       c.stockOnHand ?? "",
       c.reorderPoint ?? "",

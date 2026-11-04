@@ -65,7 +65,6 @@ import {
   type WatchMetric,
   type Zmm065Upload,
 } from "@/lib/api/i13"
-import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
 import { reservationStatusQuery } from "@/features/initiative-13/utils/reservation-lifecycle"
 import { pageOffset } from "@/lib/pagination"
 
@@ -232,22 +231,16 @@ export type LiveActExceptions = Capped<ActException> & {
   plantOptions: string[]
   /** Exceptions that have somebody to route to. See the note below. */
   ownedCount: number
-  sessionsByKey: Map<string, ApiSessionSummary[]>
 }
 
 /**
  * The ACT exception queue — FR-9's, not the ephemeral one.
  *
- * Also joins the assistant's session log, so a row can link to the conversation
- * that produced it. Two sources of that link:
- *
- *   - `exception.sessionId`, present on exceptions raised from a captured plan
- *     or a quantity decision; and
- *   - a `(material, plant)` lookup into the session log, for the rest.
- *
- * The session log is fetched **once** for the whole screen, not once per row.
- * A per-row lookup is the shape that turned the justification log into thirty
- * requests, and there is no reason to repeat it here.
+ * A row links to an assistant session only through its own `exception.sessionId`
+ * (a plan overdue or a quantity override knows the conversation it came from).
+ * There used to be a second link, any session for the same material and plant;
+ * one material and plant has many reservations, so it put a session on Non-AI
+ * rows that never used the assistant and was removed (4 Nov 2026).
  *
  * `ownedCount` is worth rendering. An exception with no owner routes to nobody
  * and escalates to nobody, so it is inert — and until W6.4's requester was
@@ -257,38 +250,19 @@ export async function loadLiveActExceptions(
   filters: ActExceptionFilters = {},
   paging?: Paging
 ): Promise<LiveActExceptions> {
-  const [{ items: rows, total }, sessions] = await Promise.all([
-    getI13ActExceptionsList({
-      plant: filters.plant || undefined,
-      material: filters.material || undefined,
-      type: filters.type || undefined,
-      status: filters.status || undefined,
-      ...pageRequest(paging),
-    }),
-    // Best-effort: the queue is the primary fetch, and the assistant being
-    // unreachable should not take the exception screen down over a link.
-    listSessions({ flow: "i13", limit: 200 }).catch(() => null),
-  ])
-
-  const sessionsByKey = new Map<string, ApiSessionSummary[]>()
-  for (const session of sessions?.items ?? []) {
-    const key = sessionKey(session.materialId, session.plant)
-    const existing = sessionsByKey.get(key)
-    if (existing) existing.push(session)
-    else sessionsByKey.set(key, [session])
-  }
+  const { items: rows, total } = await getI13ActExceptionsList({
+    plant: filters.plant || undefined,
+    material: filters.material || undefined,
+    type: filters.type || undefined,
+    status: filters.status || undefined,
+    ...pageRequest(paging),
+  })
 
   return {
     ...cap(rows, total),
     plantOptions: plantsOf(rows),
     ownedCount: rows.filter((r) => r.ownerRequesterId).length,
-    sessionsByKey,
   }
-}
-
-/** The join key for session ↔ row. Material and plant together, never either alone. */
-export function sessionKey(material: string, plant: string): string {
-  return `${material}::${plant}`
 }
 
 export type LiveReclassification = Capped<ReclassificationCandidate> & {

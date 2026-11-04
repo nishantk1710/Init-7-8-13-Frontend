@@ -19,9 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { SessionChips } from "@/features/initiative-13/components/session-chips"
 import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
-import type { ApiSessionSummary } from "@/lib/api/assistant"
 import { cn, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -76,16 +74,12 @@ const PLAN_TONE: Record<AcquiredVsPlanStatus, "neutral" | "healthy" | "caution" 
  * by the backend (`I13UrlFilters` on the page writes them). What is left is
  * rendering — which is the whole job of a table handed its rows.
  *
- * `sessionsByKey` is the assistant join, resolved once on the server for the
- * whole screen. A per-row lookup would be one request per visible material.
+ * No assistant session link: a row is a material and plant, which has many
+ * reservations and so many sessions; linking one of them said nothing about
+ * the row. A session is linked where it belongs to exactly one reservation or
+ * plan (the ledger, acquired vs plan, the exception's own session).
  */
-export function WatchTable({
-  metrics,
-  sessionsByKey,
-}: {
-  metrics: WatchMetric[]
-  sessionsByKey?: Map<string, ApiSessionSummary[]>
-}) {
+export function WatchTable({ metrics }: { metrics: WatchMetric[] }) {
   const filtered = metrics
 
   return (
@@ -115,12 +109,7 @@ export function WatchTable({
               {filtered.map((m) => (
                 <TableRow key={`${m.material}-${m.plant}`}>
                   <TableCell className="text-foreground">
-                    <div className="flex flex-col gap-0.5">
-                      <MaterialName material={m.material} description={m.materialDescription} />
-                      <SessionChips
-                        sessions={sessionsByKey?.get(`${m.material}::${m.plant}`)}
-                      />
-                    </div>
+                    <MaterialName material={m.material} description={m.materialDescription} />
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(m.plant)}</TableCell>
                   <TableCell>

@@ -1,8 +1,8 @@
 "use client"
 
-import { Bell, CheckCheck, CircleCheck, Clock, Info, TriangleAlert, type LucideIcon } from "lucide-react"
+import { Bell, BellOff, CheckCheck, CircleCheck, Clock, Info, TriangleAlert, type LucideIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -28,6 +28,7 @@ import {
   INBOX_PAGE_SIZE,
   DATE_SEARCH_LIMIT,
   EMAIL_SIGN_OFF,
+  TYPE_FILTER_OPTIONS,
   UNREAD_CHANGED_EVENT,
   actionLabelOf,
   greetingFor,
@@ -40,9 +41,11 @@ import {
   parseFilter,
   safeActionPath,
   severityOf,
+  typeFamilyOf,
   withRead,
   type NotificationSeverity,
 } from "@/lib/notifications"
+import { isSoundOn, playChime, setSoundOn, subscribeSound, unlockSound } from "@/lib/notification-sound"
 import { cn } from "@/lib/utils"
 
 const EMPTY_TEXT: Record<InboxFilter, { title: string; description: string }> = {
@@ -51,7 +54,7 @@ const EMPTY_TEXT: Record<InboxFilter, { title: string; description: string }> = 
   read: { title: "No read notifications", description: "Notifications you have read will appear here." },
 }
 
-const MODULE_OPTIONS = ["Inventory Planning", "Repairable Spares", "OAR Utilization"]
+const MODULE_OPTIONS = ["Inventory Planning", "OAR Utilization"]
 
 const PRIORITY_OPTIONS: { value: NotificationSeverity; label: string }[] = [
   { value: "critical", label: "Escalated / rejected" },
@@ -81,6 +84,15 @@ function announceChange() {
 export function NotificationsPage() {
   const router = useRouter()
   const user = useCurrentUser()
+  // The chime preference is kept in this browser (lib/notification-sound.ts); on until turned off.
+  const soundOn = useSyncExternalStore(subscribeSound, isSoundOn, () => true)
+  const toggleSound = () => {
+    const next = !soundOn
+    // This click is the gesture that lets the browser play sound; turning it on plays the chime once so it can be heard.
+    unlockSound()
+    setSoundOn(next)
+    if (next) window.setTimeout(playChime, 50)
+  }
   const [filter, setFilter] = useState<InboxFilter>("all")
   const [page, setPage] = useState(1)
   // What was last fetched, and for which request. "Loading" is then just "the latest
@@ -89,9 +101,10 @@ export function NotificationsPage() {
   const [failed, setFailed] = useState<{ key: string; message: string } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  // Module and priority narrow the page already fetched; only Status is asked of the backend.
+  // Module, type and priority narrow the page already fetched; only Status is asked of the backend.
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [moduleFilter, setModuleFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
 
   // Day range, as `YYYY-MM-DD` from a date input. The backend cannot narrow by day, so while one is set the
@@ -184,6 +197,7 @@ export function NotificationsPage() {
   const items = (data?.items ?? []).filter(
     (item) =>
       (moduleFilter === "all" || moduleOf(item) === moduleFilter) &&
+      (typeFilter === "all" || typeFamilyOf(item.eventType) === typeFilter) &&
       (priorityFilter === "all" || severityOf(item.eventType) === priorityFilter) &&
       inDateRange(item.createdAt, dateFrom, dateTo)
   )
@@ -193,7 +207,8 @@ export function NotificationsPage() {
     setSelectedId(item.id)
     void markRead(item)
   }
-  const activeFilters = (filter !== "all" ? 1 : 0) + (moduleFilter !== "all" ? 1 : 0) + (priorityFilter !== "all" ? 1 : 0) +
+  const activeFilters = (filter !== "all" ? 1 : 0) + (moduleFilter !== "all" ? 1 : 0) + (typeFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0) +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0)
   const clearFilters = () => {
@@ -202,6 +217,7 @@ export function NotificationsPage() {
     setFilter("all")
     setPage(1)
     setModuleFilter("all")
+    setTypeFilter("all")
     setPriorityFilter("all")
   }
 
@@ -213,6 +229,16 @@ export function NotificationsPage() {
           description={unread > 0 ? `${unread} unread` : "Everything you need to act on, across all modules."}
           actions={
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSound}
+                aria-pressed={soundOn}
+                title={soundOn ? "A chime plays when a new notification arrives. Click to turn it off." : "Chime is off. Click to turn it on."}
+              >
+                {soundOn ? <Bell /> : <BellOff />}
+                {soundOn ? "Sound on" : "Sound off"}
+              </Button>
               <Button variant="outline" size="sm" onClick={markAllRead} disabled={unread === 0}>
                 <CheckCheck />
                 Mark all as read
@@ -244,6 +270,12 @@ export function NotificationsPage() {
             value={moduleFilter}
             onChange={setModuleFilter}
             options={[{ value: "all", label: "All" }, ...MODULE_OPTIONS.map((name) => ({ value: name, label: name }))]}
+          />
+          <FilterSelect
+            label="Type"
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[{ value: "all", label: "All" }, ...TYPE_FILTER_OPTIONS]}
           />
           <FilterSelect
             label="Priority"
