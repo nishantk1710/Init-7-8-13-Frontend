@@ -45,7 +45,11 @@ the two queues drew every row, which made pages of 35 MB, 17 MB and 18 MB.
   `excludedBlockedLines`, `excludedDeletedLines`), which the caption names.
   Since 21-Oct-2026 lines on a request for quotation (EKKO.BSART `AN`) are left
   out too, as `excludedRfqLines`: an RFQ orders nothing, and SAP never closes
-  one, so it used to sit in the register as open with a quantity of 0.
+  one, so it used to sit in the register as open with a quantity of 0. Since
+  4-Nov-2026 a line received in full whose PO SAP has not closed is left out
+  as well (`excludedReceivedLines`, "received in SAP, PO not closed"): the
+  unit is back on the shelf, not out for repair. A 542 now cancels the 541 it
+  reverses, so a reversed dispatch no longer reads "At vendor".
 - **Not paged:** the Overview, whose figures describe every line
   (`loadLiveRegister`); Repair Candidates (113 ranked rows, whose AI screen
   fills in verdicts while you watch); the declaration log (six rows); and the
@@ -125,6 +129,25 @@ Removed on 3-Nov-2026, once the complete flow was approved:
   the waiting table's last row is days past the expected return.
 - **"Repair requested" now reads "PR raised"**, on these screens and in the
   assistant.
+
+Changed on 4-Nov-2026, after UAT:
+
+- **Filter lists open wider than their button** (`FILTER_LIST_CLASS` in
+  `components/url-filters.tsx`), so long vendor and department names show in
+  full; the button shows the whole name on hover.
+- **The register has no "More filters".** Plant, vendor, stage and
+  criticality sit in the top row; the quick views cover overdue and not
+  declared. A filter set by a link still shows as a removable chip.
+- **The declaration log lists the records in force only**, and its export
+  has no "Superseded By" column: nothing can supersede a declaration now.
+- **Justifications has no reason filter.**
+- **Repair Candidates says when rows wait for the AI screen**: a notice on
+  the page, and a badge on the menu item (`hooks/use-unscreened-candidates.ts`,
+  read off the screen the page already built -- it never builds one).
+- **The assistant shows repairs the same way in the chat and the request
+  builder** (`components/assistant/repair-evidence.tsx`): each repair PO by
+  number and item, earliest due first, with its due date, lateness and a
+  labelled vendor; then the PRs raised with no PO.
 
 ## Types and helpers
 

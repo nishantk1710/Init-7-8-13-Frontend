@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants"
 import { ASSISTANT_REQUESTS } from "@/lib/assistant/request/flag"
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications"
+import { CODING_CANDIDATES_PATH, useUnscreenedCandidates } from "@/hooks/use-unscreened-candidates"
 import { NOTIFICATIONS_PATH, unreadBadge } from "@/lib/notifications"
 import { cn } from "@/lib/utils"
 
@@ -93,6 +94,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const opened = useGroupToggles()
   const unreadNotifications = useUnreadNotifications()
+  // Repair Candidates waiting for the AI screen (4-Nov-2026).
+  const unscreenedCandidates = useUnscreenedCandidates(pathname)
 
   const home = QUICK_ACTIONS.find((action) => action.href === "/home")
   const groups: NavGroup[] = [
@@ -112,7 +115,12 @@ export function Sidebar() {
     },
     ...INITIATIVE_NAV_SECTIONS.map((section) => ({
       title: section.title,
-      links: section.items.map((item) => ({ label: item.label, href: item.href, icon: ICONS[item.icon] })),
+      links: section.items.map((item) => ({
+        label: item.label,
+        href: item.href,
+        icon: ICONS[item.icon],
+        badge: item.href === CODING_CANDIDATES_PATH ? unscreenedCandidates : undefined,
+      })),
     })),
     {
       title: "More",

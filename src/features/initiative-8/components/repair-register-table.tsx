@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react"
-import { Download, Loader2, Plus, SlidersHorizontal } from "lucide-react"
+import { Download, Loader2, Plus } from "lucide-react"
 
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
@@ -10,13 +10,7 @@ import { Button } from "@/components/ui/button"
 import { TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
 import { InfoPopover, PopoverButton } from "@/features/initiative-8/components/kit/info-popover"
-import {
-  FilterChips,
-  MaterialCell,
-  PanelField,
-  QuickViews,
-  ResultsCard,
-} from "@/features/initiative-8/components/kit/list"
+import { FilterChips, MaterialCell, QuickViews, ResultsCard } from "@/features/initiative-8/components/kit/list"
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { StatusDot } from "@/features/initiative-8/components/kit/status"
 import { UrlSearchInput, UrlSelect, useUrlFilters, withSelected } from "@/features/initiative-8/components/url-filters"
@@ -42,7 +36,6 @@ import {
 } from "@/features/initiative-8/utils/repair-request"
 import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
 import {
-  OVERDUE_STATUSES,
   OVERDUE_STATUS_LABEL,
   isPrOnly,
   overdueStatusOf,
@@ -63,8 +56,6 @@ export type RepairRegisterTableProps = {
   /** The dropdowns' choices, from the server: one page of rows would offer
    *  only what is on it. */
   facets: RegisterFacets
-  /** The active aging bands, from the snapshot's rules. */
-  agingBands: string[]
   filters: RegisterFilters
   viewCounts: ApiRegisterViewCounts | null
   sourceLoadedAt: string | null
@@ -105,9 +96,6 @@ const WIDE_MIN_WIDTH = "min-w-[1440px]"
 const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; label: string; hint?: string }> =
   DECLARATION_DISPLAY
 
-/** The filters that live behind "More filters". */
-const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging"] as const
-
 /**
  * The Repair Register (FR-10) -- I08_Live_UI_Redesign_Plan.md, L2.
  *
@@ -123,10 +111,12 @@ const MORE_FILTERS = ["criticality", "declarationStatus", "overdue", "aging"] as
  * No Exceptions column since 3-Nov-2026: the exception queue was removed, and
  * overdue repairs say so under their expected date.
  *
- * Quick views (Overdue, Not declared, At vendor, No PO yet) sit above four
- * filters; the rest are under "More filters", and every filter that is set
- * shows as a removable chip -- including the two the Overview's links set
- * (department, and days past the expected return). The "+" at the end of the
+ * Quick views (Overdue, Not declared, At vendor, No PO yet) sit above the
+ * search and four filters -- plant, vendor, stage and criticality. "More
+ * filters" (declaration, due date, days open) went on 4-Nov-2026: the quick
+ * views cover the first two. Every filter that is set shows as a removable
+ * chip -- including the ones the Overview's links and older links set
+ * (department, days past the expected return, days open). The "+" at the end of the
  * header (3-Nov-2026; it was a "Columns" button above the table) brings back
  * quantity, criticality, PR and PO, and only then does the table scroll
  * sideways -- with the pinned scrollbar and the frozen Material column
@@ -148,7 +138,6 @@ export function RepairRegisterTable({
   page,
   pageSize,
   facets,
-  agingBands,
   filters,
   viewCounts,
   sourceLoadedAt,
@@ -245,7 +234,6 @@ export function RepairRegisterTable({
       label: `Department: ${facets.departments.find((d) => d.value === filters.department)?.label ?? filters.department}`,
     },
   ].filter((chip): chip is { key: string; label: string } => Boolean(chip))
-  const moreSet = MORE_FILTERS.filter((key) => filters[key]).length
 
   function clearAll() {
     push({
@@ -382,46 +370,14 @@ export function RepairRegisterTable({
           )}
           className="sm:w-40"
         />
-        <PopoverButton label="More filters" icon={<SlidersHorizontal />} badge={moreSet || undefined}>
-          <div className="grid gap-3">
-            {/* FR-10 asks for the register to be filterable by criticality. */}
-            <PanelField label="Criticality">
-              <UrlSelect
-                value={filters.criticality ?? ""}
-                onChange={(value) => push({ criticality: value })}
-                allLabel="All criticalities"
-                options={choices(facets.criticalities, filters.criticality)}
-              />
-            </PanelField>
-            <PanelField label="Declaration">
-              <UrlSelect
-                value={filters.declarationStatus ?? ""}
-                onChange={(value) => push({ declarationStatus: value })}
-                allLabel="Any declaration"
-                options={Object.entries(DECLARATION).map(([value, d]) => ({ value, label: d.label }))}
-              />
-            </PanelField>
-            <PanelField label="Due date">
-              <UrlSelect
-                value={filters.overdue ?? ""}
-                onChange={(value) => push({ overdue: value })}
-                allLabel="Any due date"
-                options={OVERDUE_STATUSES.map((s) => ({ value: s, label: OVERDUE_STATUS_LABEL[s] }))}
-              />
-            </PanelField>
-            <PanelField label="Days open">
-              <UrlSelect
-                value={filters.aging ?? ""}
-                onChange={(value) => push({ aging: value })}
-                allLabel="Any age"
-                options={choices(
-                  agingBands.map((b) => ({ value: b, label: `${b.replace("-", "–")} days` })),
-                  filters.aging,
-                )}
-              />
-            </PanelField>
-          </div>
-        </PopoverButton>
+        {/* FR-10 asks for the register to be filterable by criticality. */}
+        <UrlSelect
+          value={filters.criticality ?? ""}
+          onChange={(value) => push({ criticality: value })}
+          allLabel="All criticalities"
+          options={choices(facets.criticalities, filters.criticality)}
+          className="sm:w-44"
+        />
       </div>
 
       <FilterChips chips={chips} onRemove={(key) => push({ [key]: undefined })} onClear={clearAll} />

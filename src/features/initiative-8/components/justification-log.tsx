@@ -172,16 +172,9 @@ export function I08JustificationLog({
           options={withSelected(facets.plants, filters.plant).map((p) => ({ value: p, label: sapPlantName(p) }))}
           className="sm:w-44"
         />
-        <UrlSelect
-          value={filters.reason ?? ""}
-          onChange={(value) => push({ reason: value })}
-          allLabel="All reasons"
-          options={withSelected(facets.reasonCategories, filters.reason).map((r) => ({
-            value: r,
-            label: reasonLabel(r),
-          }))}
-          className="sm:w-56"
-        />
+        {/* No reason filter since 4-Nov-2026: the categories are few and
+            the column beside them says it. A link that still carries one
+            shows it as a chip, which removes it. */}
         <div className="flex items-center gap-2 sm:ml-auto">
           {exportError && (
             <span role="alert" className="text-[12.5px] text-i08-crit-ink">

@@ -83,6 +83,9 @@ export type I08OpenRepair = {
    * vendor.
    */
   dispatched: boolean
+  /** The first 541 on the line: when the unit was sent (since 4-Nov-2026).
+   *  Absent on an older record. */
+  dispatchedAt?: string | null
 }
 
 /**

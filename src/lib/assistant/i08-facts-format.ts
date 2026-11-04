@@ -13,7 +13,7 @@
  * untyped record, and a malformed value must read as "not sent", never crash.
  */
 
-import type { I08OpenRepairRequest } from "@/lib/api/assistant-facts"
+import type { I08OpenRepair, I08OpenRepairRequest } from "@/lib/api/assistant-facts"
 
 // --- repair requests ----------------------------------------------------------
 
@@ -55,6 +55,23 @@ export function requestAgePhrase(days: number | null | undefined): string {
 export function requestDepartmentText(request: Pick<I08OpenRepairRequest, "department" | "departmentName">): string | null {
   if (!request.department) return request.departmentName ?? null
   return request.departmentName ? `${request.department} · ${request.departmentName}` : request.department
+}
+
+/** `PO {number}/{item}`, the reference a planner types into SAP; the item
+ *  without its padding ("00070" reads 70), as the register shows it. */
+export function repairPoReference(repair: Pick<I08OpenRepair, "purchasingDocument" | "item">): string {
+  const item = (repair.item ?? "").replace(/^0+(?=\d)/, "")
+  return item ? `PO ${repair.purchasingDocument}/${item}` : `PO ${repair.purchasingDocument}`
+}
+
+/** The open repairs, earliest due back first; one with no due date last. */
+export function repairsByDueDate<T extends Pick<I08OpenRepair, "dueDate">>(repairs: readonly T[]): T[] {
+  return [...repairs].sort((a, b) => {
+    if (a.dueDate === b.dueDate) return 0
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate < b.dueDate ? -1 : 1
+  })
 }
 
 /** `PR {number}/{item}`, the reference a planner types into SAP. */

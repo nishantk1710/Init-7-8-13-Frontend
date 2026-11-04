@@ -346,6 +346,11 @@ export function registerDescription(
   if (notShown.length > 0) {
     text += ` Not shown: ${notShown.join(", and ")}.`
   }
+  // Since 4-Nov-2026: back from the vendor, but SAP has not closed the PO.
+  const received = meta.excludedReceivedLines
+  if (received) {
+    text += ` ${notShown.length > 0 ? "Also not shown" : "Not shown"}: ${received.toLocaleString()} received in SAP, PO not closed.`
+  }
   if (sourceLoadedAt) {
     text += ` SAP data loaded ${formatApiDateTime(sourceLoadedAt)}.`
   }

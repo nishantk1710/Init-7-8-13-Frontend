@@ -7,7 +7,9 @@ import {
   needDateAdviceOf,
   noUsableUnitText,
   openRepairsSuffix,
+  repairPoReference,
   repairRequestCountOf,
+  repairsByDueDate,
   repairRequestsOf,
   requestAgePhrase,
   requestDepartmentText,
@@ -65,6 +67,23 @@ describe("repairRequestsOf", () => {
     expect(repairRequestCountOf({ ...legacy, openRepairRequestLines: 0, openRepairRequests: [] })).toBe(0)
     expect(repairRequestCountOf({ ...legacy, openRepairRequestLines: 3, openRepairRequests: [request] })).toBe(3)
     expect(repairRequestCountOf({ ...legacy, openRepairRequests: [request] })).toBe(1)
+  })
+})
+
+describe("repair POs on the card (4-Nov-2026)", () => {
+  it("names the PO and its item as the register does, without the item's padding", () => {
+    expect(repairPoReference({ purchasingDocument: "4500001641", item: "00700" })).toBe("PO 4500001641/700")
+    expect(repairPoReference({ purchasingDocument: "4500001723", item: "80" })).toBe("PO 4500001723/80")
+    expect(repairPoReference({ purchasingDocument: "4500001723", item: "" })).toBe("PO 4500001723")
+  })
+
+  it("lists the earliest due back first, and one with no due date last", () => {
+    const sorted = repairsByDueDate([
+      { id: "a", dueDate: "2026-07-31" },
+      { id: "b", dueDate: null },
+      { id: "c", dueDate: "2026-06-30" },
+    ])
+    expect(sorted.map((r) => r.id)).toEqual(["c", "a", "b"])
   })
 })
 
