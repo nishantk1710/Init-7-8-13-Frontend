@@ -22,8 +22,6 @@ import {
 } from "@/components/ui/table"
 import { confirmExceptionAction } from "@/features/initiative-13/actions"
 import { ConfirmExceptionDialog } from "@/features/initiative-13/components/confirm-exception-dialog"
-import { SessionChips } from "@/features/initiative-13/components/session-chips"
-import type { ApiSessionSummary } from "@/lib/api/assistant"
 import type { ActException, ActExceptionStatus, ActExceptionType } from "@/lib/api/i13"
 import { formatApiDateTime } from "@/lib/api/format"
 import {
@@ -110,12 +108,10 @@ function DueCell({ dueAt }: { dueAt: string | null }) {
 export function ActExceptionsBoard({
   exceptions,
   reasonCategories,
-  sessionsByKey,
 }: {
   exceptions: ActException[]
   /** VZI's vocabulary, served by the backend — never a list held here. */
   reasonCategories: string[]
-  sessionsByKey?: Map<string, ApiSessionSummary[]>
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<ActException | null>(null)
@@ -194,9 +190,12 @@ export function ActExceptionsBoard({
                         >
                           {/* The exception's OWN session, where it has one —
                               a plan breach or a quantity override knows the
-                              exact conversation it came from, which is a
-                              stronger link than a material+plant lookup. */}
-                          {exception.sessionId ? (
+                              exact conversation it came from. Nothing else:
+                              a session for the same material and plant says
+                              nothing about this reservation (one material
+                              and plant has many), and on Non-AI rows it read
+                              as if the reservation had used the assistant. */}
+                          {exception.sessionId && (
                             <Link
                               href={`/assistant/sessions/${encodeURIComponent(exception.sessionId)}`}
                               className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-action transition-colors hover:bg-action/10"
@@ -204,12 +203,6 @@ export function ActExceptionsBoard({
                               <MessagesSquare className="size-3" aria-hidden />
                               Session
                             </Link>
-                          ) : (
-                            <SessionChips
-                              sessions={sessionsByKey?.get(
-                                `${exception.material}::${exception.plant}`
-                              )}
-                            />
                           )}
                         </span>
                       </div>
@@ -400,7 +393,7 @@ const EXCEPTION_HEADING: Record<ActException["exceptionType"], string> = {
   PLAN_BREACH: "The planned use has passed and nothing was issued",
   NO_PLAN: "OAR reservation with no consumption plan from the assistant",
   NO_PLAN_GRNI: "OAR reservation with no plan, and stock received 30+ days ago is not issued",
-  QUANTITY_OVERRIDE: "The requested quantity differs from the assistant's suggestion",
+  QUANTITY_OVERRIDE: "The requester kept a quantity above the assistant's suggestion",
 }
 
 /** Why Confirm is disabled, for every status but AWAITING_REQUESTER (the one it is enabled for). */
@@ -430,7 +423,7 @@ const CLEARS_WHEN: Record<ActException["exceptionType"], string> = {
     "It closes when the reservation is linked to an assistant session with a plan, or is deleted in SAP. Issuing the material does not close it.",
   NO_PLAN_GRNI:
     "It closes when the reservation is linked to an assistant session with a plan, is deleted in SAP, or this material at this plant no longer has stock received 30+ days ago and not issued.",
-  QUANTITY_OVERRIDE: "It does not close by itself: the requester records why they chose a different quantity.",
+  QUANTITY_OVERRIDE: "It does not close by itself: the requester records why they kept a quantity above the suggestion.",
 }
 
 /** What is holding the exception open, from the text the board already carried. */

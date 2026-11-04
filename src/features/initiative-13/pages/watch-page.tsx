@@ -23,7 +23,6 @@ import {
   watchViewHref,
   type WatchView,
 } from "@/features/initiative-13/utils/watch-view"
-import { listSessions, type ApiSessionSummary } from "@/lib/api/assistant"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
 import { formatCount } from "@/lib/utils"
 
@@ -124,37 +123,21 @@ function WatchTabs({ active }: { active: WatchView }) {
 
 async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) {
   let live: Awaited<ReturnType<typeof loadLiveWatch>> | null = null
-  let sessions: ApiSessionSummary[] = []
   let loadError: string | null = null
   try {
-    // The mart is the primary fetch; the session log is a link and must not be
-    // able to take the screen down, so its failure is swallowed.
-    const [watch, sessionList] = await Promise.all([
-      loadLiveWatch(
-        {
-          plant: searchParams.plant,
-          material: searchParams.material,
-          agingBand: searchParams.agingBand,
-          acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
-        },
-        pagingOf(searchParams)
-      ),
-      listSessions({ flow: "i13", limit: 200 }).catch(() => null),
-    ])
-    live = watch
-    sessions = sessionList?.items ?? []
+    live = await loadLiveWatch(
+      {
+        plant: searchParams.plant,
+        material: searchParams.material,
+        agingBand: searchParams.agingBand,
+        acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
+      },
+      pagingOf(searchParams)
+    )
   } catch (error) {
     loadError = error instanceof Error ? error.message : String(error)
   }
   redirectIfPastEnd(searchParams, live?.total)
-
-  const sessionsByKey = new Map<string, ApiSessionSummary[]>()
-  for (const session of sessions) {
-    const key = `${session.materialId}::${session.plant}`
-    const existing = sessionsByKey.get(key)
-    if (existing) existing.push(session)
-    else sessionsByKey.set(key, [session])
-  }
 
   return (
     <>
@@ -177,7 +160,7 @@ async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) 
         <LoadFailure what="consumption tracking data" message={loadError} />
       ) : (
         <>
-          <WatchTable metrics={live.rows} sessionsByKey={sessionsByKey} />
+          <WatchTable metrics={live.rows} />
           <Pager searchParams={searchParams} total={live.total} count={live.count} noun="materials" />
         </>
       )}
