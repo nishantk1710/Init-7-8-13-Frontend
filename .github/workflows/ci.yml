@@ -9,9 +9,12 @@ name: CI
 
 on:
   push:
-    # dev deploys to nonprod (deploy.yml); main is mirrored to Azure DevOps and
-    # deployed to prod from there (mirror-to-devops.yml). Both are tested.
-    branches: [dev, main]
+    # main is mirrored to Azure DevOps and deployed to prod from there
+    # (mirror-to-devops.yml), so it is tested here. dev is NOT tested here:
+    # deploy.yml tests before it deploys, and running the same suite and a
+    # second throwaway build in parallel bought nothing but runner minutes --
+    # measured 2026-11-04, both jobs green on every dev push.
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -27,25 +30,40 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # 22, the version deploy.yml builds with and the App Service runs. A
+          # suite green on a newer Node proves nothing about the one we ship;
+          # this was 24 until 2026-11-04.
+          node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - run: npm ci
+      # node_modules straight from cache while the lockfile is unchanged:
+      # npm ci was the slowest step of this job (~60 s measured 2026-11-04,
+      # ~10 s as a cache restore). The key carries the Node major because
+      # native binaries (SWC) are fetched per runtime.
+      - uses: actions/cache@v4
+        id: node-modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
 
-      # 55 tests, covering the material-scope module -- the OAR rule that
-      # decides which materials I07 and I13 act on.
-      #
-      # This used to be 256 tests. The other ~200 covered a TypeScript CPI
-      # client in src/lib/sap/, which has been removed: SAP access is owned by
-      # the Python backend (backend/app/integrations/sap/), and two
-      # implementations of one wire protocol would need fixing twice on every
-      # SAP drift. Those tests moved with it.
-      #
-      # The honest consequence: **no UI component in this app has a test.**
-      # That was already true when the suite was 256 strong -- every one of them
-      # tested the SAP layer, none tested a screen. Worth fixing; not fixed here.
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # ~1,575 tests: lib helpers, assistant request logic, auth, notifications,
+      # i7/i8 feature modules. Still true that no UI *component* has a test --
+      # these cover the logic the components call. Worth fixing; not fixed here.
       - run: npm test
+
+      # Next's incremental compile cache. Exact key = same lockfile and source
+      # -> instant restore; restore-keys falls back to the newest cache for
+      # this lockfile so an ordinary code change still starts 60-70% warm.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
       # Verified to pass on a clean Linux-equivalent checkout before being
       # enabled. Catches type errors the tests do not -- all 24 routes must
