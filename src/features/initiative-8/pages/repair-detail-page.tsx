@@ -219,7 +219,9 @@ export function RepairDetailPage({
             href={`/assistant/sessions/${encodeURIComponent(chain.declarationSessionId)}`}
             className="font-medium text-i08-link hover:underline"
           >
-            Requested in assistant session {chain.declarationSessionId}
+            {chain.declarationSessionReference && chain.declarationSessionReference !== chain.declarationSessionId
+              ? `Requested in request line ${chain.declarationSessionReference}`
+              : `Requested in assistant session ${chain.declarationSessionId}`}
           </Link>
         )}
       </div>

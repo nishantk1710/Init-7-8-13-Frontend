@@ -110,7 +110,7 @@ export function I08JustificationLog({
           entry.freeText,
           justificationAuthorText(entry),
           purchaseLabel(entry.purchase, entry.purchasesChecked !== false) ?? "",
-          entry.sessionId ?? "",
+          entry.sessionReference ?? entry.sessionId ?? "",
           entry.exceptionId ?? "",
         ]),
       )
@@ -291,7 +291,7 @@ export function I08JustificationLog({
                             className="font-mono text-[13px] text-i08-link hover:underline"
                             title="Open the assistant session this was recorded in"
                           >
-                            {entry.sessionId}
+                            {entry.sessionReference ?? entry.sessionId}
                           </Link>
                         ) : (
                           <span className="text-muted-foreground">—</span>

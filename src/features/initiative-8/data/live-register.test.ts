@@ -135,12 +135,19 @@ describe("toRepairChain", () => {
         damagedStock: "2.000000",
         stockConditionKnown: true,
         declarationSessionId: "SJWYMF3H1H",
+        declarationSessionReference: "RRXVC7GKT6/2",
       }),
     )
     expect(chain.usableStock).toBe(1)
     expect(chain.damagedStock).toBe(2)
     expect(chain.stockConditionKnown).toBe(true)
     expect(chain.declarationSessionId).toBe("SJWYMF3H1H")
+    expect(chain.declarationSessionReference).toBe("RRXVC7GKT6/2")
+  })
+
+  it("quotes the session by its ID on a backend without the reference", () => {
+    const chain = toRepairChain(apiRow({ declarationSessionId: "SJWYMF3H1H" }))
+    expect(chain.declarationSessionReference).toBe("SJWYMF3H1H")
   })
 
   it("leaves the split unknown on an older backend, never 0", () => {
@@ -149,6 +156,7 @@ describe("toRepairChain", () => {
     expect(chain.damagedStock).toBeUndefined()
     expect(chain.stockConditionKnown).toBeUndefined()
     expect(chain.declarationSessionId).toBeUndefined()
+    expect(chain.declarationSessionReference).toBeUndefined()
   })
 
   it("keeps unknown stock as undefined, never as zero", () => {

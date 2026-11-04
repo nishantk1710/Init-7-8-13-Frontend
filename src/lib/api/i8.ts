@@ -218,6 +218,9 @@ export type ApiRepairChain = {
   /** The assistant session behind the declaration that covers this line,
    *  when there is one. Absent on a backend older than 28-Oct-2026. */
   declarationSessionId?: string | null
+  /** How that session is quoted: `R…/n` for a request line, the session ID
+   *  for an older single-material session. Absent before 4-Nov-2026. */
+  declarationSessionReference?: string | null
   declaredBy?: string | null
   /** ISO timestamp of the attestation. */
   declaredAt?: string | null

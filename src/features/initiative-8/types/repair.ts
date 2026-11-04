@@ -184,6 +184,9 @@ export interface RepairChain {
   /** The assistant session behind that declaration, when there is one: the
    *  repair page links to it. */
   declarationSessionId?: string
+  /** That session as the requester saw it: `R…/n` for a request line, `S…`
+   *  only for an older single-material session. */
+  declarationSessionReference?: string
 
   /**
    * Where this line stands against its promised date. Authoritative when

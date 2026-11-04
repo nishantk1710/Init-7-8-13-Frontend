@@ -232,6 +232,7 @@ export function toRepairChain(row: ApiRepairChain): RepairChain {
     declarationId: orUndefined(row.declarationId),
     declarationLink: orUndefined(row.declarationLink),
     declarationSessionId: orUndefined(row.declarationSessionId),
+    declarationSessionReference: orUndefined(row.declarationSessionReference ?? row.declarationSessionId),
     declaredBy: orUndefined(row.declaredBy),
     declaredAt: row.declaredAt ? i08Date(row.declaredAt) : undefined,
     // An unrecognised condition reads as not recorded, never as Repairable --

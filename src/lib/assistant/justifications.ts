@@ -58,6 +58,9 @@ export type UnifiedJustification = {
   recordedAt: string
   /** Set for an assistant justification: links back to the conversation. */
   sessionId: string | null
+  /** How that session is shown: `R…/n` for a request line, `S…` only for an
+   *  older single-material session. The link still uses `sessionId`. */
+  sessionReference: string | null
   /** Set for an exception-queue confirmation: links back to the exception. */
   exceptionId: string | null
 }
@@ -75,6 +78,7 @@ export function fromAssistant(row: ApiJustification): UnifiedJustification {
     author: row.author,
     recordedAt: row.recordedAt,
     sessionId: row.sessionId,
+    sessionReference: row.sessionReference ?? row.sessionId,
     exceptionId: row.exceptionId,
   }
 }
@@ -111,6 +115,7 @@ export function fromActConfirmation(
     author: entry.actorId,
     recordedAt: entry.submittedAt,
     sessionId: null,
+    sessionReference: null,
     exceptionId: entry.exceptionId,
   }
 }
