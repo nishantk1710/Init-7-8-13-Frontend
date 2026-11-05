@@ -92,11 +92,12 @@ export const KPI_ORDER = [
   // "materials_assessed" and "recommendations_generated" are deliberately not shown as cards (page and PDF).
   "critical_stockout_risk",
   "excess_inventory_opportunity",
+  "approved",
+  // The three working capital cards sit together, so on the three-column grid they fill one row of their own.
   // "working_capital_impact" (the combined total) is deliberately not a card: stock items and OAR are shown apart.
   "working_capital_stock",
   "working_capital_oar",
   "working_capital_potential",
-  "approved",
   "oar_recommendations",
   "min_max_conversion",
   "pending_approval", // carried only by reports saved before the card became Approved

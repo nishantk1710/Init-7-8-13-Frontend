@@ -24,6 +24,7 @@ export function ChartCard({
   info,
   span = 12,
   size = "default",
+  highlightSubtitle = false,
   className,
   children,
 }: {
@@ -36,6 +37,8 @@ export function ChartCard({
   span?: keyof typeof SPAN_CLASSES
   /** "large": a bigger title and subtitle, for a card that is mostly a table people read closely. */
   size?: "default" | "large"
+  /** Draws the subtitle as a blue-edged callout, for a line the reader must not miss (what the card lists, and what it leaves out). */
+  highlightSubtitle?: boolean
   className?: string
   children: ReactNode
 }) {
@@ -51,7 +54,15 @@ export function ChartCard({
         <div className="min-w-0">
           <div className={cn("font-medium text-foreground", size === "large" ? "text-lg" : "text-sm")}>{title}</div>
           {subtitle && (
-            <div className={cn("mt-0.5 text-muted-foreground", size === "large" ? "text-sm" : "text-xs")}>{subtitle}</div>
+            <div
+              className={cn(
+                "mt-0.5 text-muted-foreground",
+                size === "large" ? "text-sm" : "text-xs",
+                highlightSubtitle && "mt-1.5 w-fit rounded-sm border-l-4 border-action bg-action/10 px-2.5 py-1.5 font-semibold text-foreground"
+              )}
+            >
+              {subtitle}
+            </div>
           )}
           {hint && (
             <div className="mt-0.5 text-xs font-medium text-primary">{hint}</div>

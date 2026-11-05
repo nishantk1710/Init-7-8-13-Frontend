@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import {
+  DataCoverageBody,
   QuarterlyManagementView,
   dayAfter,
   stockChange,
@@ -104,7 +105,9 @@ describe("the cards", () => {
 
   it("have no (i) and no long explanation on the card, only the figure and one plain line", () => {
     const html = render(management())
-    expect(html).not.toContain("is calculated") // the (i) button's label
+    // No KPI card has an (i) of its own: nothing above the charts (the banner and the cards) says "is calculated"; the Excess inventory by plant chart's (i) does.
+    expect(html.split("lg:grid-cols-12")[0]).not.toContain("is calculated")
+    expect(html).toContain('How &quot;Excess inventory by plant&quot; is calculated')
     // The longer explanation is folded away under "How each number is worked out", not on the card.
     const outsideGuide = html.replace(/<details[\s\S]*?<\/details>/g, "")
     expect(outsideGuide).not.toContain("Explains materials_assessed.")
@@ -247,8 +250,8 @@ describe("the activity table", () => {
     expect(html).toContain("Oct 2026")
     expect(html).toContain("Quarter total")
     expect(html).toContain("18,627")
-    expect(html).toContain("Not measured by month.")
-    expect(html).toContain("It is not a zero")
+    expect(html).not.toContain("How these are counted") // the notes are in the table's (i), not folded under it
+    expect(html).toContain("How the activity figures are worked out")
   })
 })
 
@@ -333,7 +336,7 @@ describe("the stock level table and the coverage", () => {
   })
 
   it("lists every warning and says whether the figures are snapshots or current calculations", () => {
-    const html = render(management())
+    const html = renderToStaticMarkup(createElement(DataCoverageBody, { management: management() }))
     expect(html).toContain("Staged SAP consumption ends in May 2026")
     expect(html).toContain("Current calculations")
     expect(html).toContain("Not covered")

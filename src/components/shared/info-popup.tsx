@@ -79,11 +79,17 @@ export function InfoPopup({
   title,
   description,
   tone = "info",
+  triggerLabel,
+  triggerText,
   children,
   className,
 }: {
   title: string
   description?: string
+  /** What the (i) button is called for a screen reader and on hover; defaults to "How <title> is calculated". */
+  triggerLabel?: string
+  /** Words shown beside the (i), for a button that has to say what it opens. Without it the button is the icon alone. */
+  triggerText?: string
   tone?: InfoTone
   children: ReactNode
   className?: string
@@ -92,8 +98,8 @@ export function InfoPopup({
   return (
     <Dialog>
       <DialogTrigger
-        aria-label={`How "${title}" is calculated`}
-        title="How is this calculated?"
+        aria-label={triggerLabel ?? `How "${title}" is calculated`}
+        title={triggerLabel ?? "How is this calculated?"}
         className={cn(
           "inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-all duration-200 hover:scale-110 group-hover/card:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
           colours.icon,
@@ -101,6 +107,7 @@ export function InfoPopup({
         )}
       >
         <Info className="size-3.5" aria-hidden />
+        {triggerText && <span className="text-xs font-medium">{triggerText}</span>}
       </DialogTrigger>
       <DialogContent className="max-h-[88vh] gap-0 overflow-hidden rounded-md p-0 duration-200 sm:max-w-3xl">
         <DialogHeader className={cn("gap-1 border-b-2 px-5 py-3 pr-12", colours.band)}>
