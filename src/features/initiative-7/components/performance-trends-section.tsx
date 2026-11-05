@@ -117,7 +117,9 @@ function ExcessTrendCard({ performance, points }: { performance: ApiPerformanceT
 }
 
 /** B. Recommendation records against the distinct material-plants they cover. */
-function GeneratedTrendCard({ points }: { points: PerformancePoint[] }) {
+function GeneratedTrendCard({ points: allPoints }: { points: PerformancePoint[] }) {
+  // Just the report's month and the one before it: the older months only repeat "no figure".
+  const points = allPoints.slice(-2)
   const drawable = pointCount(points, ["records", "materialPlants"]) > 0
   const gaps = missingMonths(points, ["records", "materialPlants"])
   return (
