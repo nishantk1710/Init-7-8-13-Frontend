@@ -142,7 +142,7 @@ const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
   working_capital_impact: { caption: "Adopted in SAP: cash freed (−) or tied up (+)" },
   working_capital_stock: { caption: "Adopted stock items: cash freed (−) or tied up (+)" },
   working_capital_oar: { caption: "Adopted OAR: cash freed (−) or tied up (+)" },
-  working_capital_potential: { title: "Working capital if all eligible adopted", caption: "If every eligible material were adopted" },
+  working_capital_potential: { title: "Working capital if all eligible OAR adopted", caption: "If every eligible OAR material were adopted" },
   oar_recommendations: { caption: "Eligible OAR materials in this period" },
   min_max_conversion: { caption: "OAR materials moved to Min-Max in SAP" },
   approved: { caption: "Approved, but not yet changed in SAP" },
@@ -165,7 +165,7 @@ const PAGE_DENOMINATOR: Record<string, string> = {
   working_capital_impact: "materials included",
   working_capital_stock: "stock items included",
   working_capital_oar: "OAR materials included",
-  working_capital_potential: "eligible materials included",
+  working_capital_potential: "eligible OAR materials included",
   approved: "recommendations created",
 }
 
