@@ -246,11 +246,10 @@ describe("the PDF", () => {
     expect(pdf(management([]), [rec("A")])).not.toContain("Min-Max Conversion")
   })
 
-  it("fetches those rows with the same query as the click-through (the converted ones), and waits for them before printing", () => {
+  it("fetches the PDF's adopted rows with the page's filter (the ones SAP has adopted)", () => {
     expect(workspace).toContain('conversionEligibility: "ELIGIBLE"')
     expect(workspace).toContain("adoptedInSap: true")
-    expect(workspace).toContain("conversion={pdfConversion ?? []}")
-    expect(workspace).toContain("pdfConversionLoading")
+    expect(workspace).toContain("adopted: adopted.recommendations")
   })
 })
 
@@ -259,7 +258,7 @@ describe("the Min-Max list counts the same materials as the card", () => {
     // 21 are eligible by the rule but only the ones with a calculated value can move; the card and the list use the same filter.
     expect(dialogSource).toContain("hasRecommended: true")
     expect(workspace).toContain("hasRecommended: true")
-    expect(workspace).toMatch(/conversionEligibility: "ELIGIBLE",\s+hasRecommended: true,\s+adoptedInSap: true/)
+    expect(workspace).toContain('type: "oar", conversionEligibility: "ELIGIBLE", hasRecommended: true')
   })
 
   it("shows a dash for a recommended value the system does not have, never a 0", () => {

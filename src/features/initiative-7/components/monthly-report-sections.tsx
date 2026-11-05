@@ -17,6 +17,7 @@ import { cn, formatCount } from "@/lib/utils"
 import type { ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import { moneyExact, orderedKpis, pageCardTitle } from "@/features/initiative-7/utils/quarterly-management"
 import {
+  CARD_FORMULA,
   approvalStageRows,
   coverageItemsOf,
   PERSPECTIVE_LABEL,
@@ -52,31 +53,6 @@ export function PerspectiveTag({ perspective }: { perspective: Perspective }) {
       {label}
     </span>
   )
-}
-
-/** The rule behind a card, written out the way the Overview's calculator popups write a formula. Only cards that are a calculation
- * have one; the rest are explained in words. */
-const CARD_FORMULA: Record<string, string[]> = {
-  critical_stockout_risk: ["At risk when: stock on hand < average daily consumption × lead time"],
-  excess_inventory_opportunity: [
-    "Excess value = unit price × (current max stock − recommended max stock)",
-    "Only where the current maximum is above the recommended one",
-  ],
-  working_capital_stock: [
-    "Impact = unit price × (current reorder point − recommended reorder point)",
-    "Added up over the included material-plants",
-    "Shown as: − cash released, + cash tied up",
-  ],
-  working_capital_oar: [
-    "Impact = unit price × (current reorder point − recommended reorder point)",
-    "Added up over the included material-plants",
-    "Shown as: − cash released, + cash tied up",
-  ],
-  working_capital_potential: [
-    "Impact = unit price × (current reorder point − recommended reorder point)",
-    "Over every eligible OAR material-plant, adopted or not",
-    "Shown as: − cash released, + cash tied up",
-  ],
 }
 
 /** What each row of the Activity by month table is counted from, and how: the data (table and field) and the calculation. Written out
