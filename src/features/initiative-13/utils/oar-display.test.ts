@@ -117,6 +117,13 @@ describe("journeySteps", () => {
     expect(steps[3].detail).toBe("First 2026-10-01, latest 2026-10-05")
     expect(steps[4].detail).toBe("Not issued yet")
   })
+
+  it("ends a stock refill at goods receipt: its issues are not tracked", () => {
+    const refill = { ...entry, reservationNumber: null, utilisationStatus: "NOT_TRACKED" as const, firstGiDate: "2026-10-09" }
+    const steps = journeySteps(refill)
+    expect(steps.map((s) => s.reached)).toEqual([false, true, true, true, false])
+    expect(steps[4].detail).toBe("Not tracked per delivery (stock refill)")
+  })
 })
 
 describe("journeyStop", () => {

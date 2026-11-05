@@ -28,7 +28,13 @@ export const UTILISATION_STATUS_LABELS: Record<LedgerUtilisationStatus, string> 
   PARTIALLY_ISSUED: "Partially issued",
   FULLY_ISSUED: "Fully issued",
   BEFORE_ISSUE_HISTORY: "Issue history not available",
+  NOT_TRACKED: "Stock refill",
 }
+
+/** Why a stock refill line shows no goods issue (backend ledger_compat.procurement_view). */
+export const NOT_TRACKED_EXPLANATION =
+  "Stock refill: no reservation raised this line. SAP records goods issues against reservations, not against " +
+  "deliveries, so what was issued from this line is not tracked. See the Reservations tab for what was issued."
 
 /** Hover text for the next planned issue: where the date comes from. */
 export const NEXT_PLANNED_ISSUE_TITLE =

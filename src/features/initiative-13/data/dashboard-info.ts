@@ -153,13 +153,15 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   grNotIssued: {
     title: "GR not issued (30d)",
     tone: "danger",
-    summary: "OAR positions where goods were received for a reservation and are still not issued 30 days later.",
+    summary:
+      "OAR positions with stock received 30 or more days ago and still not issued. Estimated: SAP doesn't record which delivery a goods issue came from.",
     rule: [
-      "For each reservation line: outstanding = received − issued",
+      "For each PO line: outstanding = received − issued",
       "For the lines with something outstanding: age = as-of date − last goods receipt",
       "Counted when the oldest age is 30 days or more",
     ],
     steps: [
+      "Issued is the reservation's own goods issues where a reservation raised the line; for a stock refill, the material's issues counted against the oldest delivery first.",
       "Counted once per material and plant, however many lines are outstanding.",
       "A line that was partly issued still counts for what remains.",
       "Only OAR positions are counted.",
