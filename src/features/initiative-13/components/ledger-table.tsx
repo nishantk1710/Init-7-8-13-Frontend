@@ -17,6 +17,8 @@ import {
   ISSUE_MATCH_EXPLANATIONS,
   ISSUE_MATCH_LABELS,
   NOT_TRACKED_EXPLANATION,
+  NOT_TRACKED_PLAN_EXPLANATION,
+  NOT_TRACKED_STOCK_EXPLANATION,
   UTILISATION_STATUS_LABELS,
 } from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
@@ -242,11 +244,12 @@ export function UtilizationLedgerTable({
                         <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_EXPLANATION}>
                           Not tracked
                         </TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground" title={NOT_TRACKED_EXPLANATION}>
-                          —
+                        <TableCell className="text-right text-xs text-muted-foreground" title={NOT_TRACKED_STOCK_EXPLANATION}>
+                          Not tracked
+                          <span className="block">(shared stock)</span>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_EXPLANATION}>
-                          —
+                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_PLAN_EXPLANATION}>
+                          No reservation
                         </TableCell>
                       </>
                     ) : (

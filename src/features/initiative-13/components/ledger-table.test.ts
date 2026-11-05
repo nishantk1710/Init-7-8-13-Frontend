@@ -72,6 +72,8 @@ describe("UtilizationLedgerTable", () => {
     const html = render([refill])
     expect(html).toContain("Stock refill")
     expect(html).toContain(">Not tracked</td>")
+    expect(html).toContain("(shared stock)")
+    expect(html).toContain(">No reservation</td>")
     expect(html).not.toContain("Estimated")
     // The journey (and its "Not tracked per delivery" step) renders on expand: oar-display.test.ts.
   })
