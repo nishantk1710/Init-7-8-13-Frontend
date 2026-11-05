@@ -242,8 +242,8 @@ describe("plain words on the page, and the PDF left as it is", () => {
     const pdf = renderToStaticMarkup(
       createElement(ManagementPrintView, { report: report(m), management: m, materials: [], materialsTotal: 0 }),
     )
-    expect(pdf).toContain("Material-plants with a computed recommendation")
-    expect(pdf).toContain("distinct material-plants looked at") // the PDF prints the report's own label, not the page's
+    expect(pdf).not.toContain("Material-plants with a computed recommendation") // retired card
+    expect(pdf).toContain("Stockout risk was last measured") // the PDF still prints the report's own wording for the cards it shows
   })
 
   it("names the three kinds of figure in everyday words, each with a hover explanation", () => {

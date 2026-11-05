@@ -162,8 +162,8 @@ describe("the KPI cards", () => {
   })
 
   it("come in the order the page shows them, leaving out any the report does not carry", () => {
-    const ordered = orderedKpis([card("pending_approval"), card("materials_assessed"), card("working_capital_impact"), card("unknown")])
-    expect(ordered.map((c) => c.key)).toEqual(["materials_assessed", "working_capital_impact", "pending_approval"])
+    const ordered = orderedKpis([card("pending_approval"), card("materials_assessed"), card("working_capital_oar"), card("unknown")])
+    expect(ordered.map((c) => c.key)).toEqual(["working_capital_oar", "pending_approval"]) // materials_assessed is no longer a card
   })
 
   it("show a count as a number, and Not available -- never 0 -- when there is no value", () => {
@@ -174,17 +174,17 @@ describe("the KPI cards", () => {
 
   it("show money as the exact amount with its sign, and no currency prefix when none is stated", () => {
     expect(kpiValueText(card("working_capital_impact", { value: "-2397304441.43", unit: "amount (currency not stated)" }))).toBe(
-      "−2,397,304,441",
+      "+2,397,304,441", // stored negative (cash tied up) shows as a plus: the page flips the stored sign
     )
-    expect(kpiValueText(card("working_capital_impact", { value: "2500000", unit: "USD" }))).toBe("+USD 2,500,000")
+    expect(kpiValueText(card("working_capital_impact", { value: "2500000", unit: "USD" }))).toBe("−USD 2,500,000") // stored positive (cash released) shows as a minus, like the Recommendations page
     expect(kpiValueText(card("excess_inventory_opportunity", { value: "1500000", unit: "USD" }))).toBe("USD 1,500,000")
   })
 
   it("show a money figure under a million in full on a card, never as 0.00M or 103.9K", () => {
     expect(kpiValueText(card("excess_inventory_opportunity", { value: "1200", unit: "amount (currency not stated)" }))).toBe("1,200")
-    expect(kpiValueText(card("working_capital_impact", { value: "-300", unit: "amount (currency not stated)" }))).toBe("−300")
-    expect(kpiValueText(card("working_capital_impact", { value: "560", unit: "USD" }))).toBe("+USD 560")
-    expect(kpiValueText(card("working_capital_impact", { value: "-103950", unit: "ZAR" }))).toBe("−ZAR 103,950")
+    expect(kpiValueText(card("working_capital_impact", { value: "-300", unit: "amount (currency not stated)" }))).toBe("+300")
+    expect(kpiValueText(card("working_capital_impact", { value: "560", unit: "USD" }))).toBe("−USD 560")
+    expect(kpiValueText(card("working_capital_impact", { value: "-103950", unit: "ZAR" }))).toBe("+ZAR 103,950")
   })
 
   it("never abbreviate a money figure with M, K or B", () => {
