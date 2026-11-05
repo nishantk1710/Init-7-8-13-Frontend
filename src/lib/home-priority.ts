@@ -22,8 +22,15 @@ const ROLE_INITIATIVE_WEIGHT: Record<SharedRole, Record<InitiativeId, number>> =
   "Inventory Control": { "initiative-7": 1.3, "initiative-13": 1.3, "initiative-8": 1.1 },
 }
 
-export function sortActionsForRole(actions: GlobalAction[], role: SharedRole): GlobalAction[] {
-  const weights = ROLE_INITIATIVE_WEIGHT[role]
+/** No assigned role means no slant: every module weighs the same. */
+const NEUTRAL_WEIGHT: Record<InitiativeId, number> = {
+  "initiative-7": 1,
+  "initiative-8": 1,
+  "initiative-13": 1,
+}
+
+export function sortActionsForRole(actions: GlobalAction[], role: SharedRole | null): GlobalAction[] {
+  const weights = role ? ROLE_INITIATIVE_WEIGHT[role] : NEUTRAL_WEIGHT
   return [...actions].sort(
     (a, b) =>
       SEVERITY_SCORE[b.severity] * weights[b.initiative] -
