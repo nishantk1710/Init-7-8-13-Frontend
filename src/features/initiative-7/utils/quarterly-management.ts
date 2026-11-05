@@ -89,11 +89,13 @@ export function rowAddsUp(row: ApiActivityRow): boolean | null {
 
 /** The cards in the order the page shows them, by key, skipping any the report does not carry. */
 export const KPI_ORDER = [
-  "materials_assessed",
-  "recommendations_generated",
+  // "materials_assessed" and "recommendations_generated" are deliberately not shown as cards (page and PDF).
   "critical_stockout_risk",
   "excess_inventory_opportunity",
-  "working_capital_impact",
+  // "working_capital_impact" (the combined total) is deliberately not a card: stock items and OAR are shown apart.
+  "working_capital_stock",
+  "working_capital_oar",
+  "working_capital_potential",
   "approved",
   "oar_recommendations",
   "min_max_conversion",
@@ -108,16 +110,23 @@ export function orderedKpis(cards: ApiKpiCard[]): ApiKpiCard[] {
   })
 }
 
+/** The working capital card and its stock-item / OAR split: all money, all signed (+ frees cash, − ties it up). */
+export function isWorkingCapitalKey(key: string): boolean {
+  return key === "working_capital_impact" || key === "working_capital_stock" || key === "working_capital_oar" || key === "working_capital_potential"
+}
+
 /** What a card shows as its big value: the number with its unit, or why it has none. */
 export function kpiValueText(card: ApiKpiCard): string {
   const value = num(card.value)
   // Never measured is not the same as measured and nothing there: it is said in its own words, and is never a 0.
   if (card.status === "UNKNOWN" && value === null) return "Not yet measured"
   if (card.status !== "AVAILABLE" || value === null) return "Not available"
-  const isMoney = card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact"
+  const isMoney = card.key === "excess_inventory_opportunity" || isWorkingCapitalKey(card.key)
   if (!isMoney) return value.toLocaleString("en-US", { maximumFractionDigits: 0 })
   const currency = card.unit.startsWith("amount") ? null : card.unit
-  return moneyExact(value, currency, card.key === "working_capital_impact")
+  // Shown the way the Recommendations page shows Value change: cash released is a minus (the stock held goes down), cash tied up a plus.
+  // The report stores it the other way round (positive releases), so the sign is flipped here, for display only.
+  return moneyExact(isWorkingCapitalKey(card.key) && value !== 0 ? -value : value, currency, isWorkingCapitalKey(card.key))
 }
 
 // --- How a card reads on the page ---------------------------------------------------------------------
@@ -130,8 +139,11 @@ const CARD_WORDING: Record<string, { title?: string; caption: string }> = {
   recommendations_generated: { caption: "Recommendations created in this period" },
   critical_stockout_risk: { title: "High Stockout Risk", caption: "Stock below what the lead time needs" },
   excess_inventory_opportunity: { caption: "Stock above the recommended maximum" },
-  working_capital_impact: { caption: "Cash freed (+) or tied up (−)" },
-  oar_recommendations: { caption: "OAR recommendations created in this period" },
+  working_capital_impact: { caption: "Adopted in SAP: cash freed (−) or tied up (+)" },
+  working_capital_stock: { caption: "Adopted stock items: cash freed (−) or tied up (+)" },
+  working_capital_oar: { caption: "Adopted OAR: cash freed (−) or tied up (+)" },
+  working_capital_potential: { title: "Working capital if all eligible adopted", caption: "If every eligible material were adopted" },
+  oar_recommendations: { caption: "Eligible OAR recommendations in this period" },
   min_max_conversion: { caption: "OAR materials moved to Min-Max in SAP" },
   approved: { caption: "Approved, but not yet changed in SAP" },
   pending_approval: { caption: "Waiting for an approver's decision" },
@@ -151,6 +163,9 @@ const PAGE_DENOMINATOR: Record<string, string> = {
   critical_stockout_risk: "materials that could be checked",
   excess_inventory_opportunity: "materials",
   working_capital_impact: "materials included",
+  working_capital_stock: "stock items included",
+  working_capital_oar: "OAR materials included",
+  working_capital_potential: "eligible materials included",
   approved: "recommendations created",
 }
 

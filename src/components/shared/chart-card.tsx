@@ -23,6 +23,7 @@ export function ChartCard({
   footnote,
   info,
   span = 12,
+  size = "default",
   className,
   children,
 }: {
@@ -33,6 +34,8 @@ export function ChartCard({
   /** Sits in the top-right corner of the header -- the (i) icon that explains the chart. */
   info?: ReactNode
   span?: keyof typeof SPAN_CLASSES
+  /** "large": a bigger title and subtitle, for a card that is mostly a table people read closely. */
+  size?: "default" | "large"
   className?: string
   children: ReactNode
 }) {
@@ -46,9 +49,9 @@ export function ChartCard({
     >
       <div className="mb-2.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-foreground">{title}</div>
+          <div className={cn("font-medium text-foreground", size === "large" ? "text-lg" : "text-sm")}>{title}</div>
           {subtitle && (
-            <div className="mt-0.5 text-xs text-muted-foreground">{subtitle}</div>
+            <div className={cn("mt-0.5 text-muted-foreground", size === "large" ? "text-sm" : "text-xs")}>{subtitle}</div>
           )}
           {hint && (
             <div className="mt-0.5 text-xs font-medium text-primary">{hint}</div>

@@ -125,7 +125,7 @@ describe("the OAR cards", () => {
     expect(html).toContain("recommendation records")
     expect(html).toContain("of 21,343 recommendations created")
     expect(html).toContain("of 40 OAR materials that can move")
-    expect(html).toContain("OAR recommendations created in this period")
+    expect(html).toContain("Eligible OAR recommendations in this period")
   })
 
   it("make only the Min-Max card clickable, and tell the reader so", () => {
