@@ -13,11 +13,8 @@
 
 "use client"
 
-import { useMemo, useState } from "react"
-import { AlertTriangle, RefreshCw } from "lucide-react"
+import { useState } from "react"
 import { ChartCard } from "@/components/shared/chart-card"
-import { EmptyState } from "@/components/shared/empty-state"
-import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/shared/page-loader"
 import {
   ALL_FILTER,
@@ -38,27 +35,24 @@ import {
   StockoutPositionCard,
 } from "@/features/initiative-7/components/plant-position-cards"
 import { usePlantPositions } from "@/features/initiative-7/hooks/use-plant-positions"
-import { useLiveAdoption, useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
+import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { useActiveKpiFormulas } from "@/features/initiative-7/hooks/use-kpi-formulas"
-import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality, DemandPattern } from "@/features/initiative-7/types/inventory"
 import { DEMAND_CLASS_FOR_PATTERN } from "@/features/initiative-7/utils/recommendation-list-query"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 // The ZMM065 tier behind each display level, for the summary endpoint (which filters on the raw
-// tier). Low has none: it is NORMAL, OBSOLETE or no tier at all, which one value cannot express.
+// tier). Low has none -- it is NORMAL, OBSOLETE or no tier at all, which one value cannot express --
+// so for Low the summary is asked by display level instead (criticality_level=Low).
 const CRITICALITY_RAW_TIER: Partial<Record<Criticality, string>> = {
   Critical: "CRITICAL",
   High: "IMPACT",
   Medium: "INSURANCE",
 }
 
-// The backend list endpoint's own MAX_PAGE_SIZE ceiling (see
-// app/api/i7/recommendations.py). Fetched once and filtered client-side,
-// same as the recommendations workspace/table -- see that component's own
-// note on why the whole set (not one page) is needed for these KPIs/charts.
-const LIVE_OVERVIEW_PAGE_SIZE = 200
+// Every figure on this page comes from a backend SQL aggregate over the whole filtered set. Nothing
+// here counts a fetched page of recommendations, so no page size limits the Overview.
 
 // The Plant filter's options: real SAP plant codes. The default list is scenario data keyed on
 // invented ids (PLANT-GBG), which never equal a live row's plant, so choosing one matched nothing.
@@ -71,63 +65,49 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // The formulas in force, for the (i) popups. Not awaited: until they arrive (or if they cannot be read) the
   // popups show the built-in text, so the Overview never waits on them.
   const activeFormulas = useActiveKpiFormulas()
-  // Plant, Criticality, Demand Pattern and the Recommendation type are asked of the backend, not
-  // applied to whichever 200 rows happen to be newest: a plant or tier with no rows among them would
-  // otherwise read as "nothing matches". The KPIs, the distribution, both plant cards and the SAP
-  // adoption counts take the same four, so they all follow the filters.
+  // Plant, Criticality, Demand Pattern and the Recommendation type are asked of the backend, which counts
+  // every matching material-plant -- never a fetched page. The KPIs, the distribution, both plant cards and
+  // the SAP adoption counts take the same four, so they all follow the filters with the same totals.
   const plantParam = filters.plant !== ALL_FILTER ? filters.plant : undefined
   const demandClassParam = DEMAND_CLASS_FOR_PATTERN[filters.demandPattern as DemandPattern]
   const criticalityLevel = filters.criticality !== ALL_FILTER ? filters.criticality : undefined
   const typeParam = filters.type === "oar" || filters.type === "stock_item" ? filters.type : undefined
   const isOarParam = typeParam === undefined ? undefined : typeParam === "oar"
-  const { data, loading, error, refetch } = useLiveRecommendations({
-    pageSize: LIVE_OVERVIEW_PAGE_SIZE,
-    plant: plantParam,
-    demandClass: demandClassParam,
-    criticalityLevel,
-    type: typeParam,
-  })
   const criticalityTier = criticalityLevel ? CRITICALITY_RAW_TIER[criticalityLevel as Criticality] : undefined
+  // Low is asked by its level, the others by their raw tier -- as before; only Low had no way to be asked.
+  const criticalityLevelParam = criticalityLevel && !criticalityTier ? criticalityLevel : undefined
   const {
-    summary: scopedSummary,
+    summary,
     loading: summaryLoading,
     error: summaryError,
   } = useLiveRecommendationSummary({
     plant: plantParam,
     demandClass: demandClassParam,
     criticality: criticalityTier,
+    criticalityLevel: criticalityLevelParam,
     isOar: isOarParam,
   })
-  // The summary cannot be narrowed to Low, so for Low it would read as the whole portfolio under a
-  // filter that says otherwise. Without it the KPIs and charts count the rows fetched above.
-  const criticalityCannotNarrow = Boolean(criticalityLevel && !criticalityTier)
-  const summary = criticalityCannotNarrow ? null : scopedSummary
   // New figures are on their way (first load, or a filter just changed): the cards and charts that read them show a
-  // loader meanwhile. Not when the summary cannot be narrowed to the filter at all -- that is a reason, not a wait.
-  const summaryRefreshing = summaryLoading && !criticalityCannotNarrow
-  // High Stockout Risk is a portfolio figure; counting the fetched rows in its place would pass a
-  // page of 200 off as the portfolio, so without a summary the card says why it has no number.
-  const stockoutUnavailable = summary
+  // loader meanwhile.
+  const summaryRefreshing = summaryLoading
+  // Every portfolio figure is the backend's; with no summary the cards say why they have no number rather than
+  // counting whatever rows the browser happens to hold.
+  const summaryUnavailable = summary
     ? undefined
-    : criticalityCannotNarrow
-      ? "cannot be narrowed to this criticality"
-      : summaryError
-        ? "could not be loaded from the backend"
-        : summaryLoading
-          ? undefined // being fetched: the cards and the chart show a loader, not a reason
-          : "not available from the backend"
+    : summaryError
+      ? "could not be loaded from the backend"
+      : summaryLoading
+        ? undefined // being fetched: the cards and the chart show a loader, not a reason
+        : "not available from the backend"
   // Stockout and excess by plant follow the rail too: with a plant chosen only that plant's bar is
   // drawn, and the other three filters narrow every bar.
-  const livePositions = usePlantPositions({
+  const plantPositions = usePlantPositions({
     plant: plantParam,
     isOar: isOarParam,
     demandClass: demandClassParam,
     criticality: criticalityTier,
-    enabled: !criticalityCannotNarrow,
+    criticalityLevel: criticalityLevelParam,
   })
-  const plantPositions = criticalityCannotNarrow
-    ? { positions: [], loading: false, error: new Error("These counts cannot be narrowed to this criticality.") }
-    : livePositions
   // Own plant filter, independent of the sidebar's Plant filter -- lets
   // someone compare adoption by plant without changing what the rest of the
   // page shows (see get_adoption_summary's own docstring for why this needs
@@ -141,67 +121,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     demandClass: demandClassParam,
     criticalityLevel,
   })
-  // Adoption is a separate reconciliation, keyed by recommendation id, not a
-  // field on Recommendation itself (see use-live-adoption.ts) -- fetched at
-  // the same page size and joined in below so the "SAP Adoption" filter has
-  // something to read. Only covers material-plants with something to adopt
-  // (the backend's own /recommendations/adoption scope), so a row absent from this map has no
-  // adoption status to filter on at all -- treated as "Unknown" below, the same value a genuinely
-  // evaluated-but-no-evidence row gets, since neither has anything to show.
-  // Only needed to filter the page by SAP adoption: fetching 200 adoption rows on every
-  // visit would look each one up in SAP's change history for nothing.
-  const { items: adoptionItems } = useLiveAdoption(
-    { pageSize: LIVE_OVERVIEW_PAGE_SIZE },
-    { enabled: filters.sapAdoption !== ALL_FILTER },
-  )
-  const adoptionByRecommendationId = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const row of adoptionItems ?? []) map.set(row.recommendationId, row.status)
-    return map
-  }, [adoptionItems])
-
-  const filtered = useMemo(() => {
-    if (!data) return []
-    const query = filters.material.trim().toLowerCase()
-    return data.filter((r) => {
-      if (filters.plant !== ALL_FILTER && r.plantId !== filters.plant) return false
-      if (filters.criticality !== ALL_FILTER && r.criticality !== filters.criticality) return false
-      if (filters.demandPattern !== ALL_FILTER && r.demandPattern !== filters.demandPattern) return false
-      if (typeParam === "oar" && r.demandType !== "OAR") return false
-      if (typeParam === "stock_item" && r.demandType === "OAR") return false
-      if (filters.sapAdoption !== ALL_FILTER) {
-        const adoptionStatus = adoptionByRecommendationId.get(r.id) ?? "Unknown"
-        if (adoptionStatus !== filters.sapAdoption) return false
-      }
-      if (query) {
-        const haystack = `${r.material.materialId} ${r.material.description}`.toLowerCase()
-        if (!haystack.includes(query)) return false
-      }
-      return true
-    })
-  }, [data, filters, typeParam, adoptionByRecommendationId])
-
   // Only the first load replaces the page: a filter change refetches with the filters still on
-  // screen, and the previous rows stay until the new ones arrive.
-  if (loading && !data) {
+  // screen, and the previous figures stay until the new ones arrive.
+  if (summaryLoading && !summary && !summaryError) {
     return (
       <PageLoader label="Loading the Inventory Planning overview" className="h-[480px] w-full" />
-    )
-  }
-
-  if (error) {
-    return (
-      <EmptyState
-        icon={<AlertTriangle className="size-4" />}
-        title="Could not load the overview from the backend"
-        description={error.message}
-        actions={
-          <Button size="sm" variant="outline" onClick={refetch}>
-            <RefreshCw className="size-3.5" />
-            Retry
-          </Button>
-        }
-      />
     )
   }
 
@@ -231,7 +155,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
 
       <InventoryPortfolioKpis
         showInfo
-        recommendations={filtered}
+        recommendations={[]}
         adoptedOverride={
           adoptionSummary
             ? {
@@ -259,7 +183,9 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
               }
             : undefined
         }
-        stockoutRiskUnavailable={stockoutUnavailable}
+        stockoutRiskUnavailable={summaryUnavailable}
+        excessInventoryUnavailable={summaryUnavailable}
+        workingCapitalUnavailable={summaryUnavailable}
         excessInventoryOverride={
           summary
             ? {
@@ -302,7 +228,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                       }
                     : null
                 }
-                unavailable={stockoutUnavailable}
+                unavailable={summaryUnavailable}
                 loading={summaryRefreshing}
               />
             </ChartCard>

@@ -75,8 +75,15 @@ describe("the Overview passes what is loading", () => {
     expect(workspace).not.toContain('"loading…"')
   })
 
-  it("does not call a wait a failure: the filter that cannot be narrowed is still a reason, not a loader", () => {
-    expect(workspace).toContain("summaryLoading && !criticalityCannotNarrow")
+  it("does not call a wait a failure: a figure still being fetched shows a loader, not a reason", () => {
+    expect(workspace).toMatch(/summaryLoading\s*\?\s*undefined/)
+  })
+
+  it("counts the whole filtered set: no fetched page feeds a card or chart, and Low is asked of the backend", () => {
+    expect(workspace).not.toContain("LIVE_OVERVIEW_PAGE_SIZE")
+    expect(workspace).not.toContain("useLiveRecommendations")
+    expect(workspace).not.toContain("criticalityCannotNarrow")
+    expect(workspace).toContain("criticalityLevel: criticalityLevelParam")
   })
 })
 

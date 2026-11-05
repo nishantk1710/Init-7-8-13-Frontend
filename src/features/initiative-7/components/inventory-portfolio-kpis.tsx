@@ -194,7 +194,9 @@ export function InventoryPortfolioKpis({
   stockoutRiskOverride,
   stockoutRiskUnavailable,
   excessInventoryOverride,
+  excessInventoryUnavailable,
   workingCapitalOverride,
+  workingCapitalUnavailable,
   loading,
   showInfo = false,
 }: {
@@ -237,6 +239,11 @@ export function InventoryPortfolioKpis({
    * see RecommendationSummaryStats.excess_inventory_opportunity's docstring
    * on the backend. */
   excessInventoryOverride?: { count: number; total: number; opportunity: number | null }
+  /** Why the excess figure is not there (the backend summary could not be loaded): the card says "Not available" with
+   * this as its caption instead of counting whichever rows it was given. */
+  excessInventoryUnavailable?: string
+  /** The same for Working Capital Impact. */
+  workingCapitalUnavailable?: string
   /** Portfolio-wide net working-capital impact, from GET /recommendations/summary's
    * net_rop_value_impact (unit price x current - recommended reorder point): positive releases
    * working capital, negative ties more up. `amount` is `null` (never a fabricated 0) when no
@@ -317,9 +324,14 @@ export function InventoryPortfolioKpis({
         infoId={showInfo ? "excessInventory" : undefined}
         icon={<Layers className="size-3.5" />}
         tone="info"
-        value={formatCount(excess)}
-        suffix="Materials"
-        caption={`${pct(excess, excessTotal)}% of in-scope`}
+        value={excessInventoryUnavailable !== undefined ? "Not available" : formatCount(excess)}
+        suffix={excessInventoryUnavailable !== undefined ? undefined : "Materials"}
+        caption={
+          excessInventoryUnavailable !== undefined
+            ? excessInventoryUnavailable
+            : `${pct(excess, excessTotal)}% of in-scope`
+        }
+        captionMuted={excessInventoryUnavailable !== undefined}
       />
       <PortfolioKpiCard
         title="Working Capital Impact"
@@ -327,14 +339,20 @@ export function InventoryPortfolioKpis({
         infoId={showInfo ? "workingCapital" : undefined}
         icon={<Wallet className="size-3.5" />}
         tone="success"
-        value={netImpact === null ? "Not available" : formatSignedAmount(netImpact, currencyPrefix(impactCurrency), true)}
-        caption={
-          netImpact === null
-            ? "needs a unit price and a calculated reorder point"
-            : `${netImpact >= 0 ? "Net release" : "Net additional investment"}${workingCapitalOverride?.estimated ? " · estimate" : ""}`
+        value={
+          workingCapitalUnavailable !== undefined || netImpact === null
+            ? "Not available"
+            : formatSignedAmount(netImpact, currencyPrefix(impactCurrency), true)
         }
-        captionMuted={netImpact === null}
-        note={workingCapitalCoverage}
+        caption={
+          workingCapitalUnavailable !== undefined
+            ? workingCapitalUnavailable
+            : netImpact === null
+              ? "needs a unit price and a calculated reorder point"
+              : `${netImpact >= 0 ? "Net release" : "Net additional investment"}${workingCapitalOverride?.estimated ? " · estimate" : ""}`
+        }
+        captionMuted={workingCapitalUnavailable !== undefined || netImpact === null}
+        note={workingCapitalUnavailable === undefined ? workingCapitalCoverage : undefined}
       />
       <PortfolioKpiCard
         title="Adopted recommendation"
