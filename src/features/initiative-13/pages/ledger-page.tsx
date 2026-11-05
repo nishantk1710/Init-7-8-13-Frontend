@@ -297,6 +297,12 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           />
         </ToolbarRow>
 
+        <p className="text-sm text-muted-foreground">
+          Stock bought for this material. SAP doesn&apos;t record which delivery an issue came from, so usage is
+          estimated oldest stock first. A line raised by a reservation is exact and also shows on the Reservations
+          tab.
+        </p>
+
         {live === null ? (
           // Shown as a failure, never as an empty table. "No reservations" and
           // "cannot reach the server" must not look alike.

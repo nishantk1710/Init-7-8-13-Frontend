@@ -82,7 +82,7 @@ export const EMPTY_LABEL = {
   noReservationYet: {
     label: "No reservation yet",
     title:
-      "No reservation stands for this plan yet: none carries its session or request ID in the item text, and none is required inside its window.",
+      "No reservation stands for this plan yet: none carries its session or request ID in the item text.",
   },
   notRouted: {
     label: "Not routed yet",
