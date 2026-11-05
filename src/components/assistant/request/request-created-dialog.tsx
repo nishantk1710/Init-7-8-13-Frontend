@@ -67,7 +67,7 @@ export function RequestCreatedDialog({ request }: { request: ApiRequest }) {
             <span className="font-mono font-semibold text-foreground">{request.requestId}</span> into its header text.
           </Step>
           <Step icon={Link2} title="We link it to this request">
-            The link is made when the next SAP data is loaded. To link it sooner, press Link reservation on this page.
+            The link is made when the next SAP data is loaded.
           </Step>
           <Step icon={Bell} title="We notify you">
             You&rsquo;ll get a notification once the reservation is linked. If it isn&rsquo;t linked within a day,
