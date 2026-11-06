@@ -285,9 +285,10 @@ describe("a monthly PDF", () => {
     expect(out).not.toContain("Approval Status")
   })
 
-  it("fetches the PDF's comparison rows with the same has_recommended query as the page", () => {
-    expect(workspace).toContain("hasRecommended: true")
-    expect(workspace).toContain("comparison={pdfComparison ?? []}")
-    expect(workspace).toContain("pdfMaterialsLoading || pdfComparisonLoading") // the print waits for them
+  it("fetches the PDF's two material lists with the same filters as the page's two tables", () => {
+    expect(workspace).toContain('type: "oar", conversionEligibility: "ELIGIBLE", hasRecommended: true') // Current vs recommended
+    expect(workspace).toContain("adoptedInSap: true") // Adopted recommendations
+    expect(workspace).toContain("eligibleOar: eligible.recommendations")
+    expect(workspace).toContain("adopted: adopted.recommendations")
   })
 })

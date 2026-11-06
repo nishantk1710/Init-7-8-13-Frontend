@@ -28,6 +28,7 @@ import {
   requestSavings,
   savingSentence,
 } from "@/lib/assistant/request/record"
+import { declarationViewOf } from "@/lib/assistant/session-view"
 import { formatInstant } from "@/lib/assistant/trace-format"
 import { cn, formatZAR } from "@/lib/utils"
 
@@ -293,6 +294,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** One line of the request as a card: what it is, what was decided, and whether SAP has linked it. */
+/**
+ * A repairable line's condition declaration, as the session trace words it.
+ * "Not declared" only when the backend says so: an older one sends nothing.
+ */
+function LineDeclaration({ line }: { line: ApiRequestLine }) {
+  if (line.declaration === undefined) return <span className="text-sm text-muted-foreground">—</span>
+  if (line.declaration === null) return <span className="text-sm text-muted-foreground">Not declared</span>
+  const d = declarationViewOf(line.declaration)
+  return (
+    <>
+      <Chip tone={d.assessment === "Repairable" ? "ready" : "warn"}>{d.assessment}</Chip>
+      <span className="text-sm font-semibold text-foreground">
+        {d.quantity} unit{d.quantity === "1" ? "" : "s"} · {d.fault}
+      </span>
+      <span className="text-sm text-muted-foreground">Declared by {d.name}</span>
+    </>
+  )
+}
+
 function LineCard({ line }: { line: ApiRequestLine }) {
   const procured = line.flow === "i13" && line.decision === "proceed"
   const decision = decisionOf(line)
@@ -352,18 +372,26 @@ function LineCard({ line }: { line: ApiRequestLine }) {
             </span>
           )}
         </Field>
-        <Field label="Window and purpose">
-          {procured ? (
-            <>
-              <span className="text-sm font-semibold text-foreground">
-                {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
-              </span>
-              <span className="text-sm text-muted-foreground">{line.purpose}</span>
-            </>
-          ) : (
-            <span className="text-sm text-muted-foreground">Not asked for this line</span>
-          )}
-        </Field>
+        {/* A window and a purpose belong to an OAR plan; a repairable line shows
+            the declaration made on it in their place (4-Nov-2026). */}
+        {line.flow === "i13" ? (
+          <Field label="Window and purpose">
+            {procured ? (
+              <>
+                <span className="text-sm font-semibold text-foreground">
+                  {formatDate(line.windowStart)} – {formatDate(line.windowEnd)}
+                </span>
+                <span className="text-sm text-muted-foreground">{line.purpose}</span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">Not asked for this line</span>
+            )}
+          </Field>
+        ) : (
+          <Field label="Declaration">
+            <LineDeclaration line={line} />
+          </Field>
+        )}
         <Field label="Reason given">
           {line.justification ? (
             <>

@@ -105,9 +105,7 @@ describe("the PDF carries the saved report's own figures", () => {
     const out = html()
     expect(out).toContain("Q4 2026")
     expect(out).toContain("Complete")
-    expect(out).toContain("Material-plants with a computed recommendation")
-    expect(out).toContain("18,627")
-    expect(out).toContain("of 18,700 material-plants")
+    expect(out).not.toContain("Material-plants with a computed recommendation") // retired card
     expect(out).toContain("Event in the period")
     expect(out).toContain("Current calculation")
   })
@@ -172,10 +170,12 @@ describe("an older report and a report without trends", () => {
     expect(out).not.toContain("Quarter-End Position")
   })
 
-  it("is chosen only for a report with the management view; an older one keeps its print view", () => {
-    expect(workspace).toContain("report.management ? (")
-    expect(workspace).toContain("<ManagementPrintView")
+  it("saves a real PDF file for a report with the management view; an older one keeps its print view", () => {
+    expect(workspace).toContain("buildReportPdf({")
+    expect(workspace).toContain("saveBlob(blob, reportPdfFilename(report))")
+    expect(workspace).toContain("if (!report.management) {") // an older report: the print route
     expect(workspace).toContain("<ReportPrintView")
+    expect(workspace).not.toContain("<ManagementPrintView")
   })
 
   it("prints this period's recommendations for the new report, and the unscoped list for an old one", () => {

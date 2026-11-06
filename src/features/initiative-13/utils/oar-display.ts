@@ -118,14 +118,24 @@ function dateRange(first: string | null, latest: string | null): string | null {
   return `First ${first}${latest && latest !== first ? `, latest ${latest}` : ""}`
 }
 
-/** A ledger line's five steps, each reached when SAP recorded its document. */
+/**
+ * A ledger line's five steps, each reached when SAP recorded its document. A
+ * stock refill (`NOT_TRACKED`) ends at goods receipt: SAP records no delivery
+ * on a goods issue, so its issue step says so instead of waiting for one.
+ */
 export function journeySteps(entry: UtilisationLedgerEntry): JourneyStep[] {
+  const notTracked = entry.utilisationStatus === "NOT_TRACKED"
   const rows: [JourneyStep["key"], string, string | null, string][] = [
     ["reservation", "Reservation", docRef("Rsnum", entry.reservationNumber, entry.reservationItem), "Not linked"],
     ["pr", "PR", docRef("PR", entry.prNumber, entry.prItem), "Not linked"],
     ["po", "PO", docRef("PO", entry.poNumber, entry.poItem), "Not linked"],
     ["gr", "Goods receipt", dateRange(entry.firstGrDate, entry.latestGrDate), "No goods receipt yet"],
-    ["gi", "Goods issue", dateRange(entry.firstGiDate, entry.latestGiDate), "Not issued yet"],
+    [
+      "gi",
+      "Goods issue",
+      notTracked ? null : dateRange(entry.firstGiDate, entry.latestGiDate),
+      notTracked ? "Not tracked per delivery (stock refill)" : "Not issued yet",
+    ],
   ]
   return rows.map(([key, label, detail, missing]) => ({
     key,

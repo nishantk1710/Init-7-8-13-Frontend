@@ -10,7 +10,7 @@
  */
 
 import { ApiError, apiFetch, apiFetchBlob, apiPost, apiPostForm } from "@/lib/api/client"
-import type { ApiDepartment, ApiLinkedReservation, ApiMaterialMatch } from "@/lib/api/assistant"
+import type { ApiDepartment, ApiLinkedReservation, ApiMaterialMatch, ApiSessionDeclaration } from "@/lib/api/assistant"
 import { listDepartments, searchMaterials } from "@/lib/api/assistant"
 import { saveBlob } from "@/lib/download-file"
 
@@ -144,6 +144,11 @@ export type ApiRequestLine = {
   /** OAR lines submitted with a required quantity (from 3 Nov). Absent before. */
   saving?: ApiSaving | null
   linkedReservations: ApiRequestLink[]
+  /** Repairable lines: the condition declaration made on the line, as the
+   *  session trace shows it (since 4-Nov-2026). Null when none was made and on
+   *  OAR lines, which have a window and a purpose instead; absent from an
+   *  older backend. */
+  declaration?: ApiSessionDeclaration | null
 }
 
 /** What the quantity suggestion saved on one OAR line -- an estimate at submit. */

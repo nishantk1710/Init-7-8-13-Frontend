@@ -122,8 +122,9 @@ export const EXCEPTION_STATUS_TONE: Record<ActExceptionStatus, Tone> = {
 export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
   PLAN_BREACH: "Planned Overdue",
   NO_PLAN: "Non-AI",
-  NO_PLAN_GRNI: "Non-AI + 30-day not issued",
+  NO_PLAN_GRNI: "Non-AI + 30-day not issued (retired)",
   QUANTITY_OVERRIDE: "Quantity Overridden",
+  NOT_ISSUED_30_DAYS: "Not issued 30 days",
 }
 
 /** One-line explanation of each exception type, for tooltips. */
@@ -131,8 +132,10 @@ export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
   PLAN_BREACH: "A plan exists but nothing was issued within 14 days after the planned usage window ended",
   NO_PLAN: "No consumption plan from the assistant is linked to this reservation",
   NO_PLAN_GRNI:
-    "No consumption plan from the assistant, and this material at this plant has stock received 30+ days ago and not issued",
+    "Retired on 5 Nov 2026: a Non-AI reservation whose material had stock received 30+ days ago and not issued",
   QUANTITY_OVERRIDE: "The requester asked for a different quantity than the assistant suggested",
+  NOT_ISSUED_30_DAYS:
+    "An assistant request line's reservation with nothing issued 30 days after its goods were received for it, or after its required-by date",
 }
 
 /** `StatusBadge` has no neutral/info tone of its own. */

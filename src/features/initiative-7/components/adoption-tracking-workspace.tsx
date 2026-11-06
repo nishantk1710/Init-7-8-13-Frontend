@@ -10,12 +10,14 @@
 // change-document rows (see app/initiatives/i7/recommendations/
 // sap_change_documents.py's module docstring), so there is no SAP evidence to
 // reconcile against for any material-plant today. It is shown as "Pending"
-// while the tracking window is open and as "No change recorded" after it --
-// never as "Not adopted": absence of evidence is not evidence of non-adoption.
+// while the tracking window (7 days from the SAP handover, set by the backend) is
+// open. After it, "Not adopted" is shown only when SAP's change history was complete
+// for the whole window and held no matching change; otherwise it stays "Unknown" --
+// absence of evidence is not evidence of non-adoption.
 //
 // Check type names the SAP fields checked (reorder point, safety stock, max
 // stock, MRP type); Detail has one line per field with the old and new value,
-// when it changed in SAP and how many days after approval. Both are written by
+// when it changed in SAP and how many days after the SAP handover. Both are written by
 // the backend so the page and the API can never word the same result twice.
 
 "use client"
@@ -55,7 +57,7 @@ const STATUS_OPTIONS: AdoptionPageStatus[] = [
   "Partially adopted",
   "Not adopted",
   "Pending",
-  "No change recorded",
+  "Unknown",
 ]
 
 const STATUS_TONE: Record<AdoptionPageStatus, "default" | "success" | "warning" | "danger"> = {
@@ -63,7 +65,7 @@ const STATUS_TONE: Record<AdoptionPageStatus, "default" | "success" | "warning" 
   "Partially adopted": "warning",
   "Not adopted": "danger",
   Pending: "default",
-  "No change recorded": "default",
+  Unknown: "default",
 }
 
 export function AdoptionTrackingWorkspace() {

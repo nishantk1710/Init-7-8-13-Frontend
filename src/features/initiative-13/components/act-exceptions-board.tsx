@@ -38,8 +38,9 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 const TYPE_TONE: Record<ActExceptionType, DisplayTone> = {
   PLAN_BREACH: "urgent",
   NO_PLAN: "caution",
-  NO_PLAN_GRNI: "urgent",
+  NO_PLAN_GRNI: "neutral",
   QUANTITY_OVERRIDE: "caution",
+  NOT_ISSUED_30_DAYS: "urgent",
 }
 
 const STATUS_TONE: Record<ActExceptionStatus, DisplayTone> = {
@@ -392,8 +393,9 @@ function Tile({ label, children }: { label: string; children: React.ReactNode })
 const EXCEPTION_HEADING: Record<ActException["exceptionType"], string> = {
   PLAN_BREACH: "The planned use has passed and nothing was issued",
   NO_PLAN: "OAR reservation with no consumption plan from the assistant",
-  NO_PLAN_GRNI: "OAR reservation with no plan, and stock received 30+ days ago is not issued",
+  NO_PLAN_GRNI: "OAR reservation with no plan, and stock received 30+ days ago is not issued (retired type)",
   QUANTITY_OVERRIDE: "The requester kept a quantity above the assistant's suggestion",
+  NOT_ISSUED_30_DAYS: "The request line's reservation has not been issued 30 days on",
 }
 
 /** Why Confirm is disabled, for every status but AWAITING_REQUESTER (the one it is enabled for). */
@@ -421,9 +423,21 @@ const CLEARS_WHEN: Record<ActException["exceptionType"], string> = {
   PLAN_BREACH: "It closes when a goods issue is recorded for the planned reservation, or the plan is closed.",
   NO_PLAN:
     "It closes when the reservation is linked to an assistant session with a plan, or is deleted in SAP. Issuing the material does not close it.",
-  NO_PLAN_GRNI:
-    "It closes when the reservation is linked to an assistant session with a plan, is deleted in SAP, or this material at this plant no longer has stock received 30+ days ago and not issued.",
+  NO_PLAN_GRNI: "This type was retired on 5 Nov 2026; every one still open was closed by the next detection run.",
+  NOT_ISSUED_30_DAYS:
+    "It closes when anything is issued against the reservation, or the reservation is deleted or closed for further issues (final issue) in SAP.",
   QUANTITY_OVERRIDE: "It does not close by itself: the requester records why they kept a quantity above the suggestion.",
+}
+
+/** A NOT_ISSUED_30_DAYS exception's finding, in words (backend `detection.detect_not_issued`). */
+function notIssuedText(exception: ActException): string | null {
+  if (exception.exceptionType !== "NOT_ISSUED_30_DAYS") return null
+  const { basis, since, days } = exception.evidence
+  if (!since) return null
+  const after = days ? ` and nothing has been issued against it in the ${days} days since` : " and nothing has been issued since"
+  return basis === "RECEIVED"
+    ? `The goods bought for this reservation were received on ${since}${after}.`
+    : `This reservation was required by ${since}${after}.`
 }
 
 /** What is holding the exception open, from the text the board already carried. */
@@ -447,6 +461,8 @@ function whyCannotClear(exception: ActException): React.ReactNode[] {
   if (noPlanReason && NO_PLAN_REASON_TEXT[noPlanReason]) {
     reasons.push(<p key="no-plan">{NO_PLAN_REASON_TEXT[noPlanReason]}</p>)
   }
+  const notIssued = notIssuedText(exception)
+  if (notIssued) reasons.push(<p key="not-issued">{notIssued}</p>)
   reasons.push(<p key="clears">{CLEARS_WHEN[exception.exceptionType]}</p>)
   return reasons
 }

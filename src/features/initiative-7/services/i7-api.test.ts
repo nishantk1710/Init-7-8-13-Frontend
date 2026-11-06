@@ -176,10 +176,10 @@ describe("adoption tracking rows", () => {
     ...overrides,
   })
 
-  it("shows no SAP evidence as Pending while the window is open, and 'No change recorded' after", () => {
+  it("shows no SAP evidence as Pending while the window is open, and Unknown after", () => {
     expect(mapAdoptionListItem(adoptionRow({ pending: true, window_open: true })).pageStatus).toBe("Pending")
     expect(mapAdoptionListItem(adoptionRow({ pending: false, window_open: false })).pageStatus).toBe(
-      "No change recorded",
+      "Unknown",
     )
     // The status the Overview filter uses is untouched: still "Unknown".
     expect(mapAdoptionListItem(adoptionRow({ pending: true })).status).toBe("Unknown")

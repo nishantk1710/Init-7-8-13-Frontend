@@ -1012,7 +1012,8 @@ export function mapAdoptionStatus(raw: string): AdoptionDisplayStatus {
 
 /** What the Adoption Tracking page shows in its status column. The backend's
  * UNKNOWN (no SAP evidence) reads as "Pending" while the tracking window is
- * still open, and as "No change recorded" once it has passed. Kept separate
+ * still open, and as "Unknown" once it has passed without SAP's change history being complete
+ * enough to say Not adopted. Kept separate
  * from AdoptionDisplayStatus, which the Overview's SAP-adoption filter also
  * uses and which keeps "Unknown". */
 export type AdoptionPageStatus =
@@ -1020,11 +1021,11 @@ export type AdoptionPageStatus =
   | "Partially adopted"
   | "Not adopted"
   | "Pending"
-  | "No change recorded"
+  | "Unknown"
 
 export function adoptionPageStatus(status: AdoptionDisplayStatus, pending: boolean): AdoptionPageStatus {
   if (status !== "Unknown") return status
-  return pending ? "Pending" : "No change recorded"
+  return pending ? "Pending" : "Unknown"
 }
 
 export interface AdoptionFieldLine {
@@ -1044,7 +1045,7 @@ export interface AdoptionListRow {
   materialId: string
   plantId: string
   status: AdoptionDisplayStatus
-  /** What the page shows: Unknown becomes Pending or "No change recorded". */
+  /** What the page shows: Unknown becomes Pending while the window is open, else stays Unknown. */
   pageStatus: AdoptionPageStatus
   rawStatus: string
   isConversionAdoption: boolean

@@ -60,7 +60,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             <TableHead>Window</TableHead>
             <TableHead
               className="text-right"
-              title="Goods issued against the reservations this plan stands for (its session or request ID in the item text, else required inside its window)"
+              title="Goods issued against the reservations whose item text carries this plan's session or request ID"
             >
               Issued
             </TableHead>

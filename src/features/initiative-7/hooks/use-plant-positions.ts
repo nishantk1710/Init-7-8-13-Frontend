@@ -27,6 +27,8 @@ export interface PlantPositionFilters {
   demandClass?: string
   /** The raw ZMM065 tier (CRITICAL, IMPACT, INSURANCE). */
   criticality?: string
+  /** The display level, for the one level that has no single raw tier (Low: NORMAL, OBSOLETE or no tier). */
+  criticalityLevel?: string
   /** False: ask for nothing (the caller already knows the filters cannot be applied). */
   enabled?: boolean
 }
@@ -43,7 +45,9 @@ export function usePlantPositions(filters: PlantPositionFilters = {}): PlantPosi
   }
 
   useEffect(() => {
-    const { plant, isOar, demandClass, criticality, enabled = true } = JSON.parse(filtersKey) as PlantPositionFilters
+    const { plant, isOar, demandClass, criticality, criticalityLevel, enabled = true } = JSON.parse(
+      filtersKey,
+    ) as PlantPositionFilters
     if (!enabled) return
     const scopes: PositionScope[] = plant ? [plant as PositionScope] : POSITION_SCOPES
     let cancelled = false
@@ -56,6 +60,7 @@ export function usePlantPositions(filters: PlantPositionFilters = {}): PlantPosi
             isOar,
             demandClass,
             criticality,
+            criticalityLevel,
           }),
         ),
       ),

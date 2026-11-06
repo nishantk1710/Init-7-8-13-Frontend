@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { ManagementPrintView } from "@/features/initiative-7/components/quarterly-management-print"
-import { QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
+import { DataCoverageBody, QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
 import { CoverageStatusTable } from "@/features/initiative-7/components/monthly-report-sections"
 import type { ApiKpiCard, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import { pageCardTitle, pageDenominatorLabel, cardTitle } from "@/features/initiative-7/utils/quarterly-management"
@@ -151,19 +151,24 @@ const page = (m: ApiQuarterManagement) => renderToStaticMarkup(createElement(Qua
 const outsideFolded = (html: string) => html.replace(/<details[\s\S]*?<\/details>/g, "")
 
 describe("Data coverage", () => {
-  it("lists only the sources that need attention by default, and everything behind Show all", () => {
+  it("is one button on the page, with the detail inside the popup it opens", () => {
     const html = page(management())
-    expect(html).toContain("Show all")
-    const visible = outsideFolded(html)
-    expect(visible).toContain("Source stockout") // Stale
-    expect(visible).toContain("Source forecast") // Not available
-    expect(visible).not.toContain("Source currency") // Available: not shown until asked for
-    expect(html).toContain("Source currency") // ... but still on the page, behind Show all
+    expect(html).toContain("Data coverage and limitations") // the button
+    expect(html).not.toContain("Source stockout") // nothing of the detail sits between the report's sections
+    expect(html).not.toContain("A coverage warning.")
   })
 
-  it("keeps the warnings and definitions reachable, folded away", () => {
-    const html = page(management())
-    expect(outsideFolded(html)).not.toContain("A coverage warning.")
+  it("lists only the sources that need attention first, and every source after them", () => {
+    const html = renderToStaticMarkup(createElement(DataCoverageBody, { management: management() }))
+    const [attention, everything] = html.split("Every source")
+    expect(attention).toContain("Source stockout") // Stale
+    expect(attention).toContain("Source forecast") // Not available
+    expect(attention).not.toContain("Source currency") // Available: not in the first list
+    expect(everything).toContain("Source currency") // ... but in the full one
+  })
+
+  it("keeps the warnings and definitions in the popup", () => {
+    const html = renderToStaticMarkup(createElement(DataCoverageBody, { management: management() }))
     expect(html).toContain("A coverage warning.")
     expect(html).toContain("A definition of a kind of figure.")
   })
@@ -172,7 +177,7 @@ describe("Data coverage", () => {
     const allGood = management({
       data_coverage: { ...management().data_coverage, items: [item("a", "Available"), item("b", "Available")] },
     })
-    expect(outsideFolded(page(allGood))).toContain("Everything this report uses is up to date.")
+    expect(renderToStaticMarkup(createElement(DataCoverageBody, { management: allGood }))).toContain("Everything this report uses is up to date.")
   })
 
   it("lists every item when asked for them all", () => {
@@ -199,11 +204,11 @@ describe("the stockout charts with nothing to draw", () => {
 })
 
 describe("the longer notes", () => {
-  it("fold the activity notes behind How these are counted", () => {
+  it("keep the activity notes off the page: the table's (i) explains how each row is counted", () => {
     const html = page(management())
-    expect(html).toContain("How these are counted")
-    expect(outsideFolded(html)).not.toContain("Row note that explains how it is counted.")
-    expect(html).toContain("Row note that explains how it is counted.")
+    expect(html).not.toContain("How these are counted")
+    expect(html).not.toContain("Row note that explains how it is counted.")
+    expect(html).toContain("How the activity figures are worked out")
   })
 
   it("fold the card's technical reason behind Why is this not shown?", () => {
@@ -242,8 +247,8 @@ describe("plain words on the page, and the PDF left as it is", () => {
     const pdf = renderToStaticMarkup(
       createElement(ManagementPrintView, { report: report(m), management: m, materials: [], materialsTotal: 0 }),
     )
-    expect(pdf).toContain("Material-plants with a computed recommendation")
-    expect(pdf).toContain("distinct material-plants looked at") // the PDF prints the report's own label, not the page's
+    expect(pdf).not.toContain("Material-plants with a computed recommendation") // retired card
+    expect(pdf).toContain("Stockout risk was last measured") // the PDF still prints the report's own wording for the cards it shows
   })
 
   it("names the three kinds of figure in everyday words, each with a hover explanation", () => {

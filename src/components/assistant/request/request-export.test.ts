@@ -74,6 +74,8 @@ const request: ApiRequest = {
 
 describe("requestExportModel", () => {
   const model = requestExportModel(request)
+  /** A line's cell under a column, by the column's name. */
+  const cell = (m: typeof model, line: number, column: string) => m.lines[line][m.columns.indexOf(column)]
 
   it("shows a request's one department", () => {
     const single = requestExportModel({ ...request, department: "10301", departments: ["10301"] })
@@ -99,15 +101,51 @@ describe("requestExportModel", () => {
   })
 
   it("uses the screen's decision sentence and quantities", () => {
-    expect(model.lines[0][2]).toEqual(["New unit: none exists in stock or on repair."])
-    expect(model.lines[1][2]).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year, justified."])
-    expect(model.lines[1][4]).toEqual(["Urgent Breakdown", "grgnj"])
+    expect(cell(model, 0, "Decision")).toEqual(["New unit: none exists in stock or on repair."])
+    expect(cell(model, 1, "Decision")).toEqual(["2 (suggested 0)", "Procure 2 although stock covers the year, justified."])
+    expect(cell(model, 1, "Reason given")).toEqual(["Urgent Breakdown", "grgnj"])
   })
 
   it("shows not-linked and linked SAP items", () => {
-    expect(model.lines[0][5]).toEqual(["Not linked yet"])
-    expect(model.lines[1][5]).toEqual(['0012345678/0001 · SGTXT "R46WFYXS1R/2"'])
+    expect(cell(model, 0, "SAP link")).toEqual(["Not linked yet"])
+    expect(cell(model, 1, "SAP link")).toEqual(['0012345678/0001 · SGTXT "R46WFYXS1R/2"'])
     expect(model.linkSummary).toBe("1 SAP reservation item linked so far.")
+  })
+
+  it("gives a mixed request both columns, each filled only for its kind of line (4-Nov-2026)", () => {
+    expect(model.columns).toEqual([
+      "Reference", "Material", "Decision", "Window · purpose", "Declaration", "Reason given", "SAP link",
+    ])
+    expect(cell(model, 0, "Window · purpose")).toEqual(["—"])
+    expect(cell(model, 0, "Declaration")).toEqual(["Not declared"])
+    expect(cell(model, 1, "Window · purpose")[1]).toBe("fkewjkjw")
+    expect(cell(model, 1, "Declaration")).toEqual(["—"])
+  })
+
+  it("gives a repairable-only request no window and purpose, and says what was declared", () => {
+    const repairable = requestExportModel({
+      ...request,
+      lines: [
+        line({
+          declaration: {
+            id: "ATT-1", recommendation: "REPAIRABLE", conditionDescription: "", faultCategory: "SEAL_LEAK",
+            quantity: "2.000", attestorName: "J Miller", attestedAt: "2026-11-04T09:00:00Z",
+            evidenceReference: null, repairDocument: null, repairItem: null, repairDocumentType: null,
+          },
+        }),
+        line({ lineNo: 2, reference: "R46WFYXS1R/2", declaration: null }),
+      ],
+    })
+    expect(repairable.columns).not.toContain("Window · purpose")
+    const [declared] = cell(repairable, 0, "Declaration") as string[]
+    expect(declared).toMatch(/^2 units · .+ · Repairable, declared by J Miller$/)
+    expect(cell(repairable, 1, "Declaration")).toEqual(["Not declared"])
+  })
+
+  it("gives an OAR-only request no declaration column", () => {
+    const oar = requestExportModel({ ...request, lines: [request.lines[1]] })
+    expect(oar.columns).not.toContain("Declaration")
+    expect(oar.columns).toContain("Window · purpose")
   })
 })
 
