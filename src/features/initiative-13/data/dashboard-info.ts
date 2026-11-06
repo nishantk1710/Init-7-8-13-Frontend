@@ -205,23 +205,28 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   nonAi: {
     title: "Non-AI Reservations",
     tone: "info",
-    summary: "OAR reservation lines that have no consumption plan from the assistant.",
+    summary:
+      "Counted from the assistant's go-live date only, not all reservations: OAR reservation lines made in SAP since go-live without a consumption plan from the assistant. 0 until Non-AI starts at go-live.",
     rule: [
       "One OAR reservation line (reservation number + item)",
+      "made in SAP on or after the go-live date",
       "not deleted in SAP",
       "with no consumption plan matched to it",
     ],
     steps: [
+      "Reservations made before go-live are not counted: the assistant did not exist yet, so not using it is not a breach.",
+      "Made = the reservation's creation date in SAP; where SAP sends none, its requirement date.",
       "Counted per reservation line, not per PO line: a line split over several POs counts once.",
       "A reservation made through the assistant links to its plan through the request reference in its item text, once SAP's next data load carries it.",
-      "The same reservations as Non-AI on the Exceptions screen, until each one is closed. A reservation appears once detection has checked its material, which the nightly run does.",
+      "The same reservations as Non-AI on the Exceptions screen, until each one is justified. The nightly detection run raises them.",
     ],
     example: {
-      subject: "Three reservation lines",
+      subject: "Four reservation lines, go-live 15 Nov 2026",
       inputs: [
-        { label: "1000001/1: made in SAP without the assistant", value: "counted" },
-        { label: "1000002/1: made from an assistant request with a plan", value: "not counted" },
-        { label: "1000003/2: deleted in SAP", value: "not counted" },
+        { label: "1000001/1: made 20 Nov in SAP without the assistant", value: "counted" },
+        { label: "1000002/1: made 20 Nov from an assistant request with a plan", value: "not counted" },
+        { label: "1000003/2: made 20 Nov, deleted in SAP", value: "not counted" },
+        { label: "0990000/1: made 3 Mar 2025, before go-live", value: "not counted" },
       ],
       result: "Non-AI Reservations = 1.",
     },
