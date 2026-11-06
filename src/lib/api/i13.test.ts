@@ -16,6 +16,18 @@
 import { describe, expect, it } from "vitest"
 
 import { formatApiDate, formatApiDateTime, oneOf, toCount, toNumber } from "@/lib/api/format"
+import { ACT_EXCEPTION_FILTER_TYPES, ACT_EXCEPTION_TYPES } from "@/lib/api/i13"
+
+describe("exception types — a retired type keeps its own name", () => {
+  it("reads a resolved NO_PLAN_GRNI row as itself, not as the NO_PLAN fallback", () => {
+    expect(oneOf("NO_PLAN_GRNI", ACT_EXCEPTION_TYPES, "NO_PLAN")).toBe("NO_PLAN_GRNI")
+  })
+
+  it("does not offer the retired type as a filter", () => {
+    expect(ACT_EXCEPTION_FILTER_TYPES).not.toContain("NO_PLAN_GRNI")
+    expect(ACT_EXCEPTION_FILTER_TYPES).toContain("NOT_ISSUED_30_DAYS")
+  })
+})
 
 describe("oneOf — a value the backend adds must not break a table", () => {
   const BANDS = ["FAST", "SLOW", "NON_MOVING"] as const

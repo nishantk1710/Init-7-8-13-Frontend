@@ -175,13 +175,18 @@ export type PlanVsIssuedCounts = {
   overdue: number
 }
 
-/** NO_PLAN_GRNI is retired (5-Nov-2026): its closed rows still read, but it is not offered as a filter. */
+/** Every type a stored exception can carry -- what a response is read against. */
 export const ACT_EXCEPTION_TYPES: readonly ActExceptionType[] = [
   "PLAN_BREACH",
   "NO_PLAN",
   "NOT_ISSUED_30_DAYS",
   "QUANTITY_OVERRIDE",
+  "NO_PLAN_GRNI",
 ]
+/** The types offered as a filter. NO_PLAN_GRNI is retired (5-Nov-2026): its resolved rows still read as their own type. */
+export const ACT_EXCEPTION_FILTER_TYPES: readonly ActExceptionType[] = ACT_EXCEPTION_TYPES.filter(
+  (type) => type !== "NO_PLAN_GRNI"
+)
 export const ACT_EXCEPTION_STATUSES: readonly ActExceptionStatus[] = [
   "OPEN",
   "AWAITING_REQUESTER",

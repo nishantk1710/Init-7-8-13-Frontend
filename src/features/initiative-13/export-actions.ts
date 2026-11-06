@@ -3,14 +3,9 @@
 import {
   getI13ActUtilisationList,
   getI13PlanVsIssuedList,
-  getI13ReclassificationList,
   type PlanVsIssuedRow,
   type WatchMetric,
 } from "@/lib/api/i13"
-import {
-  attachCriticalImpactIndicator,
-  type NonMoverRow,
-} from "@/features/initiative-13/utils/dashboard-transforms"
 import type { PlanVsIssuedFilters, WatchFilters } from "@/features/initiative-13/data/live-loaders"
 
 /**
@@ -45,18 +40,12 @@ export async function exportWatchRows(filters: WatchFilters = {}): Promise<Watch
 }
 
 /**
- * Every non-moving OAR position the filters match, with its critical-impact
- * indicator joined from the reclassification feed. An aging-band filter other
+ * Every non-moving OAR position the filters match. An aging-band filter other
  * than NON_MOVING leaves nothing, as on screen.
  */
-export async function exportNonMoverRows(filters: WatchFilters = {}): Promise<NonMoverRow[]> {
+export async function exportNonMoverRows(filters: WatchFilters = {}): Promise<WatchMetric[]> {
   if (filters.agingBand && filters.agingBand !== "NON_MOVING") return []
-  const scope = { plant: filters.plant || undefined, material: filters.material || undefined }
-  const [rows, reclassification] = await Promise.all([
-    exportWatchRows({ ...filters, agingBand: "NON_MOVING" }),
-    getI13ReclassificationList(scope).catch(() => null),
-  ])
-  return attachCriticalImpactIndicator(rows, reclassification?.items ?? [])
+  return exportWatchRows({ ...filters, agingBand: "NON_MOVING" })
 }
 
 /** Every acquired-vs-plan tab row the filters match, latest due date first. */

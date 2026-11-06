@@ -223,7 +223,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
 
 /**
  * Server-paged, newest first: 25 lines a page out of the whole OAR ledger
- * (~44k lines), with every filter -- plant, material and the three statuses --
+ * (~44k lines), with every filter -- plant, material and the two statuses --
  * applied by the backend. The header's numbers come from `/ledger/counts`, so
  * they describe every matching line rather than the lines on screen.
  */
@@ -241,7 +241,6 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
         plant: searchParams.plant,
         material: searchParams.material,
         procurementStatus: searchParams.procurementStatus,
-        utilisationStatus: searchParams.utilisationStatus,
         deliveryStatus: searchParams.deliveryStatus,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
@@ -261,7 +260,7 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
     <OarScope>
         <OarPageHeader
           title="Utilization Ledger"
-          subtitle="Every OAR procurement line, newest first, followed from reservation through goods issue."
+          subtitle="Every OAR procurement line, newest first, followed from PR through goods receipt."
         />
 
         {live && (
@@ -292,15 +291,15 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           <ViewToggle searchParams={searchParams} active="lines" />
           <I13UrlFilters
             className="flex-1"
-            fields={["plant", "material", "procurementStatus", "utilisationStatus", "deliveryStatus"]}
+            fields={["plant", "material", "procurementStatus", "deliveryStatus"]}
             plants={live?.plantOptions}
           />
         </ToolbarRow>
 
         <p className="text-sm text-muted-foreground">
-          Stock bought for this material, as SAP recorded it. A line raised by a reservation shows that
-          reservation&apos;s goods issues, which also show on the Reservations tab. A stock refill ends at goods
-          receipt: SAP doesn&apos;t record which delivery an issue came from, so issues are not tracked on it.
+          Stock bought for this material, as SAP recorded it: PR, PO and goods receipt. SAP records goods issues
+          against reservations, not PO lines, so what was issued is on the Reservations tab. A line raised by a
+          reservation links to it.
         </p>
 
         {live === null ? (

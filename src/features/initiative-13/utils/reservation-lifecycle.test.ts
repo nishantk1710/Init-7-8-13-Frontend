@@ -3,9 +3,28 @@ import { describe, expect, it } from "vitest"
 import {
   issuedUnknownReason,
   lifecycleView,
+  RESERVATION_STAGE_OPTIONS,
   reservationStatusOption,
   reservationStatusQuery,
 } from "@/features/initiative-13/utils/reservation-lifecycle"
+
+describe("RESERVATION_STAGE_OPTIONS", () => {
+  it("leaves off the stages no reservation reaches, but Not issued still keeps them", () => {
+    expect(RESERVATION_STAGE_OPTIONS).not.toContain("PR_NOT_FOUND")
+    expect(RESERVATION_STAGE_OPTIONS).not.toContain("PR_SHARED")
+    expect(RESERVATION_STAGE_OPTIONS).not.toContain("PARTIALLY_RECEIVED")
+    expect(RESERVATION_STAGE_OPTIONS).toEqual([
+      "RESERVED",
+      "PR_CREATED",
+      "PR_DELETED",
+      "ORDERED",
+      "RECEIVED",
+      "PARTIALLY_ISSUED",
+      "ISSUED",
+    ])
+    expect(reservationStatusQuery(undefined, "NOT_ISSUED")?.split(",")).toContain("PR_SHARED")
+  })
+})
 
 describe("lifecycleView", () => {
   it("reads as five stages in the order things happen", () => {

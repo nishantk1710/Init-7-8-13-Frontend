@@ -13,13 +13,12 @@ import {
 } from "@/components/ui/table"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import { DataTable } from "@/features/initiative-13/components/ui/data-table"
-import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { TONE_INK } from "@/features/initiative-13/components/ui/tones"
 import { idleTone, isLongIdle } from "@/features/initiative-13/utils/oar-display"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
 import { exportNonMoverRows } from "@/features/initiative-13/export-actions"
-import type { NonMoverRow } from "@/features/initiative-13/utils/dashboard-transforms"
 import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
+import type { WatchMetric } from "@/lib/api/i13"
 import { cn, downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -41,16 +40,11 @@ function IdleFor({ days }: { days: number }) {
   )
 }
 
-function CriticalBadge({ value }: { value: boolean | null }) {
-  if (value === null) return <StatusPill tone="neutral">Unknown</StatusPill>
-  return <StatusPill tone={value ? "urgent" : "neutral"}>{value ? "Yes" : "No"}</StatusPill>
-}
-
 /**
- * Non-Mover Drilldown (§8): the backend-classified `NON_MOVING` rows,
- * with the plant column always visible and the critical-impact column
- * joined in from W6.5 (§ see `attachCriticalImpactIndicator`) — the two
- * FRS-required drilldown dimensions.
+ * Non-Mover Drilldown (§8): the backend-classified `NON_MOVING` rows, with
+ * the plant column always visible. The critical-impact column was dropped
+ * (6-Nov-2026): the ZMM065 rating was on record for almost no OAR position,
+ * so nearly every row read "No".
  *
  * One server page of 25, most recent activity first (the backend's order, by
  * last goods movement), out of every non-mover the filters match -- not the
@@ -62,7 +56,7 @@ export function NonMoverTable({
   pagination,
   filters,
 }: {
-  rows: NonMoverRow[]
+  rows: WatchMetric[]
   total: number | null
   /**
    * The pager, rendered by the server page and handed in as a node. Not built
@@ -76,7 +70,7 @@ export function NonMoverTable({
   async function exportExcel() {
     downloadExcel(
       "i13-non-movers.xlsx",
-      ["Material", "Plant", "Aging band", "Days since movement", "Stock on hand", "Consumption (12m)", "Critical impact"],
+      ["Material", "Plant", "Aging band", "Days since movement", "Stock on hand", "Consumption (12m)"],
       nonMoverRowsToCsv(await exportNonMoverRows(filters))
     )
   }
@@ -108,7 +102,6 @@ export function NonMoverTable({
               <TableHead className="text-right">Idle for</TableHead>
               <TableHead className="text-right">Stock on hand</TableHead>
               <TableHead className="text-right">Consumption (12m)</TableHead>
-              <TableHead>Critical impact</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -125,9 +118,6 @@ export function NonMoverTable({
                   {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
                 </TableCell>
                 <TableCell className="text-right font-semibold text-foreground">{formatCount(row.consumptionCount12m)}</TableCell>
-                <TableCell>
-                  <CriticalBadge value={row.criticalImpactIndicator} />
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
