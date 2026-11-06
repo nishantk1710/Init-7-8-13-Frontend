@@ -38,13 +38,11 @@ import {
   loadLivePlanVsIssued,
   loadLivePlanVsIssuedCounts,
   loadLivePlans,
-  loadLiveReclassification,
   loadLiveSummary,
   loadLiveWatch,
   loadLiveWatchCounts,
   type Capped,
   type LivePlans,
-  type LiveReclassification,
   type LiveWatch,
   type Paging,
 } from "@/features/initiative-13/data/live-loaders"
@@ -107,7 +105,6 @@ export type LiveDashboard = {
   /** The non-movers tab: one page of NON_MOVING rows, most recent activity first. */
   nonMovers: LiveWatch | null
   summary: Section<I13Summary>
-  reclassification: Section<LiveReclassification>
   exceptionCounts: Section<ActExceptionCounts>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
@@ -169,7 +166,6 @@ export async function loadLiveDashboard(
     watch,
     nonMovers,
     summary,
-    reclassification,
     exceptionCounts,
     justifications,
     plans,
@@ -188,7 +184,6 @@ export async function loadLiveDashboard(
         ? loadLiveWatch({ ...filters, agingBand: "NON_MOVING" }, pageOf("non-movers")).catch(() => null)
         : Promise.resolve(NO_ROWS),
       section(loadLiveSummary(scope)),
-      section(loadLiveReclassification(scope, { allPositions: true })),
       section(loadLiveExceptionCounts(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope, pageOf("plans"))),
@@ -206,7 +201,6 @@ export async function loadLiveDashboard(
     watchError: counts.ok ? (watch ? null : "Unable to load consumption tracking rows.") : counts.message,
     nonMovers,
     summary,
-    reclassification,
     exceptionCounts,
     justifications,
     plans,

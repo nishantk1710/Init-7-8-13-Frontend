@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import type { ActExceptionDetail, PlanVsIssuedRow, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { ActExceptionDetail, PlanVsIssuedRow, WatchMetric } from "@/lib/api/i13"
 import {
-  attachCriticalImpactIndicator,
   buildLastRefreshedAt,
   countByField,
   filterNonMovers,
   justificationRowsToCsv,
-  matchesCriticalFilter,
   nonMoverRowsToCsv,
   planVsIssuedRowsToCsv,
 } from "./dashboard-transforms"
@@ -51,21 +49,6 @@ function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
   }
 }
 
-function candidate(overrides: Partial<ReclassificationCandidate>): ReclassificationCandidate {
-  return {
-    material: "MAT-1",
-    plant: "1300",
-    consumptionCount12m: 0,
-    consumedMoreThanThreshold: false,
-    criticalImpactIndicator: null,
-    hodJustifiedRequestIndicator: null,
-    dataAvailable: false,
-    candidateFlag: false,
-    candidateReasons: [],
-    ...overrides,
-  }
-}
-
 describe("countByField", () => {
   it("groups rows by the given key, never inventing a bucket with no rows", () => {
     const rows = [watchRow({ agingBand: "FAST" }), watchRow({ agingBand: "FAST" }), watchRow({ agingBand: "SLOW" })]
@@ -87,43 +70,6 @@ describe("filterNonMovers", () => {
   })
 })
 
-describe("attachCriticalImpactIndicator", () => {
-  it("joins on material+plant and passes the backend boolean through unchanged", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    const candidates = [candidate({ material: "A", plant: "1300", criticalImpactIndicator: true })]
-    expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBe(true)
-  })
-
-  it("is null (unknown), never false, when no candidate matches the key", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    expect(attachCriticalImpactIndicator(rows, [])[0].criticalImpactIndicator).toBeNull()
-  })
-
-  it("does not cross-match a different plant for the same material", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    const candidates = [candidate({ material: "A", plant: "1500", criticalImpactIndicator: true })]
-    expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBeNull()
-  })
-})
-
-describe("matchesCriticalFilter", () => {
-  it("'all' matches every row", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "all")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: true }, "all")).toBe(true)
-  })
-
-  it("'unknown' matches only null", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "unknown")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: false }, "unknown")).toBe(false)
-  })
-
-  it("'yes'/'no' match true/false and exclude unknown", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: true }, "yes")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: false }, "yes")).toBe(false)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "no")).toBe(false)
-  })
-})
-
 describe("buildLastRefreshedAt", () => {
   it("picks the most recent calculatedAt", () => {
     const rows = [{ calculatedAt: "2026-09-01T00:00:00Z" }, { calculatedAt: "2026-09-15T00:00:00Z" }]
@@ -137,15 +83,11 @@ describe("buildLastRefreshedAt", () => {
 })
 
 describe("nonMoverRowsToCsv", () => {
-  it("exports exactly the rows it was given (the caller's already-filtered set)", () => {
-    const rows = attachCriticalImpactIndicator([watchRow({ material: "A" }), watchRow({ material: "B" })], [
-      candidate({ material: "A", criticalImpactIndicator: true }),
-    ])
-    const csv = nonMoverRowsToCsv(rows)
+  it("exports exactly the rows it was given (the caller's already-filtered set), with no critical-impact column", () => {
+    const csv = nonMoverRowsToCsv([watchRow({ material: "A" }), watchRow({ material: "B" })])
     expect(csv).toHaveLength(2)
     expect(csv[0][0]).toBe("A")
-    expect(csv[0][csv[0].length - 1]).toBe("Yes")
-    expect(csv[1][csv[1].length - 1]).toBe("Unknown")
+    expect(csv[0]).toHaveLength(6)
   })
 })
 

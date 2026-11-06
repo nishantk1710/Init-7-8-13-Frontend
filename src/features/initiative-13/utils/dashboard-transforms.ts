@@ -1,12 +1,12 @@
 // Presentation-only transforms for the Utilisation Dashboard (W6.7).
 //
 // Everything here is a grouping/join/filter over fields the backend already
-// computed (aging band, acquired-vs-plan status, critical-impact indicator,
-// confirmation presence) -- never a re-derivation of business rules. See
+// computed (aging band, acquired-vs-plan status, confirmation presence) --
+// never a re-derivation of business rules. See
 // `pages/utilisation-dashboard-page.tsx` for how these compose with the API
 // client.
 
-import type { JustificationEntry, PlanVsIssuedRow, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { JustificationEntry, PlanVsIssuedRow, WatchMetric } from "@/lib/api/i13"
 import { PLAN_VS_ISSUED_SOURCE_LABEL, PLAN_VS_ISSUED_STATUS_LABEL } from "@/features/initiative-13/utils/status-labels"
 
 /** Generic "count rows by a key" grouping, used for every distribution chart
@@ -27,34 +27,6 @@ export function filterNonMovers(rows: WatchMetric[]): WatchMetric[] {
   return rows.filter((row) => row.agingBand === "NON_MOVING")
 }
 
-export type CriticalFilter = "all" | "yes" | "no" | "unknown"
-
-export interface NonMoverRow extends WatchMetric {
-  criticalImpactIndicator: boolean | null
-}
-
-/** Joins WATCH/ACT rows to W6.5's reclassification candidates on
- * (material, plant) to attach the backend-computed `critical_impact_indicator`
- * -- the only criticality signal available for OAR positions today (there is
- * no per-material-plant criticality-tier endpoint). A row with no matching
- * candidate is `null` ("unknown"), never coerced to `false`. */
-export function attachCriticalImpactIndicator(
-  rows: WatchMetric[],
-  candidates: ReclassificationCandidate[]
-): NonMoverRow[] {
-  const byKey = new Map(candidates.map((c) => [`${c.material}::${c.plant}`, c.criticalImpactIndicator]))
-  return rows.map((row) => ({
-    ...row,
-    criticalImpactIndicator: byKey.get(`${row.material}::${row.plant}`) ?? null,
-  }))
-}
-
-export function matchesCriticalFilter(row: { criticalImpactIndicator: boolean | null }, filter: CriticalFilter): boolean {
-  if (filter === "all") return true
-  if (filter === "unknown") return row.criticalImpactIndicator === null
-  return row.criticalImpactIndicator === (filter === "yes")
-}
-
 /** Most recent `calculatedAt` across a set of WATCH/ACT rows, for the
  * dashboard's "last refreshed" indicator. `null` when no row carries a
  * timestamp (e.g. an empty result), never today's date as a stand-in. */
@@ -70,7 +42,7 @@ export function buildLastRefreshedAt(rows: { calculatedAt: string | null }[]): s
 // caller) as flat string/number tuples for `downloadExcel` -- no re-filtering,
 // no aggregation.
 
-export function nonMoverRowsToCsv(rows: NonMoverRow[]): (string | number)[][] {
+export function nonMoverRowsToCsv(rows: WatchMetric[]): (string | number)[][] {
   return rows.map((r) => [
     r.material,
     r.plant,
@@ -78,7 +50,6 @@ export function nonMoverRowsToCsv(rows: NonMoverRow[]): (string | number)[][] {
     r.daysSinceLastMovement ?? "",
     r.stockOnHand ?? "",
     r.consumptionCount12m,
-    r.criticalImpactIndicator === null ? "Unknown" : r.criticalImpactIndicator ? "Yes" : "No",
   ])
 }
 
