@@ -17,11 +17,10 @@ import {
 } from "@/components/ui/select"
 import { DELIVERY_STATE_LABELS, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { filterOptions, OAR_PLANTS } from "@/features/initiative-13/utils/filter-options"
-import { UTILISATION_STATUS_LABELS } from "@/features/initiative-13/utils/issue-match"
 import {
   ISSUED_FILTER_LABELS,
   ISSUED_FILTERS,
-  RESERVATION_STATUSES,
+  RESERVATION_STAGE_OPTIONS,
   reservationStatusOption,
 } from "@/features/initiative-13/utils/reservation-lifecycle"
 import { mergeSearchParams } from "@/features/initiative-13/utils/search-params"
@@ -37,7 +36,7 @@ import {
   PLAN_VS_ISSUED_STATUS_LABEL,
   PLAN_VS_ISSUED_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
-import { LEDGER_UTILISATION_STATUSES, PLAN_VS_ISSUED_SOURCES } from "@/lib/api/i13"
+import { ACT_EXCEPTION_FILTER_TYPES, PLAN_VS_ISSUED_SOURCES } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -86,7 +85,6 @@ export function I13UrlFilters({
     | "type"
     | "status"
     | "procurementStatus"
-    | "utilisationStatus"
     | "deliveryStatus"
     | "reservationStatus"
     | "issued"
@@ -133,7 +131,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","utilisationStatus":"Utilization status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -224,7 +222,7 @@ export function I13UrlFilters({
             width="sm:w-48"
             value={searchParams.get("type") ?? ""}
             options={filterOptions(
-              Object.keys(EXCEPTION_TYPE_LABEL),
+              ACT_EXCEPTION_FILTER_TYPES,
               exceptionTypes,
               searchParams.get("type")
             ).map((t) => ({ value: t, label: labelFor(EXCEPTION_TYPE_LABEL, t) }))}
@@ -251,14 +249,6 @@ export function I13UrlFilters({
             onChange={(value) => push({ procurementStatus: value })}
           />)}
 
-        {fields.includes("utilisationStatus") && wrap("utilisationStatus", <UrlSelect
-            label="All utilization statuses"
-            width="sm:w-48"
-            value={searchParams.get("utilisationStatus") ?? ""}
-            options={LEDGER_UTILISATION_STATUSES.map((value) => ({ value, label: UTILISATION_STATUS_LABELS[value] }))}
-            onChange={(value) => push({ utilisationStatus: value })}
-          />)}
-
         {fields.includes("deliveryStatus") && wrap("deliveryStatus", <UrlSelect
             label="All delivery statuses"
             width="sm:w-48"
@@ -271,7 +261,10 @@ export function I13UrlFilters({
             label="All stages"
             width="sm:w-52"
             value={searchParams.get("reservationStatus") ?? ""}
-            options={RESERVATION_STATUSES.map((value) => ({ value, label: reservationStatusOption(value) }))}
+            options={filterOptions(RESERVATION_STAGE_OPTIONS, [], searchParams.get("reservationStatus")).map((value) => ({
+              value,
+              label: reservationStatusOption(value),
+            }))}
             onChange={(value) => push({ reservationStatus: value })}
           />)}
 

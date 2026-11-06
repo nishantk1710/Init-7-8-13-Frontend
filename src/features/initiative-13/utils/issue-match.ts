@@ -1,4 +1,4 @@
-import type { IssueMatch, LedgerUtilisationStatus } from "@/lib/api/i13"
+import type { IssueMatch } from "@/lib/api/i13"
 
 /**
  * How a PO line's issued quantity was found (backend `stock_issue_matching`).
@@ -23,27 +23,18 @@ export const ISSUE_MATCH_EXPLANATIONS: Record<IssueMatch, string> = {
     "Delivered before the earliest goods movement the system holds, so what was issued from it cannot be seen.",
 }
 
-export const UTILISATION_STATUS_LABELS: Record<LedgerUtilisationStatus, string> = {
-  NOT_ISSUED: "Not issued",
-  PARTIALLY_ISSUED: "Partially issued",
-  FULLY_ISSUED: "Fully issued",
-  BEFORE_ISSUE_HISTORY: "Issue history not available",
-  NOT_TRACKED: "Stock refill",
-}
+/**
+ * Procurement lines end at goods receipt: SAP records a receipt against the PO
+ * line and a goods issue against the reservation, never against the PO line.
+ */
+export const RAISED_BY_RESERVATION_EXPLANATION =
+  "This reservation raised the line's PR (RESB-BANFN). Its goods issues are recorded against the reservation, " +
+  "on the Reservations tab."
 
-/** Why a stock refill line shows no goods issue (backend ledger_compat.procurement_view). */
-export const NOT_TRACKED_EXPLANATION =
-  "Stock refill: no reservation raised this line. SAP records goods issues against reservations, not against " +
-  "deliveries, so what was issued from this line is not tracked. See the Reservations tab for what was issued."
-
-/** Why a stock refill line shows no stock left: the delivery went into shared stock. */
-export const NOT_TRACKED_STOCK_EXPLANATION =
-  "This delivery went into the material's shared stock at this plant, which every reservation draws on. " +
-  "SAP keeps no stock figure per delivery; see the material's stock for what is left."
-
-/** Why a stock refill line shows no next planned issue: plans belong to reservations. */
-export const NOT_TRACKED_PLAN_EXPLANATION =
-  "A planned issue comes from a reservation. No reservation raised this line, so it has none."
+export const STOCK_REFILL_EXPLANATION =
+  "Stock refill: no reservation raised this line. The delivery went into the material's shared stock at this " +
+  "plant, and SAP records goods issues against reservations, not against PO lines -- see the Reservations tab " +
+  "for what was issued."
 
 /** Hover text for the next planned issue: where the date comes from. */
 export const NEXT_PLANNED_ISSUE_TITLE =

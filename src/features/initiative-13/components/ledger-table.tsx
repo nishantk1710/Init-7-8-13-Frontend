@@ -1,26 +1,17 @@
 "use client"
 
 import { Fragment, useState } from "react"
+import Link from "next/link"
 import { TriangleAlert } from "lucide-react"
 
 import { DeliveredOnCell } from "@/features/initiative-13/components/delivered-on-cell"
 import { deliveryStatusFromProcurement, PROCUREMENT_STATUS_LABELS } from "@/features/initiative-13/utils/delivery-status"
 import { EmptyState } from "@/components/shared/empty-state"
-import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { DataTable, RowToggle, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
 import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
-import type { EmptyKind } from "@/features/initiative-13/utils/empty-labels"
-import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/components/issued-on-cell"
-import {
-  ISSUE_MATCH_EXPLANATIONS,
-  ISSUE_MATCH_LABELS,
-  NOT_TRACKED_EXPLANATION,
-  NOT_TRACKED_PLAN_EXPLANATION,
-  NOT_TRACKED_STOCK_EXPLANATION,
-  UTILISATION_STATUS_LABELS,
-} from "@/features/initiative-13/utils/issue-match"
+import { RAISED_BY_RESERVATION_EXPLANATION, STOCK_REFILL_EXPLANATION } from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
   Table,
@@ -30,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { LedgerUtilisationStatus, ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
+import type { ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
 
@@ -42,15 +33,41 @@ const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
   NOT_AN_ORDER: "neutral",
 }
 
-const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
-  NOT_ISSUED: "urgent",
-  PARTIALLY_ISSUED: "caution",
-  FULLY_ISSUED: "healthy",
-  BEFORE_ISSUE_HISTORY: "neutral",
-  NOT_TRACKED: "neutral",
+/** The Reservations tab, searched for the reservation that raised this line. */
+function reservationHref(entry: UtilisationLedgerEntry): string {
+  const params = new URLSearchParams({ view: "reservations", reservation: entry.reservationNumber ?? "" })
+  return `/oar-utilization/ledger?${params.toString()}`
 }
 
-/** The quantity drawn on top of a date cell (Received, Issued); nothing when there is none to show. */
+/**
+ * Who raised the line. A reservation that raised its own PR (RESB-BANFN) is
+ * linked: its goods issues are on the Reservations tab. Any other line refills
+ * the material's stock -- SAP records a goods issue against a reservation,
+ * never against a PO line, so nothing here says what was issued from it.
+ */
+function RaisedByCell({ entry }: { entry: UtilisationLedgerEntry }) {
+  if (!entry.reservationNumber) {
+    return (
+      <TableCell className="text-xs text-muted-foreground" title={STOCK_REFILL_EXPLANATION}>
+        Stock refill
+      </TableCell>
+    )
+  }
+  return (
+    <TableCell className="text-xs" title={RAISED_BY_RESERVATION_EXPLANATION}>
+      <Link
+        href={reservationHref(entry)}
+        onClick={(event) => event.stopPropagation()}
+        className="font-medium whitespace-nowrap text-action underline-offset-2 hover:underline"
+      >
+        Reservation {entry.reservationNumber}
+        {entry.reservationItem ? `/${entry.reservationItem}` : ""}
+      </Link>
+    </TableCell>
+  )
+}
+
+/** The quantity drawn on top of the Received cell; nothing when there is none to show. */
 function QuantityLead({ value }: { value: number | null }) {
   if (!value) return null
   return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
@@ -69,18 +86,6 @@ function ReceivedLead({ received, ordered }: { received: number | null; ordered:
       <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
       <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
     </span>
-  )
-}
-
-function Quantity({ value, empty }: { value: number | null; empty: EmptyKind }) {
-  return (
-    <TableCell className="text-right text-foreground">
-      {value === null ? (
-        <EmptyValue kind={empty} />
-      ) : (
-        <span className="font-semibold tabular-nums">{formatCount(value)}</span>
-      )}
-    </TableCell>
   )
 }
 
@@ -103,16 +108,26 @@ function deliveryOf(entry: UtilisationLedgerEntry) {
   })
 }
 
-/** The five steps at full size, and where the line stops if it has not reached goods issue. */
+/** The steps up to goods receipt at full size, and where the line stops if it has not been received. */
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   const steps = journeySteps(entry)
-  // A stock refill does not "stop" at goods receipt: an issue is never tracked on it.
-  const notTracked = entry.utilisationStatus === "NOT_TRACKED"
-  const stop = notTracked ? null : journeyStop(steps)
+  const stop = journeyStop(steps)
   return (
     <div className="flex flex-col gap-4">
       <Stepper steps={steps} />
-      {notTracked && <p className="text-sm text-muted-foreground">{NOT_TRACKED_EXPLANATION}</p>}
+      <p className="text-sm text-muted-foreground">
+        {entry.reservationNumber ? (
+          <>
+            {RAISED_BY_RESERVATION_EXPLANATION}{" "}
+            <Link href={reservationHref(entry)} className="font-medium text-action underline-offset-2 hover:underline">
+              Open reservation {entry.reservationNumber}
+              {entry.reservationItem ? `/${entry.reservationItem}` : ""}
+            </Link>
+          </>
+        ) : (
+          STOCK_REFILL_EXPLANATION
+        )}
+      </p>
       {stop && (
         <p className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -135,8 +150,12 @@ function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
 /**
  * The utilisation ledger table.
  *
+ * Each line runs PR -> PO -> goods receipt: what SAP records against a PO
+ * line. Goods issues are recorded against reservations, so they are on the
+ * Reservations tab, not here.
+ *
  * Renders one page of lines it is handed. Every filter -- plant, material and
- * the three statuses (procurement, utilization, delivery) -- is a URL
+ * the two statuses (procurement, delivery) -- is a URL
  * parameter the backend applies over the whole ledger, and the page owns the
  * pager. The status filters used to run here, over the first 1,000 lines the
  * page had loaded, so a filtered view silently missed every match past them.
@@ -168,15 +187,10 @@ export function UtilizationLedgerTable({
               <TableHead>Material</TableHead>
               <TableHead>PO / PR</TableHead>
               <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
-              <TableHead title="Goods issued against the reservation that raised this line (MSEG 201/261), with the goods-issue date (MKPF-BUDAT) underneath. A stock refill shows none: SAP doesn't record which delivery an issue came from">
-                Issued
-              </TableHead>
-              <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
-              <TableHead title="The earliest open reservation expected to draw on this line's stock">
-                Next planned issue
-              </TableHead>
               <TableHead>Procurement</TableHead>
-              <TableHead>Utilization</TableHead>
+              <TableHead title="The reservation that raised this line's PR (RESB-BANFN), or a stock refill when none did">
+                Raised by
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -227,79 +241,26 @@ export function UtilizationLedgerTable({
                         )}
                       </div>
                     </TableCell>
-                    {/* The quantity sits on top only when something arrived or
-                        went out: underneath, the date cell already says "No PO
-                        yet", "Not delivered" or "Not issued yet" -- a label
-                        where the backend recorded nothing, never a bare zero.
-                        Received is the exception once the ordered quantity is
-                        known: "0 of 6" says how much is still to come. */}
+                    {/* The quantity sits on top only when something arrived:
+                        underneath, the date cell already says "No PO yet" or
+                        "Not delivered" -- a label where the backend recorded
+                        nothing, never a bare zero. Once the ordered quantity is
+                        known, "0 of 6" says how much is still to come. */}
                     <DeliveredOnCell
                       status={deliveryOf(entry)}
                       receivedQuantity={entry.receivedQuantity}
                       lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
                     />
-                    {entry.utilisationStatus === "NOT_TRACKED" ? (
-                      // A stock refill: only what SAP recorded -- the receipt.
-                      <>
-                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_EXPLANATION}>
-                          Not tracked
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground" title={NOT_TRACKED_STOCK_EXPLANATION}>
-                          Not tracked
-                          <span className="block">(shared stock)</span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_PLAN_EXPLANATION}>
-                          No reservation
-                        </TableCell>
-                      </>
-                    ) : (
-                      <>
-                        <IssuedOnCell
-                          firstDate={entry.firstGiDate}
-                          lastDate={entry.latestGiDate}
-                          received={(entry.receivedQuantity ?? 0) > 0}
-                          issueMatch={entry.issueMatch}
-                          lead={<QuantityLead value={entry.issuedQuantity} />}
-                        />
-                        <Quantity value={entry.openQuantity} empty="notRecorded" />
-                        <NextPlannedIssueCell
-                          date={entry.nextPlannedIssueDate}
-                          quantity={entry.nextPlannedIssueQuantity}
-                          inStock={(entry.openQuantity ?? 0) > 0}
-                        />
-                      </>
-                    )}
                     <TableCell>
                       <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
                       </StatusPill>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        <StatusPill
-                          tone={UTILISATION_TONE[entry.utilisationStatus]}
-                          className="h-auto py-0.5 leading-tight whitespace-normal"
-                          title={entry.utilisationStatus === "NOT_TRACKED" ? NOT_TRACKED_EXPLANATION : undefined}
-                        >
-                          {UTILISATION_STATUS_LABELS[entry.utilisationStatus]}
-                        </StatusPill>
-                        {entry.utilisationStatus !== "NOT_TRACKED" && entry.issueMatch === "RESERVATION" && (
-                          <span
-                            className="cursor-help text-[11px] whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
-                            title={ISSUE_MATCH_EXPLANATIONS[entry.issueMatch]}
-                          >
-                            {ISSUE_MATCH_LABELS[entry.issueMatch]}
-                            {entry.issueMatch === "RESERVATION" && entry.reservationNumber
-                              ? ` ${entry.reservationNumber}${entry.reservationItem ? `/${entry.reservationItem}` : ""}`
-                              : ""}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
+                    <RaisedByCell entry={entry} />
                   </TableRow>
                   <TableRow className="hover:bg-transparent">
                     <TableCell className="p-0" />
-                    <TableCell colSpan={8} className="p-0">
+                    <TableCell colSpan={5} className="p-0">
                       <div
                         className={cn(
                           "grid transition-[grid-template-rows] duration-300 ease-out",

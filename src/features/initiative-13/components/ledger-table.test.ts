@@ -1,6 +1,6 @@
-// Procurement lines show only what SAP recorded (5-Nov-2026): a line a
-// reservation raised keeps its goods issue; a stock refill (NOT_TRACKED) ends
-// at goods receipt, with no estimated issue and no "Estimated" tag.
+// Procurement lines end at goods receipt (6-Nov-2026): SAP records a goods
+// issue against a reservation, never against a PO line. A line a reservation
+// raised links to that reservation; any other line is a stock refill.
 
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -61,20 +61,25 @@ function render(entries: UtilisationLedgerEntry[]): string {
 }
 
 describe("UtilizationLedgerTable", () => {
-  it("shows a reservation-raised line's goods issue and its reservation", () => {
-    const html = render([raised])
-    expect(html).toContain("Partially issued")
-    expect(html).toContain("Matched to reservation 5001/1")
-    expect(html).not.toContain("Not tracked")
+  it("has no goods-issue columns", () => {
+    const html = render([raised, refill])
+    for (const heading of [">Issued<", ">In store<", ">Next planned issue<", ">Utilization<"]) {
+      expect(html).not.toContain(heading)
+    }
+    expect(html).toContain(">Raised by<")
   })
 
-  it("ends a stock refill at goods receipt, with no estimate", () => {
+  it("links a line a reservation raised to that reservation", () => {
+    const html = render([raised])
+    expect(html).toContain("Reservation 5001/1")
+    expect(html).toContain('href="/oar-utilization/ledger?view=reservations&amp;reservation=5001"')
+    expect(html).not.toContain("Partially issued")
+  })
+
+  it("calls any other line a stock refill, with no issue or estimate", () => {
     const html = render([refill])
-    expect(html).toContain("Stock refill")
-    expect(html).toContain(">Not tracked</td>")
-    expect(html).toContain("(shared stock)")
-    expect(html).toContain(">No reservation</td>")
+    expect(html).toContain(">Stock refill</td>")
+    expect(html).not.toContain("Not tracked")
     expect(html).not.toContain("Estimated")
-    // The journey (and its "Not tracked per delivery" step) renders on expand: oar-display.test.ts.
   })
 })
