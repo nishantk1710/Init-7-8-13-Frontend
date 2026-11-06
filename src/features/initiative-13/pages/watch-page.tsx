@@ -195,8 +195,8 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
         title="Live Consumption Tracking"
         subtitle={
           live
-            ? `${formatCount(live.total ?? live.count)} OAR reservation lines received and not issued for 30 days or more, oldest receipt first.`
-            : "OAR reservation lines received into stock and not issued for 30 days or more (FR-6)."
+            ? `${formatCount(live.total ?? live.count)} OAR PO lines received and not issued for 30 days or more, oldest receipt first. Estimated: a stock refill's issues are counted oldest stock first (How matched).`
+            : "OAR PO lines received into stock and not issued for 30 days or more (FR-6). Estimated: a stock refill's issues are counted oldest stock first."
         }
       />
       <ToolbarRow>

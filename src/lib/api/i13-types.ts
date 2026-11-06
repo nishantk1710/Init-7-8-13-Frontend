@@ -31,7 +31,13 @@ export type ProcurementStatus = "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CL
  * `BEFORE_ISSUE_HISTORY`: the line was delivered before the earliest goods
  * movement the backend holds, so what was issued from it cannot be seen.
  */
-export type LedgerUtilisationStatus = "NOT_ISSUED" | "PARTIALLY_ISSUED" | "FULLY_ISSUED" | "BEFORE_ISSUE_HISTORY"
+/** NOT_TRACKED: a stock refill no reservation raised -- SAP records no delivery on a goods issue. */
+export type LedgerUtilisationStatus =
+  | "NOT_ISSUED"
+  | "PARTIALLY_ISSUED"
+  | "FULLY_ISSUED"
+  | "BEFORE_ISSUE_HISTORY"
+  | "NOT_TRACKED"
 
 /**
  * How a PO line's issued quantity was found: the reservation that raised its PR
@@ -61,6 +67,7 @@ export type ActExceptionType =
   | "NO_PLAN"
   | "NO_PLAN_GRNI"
   | "QUANTITY_OVERRIDE"
+  | "NOT_ISSUED_30_DAYS"
 
 export type ActExceptionStatus =
   | "OPEN"
@@ -91,6 +98,7 @@ export const LEDGER_UTILISATION_STATUSES: readonly LedgerUtilisationStatus[] = [
   "PARTIALLY_ISSUED",
   "FULLY_ISSUED",
   "BEFORE_ISSUE_HISTORY",
+  "NOT_TRACKED",
 ]
 export const ISSUE_MATCHES: readonly IssueMatch[] = ["RESERVATION", "OLDEST_DELIVERY_FIRST", "BEFORE_ISSUE_HISTORY"]
 export const LINKAGE_STATUSES: readonly LinkageStatus[] = [
@@ -167,10 +175,11 @@ export type PlanVsIssuedCounts = {
   overdue: number
 }
 
+/** NO_PLAN_GRNI is retired (5-Nov-2026): its closed rows still read, but it is not offered as a filter. */
 export const ACT_EXCEPTION_TYPES: readonly ActExceptionType[] = [
   "PLAN_BREACH",
   "NO_PLAN",
-  "NO_PLAN_GRNI",
+  "NOT_ISSUED_30_DAYS",
   "QUANTITY_OVERRIDE",
 ]
 export const ACT_EXCEPTION_STATUSES: readonly ActExceptionStatus[] = [
