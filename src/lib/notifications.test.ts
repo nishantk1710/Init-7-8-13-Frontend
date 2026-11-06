@@ -117,6 +117,16 @@ describe("how urgent, where from, and when", () => {
     expect(severityOf("SOMETHING_NEW")).toBe("info")
   })
 
+  it("labels the SAP update notices, with the last reminder standing out", () => {
+    expect(notificationTypeLabel("APPROVAL_SAP_UPDATE_REQUIRED")).toBe("Update SAP")
+    expect(notificationTypeLabel("APPROVAL_SAP_UPDATE_REMINDER")).toBe("SAP update pending")
+    expect(notificationTypeLabel("APPROVAL_SAP_UPDATE_FINAL_REMINDER")).toBe("SAP update due")
+    expect(severityOf("APPROVAL_SAP_UPDATE_REMINDER")).toBe("warning")
+    expect(severityOf("APPROVAL_SAP_UPDATE_FINAL_REMINDER")).toBe("critical")
+    expect(typeFamilyOf("APPROVAL_SAP_UPDATE_RESULT")).toBe("approval")
+    expect(actionLabelOf("APPROVAL_SAP_UPDATE_RESULT")).toBe("Open Review Workspace")
+  })
+
   it("sorts every event into the family the Type filter offers", () => {
     expect(typeFamilyOf("PR_RECEIVED")).toBe("pr")
     expect(typeFamilyOf("PR_RECEIVED_DETAILS")).toBe("pr")
