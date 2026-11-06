@@ -109,37 +109,35 @@ const entry: UtilisationLedgerEntry = {
 }
 
 describe("journeySteps", () => {
-  it("reaches each step whose document SAP recorded", () => {
+  it("runs from the reservation that raised the PR to goods receipt", () => {
     const steps = journeySteps(entry)
-    expect(steps.map((s) => s.reached)).toEqual([true, true, true, true, false])
+    expect(steps.map((s) => s.key)).toEqual(["reservation", "pr", "po", "gr"])
+    expect(steps.map((s) => s.reached)).toEqual([true, true, true, true])
     expect(steps[0].detail).toBe("Rsnum 5001/1")
     expect(steps[2].detail).toBe("PO 4501")
     expect(steps[3].detail).toBe("First 2026-10-01, latest 2026-10-05")
-    expect(steps[4].detail).toBe("Not issued yet")
   })
 
-  it("ends a stock refill at goods receipt: its issues are not tracked", () => {
-    const refill = { ...entry, reservationNumber: null, utilisationStatus: "NOT_TRACKED" as const, firstGiDate: "2026-10-09" }
-    const steps = journeySteps(refill)
-    expect(steps.map((s) => s.reached)).toEqual([false, true, true, true, false])
-    expect(steps[4].detail).toBe("Not tracked per delivery (stock refill)")
+  it("starts a stock refill at its PR, and never shows a goods issue", () => {
+    const refill = { ...entry, reservationNumber: null, firstGiDate: "2026-10-09" }
+    expect(journeySteps(refill).map((s) => s.key)).toEqual(["pr", "po", "gr"])
   })
 })
 
 describe("journeyStop", () => {
-  it("names the furthest step reached and the next one", () => {
-    const stop = journeyStop(journeySteps(entry))
-    expect(stop?.after?.label).toBe("Goods receipt")
-    expect(stop?.next.label).toBe("Goods issue")
+  it("is null once the goods receipt is recorded", () => {
+    expect(journeyStop(journeySteps(entry))).toBeNull()
   })
 
-  it("is null once the goods issue is recorded, even with an earlier gap", () => {
-    const issued = { ...entry, reservationNumber: null, firstGiDate: "2026-10-09" }
-    expect(journeyStop(journeySteps(issued))).toBeNull()
+  it("names the furthest step reached and the next one", () => {
+    const ordered = { ...entry, firstGrDate: null, latestGrDate: null }
+    const stop = journeyStop(journeySteps(ordered))
+    expect(stop?.after?.label).toBe("PO")
+    expect(stop?.next.label).toBe("Goods receipt")
   })
 
   it("stops before the first step when nothing is linked", () => {
     const bare = { ...entry, reservationNumber: null, prNumber: null, poNumber: null, firstGrDate: null }
-    expect(journeyStop(journeySteps(bare))).toEqual({ after: null, next: expect.objectContaining({ key: "reservation" }) })
+    expect(journeyStop(journeySteps(bare))).toEqual({ after: null, next: expect.objectContaining({ key: "pr" }) })
   })
 })

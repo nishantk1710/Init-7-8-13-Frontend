@@ -85,7 +85,7 @@ export function lifecycleView(status: string): LifecycleView {
   )
 }
 
-/** The backend's lifecycle values, in the order things happen -- the Status filter's options. */
+/** The backend's lifecycle values, in the order things happen. */
 export const RESERVATION_STATUSES = [
   "RESERVED",
   "PR_CREATED",
@@ -98,6 +98,15 @@ export const RESERVATION_STATUSES = [
   "PARTIALLY_ISSUED",
   "ISSUED",
 ] as const
+
+/**
+ * The Stage filter's options. PR_NOT_FOUND, PR_SHARED and PARTIALLY_RECEIVED
+ * are left off: no OAR reservation reached them (0 of 35,730 on 6-Nov-2026). A
+ * row that ever does still shows its own pill, and "Not issued" still keeps it.
+ */
+export const RESERVATION_STAGE_OPTIONS: readonly (typeof RESERVATION_STATUSES)[number][] = RESERVATION_STATUSES.filter(
+  (status) => status !== "PR_NOT_FOUND" && status !== "PR_SHARED" && status !== "PARTIALLY_RECEIVED"
+)
 
 /**
  * The Status filter's option names. The pills call both PR_NOT_FOUND and

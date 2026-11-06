@@ -102,7 +102,7 @@ export function relativeDue(dueAt: string, now: Date = new Date()): { label: str
 // ---------------------------------------------------------------- journey
 
 export type JourneyStep = {
-  key: "reservation" | "pr" | "po" | "gr" | "gi"
+  key: "reservation" | "pr" | "po" | "gr"
   label: string
   reached: boolean
   /** The document or date behind the step, or why it is not reached. */
@@ -119,23 +119,21 @@ function dateRange(first: string | null, latest: string | null): string | null {
 }
 
 /**
- * A ledger line's five steps, each reached when SAP recorded its document. A
- * stock refill (`NOT_TRACKED`) ends at goods receipt: SAP records no delivery
- * on a goods issue, so its issue step says so instead of waiting for one.
+ * A procurement line's steps, each reached when SAP recorded its document. It
+ * ends at goods receipt: SAP records a goods issue against a reservation, never
+ * against a PO line. The reservation step leads only when a reservation raised
+ * the PR (RESB-BANFN); a stock refill starts at its PR.
  */
 export function journeySteps(entry: UtilisationLedgerEntry): JourneyStep[] {
-  const notTracked = entry.utilisationStatus === "NOT_TRACKED"
-  const rows: [JourneyStep["key"], string, string | null, string][] = [
-    ["reservation", "Reservation", docRef("Rsnum", entry.reservationNumber, entry.reservationItem), "Not linked"],
+  type Row = [JourneyStep["key"], string, string | null, string]
+  const raisedBy: Row[] = entry.reservationNumber
+    ? [["reservation", "Reservation", docRef("Rsnum", entry.reservationNumber, entry.reservationItem), "Not linked"]]
+    : []
+  const rows: Row[] = [
+    ...raisedBy,
     ["pr", "PR", docRef("PR", entry.prNumber, entry.prItem), "Not linked"],
     ["po", "PO", docRef("PO", entry.poNumber, entry.poItem), "Not linked"],
     ["gr", "Goods receipt", dateRange(entry.firstGrDate, entry.latestGrDate), "No goods receipt yet"],
-    [
-      "gi",
-      "Goods issue",
-      notTracked ? null : dateRange(entry.firstGiDate, entry.latestGiDate),
-      notTracked ? "Not tracked per delivery (stock refill)" : "Not issued yet",
-    ],
   ]
   return rows.map(([key, label, detail, missing]) => ({
     key,
