@@ -167,7 +167,7 @@ const PAGE_DENOMINATOR: Record<string, string> = {
   working_capital_stock: "stock items included",
   working_capital_oar: "OAR materials included",
   working_capital_potential: "eligible OAR materials included",
-  approved: "recommendations created",
+  approved: "recommendations with a change for SAP",
 }
 
 export function pageCardTitle(card: ApiKpiCard): string {
