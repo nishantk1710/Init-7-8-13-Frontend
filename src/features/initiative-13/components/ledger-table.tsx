@@ -16,6 +16,9 @@ import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/com
 import {
   ISSUE_MATCH_EXPLANATIONS,
   ISSUE_MATCH_LABELS,
+  NOT_TRACKED_EXPLANATION,
+  NOT_TRACKED_PLAN_EXPLANATION,
+  NOT_TRACKED_STOCK_EXPLANATION,
   UTILISATION_STATUS_LABELS,
 } from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
@@ -44,6 +47,7 @@ const UTILISATION_TONE: Record<LedgerUtilisationStatus, DisplayTone> = {
   PARTIALLY_ISSUED: "caution",
   FULLY_ISSUED: "healthy",
   BEFORE_ISSUE_HISTORY: "neutral",
+  NOT_TRACKED: "neutral",
 }
 
 /** The quantity drawn on top of a date cell (Received, Issued); nothing when there is none to show. */
@@ -102,10 +106,13 @@ function deliveryOf(entry: UtilisationLedgerEntry) {
 /** The five steps at full size, and where the line stops if it has not reached goods issue. */
 function DocumentChainDetail({ entry }: { entry: UtilisationLedgerEntry }) {
   const steps = journeySteps(entry)
-  const stop = journeyStop(steps)
+  // A stock refill does not "stop" at goods receipt: an issue is never tracked on it.
+  const notTracked = entry.utilisationStatus === "NOT_TRACKED"
+  const stop = notTracked ? null : journeyStop(steps)
   return (
     <div className="flex flex-col gap-4">
       <Stepper steps={steps} />
+      {notTracked && <p className="text-sm text-muted-foreground">{NOT_TRACKED_EXPLANATION}</p>}
       {stop && (
         <p className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -161,7 +168,9 @@ export function UtilizationLedgerTable({
               <TableHead>Material</TableHead>
               <TableHead>PO / PR</TableHead>
               <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
-              <TableHead title="Quantity issued, with the goods-issue date (MKPF-BUDAT) underneath">Issued</TableHead>
+              <TableHead title="Goods issued against the reservation that raised this line (MSEG 201/261), with the goods-issue date (MKPF-BUDAT) underneath. A stock refill shows none: SAP doesn't record which delivery an issue came from">
+                Issued
+              </TableHead>
               <TableHead className="text-right" title="Received and not yet issued">In store</TableHead>
               <TableHead title="The earliest open reservation expected to draw on this line's stock">
                 Next planned issue
@@ -229,19 +238,37 @@ export function UtilizationLedgerTable({
                       receivedQuantity={entry.receivedQuantity}
                       lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
                     />
-                    <IssuedOnCell
-                      firstDate={entry.firstGiDate}
-                      lastDate={entry.latestGiDate}
-                      received={(entry.receivedQuantity ?? 0) > 0}
-                      issueMatch={entry.issueMatch}
-                      lead={<QuantityLead value={entry.issuedQuantity} />}
-                    />
-                    <Quantity value={entry.openQuantity} empty="notRecorded" />
-                    <NextPlannedIssueCell
-                      date={entry.nextPlannedIssueDate}
-                      quantity={entry.nextPlannedIssueQuantity}
-                      inStock={(entry.openQuantity ?? 0) > 0}
-                    />
+                    {entry.utilisationStatus === "NOT_TRACKED" ? (
+                      // A stock refill: only what SAP recorded -- the receipt.
+                      <>
+                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_EXPLANATION}>
+                          Not tracked
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground" title={NOT_TRACKED_STOCK_EXPLANATION}>
+                          Not tracked
+                          <span className="block">(shared stock)</span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground" title={NOT_TRACKED_PLAN_EXPLANATION}>
+                          No reservation
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <IssuedOnCell
+                          firstDate={entry.firstGiDate}
+                          lastDate={entry.latestGiDate}
+                          received={(entry.receivedQuantity ?? 0) > 0}
+                          issueMatch={entry.issueMatch}
+                          lead={<QuantityLead value={entry.issuedQuantity} />}
+                        />
+                        <Quantity value={entry.openQuantity} empty="notRecorded" />
+                        <NextPlannedIssueCell
+                          date={entry.nextPlannedIssueDate}
+                          quantity={entry.nextPlannedIssueQuantity}
+                          inStock={(entry.openQuantity ?? 0) > 0}
+                        />
+                      </>
+                    )}
                     <TableCell>
                       <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
                         {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
@@ -249,10 +276,14 @@ export function UtilizationLedgerTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col items-start gap-1">
-                        <StatusPill tone={UTILISATION_TONE[entry.utilisationStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
+                        <StatusPill
+                          tone={UTILISATION_TONE[entry.utilisationStatus]}
+                          className="h-auto py-0.5 leading-tight whitespace-normal"
+                          title={entry.utilisationStatus === "NOT_TRACKED" ? NOT_TRACKED_EXPLANATION : undefined}
+                        >
                           {UTILISATION_STATUS_LABELS[entry.utilisationStatus]}
                         </StatusPill>
-                        {entry.issueMatch && entry.issueMatch !== "BEFORE_ISSUE_HISTORY" && (
+                        {entry.utilisationStatus !== "NOT_TRACKED" && entry.issueMatch === "RESERVATION" && (
                           <span
                             className="cursor-help text-[11px] whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
                             title={ISSUE_MATCH_EXPLANATIONS[entry.issueMatch]}

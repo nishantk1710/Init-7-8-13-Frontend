@@ -31,6 +31,7 @@ import {
   moneyExact,
   monthBasisLabel,
   num,
+  isWorkingCapitalKey,
   orderedKpis,
   stockoutUsable,
 } from "@/features/initiative-7/utils/quarterly-management"
@@ -125,7 +126,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           headers={["Figure", "Value", "Kind", "Measured", "Covers / out of", "Basis"]}
           rows={cards.map((card) => [
             cardTitle(card),
-            kpiValueText(card) === NOT_AVAILABLE ? NOT_AVAILABLE : `${kpiValueText(card)}${card.key === "excess_inventory_opportunity" || card.key === "working_capital_impact" ? "" : ` ${card.unit}`}`,
+            kpiValueText(card) === NOT_AVAILABLE ? NOT_AVAILABLE : `${kpiValueText(card)}${card.key === "excess_inventory_opportunity" || isWorkingCapitalKey(card.key) ? "" : ` ${card.unit}`}`,
             KIND_LABEL[card.kind],
             card.measured_on ? date(card.measured_on) : "—",
             `${card.period_label}${card.denominator !== null ? ` · of ${formatCount(card.denominator)} ${card.denominator_label ?? ""}` : ""}`,

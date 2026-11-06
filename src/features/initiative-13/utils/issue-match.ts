@@ -28,7 +28,22 @@ export const UTILISATION_STATUS_LABELS: Record<LedgerUtilisationStatus, string> 
   PARTIALLY_ISSUED: "Partially issued",
   FULLY_ISSUED: "Fully issued",
   BEFORE_ISSUE_HISTORY: "Issue history not available",
+  NOT_TRACKED: "Stock refill",
 }
+
+/** Why a stock refill line shows no goods issue (backend ledger_compat.procurement_view). */
+export const NOT_TRACKED_EXPLANATION =
+  "Stock refill: no reservation raised this line. SAP records goods issues against reservations, not against " +
+  "deliveries, so what was issued from this line is not tracked. See the Reservations tab for what was issued."
+
+/** Why a stock refill line shows no stock left: the delivery went into shared stock. */
+export const NOT_TRACKED_STOCK_EXPLANATION =
+  "This delivery went into the material's shared stock at this plant, which every reservation draws on. " +
+  "SAP keeps no stock figure per delivery; see the material's stock for what is left."
+
+/** Why a stock refill line shows no next planned issue: plans belong to reservations. */
+export const NOT_TRACKED_PLAN_EXPLANATION =
+  "A planned issue comes from a reservation. No reservation raised this line, so it has none."
 
 /** Hover text for the next planned issue: where the date comes from. */
 export const NEXT_PLANNED_ISSUE_TITLE =

@@ -17,7 +17,9 @@ import { AlertTriangle, ArrowLeftRight, Boxes, CheckCircle2, ClipboardList, Cloc
 import { ChartCard } from "@/components/shared/chart-card"
 import type { InfoTone } from "@/components/shared/info-popup"
 import { MaterialIdentity } from "@/components/shared/material-identity"
+import { InfoPopup } from "@/components/shared/info-popup"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { buttonVariants } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Input } from "@/components/ui/input"
@@ -29,6 +31,7 @@ import { AdoptionRateCard, StockoutRiskDistribution } from "@/features/initiativ
 import { PortfolioKpiCard } from "@/features/initiative-7/components/inventory-portfolio-kpis"
 import { ExcessPositionCard, StockoutPositionCard } from "@/features/initiative-7/components/plant-position-cards"
 import {
+  ActivityInfo,
   ApprovalStagesCard,
   CoverageStatusTable,
   ExcessByPlantValues,
@@ -36,9 +39,9 @@ import {
   MoreInfo,
   PerspectiveTag,
 } from "@/features/initiative-7/components/monthly-report-sections"
+import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
 import { MinMaxConversionDialog } from "@/features/initiative-7/components/min-max-conversion-dialog"
 import { PerformanceTrends } from "@/features/initiative-7/components/performance-trends-section"
-import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { MonthlyTrends, QuarterEndCard } from "@/features/initiative-7/components/quarterly-trends-section"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { ApiKpiCard, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
@@ -65,7 +68,7 @@ import { ALL_FILTER, RECOMMENDATION_TYPE_OPTIONS } from "@/features/initiative-7
 const MATERIALS_PAGE_SIZE = 5
 
 /** The two money cards are estimates of what the recommendations would change, whatever else they are measured as. */
-const ESTIMATE_KEYS = new Set(["excess_inventory_opportunity", "working_capital_impact"])
+const ESTIMATE_KEYS = new Set(["excess_inventory_opportunity", "working_capital_impact", "working_capital_stock", "working_capital_oar", "working_capital_potential"])
 
 const CRITICALITY_TIER_TEXT: Record<Criticality, string> = {
   Critical: "text-destructive",
@@ -135,6 +138,9 @@ const CARD_LOOK: Record<string, { icon: ReactNode; tone: InfoTone }> = {
   critical_stockout_risk: { icon: <AlertTriangle className="size-3.5" />, tone: "danger" },
   excess_inventory_opportunity: { icon: <Layers className="size-3.5" />, tone: "info" },
   working_capital_impact: { icon: <Wallet className="size-3.5" />, tone: "success" },
+  working_capital_stock: { icon: <Wallet className="size-3.5" />, tone: "success" },
+  working_capital_oar: { icon: <Wallet className="size-3.5" />, tone: "success" },
+  working_capital_potential: { icon: <Wallet className="size-3.5" />, tone: "info" },
   pending_approval: { icon: <Clock className="size-3.5" />, tone: "warning" },
   approved: { icon: <CheckCircle2 className="size-3.5" />, tone: "success" },
   oar_recommendations: { icon: <Repeat className="size-3.5" />, tone: "info" },
@@ -248,19 +254,6 @@ function ActivityTable({ management, totalLabel }: { management: ApiQuarterManag
           </TableBody>
         </Table>
       </div>
-      <MoreInfo summary="How these are counted" className="mt-2">
-        <ul className="flex flex-col gap-1">
-          <li>A dash means there is no figure for that month (not started, no data loaded for it, or not tracked by month). It is not a zero.</li>
-          <li>Approval decisions come from the dated approval history, not from a recommendation&apos;s status today.</li>
-          {rows
-            .filter((row) => row.note)
-            .map((row) => (
-              <li key={row.key}>
-                <span className="font-medium text-foreground">{row.label}:</span> {row.note}
-              </li>
-            ))}
-        </ul>
-      </MoreInfo>
     </>
   )
 }
@@ -273,6 +266,27 @@ type PeriodTypeFilter = "all" | (typeof RECOMMENDATION_TYPE_OPTIONS)[number]["va
 
 function periodTypeLabel(value: PeriodTypeFilter): string {
   return value === "all" ? "All recommendations" : (RECOMMENDATION_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value)
+}
+
+/** "Oct 2026" for a one-month report, the quarter's own name ("Q4 2026") otherwise. */
+function periodName(report: ApiQuarterlyReport): string {
+  const start = new Date(`${report.metadata.period_start}T00:00:00`)
+  const end = new Date(`${report.metadata.period_end}T00:00:00`)
+  return start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
+    ? start.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : report.metadata.quarter
+}
+
+/** The month (or quarter) the figures below are for, in place of an "as of today" tag. */
+function PeriodBadge({ report }: { report: ApiQuarterlyReport }) {
+  return (
+    <span
+      title="The recommendations behind these figures were generated in this period"
+      className="mb-2 inline-flex w-fit items-center rounded-md border border-primary/40 px-2 py-0.5 text-xs font-medium tracking-[0.4px] text-primary uppercase"
+    >
+      {periodName(report)}
+    </span>
+  )
 }
 
 function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
@@ -302,13 +316,16 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
     // The period itself, half-open: a record stamped late on the last day is in it, one on the next day is not.
     generatedFrom: `${period_start}T00:00:00`,
     generatedTo: `${dayAfter(period_end)}T00:00:00`,
+    // Only what SAP has adopted (the reconciliation's ADOPTED result), not every recommendation generated.
+    adoptedInSap: true,
     ...statusOption.query,
   })
   const view = pagedTableView(loading, data)
   return (
     <ChartCard
-      title={`Recommendations generated in ${report.metadata.quarter}`}
-      subtitle="Newest first. The numbers above cover all of them, not only these."
+      size="large"
+      title={`Adopted recommendations in ${periodName(report)}`}
+      subtitle="Newest first. Only adopted recommendations are listed: those SAP now holds. The numbers above cover all recommendations, not only these."
       span={12}
       info={
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -348,7 +365,7 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
           <div className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <Table>
+            <Table className="text-base">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead>Material</TableHead>
@@ -377,19 +394,19 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.demandPattern}</TableCell>
-                    <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                    <TableCell className="text-right font-mono text-[15px] tabular-nums">
                       {formatCount(rec.recommended.safetyStock)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                    <TableCell className="text-right font-mono text-[15px] tabular-nums">
                       {formatCount(rec.recommended.rop)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                    <TableCell className="text-right font-mono text-[15px] tabular-nums">
                       {formatCount(rec.recommended.maxStock)}
                     </TableCell>
                     <TableCell>
                       <span className={cn("text-xs font-medium", STATUS_TEXT[rec.status] ?? "text-muted-foreground")}>{rec.status}</span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{rec.generatedAt}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{rec.generatedAt}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -409,8 +426,8 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
       ) : (
         <div className="text-sm text-muted-foreground">
           {type === "all" && statusKey === "all"
-            ? "No recommendations were generated in this period."
-            : `No ${type === "all" ? "" : `${periodTypeLabel(type)} `}recommendations${statusKey === "all" ? "" : ` with status “${statusOption.label}”`} were generated in this period.`}
+            ? "No recommendation generated in this period has been adopted in SAP yet."
+            : `No ${type === "all" ? "" : `${periodTypeLabel(type)} `}recommendations${statusKey === "all" ? "" : ` with status “${statusOption.label}”`} generated in this period have been adopted in SAP.`}
         </div>
       )}
     </ChartCard>
@@ -426,7 +443,7 @@ const STOCK_LEVELS: { key: keyof StockParameters; label: string; sublabel: strin
 ]
 
 /** A few recommendations a page, each its own row: the table is each material's own figures, not an average over many. */
-const COMPARE_PAGE_SIZE = 5
+const COMPARE_PAGE_SIZE = 10
 
 export { stockFigure }
 
@@ -437,7 +454,6 @@ export function stockChange(current: number | null, recommended: number | null):
   return { delta, percent: current !== 0 ? (delta / current) * 100 : null }
 }
 
-const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatCount(Math.abs(n))}`
 
 /** A figure, or a dash when it is missing -- never a 0 that nothing set. */
 function figureCell(value: number | null) {
@@ -476,17 +492,23 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
     generatedFrom: `${period_start}T00:00:00`,
     generatedTo: `${dayAfter(period_end)}T00:00:00`,
     search: query || undefined,
+    // Only OAR materials the conversion rule allows to move to Min-Max, with a recommended value: the same set as the OAR card.
+    // Everything else is on the Recommendations page, which the link below leads to.
+    type: "oar",
+    conversionEligibility: "ELIGIBLE",
     hasRecommended: true,
   })
   const view = pagedTableView(loading, data)
 
   return (
     <ChartCard
-      title="Current SAP vs I07 recommendation"
+      size="large"
+      highlightSubtitle
+      title={`Current vs recommended in ${periodName(report)}`}
       subtitle={
         query
-          ? `Recommendations for “${query}” that have a recommended value.`
-          : "Newest first. Only recommendations with at least one recommended value; search a material to find its own."
+          ? `Eligible OAR materials matching “${query}”.`
+          : "These are the eligible OAR materials only (OAR materials that can move to Min-Max ordering)."
       }
       span={12}
       info={
@@ -503,94 +525,81 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
         </div>
       }
     >
-      <PerspectiveTag perspective="current" />
+      <PeriodBadge report={report} />
       {view === "skeleton" ? (
         <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
           <div className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <Table>
+            <Table className="text-base">
               <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead rowSpan={2}>Material</TableHead>
-                  <TableHead rowSpan={2}>Plant</TableHead>
+                <TableRow className="bg-action/10 hover:bg-action/10">
+                  <TableHead rowSpan={2} className="min-w-[260px] align-bottom">
+                    Material
+                  </TableHead>
+                  <TableHead rowSpan={2} className="align-bottom">
+                    Plant
+                  </TableHead>
                   {STOCK_LEVELS.map((level) => (
-                    <TableHead key={level.key} colSpan={3} className="border-l border-border text-center">
-                      {level.label} <span className="text-[11px] font-normal text-muted-foreground">· {level.sublabel}</span>
+                    <TableHead key={level.key} colSpan={2} className="border-l border-action/20 text-center font-semibold text-action">
+                      {level.label}
                     </TableHead>
                   ))}
-                  <TableHead rowSpan={2} className="border-l border-border">
-                    Generated
-                  </TableHead>
                 </TableRow>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableRow className="bg-action/10 hover:bg-action/10">
                   {STOCK_LEVELS.flatMap((level) => [
-                    <TableHead key={`${level.key}-current`} className="border-l border-border text-right text-xs">
-                      Current (SAP)
+                    <TableHead key={`${level.key}-now`} className="border-l border-action/20 text-right text-sm font-normal text-muted-foreground">
+                      SAP now
                     </TableHead>,
-                    <TableHead key={`${level.key}-recommended`} className="text-right text-xs">
-                      Recommended
-                    </TableHead>,
-                    <TableHead key={`${level.key}-change`} className="text-right text-xs">
-                      Difference
+                    <TableHead key={`${level.key}-suggested`} className="bg-action/10 text-right text-sm font-semibold text-action">
+                      Suggested
                     </TableHead>,
                   ])}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((rec) => (
-                  <TableRow key={rec.id}>
-                    <TableCell>
-                      <Link href={`/inventory-planning/recommendations/${rec.id}`} className="hover:underline">
-                        <MaterialIdentity material={rec.material} />
+                  <TableRow key={rec.id} className="even:bg-muted/30">
+                    <TableCell className="whitespace-normal">
+                      <Link href={`/inventory-planning/recommendations/${rec.id}`} className="block hover:underline">
+                        <span className="block font-medium text-foreground">{rec.material.description}</span>
+                        {rec.material.materialCode !== rec.material.description && (
+                          <span className="block text-sm text-muted-foreground">{rec.material.materialCode}</span>
+                        )}
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
-                    {STOCK_LEVELS.flatMap((level) => {
-                      const current = stockFigure(rec, "current", level.key)
-                      const recommended = stockFigure(rec, "recommended", level.key)
-                      const change = stockChange(current, recommended)
-                      return [
-                        <TableCell key={`${level.key}-current`} className="border-l border-border text-right">
-                          {figureCell(current)}
-                        </TableCell>,
-                        <TableCell key={`${level.key}-recommended`} className="text-right">
-                          {figureCell(recommended)}
-                        </TableCell>,
-                        <TableCell
-                          key={`${level.key}-change`}
-                          className={cn(
-                            "text-right tabular-nums",
-                            change === null ? "text-muted-foreground" : change.delta >= 0 ? "text-success" : "text-destructive",
-                          )}
-                        >
-                          {change === null ? (
-                            "—"
-                          ) : (
-                            <>
-                              {signed(change.delta)}
-                              {change.percent !== null && <span className="ml-1 text-[11px]">({signed(change.percent)}%)</span>}
-                            </>
-                          )}
-                        </TableCell>,
-                      ]
-                    })}
-                    <TableCell className="border-l border-border text-xs text-muted-foreground">{rec.generatedAt}</TableCell>
+                    {STOCK_LEVELS.flatMap((level) => [
+                      <TableCell key={`${level.key}-now`} className="border-l border-action/20 text-right text-muted-foreground">
+                        {figureCell(stockFigure(rec, "current", level.key))}
+                      </TableCell>,
+                      <TableCell key={`${level.key}-suggested`} className="bg-action/5 text-right text-lg font-semibold text-action">
+                        {figureCell(stockFigure(rec, "recommended", level.key))}
+                      </TableCell>,
+                    ])}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            A dash means no value is set — not a stock level of zero. “Current (SAP)” is the value SAP held when each recommendation was
-            generated (the date in the last column); SAP is not read again for this report.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-action/40 border-l-4 border-l-action bg-action/10 px-3 py-2.5">
+            <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Info className="size-4 shrink-0 text-action" aria-hidden />
+              Only eligible OAR materials are listed here. Stock items and other materials are on the Recommendations page.
+            </span>
+            <Link
+              href="/inventory-planning/recommendations"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "whitespace-nowrap border-action font-semibold text-action hover:text-action")}
+            >
+              See other recommendations →
+            </Link>
+          </div>
           <TablePagination
             page={page}
             pageSize={COMPARE_PAGE_SIZE}
             total={total}
             count={data?.length ?? 0}
-            noun="recommendations"
+            noun="eligible OAR materials"
             loading={loading}
             alwaysShowButtons
             onPageChange={setPage}
@@ -599,8 +608,11 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
       ) : (
         <div className="text-sm text-muted-foreground">
           {query
-            ? `No recommendation from this period with a recommended value matches “${query}”.`
-            : "No recommendation with a recommended value was generated in this period."}
+            ? `No eligible OAR material from this period matches “${query}”.`
+            : "No eligible OAR material with a recommended value was generated in this period."}{" "}
+          <Link href="/inventory-planning/recommendations" className="font-medium text-action hover:underline">
+            See other recommendations →
+          </Link>
         </div>
       )}
     </ChartCard>
@@ -609,78 +621,100 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
 
 // --- Data coverage ---------------------------------------------------------------------------------
 
-function DataCoverageCard({ management }: { management: ApiQuarterManagement }) {
+/** What the Data coverage popup holds: what needs attention first, then every source, the months, the limitations and what the
+ * figures mean. Its own component so it can be read without opening the popup. */
+export function DataCoverageBody({ management }: { management: ApiQuarterManagement }) {
   const c = management.data_coverage
   return (
-    <ChartCard
-      title="Data coverage and limitations"
-      subtitle="Where these figures come from, and anything missing or old."
-      span={12}
-    >
-      {/* What needs attention first; everything else is one click away. */}
-      <CoverageStatusTable management={management} problemsOnly />
-      <details className="mt-3 text-[11px] text-muted-foreground">
-        <summary className="cursor-pointer text-xs font-medium text-action">Show all</summary>
-        <div className="mt-2 flex flex-col gap-3">
-          <CoverageStatusTable management={management} />
-          {/* A report saved before the statuses existed has only the dates. */}
-          {!c.items?.length && (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
-              {[
-                ["Latest consumption (goods issue)", c.latest_consumption_date ? formatIsoDateDMY(c.latest_consumption_date) : null],
-                ["Stockout usage measured as of", c.stockout_usage_as_of ? formatIsoDateDMY(c.stockout_usage_as_of) : null],
-                ["Stock on hand last loaded", c.latest_stock_loaded_at ? formatIsoDateDMY(c.latest_stock_loaded_at.slice(0, 10)) : null],
-                ["Recommendations counted", formatCount(c.eligible_recommendations)],
-                ["Material-plants assessed", formatCount(c.eligible_material_plants)],
-              ].map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">{label}</dt>
-                  <dd className="mt-0.5 text-[13px] text-foreground">{value ?? <span className="text-muted-foreground">Not available</span>}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            Figures are: <span className="font-medium text-foreground">{c.basis === "snapshot" ? "Saved month-end snapshots" : "Current calculations"}</span>
-          </p>
-          <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead>Month</TableHead>
-                  <TableHead>SAP consumption data</TableHead>
-                  <TableHead className="text-right">Recommendations generated</TableHead>
+    <div className="flex flex-col gap-4 text-sm">
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-wide text-warning uppercase">Needs attention</h3>
+        <CoverageStatusTable management={management} problemsOnly />
+      </section>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-wide text-warning uppercase">Every source</h3>
+        <CoverageStatusTable management={management} />
+        {/* A report saved before the statuses existed has only the dates. */}
+        {!c.items?.length && (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+            {[
+              ["Latest consumption (goods issue)", c.latest_consumption_date ? formatIsoDateDMY(c.latest_consumption_date) : null],
+              ["Stockout usage measured as of", c.stockout_usage_as_of ? formatIsoDateDMY(c.stockout_usage_as_of) : null],
+              ["Stock on hand last loaded", c.latest_stock_loaded_at ? formatIsoDateDMY(c.latest_stock_loaded_at.slice(0, 10)) : null],
+              ["Recommendations counted", formatCount(c.eligible_recommendations)],
+              ["Material-plants assessed", formatCount(c.eligible_material_plants)],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">{label}</dt>
+                <dd className="mt-0.5 text-[13px] text-foreground">{value ?? <span className="text-muted-foreground">Not available</span>}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-wide text-warning uppercase">Months</h3>
+        <p className="text-xs text-muted-foreground">
+          Figures are: <span className="font-medium text-foreground">{c.basis === "snapshot" ? "Saved month-end snapshots" : "Current calculations"}</span>
+        </p>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead>Month</TableHead>
+                <TableHead>SAP consumption data</TableHead>
+                <TableHead className="text-right">Recommendations generated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {c.months.map((m) => (
+                <TableRow key={m.month}>
+                  <TableCell>{m.label}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {{ AVAILABLE: "Covered", NO_ACTIVITY: "Covered, no movements", NOT_COVERED: "Not covered", NO_SOURCE_DATA: "No data loaded" }[m.consumption_status]}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCount(m.recommendations_generated)}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {c.months.map((m) => (
-                  <TableRow key={m.month}>
-                    <TableCell>{m.label}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {{ AVAILABLE: "Covered", NO_ACTIVITY: "Covered, no movements", NOT_COVERED: "Not covered", NO_SOURCE_DATA: "No data loaded" }[m.consumption_status]}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCount(m.recommendations_generated)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <ul className="mt-3 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-muted-foreground">
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+      {c.warnings.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold tracking-wide text-warning uppercase">Limitations</h3>
+          <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-muted-foreground">
             {c.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>
-          <details className="mt-3 text-[11px] text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground">What the figures on this page mean</summary>
-            <ul className="mt-1.5 flex list-disc flex-col gap-1 pl-4 leading-relaxed">
-              {management.definitions.map((definition) => (
-                <li key={definition}>{definition}</li>
-              ))}
-            </ul>
-          </details>
-        </div>
-      </details>
-    </ChartCard>
+        </section>
+      )}
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-wide text-warning uppercase">What the figures on this page mean</h3>
+        <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-muted-foreground">
+          {management.definitions.map((definition) => (
+            <li key={definition}>{definition}</li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  )
+}
+
+function DataCoverageCard({ management }: { management: ApiQuarterManagement }) {
+  // One button, the same popup the (i) buttons open: what needs attention first, then everything behind it.
+  return (
+    <InfoPopup
+      title="Data coverage and limitations"
+      description="Where these figures come from, and anything missing or old."
+      tone="warning"
+      triggerLabel="Data coverage and limitations"
+      triggerText="Data coverage and limitations"
+      className="size-auto h-8 gap-1.5 border border-border bg-card px-3"
+    >
+      <DataCoverageBody management={management} />
+    </InfoPopup>
   )
 }
 
@@ -715,13 +749,17 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
     <>
       <PeriodBanner management={management} />
 
+      <div className="flex items-center justify-end gap-2">
+        <DataCoverageCard management={management} />
+        <KpiGuide cards={management.kpis} />
+      </div>
+
       {/* --- Cards: each says what kind of figure it is, when it was measured and over what --------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {orderedKpis(management.kpis).map((card) => (
           <ManagementKpiCard key={card.key} card={card} onOpen={card.key === "min_max_conversion" && (card.denominator ?? 0) > 0 ? () => setMinMaxOpen(true) : undefined} />
         ))}
       </div>
-      <KpiGuide cards={management.kpis} />
       <MinMaxConversionDialog
         open={minMaxOpen}
         onOpenChange={setMinMaxOpen}
@@ -731,26 +769,10 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* --- What happened, month by month ------------------------------------------------------- */}
-        {report.source_activity && (
-          <ChartCard
-            title="Source activity by month"
-            subtitle="What SAP recorded each month."
-            span={12}
-          >
-            <PerspectiveTag perspective="monthly" />
-            <QuarterlySourceActivity section={report.source_activity} kind={kind} />
-          </ChartCard>
-        )}
+        {/* --- Right under the cards: the eligible OAR materials with the values we suggest, then what SAP has adopted ----- */}
+        <PeriodStockComparison report={report} />
 
-        <ChartCard
-          title="Activity by month"
-          subtitle="What happened each month."
-          span={12}
-        >
-          <PerspectiveTag perspective="monthly" />
-          <ActivityTable management={management} totalLabel={reportNoun(kind).total} />
-        </ChartCard>
+        <PeriodMaterials report={report} />
 
         {/* --- The Overview's charts, for the period ----------------------------------------------- */}
         <ChartCard
@@ -781,19 +803,20 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
         <ChartCard
           title="Excess inventory by plant"
           subtitle="Materials holding more than the recommended maximum."
+          info={<OverviewInfo id="excessByPlant" />}
           span={6}
         >
           <PerspectiveTag perspective={management.position_basis === "snapshot" ? "snapshot" : "current"} />
           <ExcessPositionCard state={{ positions, loading: false, error: null }} />
           <ExcessByPlantValues management={management} />
         </ChartCard>
-        <ApprovalStagesCard adoption={management.adoption} />
+        <ApprovalStagesCard adoption={management.adoption} periodName={periodName(report)} />
         <ChartCard
           title="SAP adoption"
           subtitle="Recommendations SAP has actually changed. Separate from approval."
           span={6}
         >
-          <PerspectiveTag perspective="current" />
+          <PeriodBadge report={report} />
           {adoption ? (
             <AdoptionRateCard summary={adoption} plant={ALL_FILTER} onPlantChange={() => {}} showPlantPicker={false} />
           ) : (
@@ -807,11 +830,18 @@ export function QuarterlyManagementView({ report, management }: { report: ApiQua
         {management.performance && kind === "monthly" && <PerformanceTrends performance={management.performance} />}
         {management.trends && kind === "quarterly" && <QuarterEndCard trends={management.trends} period={reportNoun(kind).singular} />}
 
-        {/* --- Stock levels: what SAP holds against what I07 recommends, material by material ----- */}
-        <PeriodStockComparison report={report} />
 
-        <PeriodMaterials report={report} />
-        <DataCoverageCard management={management} />
+        {/* --- What happened, month by month ------------------------------------------------------- */}
+
+        <ChartCard
+          title="Activity by month"
+          subtitle="What happened each month."
+          info={<ActivityInfo />}
+          span={12}
+        >
+          <PerspectiveTag perspective="monthly" />
+          <ActivityTable management={management} totalLabel={reportNoun(kind).total} />
+        </ChartCard>
       </div>
     </>
   )

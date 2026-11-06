@@ -153,13 +153,15 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   grNotIssued: {
     title: "GR not issued (30d)",
     tone: "danger",
-    summary: "OAR positions where goods were received for a reservation and are still not issued 30 days later.",
+    summary:
+      "OAR positions with stock received 30 or more days ago and still not issued. Estimated: SAP doesn't record which delivery a goods issue came from.",
     rule: [
-      "For each reservation line: outstanding = received − issued",
+      "For each PO line: outstanding = received − issued",
       "For the lines with something outstanding: age = as-of date − last goods receipt",
       "Counted when the oldest age is 30 days or more",
     ],
     steps: [
+      "Issued is the reservation's own goods issues where a reservation raised the line; for a stock refill, the material's issues counted against the oldest delivery first.",
       "Counted once per material and plant, however many lines are outstanding.",
       "A line that was partly issued still counts for what remains.",
       "Only OAR positions are counted.",
@@ -185,7 +187,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     ],
     steps: [
       "Only open plans count: a closed plan cannot be overdue.",
-      "A captured plan not yet linked to a reservation is matched by material, plant and usage window.",
+      "A plan counts only the reservations whose item text carries its request or session ID. With none linked, nothing is issued against it, so it goes overdue.",
       "Each plan counts once.",
       "The same plans as Planned overdue on the Exceptions screen, until each one is closed. A plan appears once detection has checked it, which the nightly run does.",
     ],
@@ -283,7 +285,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "Not due yet: nothing issued, and the Required by date is still ahead",
       "Otherwise On plan: issued = planned · Below plan: issued < planned · Above plan: issued > planned",
       "Overdue: below plan, and the Required by date has passed",
-      "Via assistant: the plan's reservations carry its session or request ID, else are required inside its usage window",
+      "Via assistant: the plan's reservations are the ones whose item text carries its session or request ID",
       "Direct from SAP: an OAR reservation no plan owns; a reservation a plan owns is on the plan's row only",
     ],
     steps: [

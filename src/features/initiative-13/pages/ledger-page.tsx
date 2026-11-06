@@ -297,6 +297,12 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           />
         </ToolbarRow>
 
+        <p className="text-sm text-muted-foreground">
+          Stock bought for this material, as SAP recorded it. A line raised by a reservation shows that
+          reservation&apos;s goods issues, which also show on the Reservations tab. A stock refill ends at goods
+          receipt: SAP doesn&apos;t record which delivery an issue came from, so issues are not tracked on it.
+        </p>
+
         {live === null ? (
           // Shown as a failure, never as an empty table. "No reservations" and
           // "cannot reach the server" must not look alike.

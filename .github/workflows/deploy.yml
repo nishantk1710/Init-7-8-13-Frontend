@@ -22,9 +22,13 @@
 # NEXT_PUBLIC_* values are inlined into the JavaScript at build time. Setting
 # them as App Service app settings does nothing, which is why they live here.
 #
-# No test step: 21 tests fail on a clean checkout because data-generator/ lives
-# in the backend repo since the split (see CLAUDE.md). Gating deploys on them
-# would block every deploy for a reason unrelated to the code being deployed.
+# The test step below is THE gate for dev merges: ci.yml stopped running on
+# dev pushes on 2026-11-04, when this workflow took over testing before it
+# deploys. (An older note here said 21 tests fail on a clean checkout -- that
+# was true just after the repo split and has not been for some time; the suite
+# runs green on clean checkouts in ci.yml on every PR.) Before that date this
+# job deployed ungated, in parallel with CI: a commit whose tests failed still
+# reached nonprod.
 
 name: Deploy frontend
 
@@ -65,7 +69,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci
+      # Same two caches as ci.yml: node_modules keyed on the lockfile (npm ci
+      # ~55 s measured 2026-11-04, ~10 s as a restore), and Next's incremental
+      # compile cache with a lockfile-level fallback.
+      - uses: actions/cache@v4
+        id: node-modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # The gate (see the header): dev merges are tested here, not in ci.yml.
+      - run: npm test
+
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
       - name: Build
         env:

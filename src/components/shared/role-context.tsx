@@ -17,20 +17,23 @@ const VIEW_FOR_ROLE: Record<SharedRole, string> = {
   Requester: ROLES.REQUESTER,
 }
 
-/** The first view (in menu order) the user's real roles match; "End User" otherwise, as before. */
-function defaultView(roles: string[]): SharedRole {
-  return SHARED_ROLES.find((view) => roles.includes(VIEW_FOR_ROLE[view])) ?? "End User"
+/** The first view (in menu order) the user's real roles match; null when none does.
+ * Deliberately NOT a made-up default: a person with no assigned role shows no
+ * role, rather than being dressed up as an "End User" they never were. */
+function defaultView(roles: string[]): SharedRole | null {
+  return SHARED_ROLES.find((view) => roles.includes(VIEW_FOR_ROLE[view])) ?? null
 }
 
 interface RoleContextValue {
-  role: SharedRole
+  role: SharedRole | null
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null)
 
 /**
  * The role the viewer's pages are shaped for, from their signed-in roles
- * (GET /api/me): an Engineering Manager opens as one. Roles come from Entra,
+ * (GET /api/me): an Engineering Manager opens as one, and someone with no
+ * assigned role has none (null -- never a stand-in). Roles come from Entra,
  * so the old "Viewing as" picker is gone (removed 2026-11-04) -- there is no
  * manual override any more, only the first view the person's real roles match.
  *

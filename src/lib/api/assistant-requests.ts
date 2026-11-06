@@ -297,53 +297,6 @@ export async function downloadRequestTemplate(): Promise<void> {
   saveBlob(blob, filename)
 }
 
-// --- link reservation -----------------------------------------------------------
-
-export type LinkJobStatus = "queued" | "running" | "succeeded" | "failed" | "abandoned"
-export type LinkJobStepKey = "queue" | "delta" | "link" | "i13" | "i08"
-export type LinkJobStepStatus = "pending" | "active" | "done" | "failed" | "skipped"
-
-export interface ApiLinkJobStep {
-  key: LinkJobStepKey
-  label: string
-  status: LinkJobStepStatus
-  startedAt: string | null
-  finishedAt: string | null
-  detail: string | null
-}
-
-/** A "Link reservation" job: pull SAP, link this request, rebuild the two views. */
-export interface ApiLinkJob {
-  id: number
-  requestId: string
-  status: LinkJobStatus
-  /** The step being worked on: a step key, or "done". */
-  step: LinkJobStepKey | "done"
-  steps: ApiLinkJobStep[]
-  requestedAt: string
-  startedAt: string | null
-  finishedAt: string | null
-  links: number | null
-  error: string | null
-  /** False when the press found this request's job already queued or running. */
-  created: boolean
-}
-
-/** Start the job, or get the one already queued or running for this request. **Responds 202.** */
-export function startLinkReservation(requestId: string): Promise<ApiLinkJob> {
-  return apiPost<ApiLinkJob>(`/assistant/requests/${encodeURIComponent(requestId)}/link-reservation`)
-}
-
-/** The latest job for this request, or null when none was ever started. */
-export async function getLinkReservation(requestId: string): Promise<ApiLinkJob | null> {
-  try {
-    return await apiFetch<ApiLinkJob>(`/assistant/requests/${encodeURIComponent(requestId)}/link-reservation`)
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null
-    throw error
-  }
-}
-
 // --- UAT ----------------------------------------------------------------------
 
 /** Whether the backend's UAT stand-in for SAP is on (never in production). */

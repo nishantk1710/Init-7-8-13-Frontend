@@ -33,7 +33,7 @@ export function ProfileMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Profile menu. Signed in as ${role}`}
+        aria-label={role ? `Profile menu. Signed in as ${role}` : "Profile menu"}
         className="flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pr-3 pl-1.5 text-left shadow-xs transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-muted"
       >
         <Avatar name={profileName} />
@@ -41,9 +41,11 @@ export function ProfileMenu() {
           <span className="truncate text-sm font-medium text-foreground">
             {profileName}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
-            {role}
-          </span>
+          {role && (
+            <span className="truncate text-xs text-muted-foreground">
+              {role}
+            </span>
+          )}
         </span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -55,9 +57,11 @@ export function ProfileMenu() {
             <div className="truncate text-sm font-semibold text-foreground">
               {profileName}
             </div>
-            <div className="truncate text-xs text-muted-foreground">
-              {role}
-            </div>
+            {role && (
+              <div className="truncate text-xs text-muted-foreground">
+                {role}
+              </div>
+            )}
           </div>
         </div>
 

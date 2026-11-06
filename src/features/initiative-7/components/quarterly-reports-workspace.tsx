@@ -55,13 +55,14 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import { useLiveAdoptionSummary } from "@/features/initiative-7/hooks/use-live-adoption"
 import { KpiCard } from "@/features/initiative-7/components/report-kpi-card"
 import { dayAfter, QuarterlyManagementView } from "@/features/initiative-7/components/quarterly-management-view"
-import { ManagementPrintView } from "@/features/initiative-7/components/quarterly-management-print"
 import { StockPolicyRow } from "@/features/initiative-7/components/quarterly-stock-policy-row"
 import { QuarterlySnapshotReport } from "@/features/initiative-7/components/quarterly-snapshot-report"
 import { QuarterlySourceActivity } from "@/features/initiative-7/components/quarterly-source-activity"
 import { useQuarterlyReport } from "@/features/initiative-7/hooks/use-quarterly-report"
 import { useQuarterlyReports } from "@/features/initiative-7/hooks/use-quarterly-reports"
-import { fetchQuarterlyReportExportBlob, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { fetchQuarterlyReportExportBlob, fetchRecommendations, generateQuarterlyReport } from "@/features/initiative-7/services/i7-api"
+import { buildReportPdf, reportPdfFilename } from "@/features/initiative-7/utils/report-pdf"
+import { saveBlob } from "@/lib/download-file"
 import { ReportPrintView } from "@/features/initiative-7/components/report-print-view"
 import "@/features/initiative-7/components/report-print.css"
 import { ApiError } from "@/lib/api/client"
@@ -179,10 +180,8 @@ const MATERIALS_PAGE_SIZE = 5
  * one -- it is not ranked by ROP change, because no such ranking exists in
  * the backend (see recommendation-sort-contract.test.ts). */
 const PDF_MATERIALS_SIZE = 50
-/** The PDF's "Current SAP vs I07" rows: the page's own list (recommendations with a recommended value), newest first. */
-const PDF_COMPARISON_SIZE = 25
-/** The PDF's "Min-Max conversion" rows: the converted ones, the list the card opens on the page. */
-const PDF_CONVERSION_SIZE = 25
+/** How many rows of each material table the PDF lists; the table's own count says how many there are in all. */
+const PDF_TABLE_SIZE = 100
 
 /** Rows backing the on-screen charts. Printed verbatim in the PDF's
  * disclosure so a sample is never implied to be the whole quarter. */
@@ -238,23 +237,50 @@ export function QuarterlyReportsWorkspace() {
     }
   }
 
-  /** Download PDF -- the complete management report, printed by the
-   * browser.
+  /** Download PDF -- a real file, built here and saved straight away, with the charts drawn in.
    *
-   * This only *requests* a print. The actual window.print() happens in the
-   * effect below, once the PDF's own 50-row material fetch has resolved and
-   * React has committed the print view. Calling print() here would open the
-   * dialog against a half-populated DOM and produce a PDF with an empty
-   * material table -- the exact "blank section" failure this has to avoid.
+   * A report with the management view (the current one) is drawn by `buildReportPdf` from the saved report plus the two material
+   * lists the page shows (the eligible OAR materials and the adopted recommendations), fetched now with the page's own filters. No
+   * print window is involved, so nothing depends on a dialog opening.
    *
-   * Re-entrancy: the button is disabled while pdfState is "preparing", and
-   * the effect clears the request before printing, so a double click cannot
-   * open two dialogs. */
-  function handleDownloadPdf() {
+   * An older report (no management view) keeps the print route: this only *requests* a print, and the effect below calls
+   * window.print() once the print view's own fetch has resolved and React has committed it. Re-entrancy: the button is disabled while
+   * pdfState is "preparing", so a double click cannot build or print twice. */
+  async function handleDownloadPdf() {
     if (!report || pdfState === "preparing") return
     setPdfError(null)
     setPdfState("preparing")
-    setPrintRequested(true)
+    if (!report.management) {
+      setPrintRequested(true)
+      return
+    }
+    try {
+      const period = {
+        sort: "generated_at",
+        sortDesc: true,
+        page: 1,
+        pageSize: PDF_TABLE_SIZE,
+        generatedFrom: `${report.metadata.period_start}T00:00:00`,
+        generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
+      } as const
+      const [eligible, adopted] = await Promise.all([
+        fetchRecommendations({ ...period, type: "oar", conversionEligibility: "ELIGIBLE", hasRecommended: true }),
+        fetchRecommendations({ ...period, adoptedInSap: true }),
+      ])
+      const blob = await buildReportPdf({
+        report,
+        management: report.management,
+        eligibleOar: eligible.recommendations,
+        eligibleOarTotal: eligible.total,
+        adopted: adopted.recommendations,
+        adoptedTotal: adopted.total,
+      })
+      saveBlob(blob, reportPdfFilename(report))
+    } catch (err) {
+      setPdfError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "The PDF could not be created.")
+    } finally {
+      setPdfState("idle")
+    }
   }
 
   /** Download Excel -- the saved report's workbook from GET /reports/quarterly/{quarter}/export: the KPI cards, the
@@ -363,40 +389,6 @@ export function QuarterlyReportsWorkspace() {
         : {},
     )
 
-  // The PDF's comparison rows: the same query as the page's "Current SAP vs I07" table (only recommendations with a
-  // recommended value, newest first), so the two cannot disagree about which materials are listed.
-  const { data: pdfComparison, total: pdfComparisonTotal, loading: pdfComparisonLoading } = useLiveRecommendations(
-    report?.management && printRequested
-      ? {
-          sort: "generated_at",
-          sortDesc: true,
-          page: 1,
-          pageSize: PDF_COMPARISON_SIZE,
-          generatedFrom: `${report.metadata.period_start}T00:00:00`,
-          generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
-          hasRecommended: true,
-        }
-      : {},
-  )
-
-  // The material-plants the "Min-Max conversion" card counted, as the same list its click-through shows (OAR, eligible, this period).
-  const { data: pdfConversion, total: pdfConversionTotal, loading: pdfConversionLoading } = useLiveRecommendations(
-    report?.management && printRequested
-      ? {
-          sort: "generated_at",
-          sortDesc: true,
-          page: 1,
-          pageSize: PDF_CONVERSION_SIZE,
-          type: "oar",
-          conversionEligibility: "ELIGIBLE",
-          hasRecommended: true,
-          adoptedInSap: true,
-          generatedFrom: `${report.metadata.period_start}T00:00:00`,
-          generatedTo: `${dayAfter(report.metadata.period_end)}T00:00:00`,
-        }
-      : {},
-  )
-
   // Open the print dialog only when everything the PDF needs is on the page.
   //
   // Waits on: the report itself, the 50-row material fetch, and -- via
@@ -407,7 +399,7 @@ export function QuarterlyReportsWorkspace() {
   useEffect(() => {
     if (!printRequested) return
     if (!report) return
-    if (pdfMaterialsLoading || pdfComparisonLoading || pdfConversionLoading) return
+    if (pdfMaterialsLoading) return
 
     let cancelled = false
 
@@ -446,7 +438,7 @@ export function QuarterlyReportsWorkspace() {
     return () => {
       cancelled = true
     }
-  }, [printRequested, report, pdfMaterialsLoading, pdfComparisonLoading, pdfConversionLoading])
+  }, [printRequested, report, pdfMaterialsLoading])
 
   // Guard against a stuck "Preparing…" if the dialog never opens.
   useEffect(() => {
@@ -817,26 +809,13 @@ export function QuarterlyReportsWorkspace() {
         typeof document !== "undefined" &&
         createPortal(
           <div className="print-portal">
-            {report.management ? (
-              <ManagementPrintView
-                report={report}
-                management={report.management}
-                materials={pdfMaterials ?? []}
-                materialsTotal={pdfMaterialsTotal}
-                comparison={pdfComparison ?? []}
-                comparisonTotal={pdfComparisonTotal}
-                conversion={pdfConversion ?? []}
-                conversionTotal={pdfConversionTotal}
-              />
-            ) : (
-              <ReportPrintView
-                report={report}
-                materials={pdfMaterials ?? []}
-                materialsTotal={pdfMaterialsTotal}
-                chartSampleSize={CHART_SAMPLE_SIZE}
-                chartRecommendations={chartRecommendations ?? []}
-              />
-            )}
+            <ReportPrintView
+              report={report}
+              materials={pdfMaterials ?? []}
+              materialsTotal={pdfMaterialsTotal}
+              chartSampleSize={CHART_SAMPLE_SIZE}
+              chartRecommendations={chartRecommendations ?? []}
+            />
           </div>,
           document.body,
         )}

@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import {
+  DataCoverageBody,
   QuarterlyManagementView,
   dayAfter,
   stockChange,
@@ -94,24 +95,25 @@ function report(m: ApiQuarterManagement): ApiQuarterlyReport {
 const render = (m: ApiQuarterManagement) => renderToStaticMarkup(createElement(QuarterlyManagementView, { report: report(m), management: m }))
 
 describe("the cards", () => {
-  it("each carry what it is, when it was measured and what it is out of", () => {
+  it("each carry what it is and when it was measured, and leave out the two retired cards", () => {
     const html = render(management())
-    expect(html).toContain("Materials with a recommendation") // the page says it in plain words; the PDF keeps the report's own title
-    expect(html).toContain("Materials we made a recommendation for") // the one plain line
-    expect(html).toContain("18,627")
-    expect(html).toContain("of 18,700 materials looked at")
+    expect(html).not.toContain("Materials with a recommendation")
+    expect(html).not.toContain("Materials we made a recommendation for")
+    expect(html).not.toContain("Recommendations created in this period")
     expect(html).toContain("as of 15 Jan 2027")
   })
 
   it("have no (i) and no long explanation on the card, only the figure and one plain line", () => {
     const html = render(management())
-    expect(html).not.toContain("is calculated") // the (i) button's label
+    // No KPI card has an (i) of its own: nothing above the charts (the banner and the cards) says "is calculated"; the Excess inventory by plant chart's (i) does.
+    expect(html.split("lg:grid-cols-12")[0]).not.toContain("is calculated")
+    expect(html).toContain('How &quot;Excess inventory by plant&quot; is calculated')
     // The longer explanation is folded away under "How each number is worked out", not on the card.
     const outsideGuide = html.replace(/<details[\s\S]*?<\/details>/g, "")
     expect(outsideGuide).not.toContain("Explains materials_assessed.")
     expect(html).toContain("How each number is worked out")
     expect(html).not.toContain("Status on a date") // the old jargon badge
-    expect(html).toContain("before:bg-primary") // still the Overview's card: the accent bar down its edge
+    expect(html).toMatch(/before:bg-(primary|warning|success|info|destructive)/) // still the Overview's card: the accent bar down its edge
   })
 
   it("show the stockout card as High Stockout Risk, even from a report saved under the old title", () => {
@@ -248,8 +250,8 @@ describe("the activity table", () => {
     expect(html).toContain("Oct 2026")
     expect(html).toContain("Quarter total")
     expect(html).toContain("18,627")
-    expect(html).toContain("Not measured by month.")
-    expect(html).toContain("It is not a zero")
+    expect(html).not.toContain("How these are counted") // the notes are in the table's (i), not folded under it
+    expect(html).toContain("How the activity figures are worked out")
   })
 })
 
@@ -287,22 +289,26 @@ describe("the Overview's charts", () => {
 })
 
 describe("the stock level table and the coverage", () => {
-  it("lists a row per recommendation: SAP, recommended and difference for safety stock, reorder point and maximum stock", () => {
+  it("lists a row per eligible OAR material: the suggested safety stock, reorder point and maximum stock, with what SAP holds", () => {
     const html = render(management())
-    expect(html).toContain("Current SAP vs I07 recommendation")
+    expect(html).toContain("Current vs recommended in")
     expect(html).toContain("Search a material")
     expect(html).toContain("border-action bg-action/10") // the search box wears the blue filter style
     expect(html).not.toContain("Current (SAP), average")
     expect(html).not.toContain("Recommended, average")
-    for (const heading of ["Material", "Plant", "Generated"]) expect(viewSource).toContain(`>${heading}</TableHead>`)
+    for (const heading of ["Material", "Plant"]) expect(viewSource).toContain(`>${heading}</TableHead>`)
     for (const level of ["Safety stock", "Reorder point", "Maximum stock"]) expect(viewSource).toContain(`label: "${level}"`)
-    for (const sub of ["Current (SAP)", "Recommended", "Difference"]) expect(viewSource).toContain(sub)
+    expect(viewSource).toContain("SAP now")
+    expect(viewSource).toContain("See other recommendations") // the way to the other materials
     expect(viewSource).toContain("search: query || undefined") // the search goes to the backend, over every material
   })
 
   it("lists only recommendations that have a recommended value, newest first, a page at a time", () => {
     expect(viewSource).toContain("hasRecommended: true") // the backend's has_recommended filter is kept
-    expect(viewSource).toContain("const COMPARE_PAGE_SIZE = 5")
+    expect(viewSource).toContain('type: "oar"') // only OAR materials ...
+    expect(viewSource).toContain('conversionEligibility: "ELIGIBLE"') // ... that are eligible for Min-Max
+    expect(viewSource).toContain("adoptedInSap: true") // the period list below it is only what SAP has adopted
+    expect(viewSource).toContain("const COMPARE_PAGE_SIZE = 10")
     expect(viewSource).toMatch(/sort: "generated_at",\s+sortDesc: true,\s+page,\s+pageSize: COMPARE_PAGE_SIZE/)
   })
 
@@ -330,7 +336,7 @@ describe("the stock level table and the coverage", () => {
   })
 
   it("lists every warning and says whether the figures are snapshots or current calculations", () => {
-    const html = render(management())
+    const html = renderToStaticMarkup(createElement(DataCoverageBody, { management: management() }))
     expect(html).toContain("Staged SAP consumption ends in May 2026")
     expect(html).toContain("Current calculations")
     expect(html).toContain("Not covered")
