@@ -13,42 +13,51 @@ import {
 } from "@/components/ui/table"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import { DataTable } from "@/features/initiative-13/components/ui/data-table"
-import { TONE_INK } from "@/features/initiative-13/components/ui/tones"
-import { idleTone, isLongIdle } from "@/features/initiative-13/utils/oar-display"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
 import { exportNonMoverRows } from "@/features/initiative-13/export-actions"
-import { nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
+import { NEVER_ISSUED, nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
+import { formatApiDate } from "@/lib/api/format"
 import type { WatchMetric } from "@/lib/api/i13"
-import { cn, downloadExcel, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
- * "4,716 days" alone is hard to read at a glance; the years say how stale.
- * Red from 150 days, amber below -- the number says it too.
+ * The last goods issue (201/261, net of reversals) -- the date that makes a
+ * position non-moving -- with how long ago it was. Not the last movement of
+ * any type: a receipt or transfer last month says nothing about use, and read
+ * as "idle 154 days" on a material unused for years.
  */
-function IdleFor({ days }: { days: number }) {
-  const tone = idleTone(days)
-  return (
-    <div className="ml-auto text-right">
-      <span className={cn("font-semibold tabular-nums", TONE_INK[tone])}>
-        {formatCount(days)} days
-        {days >= 365 && <span className="ml-1 font-medium text-muted-foreground">({(days / 365).toFixed(1)} yrs)</span>}
-        {isLongIdle(days) && <span className="sr-only"> (idle 150 days or more)</span>}
+function LastIssued({ row }: { row: WatchMetric }) {
+  if (!row.lastIssueDate) {
+    return (
+      <span className="font-semibold text-destructive" title="No goods issue in the movement history the platform holds.">
+        {NEVER_ISSUED}
       </span>
-    </div>
+    )
+  }
+  const days = row.daysSinceLastIssue
+  return (
+    <span className="whitespace-nowrap tabular-nums">
+      <span className="font-semibold text-foreground">{formatApiDate(row.lastIssueDate)}</span>
+      {days !== null && (
+        <span className="ml-1 text-muted-foreground">({days >= 365 ? `${(days / 365).toFixed(1)} yrs` : `${formatCount(days)} days`} ago)</span>
+      )}
+    </span>
   )
 }
 
 /**
- * Non-Mover Drilldown (§8): the backend-classified `NON_MOVING` rows, with
- * the plant column always visible. The critical-impact column was dropped
- * (6-Nov-2026): the ZMM065 rating was on record for almost no OAR position,
- * so nearly every row read "No".
+ * Non-Mover Drilldown (§8): the backend-classified `NON_MOVING` rows -- no
+ * goods issue for more than 730 days, or none at all. Four columns, only what
+ * says the stock sits unused (6-Nov-2026): material, plant, when it was last
+ * issued, and how much is on hand. Dropped: the critical-impact rating (on
+ * record for almost no OAR position), the days since the last movement of any
+ * type (a receipt or transfer is not use, and read as "idle 154 days" on a
+ * material unused for years) and Consumption (12m), 0 on every row here.
  *
- * One server page of 25, most recent activity first (the backend's order, by
- * last goods movement), out of every non-mover the filters match -- not the
- * non-movers among a first batch of positions. The export fetches all of them.
+ * One server page of 25 out of every non-mover the filters match. The export
+ * fetches all of them.
  */
 export function NonMoverTable({
   rows,
@@ -70,7 +79,7 @@ export function NonMoverTable({
   async function exportExcel() {
     downloadExcel(
       "i13-non-movers.xlsx",
-      ["Material", "Plant", "Aging band", "Days since movement", "Stock on hand", "Consumption (12m)"],
+      ["Material", "Plant", "Last issued", "Stock on hand"],
       nonMoverRowsToCsv(await exportNonMoverRows(filters))
     )
   }
@@ -89,7 +98,7 @@ export function NonMoverTable({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           <span className="font-semibold text-foreground">{formatCount(total ?? rows.length)}</span> non-moving position
-          {(total ?? rows.length) === 1 ? "" : "s"}, most recent activity first
+          {(total ?? rows.length) === 1 ? "" : "s"}
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
@@ -99,9 +108,8 @@ export function NonMoverTable({
             <TableRow>
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Idle for</TableHead>
+              <TableHead className="text-right">Last issued</TableHead>
               <TableHead className="text-right">Stock on hand</TableHead>
-              <TableHead className="text-right">Consumption (12m)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -111,13 +119,12 @@ export function NonMoverTable({
                   <MaterialName material={row.material} description={row.materialDescription} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
-                <TableCell className="text-right text-foreground">
-                  {row.daysSinceLastMovement !== null ? <IdleFor days={row.daysSinceLastMovement} /> : <EmptyValue kind="noMovement" />}
+                <TableCell className="text-right">
+                  <LastIssued row={row} />
                 </TableCell>
                 <TableCell className="text-right text-foreground">
                   {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
                 </TableCell>
-                <TableCell className="text-right font-semibold text-foreground">{formatCount(row.consumptionCount12m)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

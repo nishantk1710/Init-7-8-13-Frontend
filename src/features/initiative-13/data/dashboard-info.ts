@@ -260,12 +260,14 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   nonMoversTab: {
     title: "Non-movers",
     tone: "danger",
-    summary: "Each non-moving OAR position, one row per material and plant.",
+    summary: "OAR materials nobody has issued for more than 730 days, or ever: stock sitting unused, one row per material and plant.",
     rule: [
       "Non-moving: last goods issue more than 730 days ago, or never issued",
-      "Days shown = data as-of date − last goods issue",
+      "Last issued = the last goods issue (201/261, net of reversals) in SAP, and how long ago",
     ],
     steps: [
+      "Only a goods issue counts as use. A receipt, transfer or stock count does not, so it is not shown here.",
+      "Never issued = no goods issue in the movement history the platform holds.",
       "The page's plant, material and stock-type filters apply to this list.",
     ],
     example: {
@@ -275,7 +277,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
         { label: "Data as of", value: EXAMPLE_AS_OF },
         { label: "Days since last issue", value: "1,230" },
       ],
-      result: "Listed here: 1,230 > 730.",
+      result: "Listed here, Last issued 15 Jun 2023 (3.4 yrs ago): 1,230 > 730.",
     },
   },
   acquiredVsPlanTab: {
