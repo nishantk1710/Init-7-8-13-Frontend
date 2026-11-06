@@ -24,7 +24,6 @@ import { PlansTable } from "@/features/initiative-13/components/plans-table"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import type { DashboardInfoId } from "@/features/initiative-13/data/dashboard-info"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
-import { attachCriticalImpactIndicator } from "@/features/initiative-13/utils/dashboard-transforms"
 import { resolveDetailTab, type DetailTabId } from "@/features/initiative-13/utils/detail-tabs"
 import { displayTone } from "@/features/initiative-13/utils/oar-display"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
@@ -72,9 +71,9 @@ function inOrder(counts: Record<string, number>, order: readonly string[]): { ke
  * dashboard shows only their status summary (FR-10's "exception status") and
  * links to the Exceptions screen, which owns the queue -- the full list here
  * duplicated it. Captured plans live only here -- there
- * is no separate plans screen; `?tab=plans` opens that tab. The
- * reclassification feed is read here only for the non-movers' Critical impact
- * column.
+ * is no separate plans screen; `?tab=plans` opens that tab. The non-movers
+ * carry no critical-impact column: the ZMM065 rating was on record for almost
+ * no OAR position (8 of 2,791 "Yes" on 6-Nov-2026), so it read as "No".
  *
  * ## Data
  *
@@ -136,14 +135,7 @@ export async function UtilisationDashboardPage({
   const pageOf = (tab: DetailTabId) => (tab === initialTab ? page : 1)
   const hrefFor = (tab: DetailTabId) => (p: number) => pageHref(PATH, { ...searchParams, tab }, p)
 
-  const nonMoverRows = nonMovers
-    ? attachCriticalImpactIndicator(
-        nonMovers.rows,
-        dashboard.reclassification.status === "ready"
-          ? dashboard.reclassification.data.rows
-          : []
-      )
-    : []
+  const nonMoverRows = nonMovers?.rows ?? []
 
   const planSegments = watchCounts
     ? inOrder(watchCounts.byAcquiredVsPlanStatus, PLAN_STATUS_ORDER).map(({ key, count }) => ({
@@ -318,12 +310,6 @@ export async function UtilisationDashboardPage({
                     <TabIntro info="nonMoversTab">
                       OAR positions not issued for more than 730 days, or never issued.
                     </TabIntro>
-                    {dashboard.reclassification.status === "unavailable" && (
-                      <p className="text-xs text-muted-foreground">
-                        Critical impact shows Unknown for every row — criticality (ZMM065) is not
-                        available from this backend.
-                      </p>
-                    )}
                     <NonMoverTable
                       rows={nonMoverRows}
                       total={nonMovers.total}

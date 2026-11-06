@@ -262,7 +262,6 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     ],
     steps: [
       "The page's plant, material and stock-type filters apply to this list.",
-      "Critical impact comes from the criticality file (ZMM065); it shows Unknown when that file is not available.",
     ],
     example: {
       subject: "One material at Black Mountain (1300)",
