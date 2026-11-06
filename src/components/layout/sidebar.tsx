@@ -3,8 +3,8 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSyncExternalStore, type ComponentType } from "react"
-import { ChevronRight, ListChecks, Plus } from "lucide-react"
+import { useEffect, useRef, useSyncExternalStore, type ComponentType } from "react"
+import { ChevronRight, ListChecks, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react"
 
 import { SidebarAccount } from "@/components/auth/sidebar-account"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
@@ -29,14 +29,24 @@ type NavLink = {
 type NavGroup = { title: string; links: NavLink[] }
 
 /**
- * The groups a person opened or closed, per browser. A convenience only:
- * storage can be empty, blocked or throw (a private window, cleared site
- * data), and then every group simply starts in its default state.
+ * What a person opened or closed, per browser: which groups are open, and
+ * whether the panel itself is down to its rail. A convenience only: storage can
+ * be empty, blocked or throw (a private window, cleared site data), and then
+ * every group simply starts in its default state and the panel starts open.
  */
 const GROUPS_KEY = "spares.sidebar.groups"
+const COLLAPSED_KEY = "spares.sidebar.collapsed"
 const NO_TOGGLES: Record<string, boolean> = {}
 const listeners = new Set<() => void>()
 let toggles: Record<string, boolean> | null = null
+let collapsed: boolean | null = null
+
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
 
 function readToggles(): Record<string, boolean> {
   if (toggles) return toggles
@@ -59,15 +69,33 @@ function writeToggle(title: string, open: boolean) {
   listeners.forEach((listener) => listener())
 }
 
+function readCollapsed(): boolean {
+  if (collapsed !== null) return collapsed
+  try {
+    collapsed = window.localStorage.getItem(COLLAPSED_KEY) === "1"
+  } catch {
+    collapsed = false
+  }
+  return collapsed
+}
+
+function writeCollapsed(next: boolean) {
+  collapsed = next
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0")
+  } catch {
+    // Kept for this page view only.
+  }
+  listeners.forEach((listener) => listener())
+}
+
 function useGroupToggles(): Record<string, boolean> {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    readToggles,
-    () => NO_TOGGLES
-  )
+  return useSyncExternalStore(subscribe, readToggles, () => NO_TOGGLES)
+}
+
+/** False on the server: the panel renders open and narrows once hydrated. */
+function useCollapsed(): boolean {
+  return useSyncExternalStore(subscribe, readCollapsed, () => false)
 }
 
 /** Whether `href` is the page, or a page under it: /repairable-spares/repair-register/4500-10 is in the register. */
@@ -85,6 +113,10 @@ function within(pathname: string, href: string): boolean {
  * - Home comes first;
  * - every group collapses, and the one holding the current page starts open. A
  *   group someone opens or closes stays that way in their browser;
+ * - the whole panel collapses to a rail of icons, which stays that way in their
+ *   browser too. The rail drops the group headings rather than shrinking them:
+ *   a heading nobody can read is a row of pixels charging for vertical space,
+ *   and every link is reachable from the rail whichever group it sits in;
  * - the current page stays highlighted on the pages under it -- a repair line
  *   lights up Repair Register.
  *
@@ -93,6 +125,7 @@ function within(pathname: string, href: string): boolean {
 export function Sidebar() {
   const pathname = usePathname()
   const opened = useGroupToggles()
+  const isCollapsed = useCollapsed()
   const unreadNotifications = useUnreadNotifications()
   // Repair Candidates waiting for the AI screen (4-Nov-2026).
   const unscreenedCandidates = useUnscreenedCandidates(pathname)
@@ -142,80 +175,156 @@ export function Sidebar() {
 
   const HomeIcon = home ? ICONS[home.icon] : null
 
+  // The rail lists every link rather than only the open group's, so it is
+  // taller than the panel (1,144px against 619px, measured) and the scrollbar
+  // is hidden by design. Without this the current page can sit below the fold
+  // with nothing on screen marked, which reads as "no page is current".
+  // `nearest` does nothing when the link is already in view, so this is inert
+  // in the expanded panel and on the pages that fit.
+  const activeRef = useRef<HTMLAnchorElement | null>(null)
+  useEffect(() => {
+    const show = () => activeRef.current?.scrollIntoView({ block: "nearest" })
+    show()
+    // The panel animates its width for 200ms, and a scroll worked out while
+    // that is still running lands short of the mark. Once more when it has
+    // settled; by then the first call has usually already done it.
+    const settled = window.setTimeout(show, 260)
+    return () => window.clearTimeout(settled)
+  }, [isCollapsed, active])
+
   return (
     <div className="flex shrink-0 py-3 pl-3">
-      <aside className="flex w-[232px] flex-col overflow-hidden rounded-[28px] bg-nav-bg text-nav-fg shadow-xl ring-1 ring-nav-border">
-        <div className="px-5 pt-5 pb-3">
-          <Link href="/home" aria-label="Spares AI home" className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-            {/* Transparent-ground marks, one per theme: brand colours on the light
-                panel, a white wordmark (globe unchanged) on the dark one. */}
-            <span className="inline-flex py-1">
-              <Image
-                src="/brand/vedanta-zinc-logo.png"
-                alt="Vedanta Zinc International"
-                width={245}
-                height={70}
-                priority
-                className="h-9 w-auto dark:hidden"
-              />
-              <Image
-                src="/brand/vedanta-zinc-logo-dark.png"
-                alt="Vedanta Zinc International"
-                width={245}
-                height={70}
-                priority
-                className="hidden h-9 w-auto dark:block"
-              />
-            </span>
-            <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>
-          </Link>
+      <aside
+        className={cn(
+          "flex flex-col overflow-hidden rounded-[28px] bg-nav-bg text-nav-fg shadow-xl ring-1 ring-nav-border",
+          "transition-[width] duration-200 ease-out motion-reduce:transition-none",
+          isCollapsed ? "w-[72px]" : "w-[232px]"
+        )}
+      >
+        <div className={cn("flex items-start gap-2 pt-5 pb-3", isCollapsed ? "justify-center px-3" : "px-5")}>
+          {!isCollapsed && (
+            <Link
+              href="/home"
+              aria-label="Spares AI home"
+              className="group block min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {/* Transparent-ground marks, one per theme: brand colours on the light
+                  panel, a white wordmark (globe unchanged) on the dark one. */}
+              <span className="inline-flex py-1">
+                <Image
+                  src="/brand/vedanta-zinc-logo.png"
+                  alt="Vedanta Zinc International"
+                  width={245}
+                  height={70}
+                  priority
+                  className="h-9 w-auto dark:hidden"
+                />
+                <Image
+                  src="/brand/vedanta-zinc-logo-dark.png"
+                  alt="Vedanta Zinc International"
+                  width={245}
+                  height={70}
+                  priority
+                  className="hidden h-9 w-auto dark:block"
+                />
+              </span>
+              <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => writeCollapsed(!isCollapsed)}
+            aria-expanded={!isCollapsed}
+            aria-controls="sidebar-nav"
+            title={isCollapsed ? "Expand the menu" : "Collapse the menu"}
+            className="shrink-0 rounded-lg p-1.5 text-nav-muted transition-colors outline-none hover:bg-nav-hover hover:text-nav-fg focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {isCollapsed ? (
+              <PanelLeftOpen aria-hidden="true" className="size-[18px]" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" className="size-[18px]" />
+            )}
+            <span className="sr-only">{isCollapsed ? "Expand the menu" : "Collapse the menu"}</span>
+          </button>
         </div>
 
         <nav
+          id="sidebar-nav"
           aria-label="Main"
           className="min-h-0 flex-1 overflow-y-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <div className="px-3 pb-1">
+          <div className={cn("pb-1", isCollapsed ? "px-2" : "px-3")}>
             <Link
               href="/assistant"
+              title={isCollapsed ? "New session" : undefined}
               className={cn(
-                "flex items-center gap-2 rounded-xl border border-dashed border-nav-muted/40 px-4 py-2 text-[13px] transition-colors",
+                "flex items-center rounded-xl border border-dashed border-nav-muted/40 text-[13px] transition-colors",
+                isCollapsed ? "mx-auto size-10 justify-center" : "gap-2 px-4 py-2",
                 pathname === "/assistant" ? "bg-nav-hover text-nav-fg" : "text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
               )}
             >
               <Plus className="size-4 shrink-0" />
-              <span className="font-medium">New session</span>
+              <span className={cn("font-medium", isCollapsed && "sr-only")}>New session</span>
             </Link>
           </div>
 
           {home && HomeIcon && (
             <div className="-my-2 py-4">
-              <NavItem link={{ label: home.label, href: home.href, icon: HomeIcon }} active={active === home.href} />
+              <NavItem
+                link={{ label: home.label, href: home.href, icon: HomeIcon }}
+                active={active === home.href}
+                collapsed={isCollapsed}
+                innerRef={active === home.href ? activeRef : undefined}
+              />
             </div>
           )}
 
-          {groups.map((group) => {
-            const holdsCurrent = group.links.some((link) => link.href === active)
-            const open = opened[group.title] ?? holdsCurrent
-            return (
+          {groups.map((group, index) =>
+            isCollapsed ? (
+              // No heading to collapse under: the links stand on their own, with
+              // a rule between groups so the rail is not one undivided column.
+              <div key={group.title}>
+                {index > 0 && <div aria-hidden="true" className="mx-auto my-2 h-px w-8 bg-nav-muted/25" />}
+                {group.links.map((link) => (
+                  <NavItem
+                    key={link.href}
+                    link={link}
+                    active={link.href === active}
+                    collapsed
+                    innerRef={link.href === active ? activeRef : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
               <NavSection
                 key={group.title}
                 title={group.title}
-                open={open}
-                holdsCurrent={holdsCurrent}
-                onToggle={() => writeToggle(group.title, !open)}
+                open={opened[group.title] ?? group.links.some((link) => link.href === active)}
+                holdsCurrent={group.links.some((link) => link.href === active)}
+                onToggle={() =>
+                  writeToggle(
+                    group.title,
+                    !(opened[group.title] ?? group.links.some((link) => link.href === active))
+                  )
+                }
               >
                 {group.links.map((link) => (
-                  <NavItem key={link.href} link={link} active={link.href === active} />
+                  <NavItem
+                    key={link.href}
+                    link={link}
+                    active={link.href === active}
+                    collapsed={false}
+                    innerRef={link.href === active ? activeRef : undefined}
+                  />
                 ))}
               </NavSection>
             )
-          })}
+          )}
         </nav>
 
-        <div className="px-3 pt-2 pb-4">
-          <SidebarAccount>
-            <ThemeToggle />
+        <div className={cn("pt-2 pb-4", isCollapsed ? "px-2" : "px-3")}>
+          <SidebarAccount collapsed={isCollapsed}>
+            <ThemeToggle compact={isCollapsed} />
           </SidebarAccount>
         </div>
       </aside>
@@ -292,10 +401,57 @@ const ACTIVE_ITEM = cn(
   "after:bg-[image:radial-gradient(circle_at_0_100%,transparent_16px,var(--nav-active)_16.5px)]"
 )
 
-function NavItem({ link, active }: { link: NavLink; active: boolean }) {
+function NavItem({
+  link,
+  active,
+  collapsed,
+  innerRef,
+}: {
+  link: NavLink
+  active: boolean
+  collapsed: boolean
+  /** Set on the current page's link, so the panel can scroll it into view. */
+  innerRef?: React.Ref<HTMLAnchorElement>
+}) {
   const Icon = link.icon
+
+  if (collapsed) {
+    // A square, centred in the rail. The edge-to-edge pill above needs the
+    // panel's full width to read as one, so the rail marks the current page
+    // with a plain rounded tile instead.
+    return (
+      <Link
+        ref={innerRef}
+        href={link.href}
+        aria-current={active ? "page" : undefined}
+        title={link.label}
+        className={cn(
+          "pointer-events-auto relative mx-auto my-1 flex size-10 items-center justify-center rounded-xl transition-colors",
+          active
+            ? "bg-nav-active font-medium text-nav-active-fg"
+            : "text-nav-muted hover:bg-nav-hover hover:text-nav-fg"
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        {/* The count has nowhere to go at this width, so it becomes a dot. The
+            number is still announced, and the panel shows it when opened. */}
+        {link.badge ? (
+          <span
+            aria-hidden="true"
+            className="absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive ring-2 ring-nav-bg"
+          />
+        ) : null}
+        <span className="sr-only">
+          {link.label}
+          {link.badge ? ` (${link.badge})` : ""}
+        </span>
+      </Link>
+    )
+  }
+
   return (
     <Link
+      ref={innerRef}
       href={link.href}
       aria-current={active ? "page" : undefined}
       className={cn(
