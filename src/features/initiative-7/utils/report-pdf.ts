@@ -17,10 +17,14 @@ import type { Recommendation, StockParameters } from "@/features/initiative-7/ty
 import {
   activityCell,
   adoptionSummaryOf,
+  hasPoints,
+  seriesGaps,
+  trendPoints,
   cardCaption,
   isWorkingCapitalKey,
   kpiValueText,
   moneyExact,
+  monthBasisLabel,
   num,
   orderedKpis,
   pageCardTitle,
@@ -281,12 +285,49 @@ export async function composeReportPdf(input: ReportPdfInput): Promise<jsPDF> {
     })
   }
   /** Two charts side by side, each in its own frame. */
-  const pair = (height: number, left: (x: number, top: number, w: number) => void, right: (x: number, top: number, w: number) => void) => {
+  const pair = (height: number, left: (x: number, top: number, w: number) => void, right?: (x: number, top: number, w: number) => void) => {
     ensure(height + 3)
     const w = (W - 4) / 2
     left(margin, y, w)
-    right(margin + w + 4, y, w)
+    right?.(margin + w + 4, y, w)
     y += height + 4
+  }
+  /** Three charts side by side. */
+  const triple = (height: number, draw: ((x: number, top: number, w: number) => void)[]) => {
+    ensure(height + 3)
+    const w = (W - 8) / 3
+    draw.forEach((chart, i) => chart(margin + i * (w + 4), y, w))
+    y += height + 4
+  }
+  /** A line over the months: a point and its value for each month with a figure, the line broken (never joined across) where a month has
+   * none -- the way the page draws its monthly trends. */
+  const lineChart = (x: number, top: number, w: number, h: number, categories: string[], values: (number | null)[], color: RGB, format: (n: number) => string) => {
+    const present = values.filter((v): v is number => v !== null)
+    if (present.length === 0) {
+      unavailable(x, top, w, h, "No month has a measured value yet.")
+      return
+    }
+    const min = Math.min(...present, 0)
+    const max = Math.max(...present, 0)
+    const span = max - min || 1
+    const plotTop = top + 7
+    const plotBottom = top + h - 8
+    const px = (i: number) => x + 8 + ((w - 16) * (categories.length === 1 ? 0.5 : i / (categories.length - 1)))
+    const py = (v: number) => plotBottom - ((v - min) / span) * (plotBottom - plotTop)
+    pdf.setDrawColor(c.border[0], c.border[1], c.border[2]).setLineWidth(0.15)
+    for (let i = 0; i <= 3; i++) pdf.line(x + 2, plotBottom - ((plotBottom - plotTop) * i) / 3, x + w - 2, plotBottom - ((plotBottom - plotTop) * i) / 3)
+    pdf.setDrawColor(color[0], color[1], color[2]).setLineWidth(0.6)
+    values.forEach((value, i) => {
+      const next = values[i + 1]
+      if (value !== null && next !== null && next !== undefined) pdf.line(px(i), py(value), px(i + 1), py(next))
+    })
+    values.forEach((value, i) => {
+      if (value === null) return
+      pdf.setFillColor(color[0], color[1], color[2]).circle(px(i), py(value), 0.9, "F")
+      const label = format(value)
+      text(label, Math.min(Math.max(px(i) - pdf.getTextWidth(safe(label)) / 2, x + 2), x + w - 2 - pdf.getTextWidth(safe(label))), py(value) - 2, 6.5, c.ink)
+    })
+    categories.forEach((category, i) => text(category, px(i) - pdf.getTextWidth(safe(category)) / 2, plotBottom + 4, 6.5, c.muted))
   }
 
   // --- Title ------------------------------------------------------------------------------------------------------
@@ -379,101 +420,106 @@ export async function composeReportPdf(input: ReportPdfInput): Promise<jsPDF> {
   const plantName = (code: string | null) => (code === null ? "All plants" : sapPlantLabel(code))
   const chartH = 58
 
-  pair(
-    chartH,
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Stockout Risk Distribution", "Fast and slow moving material-plants against their lead-time need.")
-      if (!usable) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}. ${unavailableReason}`)
-      const low = Math.max(stockout.evaluated - stockout.at_risk, 0)
-      rowBars(x, top + 17, w, [
-        { label: "High: below lead-time need", value: stockout.at_risk, color: c.danger },
-        { label: "Low: covers lead time", value: low, color: c.success },
-        { label: "Could not be judged", value: stockout.insufficient_data, color: c.muted },
-      ])
-      text(`As of ${date(stockout.as_of)}`, x + 3, top + chartH - 3, 6.5, c.muted)
-    },
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Stockout risk by plant", "Where those materials are held.")
-      if (!usable) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}. ${unavailableReason}`)
-      groupedBars(x, top + 12, w, chartH - 12, management.plant_positions.map((p) => plantName(p.plant)), [
-        { name: "At stockout risk", color: c.danger, values: management.plant_positions.map((p) => p.figures.stockout.at_risk) },
-      ])
-    },
-  )
-  pair(
-    chartH,
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Excess inventory by plant", "Materials holding more than the recommended maximum.")
-      groupedBars(x, top + 12, w, chartH - 12, management.plant_positions.map((p) => plantName(p.plant)), [
-        { name: "Material-plants with excess", color: c.s1, values: management.plant_positions.map((p) => p.figures.excess_count) },
-      ])
-    },
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Recommendations generated", "Records created each month, beside the distinct material-plants they cover.")
-      if (!performance) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE} for this report.`)
-      const months = performance.months.slice(-2)
-      groupedBars(x, top + 12, w, chartH - 12, months.map((m) => m.label), [
-        { name: "Records", color: c.s1, values: months.map((m) => m.records_generated) },
-        { name: "Distinct material-plants", color: c.s2, values: months.map((m) => m.material_plants_generated) },
-      ])
-    },
-  )
-  pair(
-    chartH,
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Approval activity", "Decisions recorded each month, counted when they happened.")
-      if (!performance) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE} for this report.`)
-      const months = performance.months
-      const anyFigure = months.some((m) => [m.submitted, m.approved, m.rejected, m.sent_back].some((v) => v !== null))
-      if (!anyFigure) return unavailable(x, top + 8, w, chartH - 8, "No approval event has been recorded in these months.")
-      groupedBars(x, top + 12, w, chartH - 12, months.map((m) => m.label), [
-        { name: "Sent for approval", color: c.s1, values: months.map((m) => m.submitted) },
-        { name: "Approval decisions", color: c.s3, values: months.map((m) => m.approved) },
-        { name: "Rejections", color: c.s4, values: months.map((m) => m.rejected) },
-        { name: "Sent back", color: c.s5, values: months.map((m) => m.sent_back) },
-      ])
-    },
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Excess inventory trend", "Estimated value of stock above the recommended maximum, at each month's end.")
-      const points = (performance?.months ?? [])
-        .filter((m) => m.excess_state === "MONTH_END" && num(m.excess_opportunity) !== null)
-        .map((m) => ({ label: m.label, value: num(m.excess_opportunity) as number }))
-      if (points.length < 2) {
-        return unavailable(x, top + 8, w, chartH - 8, `Only ${points.length === 1 ? "one month has" : "no month has"} a saved month-end snapshot, so there is no trend yet. A past month cannot be rebuilt from today's data.`)
-      }
-      groupedBars(x, top + 12, w, chartH - 12, points.map((p) => p.label), [{ name: "Excess value", color: c.s1, values: points.map((p) => p.value) }])
-    },
-  )
-  pair(
-    chartH,
-    (x, top, w) => {
-      frame(x, top, w, chartH, "Approval status", "Where this period's recommendations stand in the approval chain.")
-      const stages = approvalStageRows(management.adoption)
-      if (!stages) return unavailable(x, top + 8, w, chartH - 8, "The approval stages were not saved with this report. Generate it again to see them.")
-      rowBars(
-        x, top + 14, w,
-        stages.map((stage, i) => ({ label: stage.label, value: stage.count, color: [c.s3, c.warning, c.s5, c.success, c.s2, c.danger][i % 6] })),
-        formatCount,
-        6.2,
-      )
-      text(`${formatCount(management.adoption.stages?.total ?? 0)} recommendations with something to change in SAP, as they stand today.`, x + 3, top + chartH - 3, 6.5, c.muted)
-    },
-    (x, top, w) => {
-      frame(x, top, w, chartH, "SAP adoption", "Recommendations SAP has actually changed. Separate from approval.")
-      const adoption = adoptionSummaryOf(management.adoption)
-      if (!adoption) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}.`)
-      rowBars(x, top + 14, w, [
-        { label: "Adopted", value: adoption.adoptedCount, color: c.success },
-        { label: "Partially adopted", value: adoption.partiallyAdoptedCount, color: c.warning },
-        { label: "Not adopted", value: adoption.notAdoptedCount, color: c.danger },
-        { label: "Pending (no SAP change yet)", value: adoption.unknownCount, color: c.muted },
-      ])
-      text(
-        `${formatCount(adoption.totalEvaluated)} tracked. ${adoption.adoptionRatePercentage === null ? "Not yet measured." : `Adoption rate ${adoption.adoptionRatePercentage}%.`}`,
-        x + 3, top + chartH - 3, 6.5, c.muted,
-      )
-    },
-  )
+  const stockoutDistribution = (x: number, top: number, w: number) => {
+    frame(x, top, w, chartH, "Stockout Risk Distribution", "Fast and slow moving material-plants against their lead-time need.")
+    if (!usable) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}. ${unavailableReason}`)
+    const low = Math.max(stockout.evaluated - stockout.at_risk, 0)
+    rowBars(x, top + 17, w, [
+      { label: "High: below lead-time need", value: stockout.at_risk, color: c.danger },
+      { label: "Low: covers lead time", value: low, color: c.success },
+      { label: "Could not be judged", value: stockout.insufficient_data, color: c.muted },
+    ])
+    text(`As of ${date(stockout.as_of)}`, x + 3, top + chartH - 3, 6.5, c.muted)
+  }
+  const stockoutByPlant = (x: number, top: number, w: number) => {
+    frame(x, top, w, chartH, "Stockout risk by plant", "Where those materials are held.")
+    if (!usable) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}. ${unavailableReason}`)
+    groupedBars(x, top + 12, w, chartH - 12, management.plant_positions.map((p) => plantName(p.plant)), [
+      { name: "At stockout risk", color: c.danger, values: management.plant_positions.map((p) => p.figures.stockout.at_risk) },
+    ])
+  }
+  const excessByPlant = (x: number, top: number, w: number) => {
+    frame(x, top, w, chartH, "Excess inventory by plant", "Materials holding more than the recommended maximum.")
+    groupedBars(x, top + 12, w, chartH - 12, management.plant_positions.map((p) => plantName(p.plant)), [
+      { name: "Material-plants with excess", color: c.s1, values: management.plant_positions.map((p) => p.figures.excess_count) },
+    ])
+  }
+  const approvalStatus = (x: number, top: number, w: number) => {
+    frame(x, top, w, chartH, "Approval status", "Where this period's recommendations stand in the approval chain.")
+    const stages = approvalStageRows(management.adoption)
+    if (!stages) return unavailable(x, top + 8, w, chartH - 8, "The approval stages were not saved with this report. Generate it again to see them.")
+    rowBars(
+      x, top + 14, w,
+      stages.map((stage, i) => ({ label: stage.label, value: stage.count, color: [c.s3, c.warning, c.s5, c.success, c.s2, c.danger][i % 6] })),
+      formatCount,
+      6.2,
+    )
+    text(`${formatCount(management.adoption.stages?.total ?? 0)} recommendations with something to change in SAP, as they stand today.`, x + 3, top + chartH - 3, 6.5, c.muted)
+  }
+  const sapAdoption = (x: number, top: number, w: number) => {
+    frame(x, top, w, chartH, "SAP adoption", "Recommendations SAP has actually changed. Separate from approval.")
+    const adoption = adoptionSummaryOf(management.adoption)
+    if (!adoption) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE}.`)
+    rowBars(x, top + 14, w, [
+      { label: "Adopted", value: adoption.adoptedCount, color: c.success },
+      { label: "Partially adopted", value: adoption.partiallyAdoptedCount, color: c.warning },
+      { label: "Not adopted", value: adoption.notAdoptedCount, color: c.danger },
+      { label: "Pending (no SAP change yet)", value: adoption.unknownCount, color: c.muted },
+    ])
+    text(
+      `${formatCount(adoption.totalEvaluated)} tracked. ${adoption.adoptionRatePercentage === null ? "Not yet measured." : `Adoption rate ${adoption.adoptionRatePercentage}%.`}`,
+      x + 3, top + chartH - 3, 6.5, c.muted,
+    )
+  }
+
+  pair(chartH, stockoutDistribution, stockoutByPlant)
+  if (kind === "monthly") {
+    // The monthly report's charts: the last months' recommendation volume, approval activity and month-end excess.
+    pair(
+      chartH,
+      excessByPlant,
+      (x, top, w) => {
+        frame(x, top, w, chartH, "Recommendations generated", "Records created each month, beside the distinct material-plants they cover.")
+        if (!performance) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE} for this report.`)
+        const months = performance.months.slice(-2)
+        groupedBars(x, top + 12, w, chartH - 12, months.map((m) => m.label), [
+          { name: "Records", color: c.s1, values: months.map((m) => m.records_generated) },
+          { name: "Distinct material-plants", color: c.s2, values: months.map((m) => m.material_plants_generated) },
+        ])
+      },
+    )
+    pair(
+      chartH,
+      (x, top, w) => {
+        frame(x, top, w, chartH, "Approval activity", "Decisions recorded each month, counted when they happened.")
+        if (!performance) return unavailable(x, top + 8, w, chartH - 8, `${NOT_AVAILABLE} for this report.`)
+        const months = performance.months
+        const anyFigure = months.some((m) => [m.submitted, m.approved, m.rejected, m.sent_back].some((v) => v !== null))
+        if (!anyFigure) return unavailable(x, top + 8, w, chartH - 8, "No approval event has been recorded in these months.")
+        groupedBars(x, top + 12, w, chartH - 12, months.map((m) => m.label), [
+          { name: "Sent for approval", color: c.s1, values: months.map((m) => m.submitted) },
+          { name: "Approval decisions", color: c.s3, values: months.map((m) => m.approved) },
+          { name: "Rejections", color: c.s4, values: months.map((m) => m.rejected) },
+          { name: "Sent back", color: c.s5, values: months.map((m) => m.sent_back) },
+        ])
+      },
+      (x, top, w) => {
+        frame(x, top, w, chartH, "Excess inventory trend", "Estimated value of stock above the recommended maximum, at each month's end.")
+        const points = (performance?.months ?? [])
+          .filter((m) => m.excess_state === "MONTH_END" && num(m.excess_opportunity) !== null)
+          .map((m) => ({ label: m.label, value: num(m.excess_opportunity) as number }))
+        if (points.length < 2) {
+          return unavailable(x, top + 8, w, chartH - 8, `Only ${points.length === 1 ? "one month has" : "no month has"} a saved month-end snapshot, so there is no trend yet. A past month cannot be rebuilt from today's data.`)
+        }
+        groupedBars(x, top + 12, w, chartH - 12, points.map((p) => p.label), [{ name: "Excess value", color: c.s1, values: points.map((p) => p.value) }])
+      },
+    )
+    pair(chartH, approvalStatus, sapAdoption)
+  } else {
+    // The quarterly report's charts, as the quarterly page draws them: the position charts here, the three monthly trends below.
+    pair(chartH, excessByPlant, approvalStatus)
+    pair(chartH, sapAdoption)
+  }
 
   // --- Excess by plant, in money ------------------------------------------------------------------------------------
   heading("Excess inventory by plant", "An estimate of stock above the recommended maximum, not a saving.")
@@ -496,6 +542,68 @@ export async function composeReportPdf(input: ReportPdfInput): Promise<jsPDF> {
   )
   paragraph("Not available means the month has not started, the data does not cover it, or it is not tracked by month. It is not a count of zero.")
   for (const row of management.monthly_activity.rows.filter((r) => r.note)) paragraph(`${row.label}. ${row.note}`)
+
+  // --- Monthly trends and the quarter-end position (the quarterly report) --------------------------------------------------
+  const trends = management.trends
+  if (kind === "quarterly" && trends) {
+    heading("Monthly Trends", "What was measured at the time, from saved monthly snapshots. A month with no snapshot is not available, not zero.")
+    const points = trendPoints(trends)
+    const currency = trends.months.find((m) => m.currency)?.currency ?? null
+    const labels = points.map((p) => p.label)
+    const trendCharts: { key: "stockout" | "excessOpportunity" | "workingCapital"; title: string; subtitle: string; color: RGB; money: boolean }[] = [
+      { key: "stockout", title: "At stockout risk", subtitle: "Materials at risk each month", color: c.danger, money: false },
+      { key: "excessOpportunity", title: "Excess inventory opportunity", subtitle: "Stock above the recommended maximum", color: c.s1, money: true },
+      { key: "workingCapital", title: "Working capital impact", subtitle: "Cash freed (+) or tied up (-)", color: c.s3, money: true },
+    ]
+    triple(
+      52,
+      trendCharts.map((series) => (x, top, w) => {
+        frame(x, top, w, 52, series.title, series.subtitle)
+        const drawable = hasPoints(points, series.key)
+        const show = (value: number) => (series.money ? moneyExact(value, currency, series.key === "workingCapital") : formatCount(Math.round(value)))
+        if (!drawable) return unavailable(x, top + 8, w, 44, "No month has a measured value yet.")
+        lineChart(x, top + 11, w, 41, labels, points.map((p) => p[series.key]), series.color, show)
+        const gaps = seriesGaps(points, series.key)
+        if (gaps.length > 0) text(`No figure for ${gaps.join(", ")}.`, x + 3, top + 50.5, 6, c.muted, "italic")
+      }),
+    )
+    table(
+      ["Month", "Snapshot", "Measured", "At stockout risk", "Excess opportunity", "Working capital (estimate)", "Change from last month"],
+      trends.months.map((m) => [
+        m.label,
+        monthBasisLabel(m),
+        date(m.measured_on),
+        m.stockout_at_risk === null ? NOT_AVAILABLE : `${formatCount(m.stockout_at_risk)}${m.stockout_evaluated !== null ? ` of ${formatCount(m.stockout_evaluated)}` : ""}`,
+        m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.excess_opportunity), m.currency),
+        m.state === "MISSING" ? NOT_AVAILABLE : moneyExact(num(m.net_rop_value_impact), m.currency, true),
+        num(m.net_rop_change_from_previous) === null ? NOT_AVAILABLE : moneyExact(num(m.net_rop_change_from_previous), m.currency, true),
+      ]),
+      { fontSize: 7.5 },
+    )
+    for (const note of [...trends.months.filter((m) => m.note).map((m) => `${m.label}: ${m.note}`), ...trends.notes]) paragraph(note)
+    paragraph("Counts are positions on a date: each month shows its own, and they are never added into a quarter total.")
+
+    const end = trends.quarter_end
+    heading("Quarter-end position", end.status === "AVAILABLE" && end.measured_on ? `The saved ${end.label} month-end snapshot, measured ${date(end.measured_on)}.` : "The last month's saved snapshot, shown only when it is valid for the end of the quarter.")
+    if (end.status === "AVAILABLE") {
+      table(
+        ["Stock level", "Current (SAP), mean", "Recommended, mean", "Records"],
+        end.stock_levels.map((level) => [
+          level.label,
+          num(level.current) === null ? NOT_AVAILABLE : (num(level.current) as number).toFixed(1),
+          num(level.recommended) === null ? NOT_AVAILABLE : (num(level.recommended) as number).toFixed(1),
+          formatCount(level.records),
+        ]),
+        { columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } } },
+      )
+      paragraph("Means over the recommendations in force on the last day of the month, counting only those with both a current and a recommended value, so Records says how many each is over.")
+    } else {
+      paragraph(`${NOT_AVAILABLE}. ${end.reason ?? ""}`, false)
+      if (end.latest_available_label && end.latest_available_measured_on) {
+        paragraph(`The latest snapshot available is ${end.latest_available_label}, measured ${date(end.latest_available_measured_on)}. It is not shown as the quarter-end.`)
+      }
+    }
+  }
 
   // --- Forecast ------------------------------------------------------------------------------------------------------
   const forecast = management.forecast_actual
