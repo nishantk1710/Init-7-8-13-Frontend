@@ -59,9 +59,8 @@ export function listFilterKey(filters: DashboardFilterState): string {
 }
 
 /**
- * The list request for a filter bar and a page. Ordered by Value change, the biggest decrease
- * (released working capital, the green down arrow) first, then no change, then the increases, and the
- * rows with no figure last -- in the database, so it holds across every page, for OAR and stock items alike.
+ * The list request for a filter bar and a page. Newest first, so the latest pipeline run is
+ * on page 1.
  *
  * Picking OAR, Declining or Normal lists only recommendations that have been calculated
  * (backend status READY_FOR_REVIEW) -- unless the Status filter already says which
@@ -75,7 +74,7 @@ export function listParamsFromFilters(filters: DashboardFilterState, page: numbe
   return {
     page,
     pageSize: RECOMMENDATIONS_PAGE_SIZE,
-    sort: "value_change",
+    sort: "generated_at",
     sortDesc: true,
     status: onlyCalculated && !statusDecides ? "READY_FOR_REVIEW" : undefined,
     plant: chosen(filters.plant),
