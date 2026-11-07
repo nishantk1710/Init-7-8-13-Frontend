@@ -27,7 +27,7 @@ import { cn, formatCount } from "@/lib/utils"
  */
 const LINKAGE_SEGMENTS: { key: string; label: string; tone: BarSegment["tone"] }[] = [
   { key: "FULL_CHAIN", label: "Full chain", tone: "healthy" },
-  { key: "RESERVATION_LINKED", label: "Reservation linked", tone: "primary" },
+  { key: "RESERVATION_LINKED", label: "Has reservation", tone: "primary" },
   { key: "PR_ONLY", label: "PR only", tone: "neutral" },
   { key: "UNMATCHED", label: "Unmatched", tone: "caution" },
 ]

@@ -8,6 +8,7 @@ import {
   isDuplicate,
   isReady,
   lineFromPreview,
+  lineFieldCounts,
   lineIssues,
   oarNeedsJustification,
   pendingLine,
@@ -17,7 +18,6 @@ import {
   withChoice,
   withDeclarationOpen,
   withRequired,
-  withSuggestedWindow,
   type OarLine,
   type RepairableLine,
 } from "@/lib/assistant/request/lines"
@@ -105,16 +105,16 @@ describe("rows built from the preview", () => {
     expect(lineIssues(line)).toEqual(["required quantity", "window start", "window end", "purpose"])
   })
 
-  it("then ask which number to lock, and size the window from the locked one", () => {
-    const typed = withRequired(oar("4"), "6", null, TODAY)
+  it("then ask which number to lock, and leave the window for the requester to enter", () => {
+    const typed = withRequired(oar("4"), "6", null)
     expect([typed.choice, typed.quantity]).toEqual([null, ""])
     expect(lineIssues(typed)[0]).toBe("suggested or your quantity")
 
-    const suggested = withChoice(typed, "suggested", TODAY)
-    expect([suggested.quantity, suggested.windowStart, suggested.windowEnd]).toEqual(["4", "2026-10-15", "2027-06-15"])
-    expect(lineIssues(suggested)).toEqual(["purpose"])
+    const suggested = withChoice(typed, "suggested")
+    expect([suggested.quantity, suggested.windowStart, suggested.windowEnd]).toEqual(["4", "", ""])
+    expect(lineIssues(suggested)).toEqual(["window start", "window end", "purpose"])
 
-    const own = withChoice(typed, "own", TODAY)
+    const own = withChoice(typed, "own")
     expect(own.quantity).toBe("6")
     expect(oarNeedsJustification(own)).toBe(true)
   })
@@ -139,15 +139,25 @@ describe("rows built from the preview", () => {
   })
 
   it("use your own number when nothing is suggested, and then ask a reason for any", () => {
-    const typed = withRequired(oar(null), "3", null, TODAY)
+    const typed = withRequired(oar(null), "3", null)
     expect([typed.choice, typed.quantity]).toEqual(["own", "3"])
     expect(oarNeedsJustification(typed)).toBe(true)
-    expect(lineIssues(typed)).toEqual(["reason", "explanation", "purpose"])
+    expect(lineIssues(typed)).toEqual(["reason", "explanation", "window start", "window end", "purpose"])
   })
 
-  it("keep a window the requester edited", () => {
-    const edited = { ...oar("4"), windowEnd: "2026-12-31", windowEdited: true }
-    expect(withSuggestedWindow({ ...edited, quantity: "1" }, TODAY).windowEnd).toBe("2026-12-31")
+  it("never fill in the window, and keep one the requester entered", () => {
+    const entered = { ...oar("4"), windowStart: "2026-11-10", windowEnd: "2026-12-31" }
+    const relocked = withChoice(withRequired(entered, "4"), "suggested")
+    expect([relocked.windowStart, relocked.windowEnd]).toEqual(["2026-11-10", "2026-12-31"])
+  })
+
+  it("count the progress bar's fields by the same rules as readiness", () => {
+    const fresh = oar("4")
+    expect(lineFieldCounts(fresh)).toEqual({ filled: 1, total: 5 })
+    const done = { ...withChoice(withRequired(fresh, "4"), "suggested"), windowStart: "2026-11-10", windowEnd: "2026-12-31", purpose: "Mill 3" }
+    expect(isReady(done)).toBe(true)
+    expect(lineFieldCounts(done)).toEqual({ filled: 5, total: 5 })
+    expect(lineFieldCounts({ ...fresh, decision: "not_needed" as const })).toEqual({ filled: 1, total: 1 })
   })
 
   it("need nothing once marked not needed", () => {
@@ -264,7 +274,9 @@ describe("what the suggestion saves", () => {
 describe("what submit sends", () => {
   it("sends an OAR line's answers, a reason only when one is needed, and what was shown as suggested", () => {
     const line: OarLine = {
-      ...withChoice(withRequired(oar("4"), "6"), "own", TODAY),
+      ...withChoice(withRequired(oar("4"), "6"), "own"),
+      windowStart: "2026-10-15",
+      windowEnd: "2027-10-15",
       purpose: " Mill 3 ",
       justification: { reasonCategory: "OTHER", freeText: " two spares " },
     }

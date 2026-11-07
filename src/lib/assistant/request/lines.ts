@@ -17,7 +17,7 @@ import type {
   ApiReasonCategory,
   QuantityChoice,
 } from "@/lib/api/assistant-requests"
-import { needsJustification, suggestWindow } from "@/lib/assistant/request/suggest"
+import { needsJustification } from "@/lib/assistant/request/suggest"
 
 /** Used until the backend's own cap arrives with the first preview. */
 export const DEFAULT_MAX_LINES = 20
@@ -181,15 +181,6 @@ export function parseQuantity(text: string): number | null {
   return value > 0 ? value : null
 }
 
-/** The window that goes with a quantity, unless the requester has set their own. */
-export function withSuggestedWindow(line: OarLine, today?: Date): OarLine {
-  if (line.windowEdited) return line
-  const window = suggestWindow(parseQuantity(line.quantity), line.rate, today)
-  return window
-    ? { ...line, windowStart: window.start, windowEnd: window.end }
-    : { ...line, windowStart: "", windowEnd: "" }
-}
-
 /**
  * A row from its preview. `key` is kept when a pending row resolves, and when a
  * row is re-checked after a 409 -- `previous` then keeps what was typed.
@@ -277,24 +268,20 @@ export function choiceOf(line: OarLine): QuantityChoice | null {
  * against, so typing a new one unlocks the row -- unless `keep` names a lock
  * that still holds (the requester's own number follows what they type).
  */
-export function withRequired(
-  line: OarLine,
-  required: string,
-  keep: QuantityChoice | null = null,
-  today?: Date
-): OarLine {
+export function withRequired(line: OarLine, required: string, keep: QuantityChoice | null = null): OarLine {
   const next = { ...line, required, choice: line.suggested === null ? ("own" as const) : keep }
-  return withSuggestedWindow({ ...next, quantity: lockedQuantity(next) }, today)
+  // The usage window is the requester's to enter: never filled in for them (UAT, 7-Nov-2026).
+  return { ...next, quantity: lockedQuantity(next) }
 }
 
 /**
  * Lock the suggestion or the requester's own number. Taking a suggestion of 0
  * means nothing needs reserving: the row is marked not needed.
  */
-export function withChoice(line: OarLine, choice: QuantityChoice, today?: Date): OarLine {
+export function withChoice(line: OarLine, choice: QuantityChoice): OarLine {
   const declined = choice === "suggested" && line.suggested === 0
   const next: OarLine = { ...line, choice, decision: declined ? "not_needed" : "proceed", changed: false }
-  return withSuggestedWindow({ ...next, quantity: lockedQuantity(next) }, today)
+  return { ...next, quantity: lockedQuantity(next) }
 }
 
 function lockedQuantity(line: OarLine): string {
@@ -410,6 +397,35 @@ export function lineIssues(line: DraftLine): string[] {
 
 export function isReady(line: DraftLine): boolean {
   return lineIssues(line).length === 0
+}
+
+/**
+ * How many of a row's required answers are given, for the progress bar. The
+ * same rules as `lineIssues` -- a field is filled when it raises no issue -- so
+ * a row reads full exactly when it is ready. A row marked not needed asks
+ * nothing; a row still checking counts as one field not yet filled.
+ */
+export function lineFieldCounts(line: DraftLine): { filled: number; total: number } {
+  const missing = lineIssues(line).length
+  switch (line.kind) {
+    case "i13": {
+      if (line.decision === "not_needed") return { filled: 1, total: 1 }
+      // Required quantity, the quantity locked, window start, window end, purpose.
+      const total = 5 + (oarNeedsJustification(line) ? justificationIssues(EMPTY_JUSTIFICATION).length : 0)
+      return { filled: Math.max(total - missing, 0), total }
+    }
+    case "i08": {
+      const total =
+        1 +
+        (repairableNeedsJustification(line) ? justificationIssues(EMPTY_JUSTIFICATION).length : 0) +
+        declarationIssues(line.declaration).length
+      return { filled: Math.max(total - missing, 0), total }
+    }
+    case "pending":
+      return { filled: 0, total: 1 }
+    default:
+      return { filled: 0, total: 0 }
+  }
 }
 
 /** The answers submit sends for one row, exactly what its flow asks. */
