@@ -15,10 +15,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
 import { cn, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
@@ -94,15 +94,15 @@ export function WatchTable({ metrics }: { metrics: WatchMetric[] }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Plant</TableHead>
-                <TableHead>Stock type</TableHead>
-                <TableHead className="text-right">Months of cover</TableHead>
-                <TableHead className="text-right">Days since movement</TableHead>
-                <TableHead className="text-right">Consumption (12m)</TableHead>
-                <TableHead className="text-right">Inventory turns</TableHead>
-                <TableHead>GR not issued (30d)</TableHead>
-                <TableHead>Acquired vs. plan</TableHead>
+                <ColumnHead source="material">Material</ColumnHead>
+                <ColumnHead source="plant">Plant</ColumnHead>
+                <ColumnHead source="stockType">Stock type</ColumnHead>
+                <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
+                <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
+                <ColumnHead source="issues" className="text-right">Consumption (12m)</ColumnHead>
+                <ColumnHead source="inventoryTurns" className="text-right">Inventory turns</ColumnHead>
+                <ColumnHead source="grNotIssued">GR not issued (30d)</ColumnHead>
+                <ColumnHead source="acquiredVsPlan">Acquired vs. plan</ColumnHead>
               </TableRow>
             </TableHeader>
             <TableBody>

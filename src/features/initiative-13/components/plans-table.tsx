@@ -10,10 +10,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
 import type { ConsumptionPlan } from "@/lib/api/i13"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
@@ -53,21 +53,22 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Material</TableHead>
-            <TableHead>Plant</TableHead>
-            <TableHead>Purpose</TableHead>
-            <TableHead className="text-right">Planned qty</TableHead>
-            <TableHead>Window</TableHead>
-            <TableHead
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="plant">Plant</ColumnHead>
+            <ColumnHead source="planPurpose">Purpose</ColumnHead>
+            <ColumnHead source="planQty" className="text-right">Planned qty</ColumnHead>
+            <ColumnHead source="planWindow">Window</ColumnHead>
+            <ColumnHead
+              source="issuedOnReservation"
               className="text-right"
-              title="Goods issued against the reservations whose item text carries this plan's session or request ID"
+              note="Goods issued against the reservations whose item text carries this plan's session or request ID"
             >
               Issued
-            </TableHead>
-            <TableHead>Acquired vs plan</TableHead>
-            <TableHead>Reservation</TableHead>
-            <TableHead>Session</TableHead>
-            <TableHead>Captured</TableHead>
+            </ColumnHead>
+            <ColumnHead source="acquiredVsPlan">Acquired vs plan</ColumnHead>
+            <ColumnHead source="planReservation">Reservation</ColumnHead>
+            <ColumnHead source="planSession">Session</ColumnHead>
+            <ColumnHead source="planCaptured">Captured</ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>
