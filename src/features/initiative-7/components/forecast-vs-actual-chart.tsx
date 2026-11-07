@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { fetchForecastHistory, type ForecastHistory } from "@/features/initiative-7/services/i7-api"
-import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import type { ConsumptionPoint, Recommendation } from "@/features/initiative-7/types/inventory"
 import { aggregateConsumption } from "@/features/initiative-7/utils/inventory-calc"
 
 const ACTUAL_COLOR = "var(--chart-3)"
@@ -65,6 +65,34 @@ export interface ChartPoint {
   period: string
   actual: number | null
   forecast: number | null
+}
+
+/** Every month of real consumption, with the champion model's own prediction on the months it was
+ * backtested.
+ *
+ * The backtest only starts once the model has enough history to be tested, so it covers fewer months
+ * than the 12-month history -- plotting the backtest alone dropped the earlier months (and their
+ * consumption) from the chart, so the lines no longer added up to the "annual consumption" figure.
+ * The actual line is therefore always the full history; the forecast is a value only where a backtest
+ * month matches the calendar month, and missing -- never filled in or carried back -- everywhere else.
+ *
+ * `null` when a history point carries no calendar month, so it cannot be matched safely: the caller
+ * then keeps plotting the backtest on its own. */
+export function actualWithBacktest(
+  actuals: ConsumptionPoint[],
+  backtest: { period: string; predicted: number | null }[],
+  noForecast: boolean,
+): ChartPoint[] | null {
+  if (actuals.length === 0 || actuals.some((point) => !point.month)) return null
+  const predictedByMonth = new Map<string, number>()
+  for (const point of backtest) {
+    if (point.predicted != null) predictedByMonth.set(point.period.slice(0, 7), point.predicted)
+  }
+  return actuals.map((point) => ({
+    period: point.period,
+    actual: point.qty,
+    forecast: noForecast ? null : (predictedByMonth.get(point.month as string) ?? null),
+  }))
 }
 
 /** The flat-line fallback series: the actual monthly usage, with the backend's single forecast
@@ -136,8 +164,12 @@ export function ForecastVsActualChart({
     const series = aggregateConsumption(recommendations).slice(-Number(windowSize))
 
     if (soleRecommendationId && liveHistory && liveHistory.points.length > 0) {
-      // Real model output: plot exactly what i7_forecast_backtest_path holds,
-      // windowed the same way as the other branches, never recomputed.
+      // Every month of real consumption for the window, with the model's own backtest prediction on the
+      // months it covers (i7_forecast_backtest_path, never recomputed). The backtest alone starts later
+      // than the history does, so plotting only it left earlier months off the chart.
+      const merged = actualWithBacktest(series, liveHistory.points, noForecast)
+      if (merged) return merged
+      // A history without calendar months cannot be matched to the backtest: plot the backtest as it is.
       return liveHistory.points.slice(-Number(windowSize)).map((p) => ({
         period: p.period,
         actual: p.actual,
@@ -172,7 +204,7 @@ export function ForecastVsActualChart({
         {noForecast
           ? "Actual monthly usage. There is no forecast for this material: its reorder point, safety stock and max stock are estimated from similar materials, not from its own usage."
           : usingRealHistory
-          ? `Real model output (${liveHistory?.modelName ?? "champion model"}): each point is that model's own rolling-origin prediction against what actually happened, never recomputed.`
+          ? `Actual monthly consumption for every month shown. The dashed line is the real model output (${liveHistory?.modelName ?? "champion model"}): its own rolling-origin prediction, drawn only for the months the model was tested, never recomputed or filled in for earlier months.`
           : "Actual consumption against the backend's own forecast demand rate — one monthly figure, shown flat, not a fabricated month-by-month curve. (No persisted backtest history yet for this view.)"}
       </p>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

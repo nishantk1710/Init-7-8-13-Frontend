@@ -362,10 +362,15 @@ describe("mapDetailToRecommendation", () => {
 
   it("maps the real staged consumption series to short month labels, never fabricating a series", () => {
     const rec = mapDetailToRecommendation(detailFixture())
-    expect(rec.consumptionHistory).toEqual([
+    expect(rec.consumptionHistory.map(({ period, qty }) => ({ period, qty }))).toEqual([
       { period: "Aug", qty: 3 },
       { period: "Sep", qty: 5 },
     ])
+  })
+
+  it("keeps each month's calendar key so it can be matched to a forecast backtest", () => {
+    const rec = mapDetailToRecommendation(detailFixture())
+    expect(rec.consumptionHistory.map((point) => point.month)).toEqual(["2025-08", "2025-09"])
   })
 
   it("returns an empty consumption history for a material with no staged rows, not a fabricated one", () => {
