@@ -7,10 +7,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import { DataTable } from "@/features/initiative-13/components/ui/data-table"
 import type { WatchFilters } from "@/features/initiative-13/data/live-loaders"
@@ -106,10 +106,10 @@ export function NonMoverTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead className="text-right">Last issued</TableHead>
-              <TableHead className="text-right">Stock on hand</TableHead>
+              <ColumnHead source="material">Material</ColumnHead>
+              <ColumnHead source="plant">Plant</ColumnHead>
+              <ColumnHead source="lastIssue" className="text-right">Last issued</ColumnHead>
+              <ColumnHead source="stockOnHand" className="text-right">Stock on hand</ColumnHead>
             </TableRow>
           </TableHeader>
           <TableBody>

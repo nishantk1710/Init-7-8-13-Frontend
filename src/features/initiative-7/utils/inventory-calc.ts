@@ -180,6 +180,8 @@ export function aggregateConsumption(recs: Recommendation[]): ConsumptionPoint[]
   return recs[0].consumptionHistory.map((point, i) => ({
     period: point.period,
     qty: recs.reduce((sum, r) => sum + (r.consumptionHistory[i]?.qty ?? 0), 0),
+    // The calendar month travels with the point so a chart can line it up with a backtest.
+    ...(point.month ? { month: point.month } : {}),
   }))
 }
 
