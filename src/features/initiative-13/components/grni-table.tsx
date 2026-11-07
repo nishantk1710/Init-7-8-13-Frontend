@@ -10,10 +10,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { GrniEntry } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
@@ -45,17 +45,17 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Material</TableHead>
-            <TableHead>Plant</TableHead>
-            <TableHead>PO</TableHead>
-            <TableHead className="text-right">Received</TableHead>
-            <TableHead className="text-right">Issued</TableHead>
-            <TableHead className="text-right" title="Received and not yet issued">In stock</TableHead>
-            <TableHead>Last GR</TableHead>
-            <TableHead className="text-right">Days since GR</TableHead>
-            <TableHead>Issued on</TableHead>
-            <TableHead>Next planned issue</TableHead>
-            <TableHead>How matched</TableHead>
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="plant">Plant</ColumnHead>
+            <ColumnHead source="po">PO</ColumnHead>
+            <ColumnHead source="received" className="text-right">Received</ColumnHead>
+            <ColumnHead source="matchedIssue" className="text-right">Issued</ColumnHead>
+            <ColumnHead source="matchedIssue" className="text-right" note="Received and not yet issued">In stock</ColumnHead>
+            <ColumnHead source="lastGr">Last GR</ColumnHead>
+            <ColumnHead source="daysSinceGr" className="text-right">Days since GR</ColumnHead>
+            <ColumnHead source="matchedIssue">Issued on</ColumnHead>
+            <ColumnHead source="nextPlannedIssue">Next planned issue</ColumnHead>
+            <ColumnHead source="matchedIssue">How matched</ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>

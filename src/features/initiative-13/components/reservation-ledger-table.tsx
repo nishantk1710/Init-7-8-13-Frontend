@@ -14,10 +14,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -73,15 +73,18 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Material</TableHead>
-            <TableHead>Reservation</TableHead>
-            <TableHead title="Requirement date (RESB-BDTER)">Required</TableHead>
-            <TableHead className="text-right">Qty</TableHead>
-            <TableHead title="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)">
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="reservation">Reservation</ColumnHead>
+            <ColumnHead source="required" note="Requirement date (RESB-BDTER)">Required</ColumnHead>
+            <ColumnHead source="reservedQty" className="text-right">Qty</ColumnHead>
+            <ColumnHead
+              source="issuedOnReservation"
+              note="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)"
+            >
               Issued
-            </TableHead>
-            <TableHead title="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued">Stage</TableHead>
-            <TableHead>Session (item text)</TableHead>
+            </ColumnHead>
+            <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued">Stage</ColumnHead>
+            <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>
