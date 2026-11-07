@@ -87,7 +87,16 @@ describe("nonMoverRowsToCsv", () => {
     const csv = nonMoverRowsToCsv([watchRow({ material: "A" }), watchRow({ material: "B" })])
     expect(csv).toHaveLength(2)
     expect(csv[0][0]).toBe("A")
-    expect(csv[0]).toHaveLength(6)
+    expect(csv[0]).toHaveLength(4)
+  })
+
+  it("exports when it was last issued, not the last movement of any type", () => {
+    const [issued, never] = nonMoverRowsToCsv([
+      watchRow({ material: "A", lastIssueDate: "2023-06-15", lastMovementDate: "2026-06-01", stockOnHand: 2 }),
+      watchRow({ material: "B", lastIssueDate: null, stockOnHand: null }),
+    ])
+    expect(issued).toEqual(["A", "1300", "2023-06-15", 2])
+    expect(never).toEqual(["B", "1300", "Never issued", ""])
   })
 })
 

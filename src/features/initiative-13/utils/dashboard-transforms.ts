@@ -42,15 +42,12 @@ export function buildLastRefreshedAt(rows: { calculatedAt: string | null }[]): s
 // caller) as flat string/number tuples for `downloadExcel` -- no re-filtering,
 // no aggregation.
 
+/** Shown where no goods issue is on record: the "or never issued" of the non-moving rule. */
+export const NEVER_ISSUED = "Never issued"
+
+/** The Non-movers export: the table's four columns -- Material, Plant, Last issued, Stock on hand. */
 export function nonMoverRowsToCsv(rows: WatchMetric[]): (string | number)[][] {
-  return rows.map((r) => [
-    r.material,
-    r.plant,
-    r.agingBand,
-    r.daysSinceLastMovement ?? "",
-    r.stockOnHand ?? "",
-    r.consumptionCount12m,
-  ])
+  return rows.map((r) => [r.material, r.plant, r.lastIssueDate ?? NEVER_ISSUED, r.stockOnHand ?? ""])
 }
 
 export function planVsIssuedRowsToCsv(rows: PlanVsIssuedRow[]): (string | number)[][] {
