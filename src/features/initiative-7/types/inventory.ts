@@ -114,8 +114,13 @@ export interface RecommendationFactor {
 }
 
 export interface ConsumptionPoint {
+  /** Short month label for display ("Aug"). */
   period: string
   qty: number
+  /** The calendar month as "YYYY-MM", when the backend gave one. It is what lets a month of real
+   * consumption be matched to the same month of a forecast backtest; absent, the point can only be
+   * shown, not matched. */
+  month?: string
 }
 
 export interface OarColdStartGuidance {

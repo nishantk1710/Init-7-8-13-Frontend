@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn, formatCount } from "@/lib/utils"
@@ -184,13 +185,13 @@ export function UtilizationLedgerTable({
               <TableHead className="w-12">
                 <span className="sr-only">Details</span>
               </TableHead>
-              <TableHead>Material</TableHead>
-              <TableHead>PO / PR</TableHead>
-              <TableHead title="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</TableHead>
-              <TableHead>Procurement</TableHead>
-              <TableHead title="The reservation that raised this line's PR (RESB-BANFN), or a stock refill when none did">
+              <ColumnHead source="material">Material</ColumnHead>
+              <ColumnHead source="poPr">PO / PR</ColumnHead>
+              <ColumnHead source="received" note="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</ColumnHead>
+              <ColumnHead source="procurement">Procurement</ColumnHead>
+              <ColumnHead source="raisedBy" note="The reservation that raised this line's PR (RESB-BANFN), or a stock refill when none did">
                 Raised by
-              </TableHead>
+              </ColumnHead>
             </TableRow>
           </TableHeader>
           <TableBody>

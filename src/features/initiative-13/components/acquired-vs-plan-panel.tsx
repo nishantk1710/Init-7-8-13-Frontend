@@ -9,10 +9,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { ExportButton } from "@/features/initiative-13/components/export-button"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import type { PlanVsIssuedFilters } from "@/features/initiative-13/data/live-loaders"
@@ -107,20 +107,22 @@ export function AcquiredVsPlanPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Material &amp; plant</TableHead>
-                <TableHead
+                <ColumnHead source="material">Material &amp; plant</ColumnHead>
+                <ColumnHead
+                  source="planned"
                   className="text-right"
-                  title="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
+                  note="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
                 >
                   Planned
-                </TableHead>
-                <TableHead
+                </ColumnHead>
+                <ColumnHead
+                  source="issuedOnReservation"
                   className="text-right"
-                  title="What was used: goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
+                  note="What was used: goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
                 >
                   Issued
-                </TableHead>
-                <TableHead>Status</TableHead>
+                </ColumnHead>
+                <ColumnHead source="acquiredVsPlan">Status</ColumnHead>
               </TableRow>
             </TableHeader>
             <TableBody>

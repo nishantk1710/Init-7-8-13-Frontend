@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment } from "react"
-import { Ban, CheckCircle2, Lock, PiggyBank, RefreshCw, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
+import { Ban, CheckCircle2, Lock, PiggyBank, RefreshCw, Sparkles, Trash2, Undo2 } from "lucide-react"
 
 import { Chip, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
@@ -17,11 +17,10 @@ import {
   toNumber,
   withChoice,
   withRequired,
-  withSuggestedWindow,
   type LineSaving,
   type OarLine,
 } from "@/lib/assistant/request/lines"
-import { justificationPrompt, suggestionKind, suggestWindow } from "@/lib/assistant/request/suggest"
+import { justificationPrompt, suggestionKind } from "@/lib/assistant/request/suggest"
 import { cn, formatZAR } from "@/lib/utils"
 
 /**
@@ -140,11 +139,6 @@ function OarRow({
     ? (facts.crossPlantStock as { plant: string; stockOnHand: string }[])
     : []
   const err = (name: string) => showErrors && issues.includes(name)
-  const suggestedWindow = suggestWindow(quantity, row.rate)
-  const windowDiffers =
-    row.windowEdited &&
-    suggestedWindow !== null &&
-    (suggestedWindow.start !== row.windowStart || suggestedWindow.end !== row.windowEnd)
 
   return (
     <Fragment>
@@ -313,26 +307,6 @@ function OarRow({
                 className="h-8 w-[8.5rem] text-xs"
               />
             </div>
-            {!declined && !row.windowEdited && suggestedWindow && (
-              <span className="text-[11px] text-muted-foreground">
-                Suggested: {suggestedWindow.months} month
-                {suggestedWindow.months === 1 ? "" : "s"} at {figure(row.rate)}
-                /month
-              </span>
-            )}
-            {!declined && !suggestedWindow && row.rate <= 0 && (
-              <span className="text-[11px] text-muted-foreground">No usage rate: enter the window.</span>
-            )}
-            {!declined && windowDiffers && (
-              <button
-                type="button"
-                className="inline-flex w-fit items-center gap-1 text-[11px] text-action hover:underline"
-                onClick={() => onChange(withSuggestedWindow({ ...row, windowEdited: false }))}
-              >
-                <RotateCcw className="size-3" aria-hidden />
-                Use suggested ({suggestedWindow.months} mo)
-              </button>
-            )}
           </div>
         </td>
         <td className="px-3 py-3">
