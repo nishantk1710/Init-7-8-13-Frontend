@@ -9,6 +9,7 @@ import {
   nonMoverRowsToCsv,
   planVsIssuedRowsToCsv,
 } from "./dashboard-transforms"
+import { grNotIssuedHover } from "@/features/initiative-13/components/watch-table"
 import { selectConfirmedExceptions } from "@/lib/api/i13"
 
 function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
@@ -218,5 +219,23 @@ describe("planVsIssuedRowsToCsv", () => {
       ["Via assistant", "MAT-1", "1300", "", "5.000", "0", "Below plan", "2026-10-23", "Yes"],
       ["Via assistant", "MAT-1", "1300", "", "2.000", "0", "Awaiting reservation", "2026-12-01", "No"],
     ])
+  })
+})
+
+describe("grNotIssuedHover", () => {
+  it("says the days count from the oldest receipt still not issued, with the totals across PO lines", () => {
+    const text = grNotIssuedHover(
+      watchRow({
+        grNotIssuedFlag: true,
+        grNotIssuedDaysSinceGr: 45,
+        grNotIssuedRelevantGrDate: "2026-09-23",
+        grNotIssuedReceivedQuantity: 15,
+        grNotIssuedIssuedQuantity: 6,
+        grNotIssuedOutstandingQuantity: 9,
+      })
+    )
+    expect(text).toMatch(/^Days since the oldest goods receipt still not issued \(received .*Sept? 2026\), not the latest one\./)
+    expect(text).toContain("15 received, 6 issued, 9 still in store")
+    expect(text).toContain("GR not issued tab")
   })
 })

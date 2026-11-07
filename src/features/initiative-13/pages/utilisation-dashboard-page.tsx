@@ -105,7 +105,8 @@ export async function UtilisationDashboardPage({
   const filters = {
     plant: searchParams.plant,
     material: searchParams.material,
-    agingBand: searchParams.agingBand,
+    // No stock-type filter on the dashboard (UAT, 7-Nov-2026): an old link's
+    // ?agingBand= must not narrow the page with no filter on screen to say so.
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
   }
   // The acquired-vs-plan tab's rows have their own filters, set inside the tab.
@@ -212,9 +213,8 @@ export async function UtilisationDashboardPage({
 
       <I13UrlFilters
         layout="panel"
-        fields={["plant", "material", "agingBand"]}
+        fields={["plant", "material"]}
         plants={watch?.plantOptions}
-        agingBands={watch?.agingBandOptions}
       />
 
       {dashboard.summary.status === "ready" ? (

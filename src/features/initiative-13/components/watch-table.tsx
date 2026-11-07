@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
+import { formatApiDate } from "@/lib/api/format"
 import type { AcquiredVsPlanStatus, AgingBand, WatchMetric } from "@/lib/api/i13"
 import { cn, formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
@@ -79,6 +80,24 @@ const PLAN_TONE: Record<AcquiredVsPlanStatus, "neutral" | "healthy" | "caution" 
  * the row. A session is linked where it belongs to exactly one reservation or
  * plan (the ledger, acquired vs plan, the exception's own session).
  */
+/**
+ * Which receipt the "N d since GR" pill counts from, when a material has many
+ * PO lines: the OLDEST goods receipt whose stock is still not issued -- the one
+ * that decides the 30-day rule -- not the latest. The quantities add up every
+ * PO line still holding stock; each line is its own row on the GR not issued tab.
+ */
+export function grNotIssuedHover(m: WatchMetric): string {
+  const received = m.grNotIssuedReceivedQuantity
+  const issued = m.grNotIssuedIssuedQuantity
+  const left = m.grNotIssuedOutstandingQuantity
+  const when = m.grNotIssuedRelevantGrDate ? ` (received ${formatApiDate(m.grNotIssuedRelevantGrDate)})` : ""
+  const quantities =
+    received !== null && issued !== null && left !== null
+      ? ` Across this material's PO lines still holding stock: ${formatCount(received)} received, ${formatCount(issued)} issued, ${formatCount(left)} still in store.`
+      : ""
+  return `Days since the oldest goods receipt still not issued${when}, not the latest one.${quantities} Each PO line is listed on the GR not issued tab.`
+}
+
 export function WatchTable({ metrics }: { metrics: WatchMetric[] }) {
   const filtered = metrics
 
@@ -146,9 +165,11 @@ export function WatchTable({ metrics }: { metrics: WatchMetric[] }) {
                   </TableCell>
                   <TableCell>
                     {m.grNotIssuedFlag ? (
-                      <StatusPill tone="urgent">
-                        {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
-                      </StatusPill>
+                      <span title={grNotIssuedHover(m)}>
+                        <StatusPill tone="urgent">
+                          {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
+                        </StatusPill>
+                      </span>
                     ) : (
                       <EmptyValue kind="noGrNotIssued" />
                     )}

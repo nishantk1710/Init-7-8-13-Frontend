@@ -35,13 +35,13 @@ import {
   answersOf,
   isDuplicate,
   isReady,
+  lineFieldCounts,
   lineFromPreview,
   oarNeedsJustification,
   opensSession,
   pendingLine,
   repairableNeedsJustification,
   requestSaving,
-  withSuggestedWindow,
   type DraftLine,
   type Justification,
   type NoSessionLine,
@@ -177,6 +177,14 @@ export function RequestBuilder({
   const headerReady = fromSap || (requester.trim().length > 0 && department.length > 0)
   const canSubmit =
     headerReady && pendingCount === 0 && sessionRows.length > 0 && readyCount === sessionRows.length
+  // The bar counts every required answer -- requester and department, then
+  // each row's -- so it reaches the end only when Submit is enabled (UAT,
+  // 7-Nov-2026: it counted ready lines only and read full with the header empty).
+  const fields = sessionRows.map(lineFieldCounts).reduce(
+    (sum, f) => ({ filled: sum.filled + f.filled, total: sum.total + f.total }),
+    fromSap ? { filled: 0, total: 0 } : { filled: (requester.trim() ? 1 : 0) + (department ? 1 : 0), total: 2 }
+  )
+  const progress = canSubmit ? 1 : fields.total > 0 ? Math.min(fields.filled / fields.total, 0.99) : 0
 
   async function add(picked: Picked) {
     if (requestPlant && picked.plant !== requestPlant) {
@@ -633,18 +641,26 @@ export function RequestBuilder({
             </span>
           </span>
           {sessionRows.length > 0 && (
-            <div
-              role="progressbar"
-              aria-label="Lines ready"
-              aria-valuemin={0}
-              aria-valuemax={sessionRows.length}
-              aria-valuenow={readyCount}
-              className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-muted"
-            >
+            <div className="flex w-full items-center gap-3">
               <div
-                className="h-full rounded-full bg-primary transition-[width]"
-                style={{ width: `${(readyCount / sessionRows.length) * 100}%` }}
-              />
+                role="progressbar"
+                aria-label="Required fields filled"
+                aria-valuemin={0}
+                aria-valuemax={fields.total}
+                aria-valuenow={canSubmit ? fields.total : fields.filled}
+                className="h-2.5 w-full overflow-hidden rounded-full border border-border bg-muted"
+              >
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width]",
+                    canSubmit ? "bg-success" : "bg-action"
+                  )}
+                  style={{ width: `${progress * 100}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-foreground tabular-nums">
+                {fields.filled} / {fields.total} fields
+              </span>
             </div>
           )}
           {saving.units > 0 && (
@@ -672,6 +688,15 @@ export function RequestBuilder({
                   : rows.length > 0
                     ? "Ready to submit."
                     : "Add a material to start."}
+            {!canSubmit && sessionRows.length > 0 && pendingCount === 0 && (
+              <button
+                type="button"
+                className="ml-2 text-action underline-offset-4 hover:underline"
+                onClick={() => setShowErrors(true)}
+              >
+                Show what&rsquo;s missing
+              </button>
+            )}
           </span>
           <span className="text-[11px] text-muted-foreground">
             Submitting records every line, or nothing, and gives one request reference. Type it once into the SAP
@@ -703,7 +728,8 @@ export function RequestBuilder({
           variant="outline"
           size="lg"
           onClick={submit}
-          disabled={submitting}
+          disabled={submitting || !canSubmit}
+          title={canSubmit ? undefined : "Fill in every required field first"}
           className="min-h-11 gap-1.5 border-action bg-action/10 px-5 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
         >
           {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
@@ -993,16 +1019,6 @@ function OarApplyAll({
             onClick={() => onApply((row) => ({ ...row, windowStart: start, windowEnd: end, windowEdited: true }))}
           >
             Apply window
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={active === 0}
-            title="Put every row back on the window suggested from its own quantity"
-            onClick={() => onApply((row) => withSuggestedWindow({ ...row, windowEdited: false }))}
-          >
-            Reset to suggested
           </Button>
         </div>
       </div>
