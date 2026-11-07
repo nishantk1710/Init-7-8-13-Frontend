@@ -205,23 +205,28 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   nonAi: {
     title: "Non-AI Reservations",
     tone: "info",
-    summary: "OAR reservation lines that have no consumption plan from the assistant.",
+    summary:
+      "Counted from the assistant's go-live date only, not all reservations: OAR reservation lines made in SAP since go-live without a consumption plan from the assistant. 0 until Non-AI starts at go-live.",
     rule: [
       "One OAR reservation line (reservation number + item)",
+      "made in SAP on or after the go-live date",
       "not deleted in SAP",
       "with no consumption plan matched to it",
     ],
     steps: [
+      "Reservations made before go-live are not counted: the assistant did not exist yet, so not using it is not a breach.",
+      "Made = the reservation's creation date in SAP; where SAP sends none, its requirement date.",
       "Counted per reservation line, not per PO line: a line split over several POs counts once.",
       "A reservation made through the assistant links to its plan through the request reference in its item text, once SAP's next data load carries it.",
-      "The same reservations as Non-AI on the Exceptions screen, until each one is closed. A reservation appears once detection has checked its material, which the nightly run does.",
+      "The same reservations as Non-AI on the Exceptions screen, until each one is justified. The nightly detection run raises them.",
     ],
     example: {
-      subject: "Three reservation lines",
+      subject: "Four reservation lines, go-live 15 Nov 2026",
       inputs: [
-        { label: "1000001/1: made in SAP without the assistant", value: "counted" },
-        { label: "1000002/1: made from an assistant request with a plan", value: "not counted" },
-        { label: "1000003/2: deleted in SAP", value: "not counted" },
+        { label: "1000001/1: made 20 Nov in SAP without the assistant", value: "counted" },
+        { label: "1000002/1: made 20 Nov from an assistant request with a plan", value: "not counted" },
+        { label: "1000003/2: made 20 Nov, deleted in SAP", value: "not counted" },
+        { label: "0990000/1: made 3 Mar 2025, before go-live", value: "not counted" },
       ],
       result: "Non-AI Reservations = 1.",
     },
@@ -255,12 +260,14 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   nonMoversTab: {
     title: "Non-movers",
     tone: "danger",
-    summary: "Each non-moving OAR position, one row per material and plant.",
+    summary: "OAR materials nobody has issued for more than 730 days, or ever: stock sitting unused, one row per material and plant.",
     rule: [
       "Non-moving: last goods issue more than 730 days ago, or never issued",
-      "Days shown = data as-of date − last goods issue",
+      "Last issued = the last goods issue (201/261, net of reversals) in SAP, and how long ago",
     ],
     steps: [
+      "Only a goods issue counts as use. A receipt, transfer or stock count does not, so it is not shown here.",
+      "Never issued = no goods issue in the movement history the platform holds.",
       "The page's plant, material and stock-type filters apply to this list.",
     ],
     example: {
@@ -270,7 +277,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
         { label: "Data as of", value: EXAMPLE_AS_OF },
         { label: "Days since last issue", value: "1,230" },
       ],
-      result: "Listed here: 1,230 > 730.",
+      result: "Listed here, Last issued 15 Jun 2023 (3.4 yrs ago): 1,230 > 730.",
     },
   },
   acquiredVsPlanTab: {
