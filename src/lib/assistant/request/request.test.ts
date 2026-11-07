@@ -17,6 +17,7 @@ import {
   suggestionSavingOf,
   withChoice,
   withDeclarationOpen,
+  windowError,
   withRequired,
   type OarLine,
   type RepairableLine,
@@ -513,5 +514,22 @@ describe("department names", () => {
     expect(matchesDepartment(finance, "100")).toBe(false)
     expect(matchesDepartment(unnamed, "1010")).toBe(true)
     expect(matchesDepartment(unnamed, "finance")).toBe(false)
+  })
+})
+
+describe("the usage window's dates", () => {
+  it("say so when the end is before the start, and only then", () => {
+    expect(windowError("2026-12-01", "2026-11-01")).toBe("End date is before the start date.")
+    expect(windowError("2026-11-01", "2026-11-01")).toBeNull()
+    expect(windowError("2026-11-01", "2026-12-01")).toBeNull()
+    expect(windowError("", "2026-11-01")).toBeNull()
+    expect(windowError("2026-11-01", "")).toBeNull()
+  })
+
+  it("keep the row from being ready, with a short status", () => {
+    const row = { ...withChoice(withRequired(oar("4"), "4"), "suggested"), windowStart: "2026-12-01", windowEnd: "2026-11-01", purpose: "Mill 3" }
+    expect(lineIssues(row)).toEqual(["window fixed"])
+    expect(isReady(row)).toBe(false)
+    expect(isReady({ ...row, windowEnd: "2026-12-31" })).toBe(true)
   })
 })

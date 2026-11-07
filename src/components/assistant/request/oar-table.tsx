@@ -17,6 +17,7 @@ import {
   toNumber,
   withChoice,
   withRequired,
+  windowError,
   type LineSaving,
   type OarLine,
 } from "@/lib/assistant/request/lines"
@@ -139,6 +140,8 @@ function OarRow({
     ? (facts.crossPlantStock as { plant: string; stockOnHand: string }[])
     : []
   const err = (name: string) => showErrors && issues.includes(name)
+  // Said at the dates as soon as both are entered, not only after "Show what's missing".
+  const windowProblem = declined ? null : windowError(row.windowStart, row.windowEnd)
 
   return (
     <Fragment>
@@ -279,8 +282,10 @@ function OarRow({
                 type="date"
                 aria-label="Window start"
                 value={row.windowStart}
+                max={row.windowEnd || undefined}
                 disabled={declined}
-                aria-invalid={err("window start") || err("window ends before it starts")}
+                aria-invalid={err("window start") || windowProblem !== null}
+                aria-describedby={windowProblem ? `window-error-${row.key}` : undefined}
                 onChange={(e) =>
                   onChange({
                     ...row,
@@ -295,8 +300,10 @@ function OarRow({
                 type="date"
                 aria-label="Window end"
                 value={row.windowEnd}
+                min={row.windowStart || undefined}
                 disabled={declined}
-                aria-invalid={err("window end") || err("window ends before it starts")}
+                aria-invalid={err("window end") || windowProblem !== null}
+                aria-describedby={windowProblem ? `window-error-${row.key}` : undefined}
                 onChange={(e) =>
                   onChange({
                     ...row,
@@ -307,6 +314,11 @@ function OarRow({
                 className="h-8 w-[8.5rem] text-xs"
               />
             </div>
+            {windowProblem && (
+              <span id={`window-error-${row.key}`} role="alert" className="text-[11px] font-medium text-destructive">
+                {windowProblem}
+              </span>
+            )}
           </div>
         </td>
         <td className="px-3 py-3">
