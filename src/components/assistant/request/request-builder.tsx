@@ -42,6 +42,7 @@ import {
   pendingLine,
   repairableNeedsJustification,
   requestSaving,
+  windowError,
   type DraftLine,
   type Justification,
   type NoSessionLine,
@@ -1008,18 +1009,39 @@ function OarApplyAll({
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Input type="date" aria-label="Window start for all" value={start} onChange={(e) => setStart(e.target.value)} className="h-8 w-[8.5rem] text-xs" />
+          <Input
+            type="date"
+            aria-label="Window start for all"
+            value={start}
+            max={end || undefined}
+            aria-invalid={windowError(start, end) !== null}
+            onChange={(e) => setStart(e.target.value)}
+            className="h-8 w-[8.5rem] text-xs"
+          />
           <span className="text-xs text-muted-foreground">to</span>
-          <Input type="date" aria-label="Window end for all" value={end} onChange={(e) => setEnd(e.target.value)} className="h-8 w-[8.5rem] text-xs" />
+          <Input
+            type="date"
+            aria-label="Window end for all"
+            value={end}
+            min={start || undefined}
+            aria-invalid={windowError(start, end) !== null}
+            onChange={(e) => setEnd(e.target.value)}
+            className="h-8 w-[8.5rem] text-xs"
+          />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={!start || !end || end < start || active === 0}
+            disabled={!start || !end || windowError(start, end) !== null || active === 0}
             onClick={() => onApply((row) => ({ ...row, windowStart: start, windowEnd: end, windowEdited: true }))}
           >
             Apply window
           </Button>
+          {windowError(start, end) && (
+            <span role="alert" className="basis-full text-[11px] font-medium text-destructive">
+              {windowError(start, end)}
+            </span>
+          )}
         </div>
       </div>
       <JustificationApplyAll

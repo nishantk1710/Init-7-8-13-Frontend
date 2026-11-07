@@ -375,9 +375,7 @@ export function lineIssues(line: DraftLine): string[] {
       if (oarNeedsJustification(line)) issues.push(...justificationIssues(line.justification))
       if (!line.windowStart) issues.push("window start")
       if (!line.windowEnd) issues.push("window end")
-      if (line.windowStart && line.windowEnd && line.windowEnd < line.windowStart) {
-        issues.push("window ends before it starts")
-      }
+      if (windowError(line.windowStart, line.windowEnd)) issues.push(WINDOW_FIX_ISSUE)
       if (!line.purpose.trim()) issues.push("purpose")
       return issues
     }
@@ -393,6 +391,18 @@ export function lineIssues(line: DraftLine): string[] {
     default:
       return []
   }
+}
+
+/** The row's status for a window that ends before it starts: short, the message is at the dates. */
+export const WINDOW_FIX_ISSUE = "window fixed"
+
+/**
+ * What to say at the date boxes when a usage window ends before it starts;
+ * null when it does not (or either date is still empty). One check for the
+ * row, the Apply to all panel and readiness, so they cannot disagree.
+ */
+export function windowError(start: string, end: string): string | null {
+  return start && end && end < start ? "End date is before the start date." : null
 }
 
 export function isReady(line: DraftLine): boolean {
