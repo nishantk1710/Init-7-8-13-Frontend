@@ -410,6 +410,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
       rationale: "",
     },
     workflow: [],
+    safetyStockMethod: detail.safety_stock_method ?? null,
     oarColdStart: detail.oar.is_oar
       ? {
           similarMaterials: [],

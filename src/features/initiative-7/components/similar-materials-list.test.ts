@@ -187,3 +187,30 @@ describe("changeErrorMessage", () => {
     expect(changeErrorMessage(new TypeError("fetch failed"))).toContain("Nothing was changed")
   })
 })
+
+describe("the sentence under the title", () => {
+  it("says the levels are an average of the similar materials when they are", () => {
+    const markup = render()
+    expect(markup).toContain("are an average of these materials")
+    expect(markup).not.toContain("combine this material")
+  })
+
+  it("says the levels combine the material's own usage with them when the recommendation is a blend", () => {
+    const markup = render({ blended: true })
+    expect(markup).toContain("combine this material")
+    expect(markup).toContain("Only similar materials used in the last 12 months count")
+    expect(markup).toContain("The split is shown under Reason")
+    expect(markup).not.toContain("are an average of these materials")
+  })
+
+  it("still offers to remove a similar material that is not a fair comparison, blended or not", () => {
+    expect(render({ blended: true })).toContain("Remove one that is not a fair comparison")
+    expect(render()).toContain("Remove one that is not a fair comparison")
+  })
+
+  it("keeps the table and the minimum-neighbours note for a blend", () => {
+    const markup = render({ blended: true })
+    expect(markup.match(/>Remove</g)).toHaveLength(3)
+    expect(markup).toContain("At least 2 similar materials are needed")
+  })
+})

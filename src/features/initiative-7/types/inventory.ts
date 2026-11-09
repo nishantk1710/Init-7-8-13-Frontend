@@ -250,6 +250,9 @@ export interface Recommendation {
   /** Only present on live-API recommendations (see mapDetailToRecommendation
    * in services/i7-api.ts) -- absent for scenario/generated fixtures. */
   oarConversion?: OarConversionInfo
+  /** How the recommended levels were worked out, as the backend names it (`credibility_blend`, `similarity_weighted`, ...).
+   * Only present on live-API recommendations. */
+  safetyStockMethod?: string | null
   generatedAt: string
   /** When this recommendation's row last changed (submit/hold/approve/reject
    * all update the existing row in place) -- the correct "waiting since"

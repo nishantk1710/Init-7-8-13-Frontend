@@ -1245,3 +1245,18 @@ describe("the Type filter (OAR / Declining / Normal)", () => {
     expect(calls[1]).not.toContain("type=")
   })
 })
+
+describe("how the recommended levels were worked out reaches the screen", () => {
+  it("carries the backend's method, so the similar-materials box can say the levels are a blend", () => {
+    expect(mapDetailToRecommendation(detailFixture({ safety_stock_method: "credibility_blend" })).safetyStockMethod).toBe(
+      "credibility_blend"
+    )
+    expect(mapDetailToRecommendation(detailFixture({ safety_stock_method: "similarity_weighted" })).safetyStockMethod).toBe(
+      "similarity_weighted"
+    )
+  })
+
+  it("keeps a missing method as null rather than guessing one", () => {
+    expect(mapDetailToRecommendation(detailFixture({ safety_stock_method: null })).safetyStockMethod).toBeNull()
+  })
+})
