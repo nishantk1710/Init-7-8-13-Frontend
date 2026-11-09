@@ -342,7 +342,7 @@ export function InventoryPortfolioKpis({
         value={
           workingCapitalUnavailable !== undefined || netImpact === null
             ? "Not available"
-            : formatSignedAmount(netImpact, currencyPrefix(impactCurrency), true)
+            : formatSignedAmount(-netImpact, currencyPrefix(impactCurrency), true) // flipped: − cash released, + cash tied up
         }
         caption={
           workingCapitalUnavailable !== undefined
