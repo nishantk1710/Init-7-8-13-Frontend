@@ -107,8 +107,8 @@ export function overviewInfoFor(id: OverviewInfoId, active: ActiveFormulas | nul
   if (kpi === "adoption") spec.steps = base.steps
   if (kpi === "working_capital") {
     spec.steps = [
-      "Positive: the recommendation lowers the reorder point, so cash is released.",
-      "Negative: the recommendation raises it, so more cash is invested in stock.",
+      "Shown as: − cash released, + cash tied up (the same as Home and the Report page).",
+      "A recommendation that lowers the reorder point releases cash; one that raises it ties more cash up.",
       "A material whose figures are missing is not counted.",
       "It adds up every recommendation, whether or not it has been approved.",
     ]
