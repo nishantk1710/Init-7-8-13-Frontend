@@ -1,13 +1,12 @@
 import Link from "next/link"
-import { Check, ChevronDown, ChevronLeft, Info, TriangleAlert } from "lucide-react"
+import { ChevronLeft, Info, TriangleAlert } from "lucide-react"
 
 import { AssessmentCard, AssessmentCaveats } from "@/components/assistant/assessment-card"
 import { OutcomeChip, TonePill } from "@/components/assistant/session-chips"
-import { ExpandAllSteps } from "@/components/assistant/session-expand-all"
 import { Chip, CopyReferenceButton } from "@/components/assistant/request/request-parts"
 import { UatReservationTools } from "@/components/assistant/uat-reservation-tools"
 import type { ApiPlan, ApiQuantitySuggestion, SessionTraceResponse } from "@/lib/api/assistant"
-import { factsCaveats, factsHeadline, isI08Facts, isI13Facts } from "@/lib/api/assistant-facts"
+import { factsCaveats, factsHeadline, isI08Facts } from "@/lib/api/assistant-facts"
 import { flowLabel } from "@/lib/assistant/flow-labels"
 import { needDateAdviceOf } from "@/lib/assistant/i08-facts-format"
 import { departmentText } from "@/lib/assistant/request/record"
@@ -43,11 +42,10 @@ import { cn } from "@/lib/utils"
 /**
  * One session and everything it produced, for both initiatives.
  *
- * A summary card first: the reference to type into SAP, the outcome, and who,
- * what and where. Then "How this session went": the session as numbered steps,
- * from opening to the SAP link, each opening to show its record (what the
- * assistant showed, the answers, the plan, the reservations linked). The step
- * still waiting on someone is open and marked.
+ * Five parts, top to bottom: the reference with ONE instruction for SAP; a
+ * summary of who, what and the decision; what the assistant showed; what was
+ * decided (the conversation in words, then the reason and the declaration
+ * recorded); and what SAP has linked so far.
  *
  * ## The advice is replayed, not recomputed
  *
@@ -86,169 +84,99 @@ export function SessionTrace({
     linked: trace.linkedReservations,
     job,
   })
-  const firstAnswer = trace.turns.find((t) => t.answer !== null) ?? null
-  const plan = trace.plans[0] ?? null
+
   const recorded = trace.plans.length > 0 || trace.quantitySuggestions.length > 0
-  const choices = pairs.flatMap((p) => (p.answer?.kind === "choice" ? [p.answer.text] : []))
-  const linkedCount = linked.reservations.length + linked.repairs.length
-  // Step 4 is there only when something was recorded, so the numbers follow the steps shown.
-  const linkStep = recorded ? 5 : 4
 
   return (
     <div className="flex flex-col gap-6">
-      <SessionHero trace={trace} reference={reference} />
+      <ReferenceBox trace={trace} reference={reference} />
+      <Summary trace={trace} />
 
-      <section aria-labelledby="session-steps-title" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
-            <h2 id="session-steps-title" className="text-base font-semibold text-foreground">
-              How this session went
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              From the first screen to the SAP link. Replayed from the record of {formatInstant(trace.issuedAt)}, not
-              recomputed: stock and repairs have moved since.
-            </p>
-          </div>
-          <ExpandAllSteps targetId="session-steps" />
-        </div>
-
-        <ol id="session-steps" className="flex flex-col">
-          <Step
-            n={1}
-            when={formatInstant(trace.issuedAt)}
-            title={`Session opened from ${trace.origin === "BADI" ? "SAP" : "the platform"}`}
-            state="done"
-            chips={
-              <>
-                <Chip tone={trace.flow === "i13" ? "muted" : "warn"}>{flowLabel(trace.flow)}</Chip>
-                <Chip tone="muted">Plant {trace.plant}</Chip>
-              </>
-            }
-          >
-            <p className="text-sm text-foreground">{readableText(trace.routingReason)}</p>
-          </Step>
-
-          <Step
-            n={2}
-            when={formatInstant(trace.issuedAt)}
-            title={
-              trace.flow === "i08" ? "The assistant showed the repair position" : "The assistant showed the stock position"
-            }
-            state="done"
-            chips={<ShownChips facts={trace.assessment} />}
-          >
-            {trace.flow === "i08" && isI08Facts(trace.assessment) ? (
-              <I08Shown facts={trace.assessment} />
-            ) : (
-              <div className="flex flex-col gap-2">
-                <AssessmentCard facts={trace.assessment} />
-                <AssessmentCaveats facts={trace.assessment} />
-              </div>
-            )}
-            {/* Off by default; labelled wherever it does appear. */}
-            {trace.narrative && (
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="text-xs font-semibold text-muted-foreground">Generated narrative</p>
-                <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
-              </div>
-            )}
-          </Step>
-
-          <Step
-            n={3}
-            when={firstAnswer ? formatInstant(firstAnswer.answeredAt) : null}
-            title={firstAnswer ? "Your answers" : "No answer given"}
-            state={firstAnswer ? "done" : "idle"}
-            status={firstAnswer ? undefined : trace.outcome === "ABANDONED" ? "Left" : "Not answered"}
-            chips={
-              firstAnswer ? (
-                <>
-                  {choices.slice(0, 3).map((c) => (
-                    <Chip key={c} tone="ready">
-                      {c}
-                    </Chip>
-                  ))}
-                  {reasons.length > 0 && <Chip tone="warn">Reason recorded</Chip>}
-                  {declarations.length > 0 && <Chip tone="muted">Declaration recorded</Chip>}
-                </>
-              ) : null
-            }
-          >
-            {firstAnswer && (
-              <p className="text-xs text-muted-foreground">
-                Answered by {personLabel(firstAnswer.actor, typedName)} on {formatInstant(firstAnswer.answeredAt)}.
-              </p>
-            )}
-            <Conversation pairs={pairs} />
-            {(reasons.length > 0 || declarations.length > 0) && (
-              <div className="grid items-start gap-4 lg:grid-cols-2">
-                {reasons.map((r) => (
-                  <ReasonCard key={r.key} reason={r} />
-                ))}
-                {declarations.map((d) => (
-                  <DeclarationCard key={d.key} declaration={d} />
-                ))}
-              </div>
-            )}
-          </Step>
-
-          {recorded && (
-            <Step
-              n={4}
-              when={plan ? formatInstant(plan.capturedAt) : null}
-              title={plan ? "A plan was recorded" : "A quantity was suggested"}
-              state="done"
-              status={plan ? planStatusLabel(plan.status) : undefined}
-              statusTone={plan ? "action" : undefined}
-              chips={
-                <>
-                  {plan && <Chip tone="ready">{formatQuantity(plan.plannedQuantity)} recorded</Chip>}
-                  <SuggestionChip suggestion={suggestion} />
-                </>
-              }
-            >
-              {trace.plans.map((p) => (
-                <PlanCard key={p.id} plan={p} typedName={typedName} />
-              ))}
-              {trace.quantitySuggestions.map((s) => (
-                <SuggestionCard key={s.id} suggestion={s} />
-              ))}
-            </Step>
+      <ol aria-label="How this session went" className="flex flex-col">
+        <Part
+          n={1}
+          title="What the assistant showed"
+          note={`As shown on ${formatInstant(trace.issuedAt)}. Replayed from the record, not recomputed: stock and repairs have moved since.`}
+        >
+          {trace.flow === "i08" && isI08Facts(trace.assessment) ? (
+            <I08Shown facts={trace.assessment} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <AssessmentCard facts={trace.assessment} />
+              <AssessmentCaveats facts={trace.assessment} />
+            </div>
           )}
+          {/* Off by default; labelled wherever it does appear. */}
+          {trace.narrative && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-semibold text-muted-foreground">Generated narrative</p>
+              <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
+            </div>
+          )}
+        </Part>
 
-          <Step
-            n={linkStep}
-            when={null}
-            whenLabel={linked.linked ? undefined : "Waiting"}
-            title="Linked in SAP"
-            state={linked.linked ? "done" : "current"}
-            status={linked.linked ? undefined : "Your turn"}
-            defaultOpen={!linked.linked}
-            last
-            chips={
-              linked.linked ? (
-                <Chip tone="ready">
-                  {linkedCount} {linkedCount === 1 ? "link" : "links"} in SAP
-                </Chip>
-              ) : (
-                <>
-                  <Chip tone="todo">Not linked yet</Chip>
-                  <Chip tone="muted">Waiting for the SAP reservation</Chip>
-                </>
-              )
-            }
+        <Part n={2} title="What was decided" note={answeredBy(trace, typedName)}>
+          <Conversation pairs={pairs} />
+          {(reasons.length > 0 || declarations.length > 0) && (
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+              {reasons.map((r) => (
+                <ReasonCard key={r.key} reason={r} />
+              ))}
+              {declarations.map((d) => (
+                <DeclarationCard key={d.key} declaration={d} />
+              ))}
+            </div>
+          )}
+        </Part>
+
+        {recorded && (
+          <Part
+            n={3}
+            title="What was recorded"
+            note="The plan saved against this session, and how the quantity was worked out."
           >
-            <LinkedPanel view={linked} reference={reference} sessionId={trace.sessionId} />
-          </Step>
-        </ol>
-      </section>
+            {trace.plans.map((plan) => (
+              <PlanCard key={plan.id} plan={plan} typedName={typedName} />
+            ))}
+            {trace.quantitySuggestions.map((s) => (
+              <SuggestionCard key={s.id} suggestion={s} />
+            ))}
+          </Part>
+        )}
+
+        <Part
+          n={recorded ? 4 : 3}
+          title="Linked in SAP"
+          note={
+            linked.linked
+              ? "The SAP reservations that carry this reference."
+              : "The last step, and the only one waiting on you."
+          }
+          marker={linked.linked ? "done" : "waiting"}
+          last
+        >
+          <LinkedPanel
+            view={linked}
+            reference={reference.value}
+            hint={reference.instruction}
+            sessionId={trace.sessionId}
+          />
+        </Part>
+      </ol>
     </div>
   )
 }
 
-// --- the summary card ---------------------------------------------------------
+/** "Answered by SSJ on 27 Oct 2026, 13:04.", or nothing when no question was answered. */
+function answeredBy(trace: SessionTraceResponse, typedName: string | null): string | undefined {
+  const first = trace.turns.find((t) => t.answer !== null)
+  if (!first) return undefined
+  return `Answered by ${personLabel(first.actor, typedName)} on ${formatInstant(first.answeredAt)}.`
+}
 
-function SessionHero({
+// --- 1. the reference ---------------------------------------------------------
+
+function ReferenceBox({
   trace,
   reference,
 }: {
@@ -257,87 +185,74 @@ function SessionHero({
 }) {
   const outcome = sessionOutcome(trace, new Set(wentAheadSessionIds(trace.justifications)))
   const requestId = reference.kind === "request" ? reference.value : null
-  const decision = sessionDecision(trace)
-  const declared = trace.flow === "i08" ? declaredState(trace) : null
-  const plan = trace.plans[0] ?? null
-  const window = plan ? formatWindow(plan.windowStart, plan.windowEnd) : null
   return (
     <section
-      aria-label="Session summary"
-      className="flex flex-col gap-4 rounded-2xl border border-action/20 bg-action/5 p-4 sm:p-5"
+      aria-label={reference.title}
+      className="grid overflow-hidden rounded-xl border border-action/30 bg-action/5 shadow-sm sm:grid-cols-[11rem_1fr]"
     >
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-action/30 bg-card p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="text-[11px] font-semibold tracking-wide text-action uppercase">
-                {reference.title} · Type this in SAP
-              </span>
-              <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-action select-all">
-                {reference.value}
-              </span>
-            </div>
-            <CopyReferenceButton value={reference.value} hint={reference.instruction} />
-          </div>
-          <p className="max-w-2xl text-sm text-muted-foreground">{reference.instruction}</p>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col justify-center gap-0.5 border-b border-action/20 bg-action/5 px-5 py-4 sm:border-r sm:border-b-0">
+        <span className="text-xs text-action">{reference.title}</span>
+        <span className="text-sm font-semibold text-foreground">Type this in SAP</span>
+      </div>
+      <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-action select-all">
+            {reference.value}
+          </span>
+          <span className="max-w-2xl text-sm text-muted-foreground">{reference.instruction}</span>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
             <OutcomeChip outcome={outcome} />
             <Chip tone="muted">Issued {formatInstant(trace.issuedAt)}</Chip>
             {requestId && reference.line && (
-              <Link
-                href={`/assistant/requests/${requestId}`}
-                className="rounded-full border border-action/30 bg-action/5 px-2 py-0.5 font-mono text-[11px] font-semibold text-action underline-offset-4 hover:underline"
-                title="Open the request this line belongs to"
-              >
-                Line {reference.line}
-              </Link>
+              <span className="rounded-full border border-border bg-card px-2 py-0.5">
+                This session is line{" "}
+                <Link
+                  href={`/assistant/requests/${requestId}`}
+                  className="font-mono font-semibold text-action underline-offset-4 hover:underline"
+                  title="Open the request this line belongs to"
+                >
+                  {reference.line}
+                </Link>
+              </span>
             )}
-          </div>
-          {/* Reported, never enforced: the reservation is already in SAP. */}
-          <p className="text-xs text-muted-foreground">
-            {trace.expired
-              ? "Past its validity window, still worth quoting."
-              : `Valid until ${formatInstant(trace.expiresAt)}.`}
-          </p>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-card p-5 shadow-sm">
-          <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Outcome</span>
-          <p className={cn("text-2xl leading-tight font-semibold", DECISION_INK[decision.tone])}>{decision.text}</p>
-          {plan && <p className="text-sm font-semibold text-foreground">{plan.purpose}</p>}
-          {window && <p className="text-sm text-muted-foreground">Use {window}</p>}
-          {declared && (
-            <p className={cn("text-sm", declared.state === "yes" ? "text-foreground" : "text-muted-foreground")}>
-              Faulty unit declared: {declared.text}
-            </p>
-          )}
-          {/* Older sessions carry the quantity the entry point used to ask for. */}
-          {trace.requestedQuantity !== null && (
-            <p className="text-sm text-muted-foreground">
-              Quantity asked for: {formatQuantity(trace.requestedQuantity)}
-            </p>
-          )}
-          <div className="mt-auto flex flex-wrap gap-2 pt-1">
-            <SuggestionChip suggestion={trace.quantitySuggestions[0]} />
-          </div>
-        </div>
-      </div>
-
-      <dl className="grid gap-x-6 gap-y-3 px-1 sm:grid-cols-2 lg:grid-cols-4">
-        <HeroFact label="Material">
-          {trace.materialDescription && <span className="block font-semibold">{trace.materialDescription}</span>}
-          <span
-            className={cn("block font-mono", trace.materialDescription ? "text-xs text-muted-foreground" : "font-semibold")}
-          >
-            {trace.materialId}
+            {/* Reported, never enforced: the reservation is already in SAP. */}
+            <span>
+              {trace.expired
+                ? "Past its validity window, still worth quoting"
+                : `Valid until ${formatInstant(trace.expiresAt)}`}
+            </span>
           </span>
-        </HeroFact>
-        <HeroFact label="Plant">{sapPlantLabel(trace.plant)}</HeroFact>
-        <HeroFact label="Requester">
+        </div>
+        <CopyReferenceButton value={reference.value} hint={reference.instruction} />
+      </div>
+    </section>
+  )
+}
+
+// --- 2. the summary -----------------------------------------------------------
+
+function Summary({ trace }: { trace: SessionTraceResponse }) {
+  const decision = sessionDecision(trace)
+  const declared = trace.flow === "i08" ? declaredState(trace) : null
+  return (
+    <section aria-label="Summary" className="overflow-hidden rounded-xl border border-border bg-card">
+      <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+        <Fact label="Material">
+          <span className="flex flex-col">
+            {trace.materialDescription && (
+              <span className="font-semibold text-foreground">{trace.materialDescription}</span>
+            )}
+            <span className={cn("font-mono", trace.materialDescription ? "text-xs text-muted-foreground" : "font-semibold")}>
+              {trace.materialId}
+            </span>
+          </span>
+        </Fact>
+        <Fact label="Plant">{sapPlantLabel(trace.plant)}</Fact>
+        <Fact label="Requester">
           {/* A session opened from SAP carries no name: say so rather than leave a blank. */}
           {trace.requestedFor ?? <span className="text-muted-foreground">Not stated</span>}
-        </HeroFact>
-        <HeroFact label="Department">
+        </Fact>
+        <Fact label="Department">
           {trace.department ? (
             departmentText(trace.department, trace.departmentName)
           ) : (
@@ -346,151 +261,27 @@ function SessionHero({
           {trace.departmentNote && (
             <span className="block text-xs font-normal text-muted-foreground">{trace.departmentNote}</span>
           )}
-        </HeroFact>
+        </Fact>
+        <Fact label="Decision">
+          <TonePill tone={decision.tone}>{decision.text}</TonePill>
+        </Fact>
+        {declared && (
+          <Fact label="Faulty unit declared">
+            <span className={cn(declared.state !== "yes" && "text-muted-foreground")}>{declared.text}</span>
+          </Fact>
+        )}
+        {/* Older sessions carry the quantity the entry point used to ask for. */}
+        {trace.requestedQuantity !== null && (
+          <Fact label="Quantity asked for">{formatQuantity(trace.requestedQuantity)}</Fact>
+        )}
       </dl>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border bg-muted/30 px-5 py-2.5 text-xs text-muted-foreground">
+        <Chip tone={trace.flow === "i13" ? "muted" : "warn"}>{flowLabel(trace.flow)}</Chip>
+        <span>{readableText(trace.routingReason)}</span>
+        <span aria-hidden>·</span>
+        <span>Opened from {trace.origin === "BADI" ? "SAP" : "the platform"}</span>
+      </p>
     </section>
-  )
-}
-
-const DECISION_INK: Record<ReturnType<typeof sessionDecision>["tone"], string> = {
-  healthy: "text-success",
-  caution: "text-warning",
-  action: "text-action",
-  muted: "text-muted-foreground",
-}
-
-function HeroFact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="text-sm font-medium break-words text-foreground">{children}</dd>
-    </div>
-  )
-}
-
-/** "Matches the suggestion of 10" or "Kept their own quantity"; nothing without a suggestion. */
-function SuggestionChip({ suggestion: s }: { suggestion: ApiQuantitySuggestion | undefined }) {
-  if (!s) return null
-  if (s.isOverride) return <Chip tone="warn">Kept their own quantity</Chip>
-  if (s.suggestedQuantity !== null && Number(s.acceptedQuantity) === Number(s.suggestedQuantity)) {
-    return <Chip tone="ready">Matches the suggestion of {formatQuantity(s.suggestedQuantity)}</Chip>
-  }
-  return null
-}
-
-/** The figures a step heading carries: stock, open PO and cover (OAR), or the first repair figures. */
-function ShownChips({ facts }: { facts: unknown }) {
-  if (isI13Facts(facts)) {
-    return (
-      <>
-        <Chip tone="warn">{formatQuantity(facts.stockOnHand, "0")} in stock</Chip>
-        <Chip tone="warn">{formatQuantity(facts.openPoQuantity, "0")} on open PO</Chip>
-        {facts.monthsOfCover !== null && <Chip tone="warn">{formatQuantity(facts.monthsOfCover)} months of cover</Chip>}
-      </>
-    )
-  }
-  return (
-    <>
-      {i08ShownFigures(facts)
-        .filter((f) => f.value !== null)
-        .slice(0, 3)
-        .map((f) => (
-          <Chip key={f.key} tone="muted">
-            {f.label}: {f.value}
-          </Chip>
-        ))}
-    </>
-  )
-}
-
-// --- the timeline -------------------------------------------------------------
-
-type StepState = "done" | "current" | "idle"
-
-/**
- * One step: a numbered marker on the line, and a card that opens to show the
- * step's record. A native <details>, so it opens without script.
- */
-function Step({
-  n,
-  when,
-  whenLabel,
-  title,
-  state,
-  status,
-  statusTone,
-  chips,
-  defaultOpen = false,
-  last = false,
-  children,
-}: {
-  n: number
-  when: string | null
-  whenLabel?: string
-  title: string
-  state: StepState
-  /** The pill on the right; "Done" for a done step unless given. */
-  status?: string
-  statusTone?: "action"
-  chips?: React.ReactNode
-  defaultOpen?: boolean
-  last?: boolean
-  children: React.ReactNode
-}) {
-  const pill = status ?? (state === "done" ? "Done" : null)
-  const pillTone = statusTone ?? (state === "done" ? "healthy" : state === "current" ? "caution" : "muted")
-  const stamp = when ?? whenLabel
-  return (
-    <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0">
-      {!last && (
-        <span
-          aria-hidden
-          className={cn(
-            "absolute top-8 bottom-0 left-4 w-0.5 -translate-x-1/2",
-            state === "done" ? "bg-success/50" : "bg-border"
-          )}
-        />
-      )}
-      <span
-        aria-hidden
-        className={cn(
-          "relative z-10 grid size-8 place-items-center rounded-full text-sm font-semibold",
-          state === "done" && "bg-success text-white",
-          state === "current" && "border-2 border-warning bg-card text-warning",
-          state === "idle" && "border border-border bg-muted text-muted-foreground"
-        )}
-      >
-        {state === "done" ? <Check className="size-4" strokeWidth={3} /> : n}
-      </span>
-      <details
-        open={defaultOpen}
-        className={cn(
-          "group min-w-0 overflow-hidden rounded-xl border shadow-sm",
-          state === "current" ? "border-warning/50 bg-warning/5" : "border-border bg-card"
-        )}
-      >
-        <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&::-webkit-details-marker]:hidden">
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-[11px] font-semibold text-muted-foreground">
-              Step {n}
-              {stamp && <> · {stamp}</>}
-            </span>
-            <span className="text-sm font-semibold text-foreground">{title}</span>
-            {chips && <span className="flex flex-wrap gap-1.5 pt-0.5">{chips}</span>}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {pill && <TonePill tone={pillTone}>{pill}</TonePill>}
-            <span className="grid size-7 place-items-center rounded-full bg-muted text-muted-foreground">
-              <ChevronDown
-                aria-hidden
-                className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
-              />
-            </span>
-          </span>
-        </summary>
-        <div className="flex flex-col gap-3 border-t border-border px-4 py-4">{children}</div>
-      </details>
-    </li>
   )
 }
 
@@ -660,8 +451,8 @@ function Conversation({ pairs }: { pairs: ReadableTurn[] }) {
         </li>
       ))}
       {closing && (
-        <li className="flex flex-col gap-1 bg-muted/30 px-5 py-3.5">
-          <p className="text-xs font-semibold text-muted-foreground">The assistant closed with</p>
+        <li className="flex flex-col gap-1 bg-action/5 px-5 py-3.5">
+          <p className="text-xs font-semibold text-action">The assistant closed with</p>
           <p className="text-sm whitespace-pre-line text-foreground">{closing.question}</p>
         </li>
       )}
@@ -767,9 +558,7 @@ function PlanCard({ plan, typedName }: { plan: ApiPlan; typedName: string | null
       footer={`By ${personLabel(plan.capturedBy, typedName)} · ${formatInstant(plan.capturedAt)}`}
     >
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-        <Fact label="What it is for" wide>
-          {plan.purpose}
-        </Fact>
+        <Fact label="What it is for">{plan.purpose}</Fact>
         <Fact label="Planned quantity">{formatQuantity(plan.plannedQuantity)}</Fact>
         <Fact label="Expected use">
           {formatWindow(plan.windowStart, plan.windowEnd) ?? <span className="text-muted-foreground">No window given</span>}
@@ -790,24 +579,26 @@ function SuggestionCard({ suggestion: s }: { suggestion: ApiQuantitySuggestion }
       footer={`Worked out with a ${formatQuantity(s.coverCeilingMonths)}-month cover ceiling, a ${s.lookbackMonths}-month look-back and at least ${s.minHistoryConsumptions} consumptions (${s.consumptionCount} found). All three are settings, not yet confirmed by VZI.`}
     >
       <p className="text-sm text-foreground">{readableText(s.suggestionReason)}</p>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-        <Fact label="Asked for">{formatQuantity(s.requestedQuantity)}</Fact>
-        <Fact label="Suggested">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tile label="Asked for">{formatQuantity(s.requestedQuantity)}</Tile>
+        <Tile label="Suggested">
           {/* Null is not zero: "we suggest nothing" and "we suggest none" differ. */}
           {s.suggestedQuantity === null ? (
-            <span className="text-muted-foreground">No suggestion made</span>
+            <span className="text-sm text-muted-foreground">No suggestion made</span>
           ) : (
             formatQuantity(s.suggestedQuantity)
           )}
-        </Fact>
-        <Fact label="Recorded as">{formatQuantity(s.acceptedQuantity)}</Fact>
-        <Fact label="Months of cover">
+        </Tile>
+        <Tile label="Recorded as" tone="success">
+          {formatQuantity(s.acceptedQuantity)}
+        </Tile>
+        <Tile label="Months of cover">
           {s.monthsOfCover === null ? (
-            <span className="text-muted-foreground">Not computable</span>
+            <span className="text-sm text-muted-foreground">Not computable</span>
           ) : (
             formatQuantity(s.monthsOfCover)
           )}
-        </Fact>
+        </Tile>
       </dl>
     </RecordCard>
   )
@@ -818,40 +609,39 @@ function SuggestionCard({ suggestion: s }: { suggestion: ApiQuantitySuggestion }
 function LinkedPanel({
   view,
   reference,
+  hint,
   sessionId,
 }: {
   view: ReturnType<typeof linkedInSapView>
-  reference: ReturnType<typeof referenceInstruction>
+  reference: string
+  /** Where to type the reference in SAP, for the copy button. */
+  hint: string
   sessionId: string
 }) {
-  return (
-    <div className="flex flex-col gap-4">
-      {!view.linked ? (
-        <>
-          <p className="text-sm text-foreground">
-            The link appears here once a SAP reservation carrying{" "}
-            <span className="font-mono font-semibold">{reference.value}</span> reaches the platform.
-          </p>
-          <div className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-card p-4">
-            <p className="text-[11px] font-semibold tracking-wide text-warning uppercase">What to do next</p>
-            <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-foreground">
-              <li>Create the reservation in SAP.</li>
-              <li>
-                Type <span className="font-mono font-semibold">{reference.value}</span>{" "}
-                {reference.kind === "request" ? "once into its header text" : "into its item text"}.
-              </li>
-              <li>
-                {reference.kind === "request"
-                  ? "SAP copies it to every item, and this session links itself."
-                  : "This session links itself."}
-              </li>
-            </ol>
-            <div>
-              <CopyReferenceButton value={reference.value} hint={reference.instruction} />
+  if (!view.linked) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">Not linked yet</p>
+              <Chip tone="warn">Waiting for SAP</Chip>
             </div>
+            <p className="text-sm text-muted-foreground">
+              The link appears here once a SAP reservation carrying{" "}
+              <span className="font-mono font-semibold text-foreground">{reference}</span> reaches the platform.
+            </p>
           </div>
-        </>
-      ) : (
+          <CopyReferenceButton value={reference} hint={hint} />
+        </div>
+        {/* UAT only: renders nothing unless the backend's test stand-in is on. */}
+        <UatReservationTools sessionId={sessionId} sapText={reference} />
+      </div>
+    )
+  }
+  return (
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      {(
         <>
           {view.reservations.length > 0 && (
             <ul className="flex flex-col gap-3">
@@ -906,8 +696,8 @@ function LinkedPanel({
         </>
       )}
       {/* UAT only: renders nothing unless the backend's test stand-in is on. */}
-      <UatReservationTools sessionId={sessionId} sapText={reference.value} />
-    </div>
+      <UatReservationTools sessionId={sessionId} sapText={reference} />
+    </section>
   )
 }
 
@@ -925,6 +715,73 @@ function Movements({ rows }: { rows: JobMovementRow[] }) {
 }
 
 // --- pieces -------------------------------------------------------------------
+
+/**
+ * One numbered part of the session, on the line that runs down the page. The
+ * last part's number turns amber while it waits on the requester (no SAP link
+ * yet) and green once linked.
+ */
+function Part({
+  n,
+  title,
+  note,
+  marker = "step",
+  last = false,
+  children,
+}: {
+  n: number
+  title: string
+  note?: string
+  marker?: "step" | "done" | "waiting"
+  last?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3 pb-8 last:pb-0">
+      {!last && <span aria-hidden className="absolute top-8 bottom-0 left-4 w-0.5 -translate-x-1/2 bg-action/20" />}
+      <span
+        aria-hidden
+        className={cn(
+          "relative z-10 grid size-8 place-items-center rounded-full text-sm font-semibold text-white",
+          marker === "step" && "bg-action",
+          marker === "done" && "bg-success",
+          marker === "waiting" && "bg-warning"
+        )}
+      >
+        {n}
+      </span>
+      <section className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-col gap-0.5 pt-1">
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+          {note && <p className="text-xs text-muted-foreground">{note}</p>}
+        </div>
+        {children}
+      </section>
+    </li>
+  )
+}
+
+/** A figure in its own tile: a small label over a large number. */
+function Tile({ label, tone, children }: { label: string; tone?: "success"; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1 rounded-lg border p-3",
+        tone === "success" ? "border-success/30 bg-success/10" : "border-border bg-muted/30"
+      )}
+    >
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          "text-2xl leading-tight font-semibold tabular-nums",
+          tone === "success" ? "text-success" : "text-foreground"
+        )}
+      >
+        {children}
+      </dd>
+    </div>
+  )
+}
 
 function Fact({
   label,
