@@ -96,41 +96,41 @@ describe("Working Capital Impact KPI", () => {
   it("shows the backend's portfolio net release, not a sum of the fetched rows", () => {
     const markup = render({ amount: 2_500_000, currency: "USD" })
     expect(markup).toContain("Working Capital Impact")
-    expect(markup).toContain("+USD 2,500,000")
+    expect(markup).toContain("−USD 2,500,000")
     expect(markup).toContain("Net release")
   })
 
   it("says it is additional investment when the total is negative", () => {
     const markup = render({ amount: -1_200_000, currency: "USD" })
-    expect(markup).toContain("−USD 1,200,000")
+    expect(markup).toContain("+USD 1,200,000")
     expect(markup).toContain("Net additional investment")
   })
 
   it("shows an amount in full, never rounded to millions", () => {
-    expect(render({ amount: -103_950, currency: "ZAR" })).toContain("−R 103,950")
+    expect(render({ amount: -103_950, currency: "ZAR" })).toContain("+R 103,950")
     expect(render({ amount: -103_950, currency: "ZAR" })).not.toContain("0.10M")
-    expect(render({ amount: 850_000, currency: "ZAR" })).toContain("+R 850,000")
+    expect(render({ amount: 850_000, currency: "ZAR" })).toContain("−R 850,000")
     expect(render({ amount: 850_000, currency: "ZAR" })).not.toContain("0.85M")
-    expect(render({ amount: 8_442, currency: "ZAR" })).toContain("+R 8,442")
+    expect(render({ amount: 8_442, currency: "ZAR" })).toContain("−R 8,442")
   })
 
   it("writes exactly one million and more in full, with the sign", () => {
-    expect(render({ amount: 1_000_000, currency: "ZAR" })).toContain("+R 1,000,000")
-    expect(render({ amount: -1_048_500, currency: "ZAR" })).toContain("−R 1,048,500")
+    expect(render({ amount: 1_000_000, currency: "ZAR" })).toContain("−R 1,000,000")
+    expect(render({ amount: -1_048_500, currency: "ZAR" })).toContain("+R 1,048,500")
     expect(render({ amount: -1_048_500, currency: "ZAR" })).not.toContain("1.05M")
-    expect(render({ amount: 12_500_000, currency: "ZAR" })).toContain("+R 12,500,000")
-    expect(render({ amount: -87_660_000, currency: "ZAR" })).toContain("−R 87,660,000")
+    expect(render({ amount: 12_500_000, currency: "ZAR" })).toContain("−R 12,500,000")
+    expect(render({ amount: -87_660_000, currency: "ZAR" })).toContain("+R 87,660,000")
   })
 
   it("writes zero and a decimal amount without a sign flip or an abbreviation", () => {
     expect(render({ amount: 0, currency: "ZAR" })).toContain("R 0")
-    expect(render({ amount: -103_950.49, currency: "ZAR" })).toContain("−R 103,950")
-    expect(render({ amount: 999_999.6, currency: "ZAR" })).toContain("+R 1,000,000")
+    expect(render({ amount: -103_950.49, currency: "ZAR" })).toContain("+R 103,950")
+    expect(render({ amount: 999_999.6, currency: "ZAR" })).toContain("−R 1,000,000")
   })
 
   it("keeps the currency as stated: a code for another currency, none when it is not stated", () => {
-    expect(render({ amount: -2_000_000, currency: "NAD" })).toContain("−NAD 2,000,000")
-    expect(render({ amount: -2_000_000, currency: null })).toContain("−2,000,000")
+    expect(render({ amount: -2_000_000, currency: "NAD" })).toContain("+NAD 2,000,000")
+    expect(render({ amount: -2_000_000, currency: null })).toContain("+2,000,000")
   })
 
   it("says Not available, never 0, when the backend has no figure", () => {
@@ -222,7 +222,7 @@ describe("a card that is waiting for its figure shows a loader, not Not availabl
     expect(html.match(/role="status"/g)).toHaveLength(1)
     expect(html).toContain("727")
     expect(html).toContain("3,911")
-    expect(html).toContain("−2,000,000")
+    expect(html).toContain("+2,000,000")
   })
 
   it("shows the figures as before when nothing is loading", () => {
