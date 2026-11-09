@@ -8,17 +8,14 @@
 // backend records that person as the actor and uses them to decide who is notified. No user id is sent
 // from here, so there is nothing for a request body to impersonate.
 //
-// AUTHORISATION LIMITATION (unchanged): the approval ROLE is still a placeholder. A single fixed role
-// acts ("End User"), never a free choice. If the backend's own pending_role for this recommendation
-// (GET .../workflow-state) is not that role, the actions are disabled with an explanation rather
-// than let the user pick a role that was never theirs; the backend would
-// reject a mismatched role anyway (HTTP 409 INVALID_WORKFLOW_ACTION), but the
-// UI should not offer an action it already knows will fail. The backend does not yet check the role
-// against the user's token roles.
+// ACTING ROLE: the person acts as the approval role their token holds (GET /api/me, see
+// utils/acting-role.ts), never a free choice. If the backend's pending_role for this recommendation
+// (GET .../workflow-state) is not that role, the actions are disabled with an explanation. The backend
+// also refuses a role the token does not hold (HTTP 403 ROLE_NOT_HELD) and a mismatched step
+// (HTTP 409 INVALID_WORKFLOW_ACTION).
 //
-// The one exception is the NONPROD test sign-in (NEXT_PUBLIC_TEST_USER_ACTORS, lib/auth/test-actors.ts):
-// there the signed-in test user's own approval role acts (engineering.manager acts as Engineering
-// Manager), so each approver in the chain can decide their step. Every other build is unchanged.
+// Exceptions: the NONPROD test sign-in (NEXT_PUBLIC_TEST_USER_ACTORS, lib/auth/test-actors.ts) acts as the
+// test user's own approval role; with backend sign-in off the role stays "End User".
 
 "use client"
 
@@ -34,6 +31,8 @@ import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
 import { testLoginApprovalRole } from "@/lib/api/actor"
+import { useRoles } from "@/hooks/use-roles"
+import { resolveActingRole } from "@/features/initiative-7/utils/acting-role"
 import {
   decisionPanelMode,
   panelContentFor,
@@ -56,12 +55,6 @@ const DECISION_TOAST: Record<"APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HO
 /** History written before the ID lost its "demo-" prefix still reads cleanly. */
 function actorLabel(actorId: string): string {
   return actorId.replace(/^demo-/, "")
-}
-const DEFAULT_ACTOR_ROLE: ApiApprovalRole = "End User"
-
-/** The role this person acts as: the test sign-in's own approval role on nonprod test builds, else End User. */
-function actingRole(): ApiApprovalRole {
-  return (testLoginApprovalRole() as ApiApprovalRole | null) ?? DEFAULT_ACTOR_ROLE
 }
 
 /**
@@ -106,9 +99,17 @@ export function LiveDecisionActions({
   const [rejecting, setRejecting] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const rejectReasonId = useId()
+  // The approval role this person really holds (from their token roles), not a fixed placeholder.
+  const { roles, authEnabled } = useRoles()
+  const actorRole = resolveActingRole({
+    roles,
+    authEnabled,
+    pendingRole: workflow?.pending_role ?? null,
+    testLoginRole: testLoginApprovalRole() as ApiApprovalRole | null,
+  })
 
   async function handle(action: "APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HOLD" | "RELEASE_HOLD") {
-    const accepted = await act(actingRole(), action, comment.trim() || undefined)
+    const accepted = await act(actorRole, action, comment.trim() || undefined)
     if (accepted) toast.success(DECISION_TOAST[action])
     setComment("")
   }
@@ -147,7 +148,6 @@ export function LiveDecisionActions({
   const pendingRole = workflow?.pending_role ?? null
   const mode = decisionPanelMode(rawStatus, pendingRole)
   const content = panelContentFor(mode, surface)
-  const actorRole = actingRole()
   const canAct = !submitting && pendingRole === actorRole
 
   if (content === "not-reviewable") {
