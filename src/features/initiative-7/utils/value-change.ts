@@ -47,6 +47,26 @@ export function filterByValueChange(recs: Recommendation[], sort: ValueChangeSor
   return recs.filter((rec) => valueChangeView(rec).kind === kind)
 }
 
+/** The order shown when no Value change arrow is active: every row stays, grouped released (downward) first,
+ * then tied-up (upward), then unchanged, then rows with no figure. Largest amount first within the first two
+ * groups; ties keep the order they came in. */
+export function sortByValueChangeDirection(recs: Recommendation[]): Recommendation[] {
+  const rank = (key: number | null) => (key === null ? 3 : key > 0 ? 0 : key < 0 ? 1 : 2)
+  return recs
+    .map((rec, index) => ({ rec, index, key: valueChangeSortKey(rec) }))
+    .sort((a, b) => {
+      const byGroup = rank(a.key) - rank(b.key)
+      if (byGroup !== 0) return byGroup
+      if (a.key !== null && b.key !== null) {
+        // released: largest positive first; tied-up: most negative (largest amount) first
+        const byAmount = Math.abs(b.key) - Math.abs(a.key)
+        if (byAmount !== 0) return byAmount
+      }
+      return a.index - b.index
+    })
+    .map(({ rec }) => rec)
+}
+
 /** The rows ordered by Value change. Rows with no figure always come last, whichever way it is sorted, and rows
  * that tie keep the order they came in. Orders what it is given: a page, not the catalogue. */
 export function sortByValueChange(recs: Recommendation[], sort: ValueChangeSort): Recommendation[] {

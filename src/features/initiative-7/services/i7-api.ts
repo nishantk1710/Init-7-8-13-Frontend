@@ -388,6 +388,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     consumptionHistory: detail.demand.consumption_history.map((point) => ({
       period: formatConsumptionPeriod(point.period),
       qty: toNumber(point.quantity) ?? 0,
+      month: point.period.slice(0, 7),
     })),
     factors,
     championChallenger: {

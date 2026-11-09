@@ -264,7 +264,10 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
       {from && to && (
         <AlertBanner tone="info" title={`History covers ${from} to ${to}`}>
           That is the whole of the delivered movement extract. Enough to see a
-          material&rsquo;s shape; too short to call a trend.
+          material&rsquo;s shape; too short to call a trend. A material with no
+          goods movement in that time has nothing to show here, so it is not
+          listed: it is on the Consumption tab and the dashboard&rsquo;s
+          Non-movers tab.
         </AlertBanner>
       )}
 

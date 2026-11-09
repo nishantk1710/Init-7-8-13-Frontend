@@ -43,7 +43,6 @@ import {
   getI13PlanVsIssuedCounts,
   getI13PlanVsIssuedList,
   getI13LedgerList,
-  getI13ReclassificationList,
   getI13ReservationLedgerList,
   getI13Summary,
   getI13UsagePatterns,
@@ -56,7 +55,6 @@ import {
   type I13Summary,
   type PlanVsIssuedCounts,
   type PlanVsIssuedRow,
-  type ReclassificationCandidate,
   type ReservationLedgerRow,
   type UsagePattern,
   type UtilisationLedgerEntry,
@@ -262,52 +260,6 @@ export async function loadLiveActExceptions(
     ...cap(rows, total),
     plantOptions: plantsOf(rows),
     ownedCount: rows.filter((r) => r.ownerRequesterId).length,
-  }
-}
-
-export type LiveReclassification = Capped<ReclassificationCandidate> & {
-  plantOptions: string[]
-  candidateCount: number
-  /** Every OAR material-plant position assessed, candidates or not. */
-  positionCount: number | null
-}
-
-/**
- * The reclassification candidates — the positions that meet the SOP threshold.
- *
- * Only the candidates are fetched as rows (a few hundred), with the size of the
- * whole assessed population read from a one-row request's total. This screen
- * used to request all ~44,000 assessed positions with no limit and filter them
- * in the browser.
- */
-export async function loadLiveReclassification(
-  filters: LedgerFilters = {},
-  options: { allPositions?: boolean } = {}
-): Promise<LiveReclassification> {
-  const scope = { plant: filters.plant || undefined, material: filters.material || undefined }
-  if (options.allPositions) {
-    // Every assessed position, unbounded -- for the dashboard, which joins the
-    // critical-impact indicator onto its non-mover rows and needs the "No"s as
-    // well as the candidates. Served from the snapshot, so this is fast.
-    const all = await getI13ReclassificationList(scope)
-    return {
-      ...cap(all.items, all.total),
-      atLimit: false,
-      plantOptions: plantsOf(all.items),
-      candidateCount: all.items.filter((r) => r.candidateFlag).length,
-      positionCount: all.items.length,
-    }
-  }
-  const [candidates, population] = await Promise.all([
-    getI13ReclassificationList({ ...scope, candidatesOnly: true, limit: ROW_CAP }),
-    getI13ReclassificationList({ ...scope, limit: 1 }),
-  ])
-  const rows = candidates.items
-  return {
-    ...cap(rows, candidates.total),
-    plantOptions: plantsOf(rows),
-    candidateCount: candidates.total ?? rows.length,
-    positionCount: population.total,
   }
 }
 

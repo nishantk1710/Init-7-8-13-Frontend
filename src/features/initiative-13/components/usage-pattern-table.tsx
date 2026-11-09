@@ -8,10 +8,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { MonthlyConsumption, UsagePattern } from "@/lib/api/i13"
 import { formatCount } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
@@ -61,16 +61,16 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Material</TableHead>
-            <TableHead>Plant</TableHead>
-            <TableHead>Stock type</TableHead>
-            <TableHead>Monthly issues</TableHead>
-            <TableHead className="text-right">Issued (history)</TableHead>
-            <TableHead className="text-right">Active months</TableHead>
-            <TableHead>Last issue</TableHead>
-            <TableHead className="text-right">Stock</TableHead>
-            <TableHead className="text-right">Avg / month</TableHead>
-            <TableHead className="text-right">Months of cover</TableHead>
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="plant">Plant</ColumnHead>
+            <ColumnHead source="stockType">Stock type</ColumnHead>
+            <ColumnHead source="issues">Monthly issues</ColumnHead>
+            <ColumnHead source="issues" className="text-right">Issued (history)</ColumnHead>
+            <ColumnHead source="issues" className="text-right">Active months</ColumnHead>
+            <ColumnHead source="lastIssue">Last issue</ColumnHead>
+            <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
+            <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
+            <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>

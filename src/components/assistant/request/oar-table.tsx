@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment } from "react"
-import { Ban, CheckCircle2, Lock, PiggyBank, RefreshCw, RotateCcw, Sparkles, Trash2, Undo2 } from "lucide-react"
+import { Ban, CheckCircle2, Lock, PiggyBank, RefreshCw, Sparkles, Trash2, Undo2 } from "lucide-react"
 
 import { Chip, JustificationFields } from "@/components/assistant/request/request-parts"
 import { Button } from "@/components/ui/button"
@@ -17,11 +17,11 @@ import {
   toNumber,
   withChoice,
   withRequired,
-  withSuggestedWindow,
+  windowError,
   type LineSaving,
   type OarLine,
 } from "@/lib/assistant/request/lines"
-import { justificationPrompt, suggestionKind, suggestWindow } from "@/lib/assistant/request/suggest"
+import { justificationPrompt, suggestionKind } from "@/lib/assistant/request/suggest"
 import { cn, formatZAR } from "@/lib/utils"
 
 /**
@@ -56,27 +56,27 @@ export function OarTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[1160px] text-sm">
+      <table className="w-full min-w-[960px] text-sm">
         <thead className="bg-muted/40 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="w-10 px-3 py-2 font-medium">#</th>
-            <th className="min-w-44 px-3 py-2 font-medium">Material</th>
+            <th className="min-w-36 px-3 py-2 font-medium">Material</th>
             <th className="px-3 py-2 font-medium">On hand</th>
-            <th className="w-28 px-3 py-2 font-medium">
+            <th className="w-[5.5rem] px-3 py-2 font-medium">
               <Step n={1}>You need</Step>
             </th>
-            <th className="w-72 px-3 py-2 font-medium">
+            <th className="w-48 px-3 py-2 font-medium">
               <Step n={2}>
                 Suggested <Sparkles className="size-3 text-action" aria-hidden />
               </Step>
             </th>
-            <th className="w-[19rem] px-3 py-2 font-medium">
+            <th className="w-40 px-3 py-2 font-medium">
               <Step n={3}>Consumption window</Step>
             </th>
             <th className="px-3 py-2 font-medium">
               <Step n={4}>Purpose</Step>
             </th>
-            <th className="w-40 px-3 py-2 font-medium">Status</th>
+            <th className="w-36 px-3 py-2 font-medium">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -140,11 +140,8 @@ function OarRow({
     ? (facts.crossPlantStock as { plant: string; stockOnHand: string }[])
     : []
   const err = (name: string) => showErrors && issues.includes(name)
-  const suggestedWindow = suggestWindow(quantity, row.rate)
-  const windowDiffers =
-    row.windowEdited &&
-    suggestedWindow !== null &&
-    (suggestedWindow.start !== row.windowStart || suggestedWindow.end !== row.windowEnd)
+  // Said at the dates as soon as both are entered, not only after "Show what's missing".
+  const windowProblem = declined ? null : windowError(row.windowStart, row.windowEnd)
 
   return (
     <Fragment>
@@ -196,7 +193,7 @@ function OarRow({
               onChange(withRequired({ ...row, changed: false }, e.target.value, choice === "own" ? "own" : null))
             }
             className={cn(
-              "h-8 w-20 font-mono",
+              "h-8 w-16 font-mono",
               !declined && required === null && "border-action ring-2 ring-action/20"
             )}
           />
@@ -244,15 +241,12 @@ function OarRow({
                 <span className="text-[11px] text-muted-foreground">Your {required} is used, with a reason.</span>
               ) : (
                 <div
-                  className={cn(
-                    "inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border border-action/60 bg-action/5 p-0.5",
-                    // Nothing locked yet: a stronger ring so the requester sees a choice is due.
-                    choice === null && "border-action ring-2 ring-action/20"
-                  )}
+                  className="flex w-full max-w-44 flex-col gap-1.5"
                   role="group"
                   aria-label={`Quantity to lock for ${row.materialId}`}
                 >
                   <LockButton
+                    due={choice === null}
                     chosen={choice === "suggested"}
                     onClick={() => onChange(withChoice(row, "suggested"))}
                     label={kind === "covered" ? "Not needed" : `Use ${row.suggested}`}
@@ -263,6 +257,7 @@ function OarRow({
                     }
                   />
                   <LockButton
+                    due={choice === null}
                     chosen={choice === "own"}
                     onClick={() => onChange(withChoice(row, "own"))}
                     label={`Use mine (${required})`}
@@ -280,13 +275,15 @@ function OarRow({
         </td>
         <td className="px-3 py-3">
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-col items-start gap-1">
               <Input
                 type="date"
                 aria-label="Window start"
                 value={row.windowStart}
+                max={row.windowEnd || undefined}
                 disabled={declined}
-                aria-invalid={err("window start") || err("window ends before it starts")}
+                aria-invalid={err("window start") || windowProblem !== null}
+                aria-describedby={windowProblem ? `window-error-${row.key}` : undefined}
                 onChange={(e) =>
                   onChange({
                     ...row,
@@ -296,13 +293,15 @@ function OarRow({
                 }
                 className="h-8 w-[8.5rem] text-xs"
               />
-              <span className="text-xs text-muted-foreground">to</span>
+              <span className="pl-1 text-[11px] text-muted-foreground">to</span>
               <Input
                 type="date"
                 aria-label="Window end"
                 value={row.windowEnd}
+                min={row.windowStart || undefined}
                 disabled={declined}
-                aria-invalid={err("window end") || err("window ends before it starts")}
+                aria-invalid={err("window end") || windowProblem !== null}
+                aria-describedby={windowProblem ? `window-error-${row.key}` : undefined}
                 onChange={(e) =>
                   onChange({
                     ...row,
@@ -313,25 +312,10 @@ function OarRow({
                 className="h-8 w-[8.5rem] text-xs"
               />
             </div>
-            {!declined && !row.windowEdited && suggestedWindow && (
-              <span className="text-[11px] text-muted-foreground">
-                Suggested: {suggestedWindow.months} month
-                {suggestedWindow.months === 1 ? "" : "s"} at {figure(row.rate)}
-                /month
+            {windowProblem && (
+              <span id={`window-error-${row.key}`} role="alert" className="text-[11px] font-medium text-destructive">
+                {windowProblem}
               </span>
-            )}
-            {!declined && !suggestedWindow && row.rate <= 0 && (
-              <span className="text-[11px] text-muted-foreground">No usage rate: enter the window.</span>
-            )}
-            {!declined && windowDiffers && (
-              <button
-                type="button"
-                className="inline-flex w-fit items-center gap-1 text-[11px] text-action hover:underline"
-                onClick={() => onChange(withSuggestedWindow({ ...row, windowEdited: false }))}
-              >
-                <RotateCcw className="size-3" aria-hidden />
-                Use suggested ({suggestedWindow.months} mo)
-              </button>
             )}
           </div>
         </td>
@@ -341,9 +325,9 @@ function OarRow({
             value={row.purpose}
             disabled={declined}
             aria-invalid={err("purpose")}
-            placeholder="What it is for"
+            placeholder="What for"
             onChange={(e) => onChange({ ...row, purpose: e.target.value })}
-            className="h-8 min-w-40"
+            className="h-8 w-full min-w-24"
           />
         </td>
         <td className="px-3 py-3">
@@ -398,12 +382,19 @@ function OarRow({
   )
 }
 
+/**
+ * One of the two quantity choices, a button of its own. Before either is
+ * locked both are outlined in the action blue, so the choice reads as due;
+ * the locked one fills, the other stays outlined to switch to.
+ */
 function LockButton({
+  due,
   chosen,
   label,
   title,
   onClick,
 }: {
+  due: boolean
   chosen: boolean
   label: string
   title: string
@@ -416,11 +407,13 @@ function LockButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+        "inline-flex h-8 w-full items-center justify-center gap-1 rounded-md border px-3 text-xs font-medium whitespace-nowrap transition-colors",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         chosen
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:bg-background hover:text-foreground"
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : due
+            ? "border-action bg-action/5 text-action hover:bg-action/10"
+            : "border-border bg-background text-foreground hover:border-action hover:text-action"
       )}
     >
       {chosen && <Lock className="size-3" aria-hidden />}
@@ -498,7 +491,7 @@ export function RowStatus({
   if (issues.length === 0) return <Chip tone="ready">Ready</Chip>
   return (
     <div className="flex flex-col gap-0.5">
-      <Chip tone="todo">Needs {issues.length === 1 ? issues[0] : `${issues.length} things`}</Chip>
+      <Chip tone="todo" className="whitespace-normal">Needs {issues.length === 1 ? issues[0] : `${issues.length} things`}</Chip>
       {issues.length > 1 && <span className="text-[11px] leading-snug text-muted-foreground">{issues.join(", ")}</span>}
     </div>
   )

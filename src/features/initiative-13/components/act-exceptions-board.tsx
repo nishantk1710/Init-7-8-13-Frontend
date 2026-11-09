@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { confirmExceptionAction } from "@/features/initiative-13/actions"
 import { ConfirmExceptionDialog } from "@/features/initiative-13/components/confirm-exception-dialog"
 import type { ActException, ActExceptionStatus, ActExceptionType } from "@/lib/api/i13"
@@ -148,15 +149,15 @@ export function ActExceptionsBoard({
               <TableHead className="w-12">
                 <span className="sr-only">Details</span>
               </TableHead>
-              <TableHead>Material</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Plant</TableHead>
-              <TableHead>Reservation</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Detected</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <ColumnHead source="material">Material</ColumnHead>
+              <ColumnHead source="exceptionType">Type</ColumnHead>
+              <ColumnHead source="plant">Plant</ColumnHead>
+              <ColumnHead source="reservation">Reservation</ColumnHead>
+              <ColumnHead source="exceptionOwner">Owner</ColumnHead>
+              <ColumnHead source="exceptionStatus">Status</ColumnHead>
+              <ColumnHead source="exceptionDetected">Detected</ColumnHead>
+              <ColumnHead source="exceptionDue">Due</ColumnHead>
+              <ColumnHead source="exceptionAction" className="text-right">Action</ColumnHead>
             </TableRow>
           </TableHeader>
           <TableBody>

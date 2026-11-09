@@ -24,7 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
-import { filterByValueChange, sortByValueChange, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
+import { filterByValueChange, sortByValueChange, sortByValueChangeDirection, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
 
@@ -217,7 +217,10 @@ export function RecommendationReviewTable({
   // this figure, so this narrows and reorders the rows on this page only.
   const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
   const rows = useMemo(
-    () => sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
+    () =>
+      valueSort === null
+        ? sortByValueChangeDirection(recommendations)
+        : sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
     [recommendations, valueSort],
   )
   // Clicking the active arrow again turns the filter off.

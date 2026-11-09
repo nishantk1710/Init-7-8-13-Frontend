@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import type { ActExceptionDetail, PlanVsIssuedRow, ReclassificationCandidate, WatchMetric } from "@/lib/api/i13"
+import type { ActExceptionDetail, PlanVsIssuedRow, WatchMetric } from "@/lib/api/i13"
 import {
-  attachCriticalImpactIndicator,
   buildLastRefreshedAt,
   countByField,
   filterNonMovers,
   justificationRowsToCsv,
-  matchesCriticalFilter,
   nonMoverRowsToCsv,
   planVsIssuedRowsToCsv,
 } from "./dashboard-transforms"
+import { grNotIssuedHover } from "@/features/initiative-13/components/watch-table"
 import { selectConfirmedExceptions } from "@/lib/api/i13"
 
 function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
@@ -51,21 +50,6 @@ function watchRow(overrides: Partial<WatchMetric>): WatchMetric {
   }
 }
 
-function candidate(overrides: Partial<ReclassificationCandidate>): ReclassificationCandidate {
-  return {
-    material: "MAT-1",
-    plant: "1300",
-    consumptionCount12m: 0,
-    consumedMoreThanThreshold: false,
-    criticalImpactIndicator: null,
-    hodJustifiedRequestIndicator: null,
-    dataAvailable: false,
-    candidateFlag: false,
-    candidateReasons: [],
-    ...overrides,
-  }
-}
-
 describe("countByField", () => {
   it("groups rows by the given key, never inventing a bucket with no rows", () => {
     const rows = [watchRow({ agingBand: "FAST" }), watchRow({ agingBand: "FAST" }), watchRow({ agingBand: "SLOW" })]
@@ -87,43 +71,6 @@ describe("filterNonMovers", () => {
   })
 })
 
-describe("attachCriticalImpactIndicator", () => {
-  it("joins on material+plant and passes the backend boolean through unchanged", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    const candidates = [candidate({ material: "A", plant: "1300", criticalImpactIndicator: true })]
-    expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBe(true)
-  })
-
-  it("is null (unknown), never false, when no candidate matches the key", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    expect(attachCriticalImpactIndicator(rows, [])[0].criticalImpactIndicator).toBeNull()
-  })
-
-  it("does not cross-match a different plant for the same material", () => {
-    const rows = [watchRow({ material: "A", plant: "1300" })]
-    const candidates = [candidate({ material: "A", plant: "1500", criticalImpactIndicator: true })]
-    expect(attachCriticalImpactIndicator(rows, candidates)[0].criticalImpactIndicator).toBeNull()
-  })
-})
-
-describe("matchesCriticalFilter", () => {
-  it("'all' matches every row", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "all")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: true }, "all")).toBe(true)
-  })
-
-  it("'unknown' matches only null", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "unknown")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: false }, "unknown")).toBe(false)
-  })
-
-  it("'yes'/'no' match true/false and exclude unknown", () => {
-    expect(matchesCriticalFilter({ criticalImpactIndicator: true }, "yes")).toBe(true)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: false }, "yes")).toBe(false)
-    expect(matchesCriticalFilter({ criticalImpactIndicator: null }, "no")).toBe(false)
-  })
-})
-
 describe("buildLastRefreshedAt", () => {
   it("picks the most recent calculatedAt", () => {
     const rows = [{ calculatedAt: "2026-09-01T00:00:00Z" }, { calculatedAt: "2026-09-15T00:00:00Z" }]
@@ -137,15 +84,20 @@ describe("buildLastRefreshedAt", () => {
 })
 
 describe("nonMoverRowsToCsv", () => {
-  it("exports exactly the rows it was given (the caller's already-filtered set)", () => {
-    const rows = attachCriticalImpactIndicator([watchRow({ material: "A" }), watchRow({ material: "B" })], [
-      candidate({ material: "A", criticalImpactIndicator: true }),
-    ])
-    const csv = nonMoverRowsToCsv(rows)
+  it("exports exactly the rows it was given (the caller's already-filtered set), with no critical-impact column", () => {
+    const csv = nonMoverRowsToCsv([watchRow({ material: "A" }), watchRow({ material: "B" })])
     expect(csv).toHaveLength(2)
     expect(csv[0][0]).toBe("A")
-    expect(csv[0][csv[0].length - 1]).toBe("Yes")
-    expect(csv[1][csv[1].length - 1]).toBe("Unknown")
+    expect(csv[0]).toHaveLength(4)
+  })
+
+  it("exports when it was last issued, not the last movement of any type", () => {
+    const [issued, never] = nonMoverRowsToCsv([
+      watchRow({ material: "A", lastIssueDate: "2023-06-15", lastMovementDate: "2026-06-01", stockOnHand: 2 }),
+      watchRow({ material: "B", lastIssueDate: null, stockOnHand: null }),
+    ])
+    expect(issued).toEqual(["A", "1300", "2023-06-15", 2])
+    expect(never).toEqual(["B", "1300", "Never issued", ""])
   })
 })
 
@@ -267,5 +219,23 @@ describe("planVsIssuedRowsToCsv", () => {
       ["Via assistant", "MAT-1", "1300", "", "5.000", "0", "Below plan", "2026-10-23", "Yes"],
       ["Via assistant", "MAT-1", "1300", "", "2.000", "0", "Awaiting reservation", "2026-12-01", "No"],
     ])
+  })
+})
+
+describe("grNotIssuedHover", () => {
+  it("says the days count from the oldest receipt still not issued, with the totals across PO lines", () => {
+    const text = grNotIssuedHover(
+      watchRow({
+        grNotIssuedFlag: true,
+        grNotIssuedDaysSinceGr: 45,
+        grNotIssuedRelevantGrDate: "2026-09-23",
+        grNotIssuedReceivedQuantity: 15,
+        grNotIssuedIssuedQuantity: 6,
+        grNotIssuedOutstandingQuantity: 9,
+      })
+    )
+    expect(text).toMatch(/^Days since the oldest goods receipt still not issued \(received .*Sept? 2026\), not the latest one\./)
+    expect(text).toContain("15 received, 6 issued, 9 still in store")
+    expect(text).toContain("GR not issued tab")
   })
 })
