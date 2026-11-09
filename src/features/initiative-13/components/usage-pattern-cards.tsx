@@ -41,7 +41,7 @@ export const HEAT_FILL = [
 
 /** The row's columns, shared by the header labels and every card so they line up. */
 const ROW_COLUMNS =
-  "md:grid-cols-[minmax(0,2.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_10.5rem]"
+  "md:grid-cols-[minmax(0,2.8fr)_repeat(3,minmax(0,1fr))_10.5rem]"
 
 const keyOf = (row: UsagePattern) => `${row.material}::${row.plant}`
 const panelId = (row: UsagePattern) => `usage-detail-${row.material}-${row.plant}`
@@ -55,7 +55,7 @@ const panelId = (row: UsagePattern) => `usage-detail-${row.material}-${row.plant
  * Renders the one page of rows it is handed; the filters and the pager are the
  * page's, in the URL, exactly as for the table.
  */
-export function UsagePatternCards({ rows }: { rows: UsagePattern[] }) {
+export function UsagePatternCards({ rows, layoutSwitch }: { rows: UsagePattern[]; layoutSwitch?: React.ReactNode }) {
   const [picked, setPicked] = useState<string | null>(null)
   const readings = useMemo(() => new Map(rows.map((r) => [keyOf(r), readUsage(r.months)])), [rows])
   // A new page of rows may not hold the card that was open: then none is.
@@ -63,24 +63,25 @@ export function UsagePatternCards({ rows }: { rows: UsagePattern[] }) {
 
   if (rows.length === 0) {
     return (
-      <EmptyState
-        title="No movement history matches these filters."
-        description="Usage is built from goods issues and receipts in the delivered MSEG extract."
-      />
+      <div className="flex flex-col gap-4">
+        {layoutSwitch && <div className="flex justify-end">{layoutSwitch}</div>}
+        <EmptyState
+          title="No movement history matches these filters."
+          description="Usage is built from goods issues and receipts in the delivered MSEG extract."
+        />
+      </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div
-        aria-hidden
-        className={cn("hidden gap-4 px-5 text-[13px] font-medium text-muted-foreground md:grid", ROW_COLUMNS)}
-      >
-        <span>Material</span>
-        <span className="text-right">Issued</span>
-        <span>Last issue</span>
-        <span className="text-right">Stock</span>
-        <span />
+      {/* The column headings, with the cards/table switch above the Show details buttons. */}
+      <div className={cn("flex items-end justify-end gap-4 px-5 text-[13px] font-medium text-muted-foreground md:grid", ROW_COLUMNS)}>
+        <span aria-hidden className="hidden md:block">Material</span>
+        <span aria-hidden className="hidden text-right md:block">Issued</span>
+        <span aria-hidden className="hidden text-right md:block">Last issue</span>
+        <span aria-hidden className="hidden text-right md:block">Stock</span>
+        <div className="md:justify-self-end">{layoutSwitch}</div>
       </div>
       <ul className="flex flex-col gap-2.5">
         {rows.map((row) => {
@@ -124,8 +125,8 @@ function UsageCard({
     >
       <div className={cn("grid grid-cols-2 items-center gap-x-4 gap-y-3 px-5 py-3.5", ROW_COLUMNS)}>
         <div className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-1">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[15px] font-semibold text-foreground" title={name}>
+          <span className="flex min-w-0 items-start gap-2">
+            <span className="line-clamp-2 text-[15px] leading-snug font-semibold text-foreground" title={name}>
               {name}
             </span>
             {row.agingBand && (
@@ -141,7 +142,7 @@ function UsageCard({
         <Cell label="Issued" className="md:text-right">
           <span className="text-lg font-semibold tabular-nums text-foreground">{formatCount(row.issuedQuantityTotal)}</span>
         </Cell>
-        <Cell label="Last issue">
+        <Cell label="Last issue" className="md:text-right">
           <span className="text-sm font-semibold text-foreground">{row.lastIssueMonth ?? "Never"}</span>
         </Cell>
         <Cell label="Stock" className="md:text-right">

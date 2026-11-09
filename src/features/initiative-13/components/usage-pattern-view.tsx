@@ -45,34 +45,39 @@ export function UsagePatternView({ rows }: { rows: UsagePattern[] }) {
   const layout = useSyncExternalStore(subscribe, () => fallback ?? readLayout(), () => "cards" as Layout)
   const choose = writeLayout
 
-  return (
+  const layoutSwitch = (
+    <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-border bg-card p-1">
+      {(
+        [
+          ["cards", LayoutGrid, "Cards"],
+          ["table", Rows3, "Table"],
+        ] as const
+      ).map(([value, Icon, label]) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={layout === value}
+          aria-label={label}
+          title={label}
+          onClick={() => choose(value)}
+          className={cn(
+            "inline-flex size-10 items-center justify-center rounded-md transition-colors",
+            layout === value ? "bg-action/10 text-action" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Icon aria-hidden className="size-4" />
+        </button>
+      ))}
+    </div>
+  )
+
+  // Cards carry the switch on their heading row; the table has its own row for it.
+  return layout === "cards" ? (
+    <UsagePatternCards rows={rows} layoutSwitch={layoutSwitch} />
+  ) : (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-border bg-card p-1">
-          {(
-            [
-              ["cards", LayoutGrid, "Cards"],
-              ["table", Rows3, "Table"],
-            ] as const
-          ).map(([value, Icon, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={layout === value}
-              aria-label={label}
-              title={label}
-              onClick={() => choose(value)}
-              className={cn(
-                "inline-flex size-10 items-center justify-center rounded-md transition-colors",
-                layout === value ? "bg-action/10 text-action" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon aria-hidden className="size-4" />
-            </button>
-          ))}
-        </div>
-      </div>
-      {layout === "cards" ? <UsagePatternCards rows={rows} /> : <UsagePatternTable rows={rows} />}
+      <div className="flex justify-end">{layoutSwitch}</div>
+      <UsagePatternTable rows={rows} />
     </div>
   )
 }
