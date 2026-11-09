@@ -70,20 +70,21 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
 
   return (
     <DataTable className={FITTED_TABLE}>
-      <Table>
+      <Table className="min-w-[880px] table-fixed">
         <TableHeader>
           <TableRow>
-            <ColumnHead source="material">Material</ColumnHead>
-            <ColumnHead source="reservation">Reservation</ColumnHead>
-            <ColumnHead source="required" note="Requirement date (RESB-BDTER)">Required</ColumnHead>
-            <ColumnHead source="reservedQty" className="text-right">Qty</ColumnHead>
+            <ColumnHead source="material" className="w-[27%]">Material</ColumnHead>
+            <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
+            <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
+            <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
             <ColumnHead
               source="issuedOnReservation"
+              className="w-[11%] text-right"
               note="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)"
             >
               Issued
             </ColumnHead>
-            <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued">Stage</ColumnHead>
+            <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
             <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
           </TableRow>
         </TableHeader>
@@ -91,10 +92,10 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           {rows.map((row) => (
             <TableRow key={row.ledgerId}>
               <TableCell className={cn("text-foreground", LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone])}>
-                <div className="flex max-w-[200px] flex-col gap-0.5">
+                <div className="flex min-w-0 flex-col gap-0.5">
                   {row.materialDescription ? (
                     <>
-                      <span className="truncate font-semibold" title={row.materialDescription}>
+                      <span className="line-clamp-2 font-semibold [overflow-wrap:anywhere]" title={row.materialDescription}>
                         {row.materialDescription}
                       </span>
                       <span className="text-[11px] text-muted-foreground">{row.material}</span>
@@ -108,10 +109,10 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
               <TableCell>
                 <DocNo number={row.reservationNumber} item={row.reservationItem} />
               </TableCell>
-              <TableCell className="text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
               <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
               <IssuedCell row={row} />
-              <TableCell>
+              <TableCell className="!pl-5">
                 <div className="flex flex-col items-start gap-1">
                   <LifecyclePill status={row.lifecycleStatus} />
                   <OwnProcurement row={row} />
@@ -154,14 +155,14 @@ function IssuedCell({ row }: { row: ReservationLedgerRow }) {
   const unknown = issuedUnknownReason(row)
   if (unknown) {
     return (
-      <TableCell>
+      <TableCell className="text-right">
         <EmptyValue kind="beforeHistory" title={unknown} />
       </TableCell>
     )
   }
   return (
-    <TableCell>
-      <div className="flex flex-col items-start gap-0.5">
+    <TableCell className="text-right">
+      <div className="flex flex-col items-end gap-0.5">
         <span className="font-semibold tabular-nums text-foreground">{qty(row.issuedQuantity)}</span>
         {row.lastIssueDate ? (
           <span className="whitespace-nowrap text-xs text-muted-foreground">{formatApiDate(row.lastIssueDate)}</span>

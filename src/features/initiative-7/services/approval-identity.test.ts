@@ -90,7 +90,7 @@ describe("the screen cannot name a user", () => {
   it("the panel calls submit, act and reject without a user", () => {
     const text = source(PANEL)
     expect(text).toContain("await submit()")
-    expect(text).toContain("await act(actingRole(), action")
+    expect(text).toContain("await act(actorRole, action")
     expect(text).toContain("await reject(rejectReason.trim())")
   })
 

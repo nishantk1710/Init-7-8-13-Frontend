@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ChevronLeft, Info, Link2, TriangleAlert } from "lucide-react"
+import { ChevronLeft, Info, TriangleAlert } from "lucide-react"
 
 import { AssessmentCard, AssessmentCaveats } from "@/components/assistant/assessment-card"
 import { OutcomeChip, TonePill } from "@/components/assistant/session-chips"
@@ -85,58 +85,84 @@ export function SessionTrace({
     job,
   })
 
+  const recorded = trace.plans.length > 0 || trace.quantitySuggestions.length > 0
+
   return (
     <div className="flex flex-col gap-6">
       <ReferenceBox trace={trace} reference={reference} />
       <Summary trace={trace} />
 
-      <Part
-        title="What the assistant showed"
-        note={`As shown on ${formatInstant(trace.issuedAt)}. Replayed from the record, not recomputed: stock and repairs have moved since.`}
-      >
-        {trace.flow === "i08" && isI08Facts(trace.assessment) ? (
-          <I08Shown facts={trace.assessment} />
-        ) : (
-          <div className="flex flex-col gap-2">
-            <AssessmentCard facts={trace.assessment} />
-            <AssessmentCaveats facts={trace.assessment} />
-          </div>
-        )}
-        {/* Off by default; labelled wherever it does appear. */}
-        {trace.narrative && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs font-semibold text-muted-foreground">Generated narrative</p>
-            <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
-          </div>
-        )}
-      </Part>
+      <ol aria-label="How this session went" className="flex flex-col">
+        <Part
+          n={1}
+          title="What the assistant showed"
+          note={`As shown on ${formatInstant(trace.issuedAt)}. Replayed from the record, not recomputed: stock and repairs have moved since.`}
+        >
+          {trace.flow === "i08" && isI08Facts(trace.assessment) ? (
+            <I08Shown facts={trace.assessment} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <AssessmentCard facts={trace.assessment} />
+              <AssessmentCaveats facts={trace.assessment} />
+            </div>
+          )}
+          {/* Off by default; labelled wherever it does appear. */}
+          {trace.narrative && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-semibold text-muted-foreground">Generated narrative</p>
+              <p className="mt-1 text-sm text-foreground">{trace.narrative}</p>
+            </div>
+          )}
+        </Part>
 
-      <Part
-        title="What was decided"
-        note={answeredBy(trace, typedName)}
-      >
-        <Conversation pairs={pairs} />
-        {trace.plans.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} typedName={typedName} />
-        ))}
-        {trace.quantitySuggestions.map((s) => (
-          <SuggestionCard key={s.id} suggestion={s} />
-        ))}
-        {(reasons.length > 0 || declarations.length > 0) && (
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            {reasons.map((r) => (
-              <ReasonCard key={r.key} reason={r} />
-            ))}
-            {declarations.map((d) => (
-              <DeclarationCard key={d.key} declaration={d} />
-            ))}
-          </div>
-        )}
-      </Part>
+        <Part n={2} title="What was decided" note={answeredBy(trace, typedName)}>
+          <Conversation pairs={pairs} />
+          {(reasons.length > 0 || declarations.length > 0) && (
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+              {reasons.map((r) => (
+                <ReasonCard key={r.key} reason={r} />
+              ))}
+              {declarations.map((d) => (
+                <DeclarationCard key={d.key} declaration={d} />
+              ))}
+            </div>
+          )}
+        </Part>
 
-      <Part title="Linked in SAP">
-        <LinkedPanel view={linked} reference={reference.value} sessionId={trace.sessionId} />
-      </Part>
+        {recorded && (
+          <Part
+            n={3}
+            title="What was recorded"
+            note="The plan saved against this session, and how the quantity was worked out."
+          >
+            {trace.plans.map((plan) => (
+              <PlanCard key={plan.id} plan={plan} typedName={typedName} />
+            ))}
+            {trace.quantitySuggestions.map((s) => (
+              <SuggestionCard key={s.id} suggestion={s} />
+            ))}
+          </Part>
+        )}
+
+        <Part
+          n={recorded ? 4 : 3}
+          title="Linked in SAP"
+          note={
+            linked.linked
+              ? "The SAP reservations that carry this reference."
+              : "The last step, and the only one waiting on you."
+          }
+          marker={linked.linked ? "done" : "waiting"}
+          last
+        >
+          <LinkedPanel
+            view={linked}
+            reference={reference.value}
+            hint={reference.instruction}
+            sessionId={trace.sessionId}
+          />
+        </Part>
+      </ol>
     </div>
   )
 }
@@ -162,23 +188,23 @@ function ReferenceBox({
   return (
     <section
       aria-label={reference.title}
-      className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-[11rem_1fr]"
+      className="grid overflow-hidden rounded-xl border border-action/30 bg-action/5 shadow-sm sm:grid-cols-[11rem_1fr]"
     >
-      <div className="flex flex-col justify-center gap-0.5 border-b border-dashed border-border px-5 py-4 sm:border-r sm:border-b-0">
-        <span className="text-sm text-muted-foreground">{reference.title}</span>
+      <div className="flex flex-col justify-center gap-0.5 border-b border-action/20 bg-action/5 px-5 py-4 sm:border-r sm:border-b-0">
+        <span className="text-xs text-action">{reference.title}</span>
         <span className="text-sm font-semibold text-foreground">Type this in SAP</span>
       </div>
       <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-foreground select-all">
+          <span className="font-mono text-3xl font-semibold tracking-[0.18em] break-all text-action select-all">
             {reference.value}
           </span>
           <span className="max-w-2xl text-sm text-muted-foreground">{reference.instruction}</span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
             <OutcomeChip outcome={outcome} />
-            <span>Issued {formatInstant(trace.issuedAt)}</span>
+            <Chip tone="muted">Issued {formatInstant(trace.issuedAt)}</Chip>
             {requestId && reference.line && (
-              <span>
+              <span className="rounded-full border border-border bg-card px-2 py-0.5">
                 This session is line{" "}
                 <Link
                   href={`/assistant/requests/${requestId}`}
@@ -425,8 +451,8 @@ function Conversation({ pairs }: { pairs: ReadableTurn[] }) {
         </li>
       ))}
       {closing && (
-        <li className="flex flex-col gap-1 bg-muted/30 px-5 py-3.5">
-          <p className="text-xs font-semibold text-muted-foreground">The assistant closed with</p>
+        <li className="flex flex-col gap-1 bg-action/5 px-5 py-3.5">
+          <p className="text-xs font-semibold text-action">The assistant closed with</p>
           <p className="text-sm whitespace-pre-line text-foreground">{closing.question}</p>
         </li>
       )}
@@ -532,9 +558,7 @@ function PlanCard({ plan, typedName }: { plan: ApiPlan; typedName: string | null
       footer={`By ${personLabel(plan.capturedBy, typedName)} · ${formatInstant(plan.capturedAt)}`}
     >
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-        <Fact label="What it is for" wide>
-          {plan.purpose}
-        </Fact>
+        <Fact label="What it is for">{plan.purpose}</Fact>
         <Fact label="Planned quantity">{formatQuantity(plan.plannedQuantity)}</Fact>
         <Fact label="Expected use">
           {formatWindow(plan.windowStart, plan.windowEnd) ?? <span className="text-muted-foreground">No window given</span>}
@@ -555,24 +579,26 @@ function SuggestionCard({ suggestion: s }: { suggestion: ApiQuantitySuggestion }
       footer={`Worked out with a ${formatQuantity(s.coverCeilingMonths)}-month cover ceiling, a ${s.lookbackMonths}-month look-back and at least ${s.minHistoryConsumptions} consumptions (${s.consumptionCount} found). All three are settings, not yet confirmed by VZI.`}
     >
       <p className="text-sm text-foreground">{readableText(s.suggestionReason)}</p>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-        <Fact label="Asked for">{formatQuantity(s.requestedQuantity)}</Fact>
-        <Fact label="Suggested">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tile label="Asked for">{formatQuantity(s.requestedQuantity)}</Tile>
+        <Tile label="Suggested">
           {/* Null is not zero: "we suggest nothing" and "we suggest none" differ. */}
           {s.suggestedQuantity === null ? (
-            <span className="text-muted-foreground">No suggestion made</span>
+            <span className="text-sm text-muted-foreground">No suggestion made</span>
           ) : (
             formatQuantity(s.suggestedQuantity)
           )}
-        </Fact>
-        <Fact label="Recorded as">{formatQuantity(s.acceptedQuantity)}</Fact>
-        <Fact label="Months of cover">
+        </Tile>
+        <Tile label="Recorded as" tone="success">
+          {formatQuantity(s.acceptedQuantity)}
+        </Tile>
+        <Tile label="Months of cover">
           {s.monthsOfCover === null ? (
-            <span className="text-muted-foreground">Not computable</span>
+            <span className="text-sm text-muted-foreground">Not computable</span>
           ) : (
             formatQuantity(s.monthsOfCover)
           )}
-        </Fact>
+        </Tile>
       </dl>
     </RecordCard>
   )
@@ -583,28 +609,39 @@ function SuggestionCard({ suggestion: s }: { suggestion: ApiQuantitySuggestion }
 function LinkedPanel({
   view,
   reference,
+  hint,
   sessionId,
 }: {
   view: ReturnType<typeof linkedInSapView>
   reference: string
+  /** Where to type the reference in SAP, for the copy button. */
+  hint: string
   sessionId: string
 }) {
-  return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
-      {!view.linked ? (
-        <div className="flex items-start gap-3">
-          <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-            <Link2 className="size-4" />
-          </span>
-          <div className="flex flex-col gap-0.5">
-            <p className="text-sm font-semibold text-foreground">Not linked yet</p>
+  if (!view.linked) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">Not linked yet</p>
+              <Chip tone="warn">Waiting for SAP</Chip>
+            </div>
             <p className="text-sm text-muted-foreground">
               The link appears here once a SAP reservation carrying{" "}
               <span className="font-mono font-semibold text-foreground">{reference}</span> reaches the platform.
             </p>
           </div>
+          <CopyReferenceButton value={reference} hint={hint} />
         </div>
-      ) : (
+        {/* UAT only: renders nothing unless the backend's test stand-in is on. */}
+        <UatReservationTools sessionId={sessionId} sapText={reference} />
+      </div>
+    )
+  }
+  return (
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      {(
         <>
           {view.reservations.length > 0 && (
             <ul className="flex flex-col gap-3">
@@ -679,15 +716,70 @@ function Movements({ rows }: { rows: JobMovementRow[] }) {
 
 // --- pieces -------------------------------------------------------------------
 
-function Part({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+/**
+ * One numbered part of the session, on the line that runs down the page. The
+ * last part's number turns amber while it waits on the requester (no SAP link
+ * yet) and green once linked.
+ */
+function Part({
+  n,
+  title,
+  note,
+  marker = "step",
+  last = false,
+  children,
+}: {
+  n: number
+  title: string
+  note?: string
+  marker?: "step" | "done" | "waiting"
+  last?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {note && <p className="text-xs text-muted-foreground">{note}</p>}
-      </div>
-      {children}
-    </section>
+    <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3 pb-8 last:pb-0">
+      {!last && <span aria-hidden className="absolute top-8 bottom-0 left-4 w-0.5 -translate-x-1/2 bg-action/20" />}
+      <span
+        aria-hidden
+        className={cn(
+          "relative z-10 grid size-8 place-items-center rounded-full text-sm font-semibold text-white",
+          marker === "step" && "bg-action",
+          marker === "done" && "bg-success",
+          marker === "waiting" && "bg-warning"
+        )}
+      >
+        {n}
+      </span>
+      <section className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-col gap-0.5 pt-1">
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+          {note && <p className="text-xs text-muted-foreground">{note}</p>}
+        </div>
+        {children}
+      </section>
+    </li>
+  )
+}
+
+/** A figure in its own tile: a small label over a large number. */
+function Tile({ label, tone, children }: { label: string; tone?: "success"; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1 rounded-lg border p-3",
+        tone === "success" ? "border-success/30 bg-success/10" : "border-border bg-muted/30"
+      )}
+    >
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          "text-2xl leading-tight font-semibold tabular-nums",
+          tone === "success" ? "text-success" : "text-foreground"
+        )}
+      >
+        {children}
+      </dd>
+    </div>
   )
 }
 
