@@ -58,8 +58,8 @@ function actorLabel(actorId: string): string {
 }
 
 /**
- * Decision controls for a LIVE recommendation. The acting role is fixed per person
- * (actingRole, see above) -- never chosen per action -- and the pending
+ * Decision controls for a LIVE recommendation. The acting role comes from the person's token roles
+ * (resolveActingRole, see above) -- never chosen per action -- and the pending
  * role comes from the backend's own workflow state, instead of a role picker.
  *
  * `surface` decides what is offered. On a recommendation page ("recommendation", the default) a planner
