@@ -17,6 +17,28 @@ describe("the job behind a repairable session", () => {
     expect(sessionJobView(job())).toEqual({ kind: "not-linked", text: NOT_LINKED_TEXT })
   })
 
+  it("reads a quantity the route sends as a JSON number (1.0) instead of crashing", () => {
+    const view = sessionJobView(
+      job({
+        reservations: [
+          {
+            reservation: "0000123",
+            item: "0001",
+            order: "",
+            material: "8000005632",
+            plant: "1300",
+            // What the non-prod route really sends for SBTP5AJPRH.
+            quantity: 1.0 as unknown as string,
+            requirementDate: "2026-05-04",
+            issued: [],
+            returned: [],
+          },
+        ],
+      })
+    )
+    expect(view.kind === "linked" && view.reservations[0].quantity).toBe("1")
+  })
+
   it("shows the reservation with its 261 and 262 movements", () => {
     const view = sessionJobView(
       job({
