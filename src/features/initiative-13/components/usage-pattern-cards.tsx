@@ -12,7 +12,6 @@ import {
   monthLabel,
   monthNote,
   readUsage,
-  USAGE_KIND_MEANING,
   yearGrid,
   type UsageKind,
   type UsageReading,
@@ -49,7 +48,7 @@ export const HEAT_FILL = [
 
 /** The row's columns, shared by the header labels and every card so they line up. */
 const ROW_COLUMNS =
-  "md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_10.5rem]"
+  "md:grid-cols-[minmax(0,2.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_10.5rem]"
 
 const keyOf = (row: UsagePattern) => `${row.material}::${row.plant}`
 const panelId = (row: UsagePattern) => `usage-detail-${row.material}-${row.plant}`
@@ -85,7 +84,6 @@ export function UsagePatternCards({ rows }: { rows: UsagePattern[] }) {
         className={cn("hidden gap-4 px-5 text-[13px] font-medium text-muted-foreground md:grid", ROW_COLUMNS)}
       >
         <span>Material</span>
-        <span>Pattern</span>
         <span className="text-right">Issued</span>
         <span>Last issue</span>
         <span className="text-right">Stock</span>
@@ -146,16 +144,6 @@ function UsageCard({
           <span className="truncate text-xs text-muted-foreground">
             <span className="font-mono">{row.material}</span> · {sapPlantLabel(row.plant)}
           </span>
-        </div>
-        <div className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1">
-          <span
-            title={USAGE_KIND_MEANING[reading.kind]}
-            className="flex w-fit cursor-help items-center gap-1.5 text-sm font-semibold text-foreground"
-          >
-            <span aria-hidden className={cn("size-2 shrink-0 rounded-full", KIND_DOT[reading.kind])} />
-            {reading.label}
-          </span>
-          <span className="truncate text-xs text-muted-foreground">{reading.hint}</span>
         </div>
         <Cell label="Issued" className="md:text-right">
           <span className="text-lg font-semibold tabular-nums text-foreground">{formatCount(row.issuedQuantityTotal)}</span>
@@ -224,13 +212,6 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
     >
       <div className="flex flex-col gap-3">
         <div className={cn("flex flex-col gap-2 rounded-xl p-4", KIND_PANEL[reading.kind])}>
-          <span
-            title={USAGE_KIND_MEANING[reading.kind]}
-            className="flex w-fit cursor-help items-center gap-2 text-[13px] font-semibold tracking-wide text-foreground uppercase"
-          >
-            <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[reading.kind])} />
-            {reading.label}
-          </span>
           <p className="text-[15px] leading-relaxed text-foreground">{reading.story}</p>
         </div>
         <dl className="grid grid-cols-2 gap-2">
