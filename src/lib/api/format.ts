@@ -45,12 +45,16 @@ export function formatApiDateTime(
   if (!iso) return fallback
   const parsed = new Date(iso)
   if (Number.isNaN(parsed.getTime())) return fallback
+  // South African time, whatever clock the server or the viewer's PC runs on.
+  // Without a time zone the server (UTC) and the browser (SAST) printed
+  // different times and React redrew the page (error #418 on Exceptions).
   return parsed.toLocaleString("en-ZA", {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Africa/Johannesburg",
   })
 }
 

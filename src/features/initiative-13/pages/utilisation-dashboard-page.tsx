@@ -161,10 +161,11 @@ export async function UtilisationDashboardPage({
   const referencePlanCount =
     dashboard.summary.status === "ready" ? dashboard.summary.data.referencePlanCount : null
 
+  // The pipeline's step 1 (OPEN: no requester identified yet), so the note
+  // under the steps says the same number. total - withRequester also counted
+  // closed exceptions that never had a requester (115 on non-prod, 9 Nov).
   const unroutedExceptions =
-    dashboard.exceptionCounts.status === "ready"
-      ? dashboard.exceptionCounts.data.total - dashboard.exceptionCounts.data.withRequester
-      : 0
+    dashboard.exceptionCounts.status === "ready" ? (dashboard.exceptionCounts.data.byStatus.OPEN ?? 0) : 0
 
   const countScope = [
     searchParams.plant ? `Plant ${searchParams.plant}` : "Plants 1300 and 1500 combined",

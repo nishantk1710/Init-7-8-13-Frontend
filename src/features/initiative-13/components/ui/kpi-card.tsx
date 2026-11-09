@@ -97,7 +97,8 @@ export function KpiCard({
     >
       <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-muted-foreground">
         {icon && <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-lg", BADGE[accent])}>{icon}</span>}
-        <span className="truncate">{label}</span>
+        {/* Two lines rather than cut off: "Non-AI Reservations (Exceptions)" does not fit one. */}
+        <span className="line-clamp-2 leading-snug">{label}</span>
         {info && <span className="ml-auto">{info}</span>}
       </span>
       <span className="mt-1.5 truncate text-[30px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">
