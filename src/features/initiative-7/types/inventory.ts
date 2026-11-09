@@ -196,6 +196,9 @@ export interface Recommendation {
   /** Live list rows only: the backend's verdict on moving this OAR material to Min-Max
    * ordering (see OarConversionInfo). `null` when it has none; absent off the live list. */
   conversionEligibility?: OarConversionInfo["conversionEligibility"]
+  /** Live list rows only: the backend's confidence in an OAR recommendation. `null` for a row that has none
+   * (only OAR recommendations carry one); absent off the live list. */
+  confidence?: "Low" | "Medium" | "High" | null
   risk: RiskLevel
   status: RecommendationStatus
   current: StockParameters

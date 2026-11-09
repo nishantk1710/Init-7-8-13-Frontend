@@ -510,7 +510,7 @@ function NotificationDetail({
             S
           </span>
           <div className="min-w-0 flex-1 text-xs">
-            <div className="font-semibold text-foreground">Spares AI</div>
+            <div className="font-semibold text-foreground">ProcureAssistAI</div>
             <div className="text-muted-foreground">to {recipientName || "me"}</div>
           </div>
           <time dateTime={item.createdAt} className="shrink-0 text-xs text-muted-foreground">
@@ -550,7 +550,7 @@ function NotificationDetail({
           ))}
         </div>
         <p className="border-t pt-3 text-[11px] text-muted-foreground">
-          This is an automated message from Spares AI. Please do not reply to it.
+          This is an automated message from ProcureAssistAI. Please do not reply to it.
         </p>
       </div>
 

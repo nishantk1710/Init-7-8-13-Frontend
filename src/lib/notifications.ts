@@ -101,7 +101,7 @@ export function greetingFor(name: string | null | undefined): string {
   return word ? `Dear ${word.charAt(0).toUpperCase()}${word.slice(1)},` : "Dear colleague,"
 }
 
-export const EMAIL_SIGN_OFF = ["Regards,", "Spares AI team", "Vedanta Zinc International"] as const
+export const EMAIL_SIGN_OFF = ["Regards,", "ProcureAssistAI team", "Vedanta Zinc International"] as const
 
 export type NotificationSeverity = "critical" | "warning" | "success" | "info"
 

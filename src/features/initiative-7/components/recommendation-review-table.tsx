@@ -26,7 +26,13 @@ import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import { filterByValueChange, sortByValueChange, sortByValueChangeDirection, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
-const COLUMN_COUNT = 10 // every column, with the optional Circuit and Min-Max conversion ones counted
+const COLUMN_COUNT = 11 // every column, with the optional Circuit, Confidence and Min-Max conversion ones counted
+
+const CONFIDENCE_TONE = {
+  Low: "warning",
+  Medium: "default",
+  High: "success",
+} as const
 
 const STATUS_TONE: Record<Recommendation["status"], "default" | "success" | "warning" | "danger"> = {
   "Pending Review": "warning",
@@ -191,8 +197,11 @@ function ExpandedRecommendationPanel({
 export function RecommendationReviewTable({
   recommendations,
   showMinMaxConversion = false,
+  showConfidence = false,
 }: {
   recommendations: Recommendation[]
+  /** Adds the Confidence column. Meant for a list of OAR recommendations: no other recommendation carries one. */
+  showConfidence?: boolean
   /** Adds the Min-Max conversion column. Meant for a list of OAR recommendations: no other
    * recommendation has a conversion decision. */
   showMinMaxConversion?: boolean
@@ -210,7 +219,7 @@ export function RecommendationReviewTable({
   // "Unassigned". A column of one repeated word is noise; it comes back by
   // itself the moment any row has a real circuit.
   const showCircuit = hasRealCircuit(recommendations)
-  const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
+  const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showConfidence ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
   // The Value change header has two arrows: down shows only released rows, up shows only increased (tied-up)
   // rows, each largest first; neither active shows all. The backend pages the list and has no filter or sort for
@@ -291,6 +300,7 @@ export function RecommendationReviewTable({
               </TableHead>
               <TableHead className="text-right">ROP change</TableHead>
               <TableHead>Status</TableHead>
+              {showConfidence && <TableHead>Confidence</TableHead>}
               {showMinMaxConversion && <TableHead>Min-Max conversion</TableHead>}
             </TableRow>
           </TableHeader>
@@ -354,6 +364,15 @@ export function RecommendationReviewTable({
                         {STATUS_LABEL[rec.status] ?? rec.status}
                       </StatusBadge>
                     </TableCell>
+                    {showConfidence && (
+                      <TableCell>
+                        {rec.confidence ? (
+                          <StatusBadge tone={CONFIDENCE_TONE[rec.confidence]}>{rec.confidence}</StatusBadge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
                     {showMinMaxConversion && (
                       <TableCell>
                         {rec.conversionEligibility ? (
