@@ -104,20 +104,21 @@ export function AcquiredVsPlanPanel({
         <EmptyState title="No plans or reservations for the selected filters." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
-          <Table>
+          <Table className="min-w-[720px] table-fixed">
             <TableHeader>
               <TableRow>
-                <ColumnHead source="material">Material &amp; plant</ColumnHead>
+                <ColumnHead source="material" className="w-[40%]">Material &amp; plant</ColumnHead>
+                <ColumnHead source="reservation" className="w-[14%]">Reservation</ColumnHead>
                 <ColumnHead
                   source="planned"
-                  className="text-right"
+                  className="w-[12%] text-right"
                   note="What was asked for: the plan's quantity, or the SAP reservation's reserved quantity"
                 >
                   Planned
                 </ColumnHead>
                 <ColumnHead
                   source="issuedOnReservation"
-                  className="text-right"
+                  className="w-[12%] text-right"
                   note="What was used: goods issued on the reservation(s), reversals netted. A goods issue, not a receipt: OAR is issued from stock."
                 >
                   Issued
@@ -128,20 +129,21 @@ export function AcquiredVsPlanPanel({
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.rowId}>
-                  <TableCell>
-                    <div className="flex flex-col gap-0.5">
-                      <MaterialName material={r.material} description={r.materialDescription} />
-                      <span className="text-[11px] text-muted-foreground">
-                        {sapPlantLabel(r.plant)} · <ReservationLinks reservations={r.reservations} />
-                      </span>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <MaterialName material={r.material} description={r.materialDescription} className="max-w-none" />
+                      <span className="text-[11px] text-muted-foreground">{sapPlantLabel(r.plant)}</span>
                     </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <ReservationLinks reservations={r.reservations} />
                   </TableCell>
                   {/* Rendered as the strings the backend sent, as on the plans table. */}
                   <TableCell className="text-right text-foreground">{r.plannedQuantity}</TableCell>
                   <TableCell className="text-right text-foreground">{r.issuedQuantity}</TableCell>
                   <TableCell>
                     <div
-                      className="flex flex-col items-start gap-0.5"
+                      className="flex flex-wrap items-center gap-1"
                       title={r.dueDate ? `Required by ${formatApiDate(r.dueDate)}` : "No required-by date recorded"}
                     >
                       <StatusBadge tone={badgeTone(PLAN_VS_ISSUED_STATUS_TONE[r.status])}>
@@ -173,9 +175,14 @@ function ReservationLinks({ reservations }: { reservations: string[] }) {
         className="text-primary underline-offset-4 hover:underline"
         title="Open this reservation in the Utilization Ledger"
       >
-        Reservation {first}
+        {first}
       </Link>
-      {rest.length > 0 && <span title={rest.join(", ")}> +{rest.length} more</span>}
+      {rest.length > 0 && (
+        <span className="text-muted-foreground" title={rest.join(", ")}>
+          {" "}
+          +{rest.length} more
+        </span>
+      )}
     </>
   )
 }
