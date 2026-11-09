@@ -205,7 +205,7 @@ export function Sidebar() {
           {!isCollapsed && (
             <Link
               href="/home"
-              aria-label="Spares AI home"
+              aria-label="ProcureAssistAI home"
               className="group block min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {/* Transparent-ground marks, one per theme: brand colours on the light
@@ -228,7 +228,7 @@ export function Sidebar() {
                   className="hidden h-9 w-auto dark:block"
                 />
               </span>
-              <span className="mt-2 block text-[13px] font-semibold text-nav-fg">Spares AI</span>
+              <span className="mt-2 block text-[13px] font-semibold text-nav-fg">ProcureAssistAI</span>
             </Link>
           )}
           <button
