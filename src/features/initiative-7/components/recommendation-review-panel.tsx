@@ -241,7 +241,12 @@ export function RecommendationReviewPanel({
         )}
 
         {hasNoForecast([rec]) && (
-          <SimilarMaterialsList key={rec.id} recommendationId={rec.id} onChanged={onSimilarMaterialsChanged} />
+          <SimilarMaterialsList
+            key={rec.id}
+            recommendationId={rec.id}
+            blended={rec.safetyStockMethod === "credibility_blend"}
+            onChanged={onSimilarMaterialsChanged}
+          />
         )}
       </div>
 
