@@ -23,13 +23,6 @@ import { cn, formatCount } from "@/lib/utils"
 const BAND_TONE = { FAST: "healthy", SLOW: "caution", NON_MOVING: "urgent" } as const
 const BAND_LABEL = { FAST: "Fast", SLOW: "Slow", NON_MOVING: "Non-moving" } as const
 
-export const KIND_DOT: Record<UsageKind, string> = {
-  steady: "bg-success",
-  bursts: "bg-action",
-  quiet: "bg-destructive",
-  never: "bg-muted-foreground/50",
-}
-
 const KIND_PANEL: Record<UsageKind, string> = {
   steady: "bg-success/10",
   bursts: "bg-action/10",

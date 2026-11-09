@@ -3,15 +3,13 @@
 import { useSyncExternalStore } from "react"
 import { LayoutGrid, Rows3 } from "lucide-react"
 
-import { KIND_DOT, UsagePatternCards } from "@/features/initiative-13/components/usage-pattern-cards"
+import { UsagePatternCards } from "@/features/initiative-13/components/usage-pattern-cards"
 import { UsagePatternTable } from "@/features/initiative-13/components/usage-pattern-table"
-import { USAGE_KIND_LABEL, USAGE_KIND_MEANING, type UsageKind } from "@/features/initiative-13/utils/usage-pattern"
 import type { UsagePattern } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 
 type Layout = "cards" | "table"
 const STORAGE_KEY = "i13-usage-layout"
-const KEY_ORDER: UsageKind[] = ["steady", "bursts", "quiet", "never"]
 
 // The remembered layout, read as an external store: the server renders cards,
 // the browser then shows what this viewer last picked, with no effect needed.
@@ -39,7 +37,7 @@ function subscribe(listener: () => void) {
 }
 
 /**
- * The Usage Pattern tab's body: the pattern key, a cards/table switch, and
+ * The Usage Pattern tab's body: a cards/table switch and
  * the rows in whichever layout. The choice is remembered in this browser only;
  * both layouts show the same page of rows.
  */
@@ -49,19 +47,7 @@ export function UsagePatternView({ rows }: { rows: UsagePattern[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ul aria-label="Pattern key" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
-          {KEY_ORDER.map((kind) => (
-            <li
-              key={kind}
-              title={USAGE_KIND_MEANING[kind]}
-              className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-4"
-            >
-              <span aria-hidden className={cn("size-2 rounded-full", KIND_DOT[kind])} />
-              {USAGE_KIND_LABEL[kind]}
-            </li>
-          ))}
-        </ul>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div role="group" aria-label="Layout" className="flex gap-0.5 rounded-lg border border-border bg-card p-1">
           {(
             [
