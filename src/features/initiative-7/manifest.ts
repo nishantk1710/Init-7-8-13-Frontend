@@ -37,11 +37,12 @@ export const initiative7Manifest: InitiativeManifest = {
         icon: "upload",
         href: "/inventory-planning/criticality-reports",
       },
-      {
-        label: "Calculation",
-        icon: "sliders",
-        href: "/inventory-planning/calculation",
-      },
+      // Calculation page is hidden from the nav for now (route and page still exist).
+      // {
+      //   label: "Calculation",
+      //   icon: "sliders",
+      //   href: "/inventory-planning/calculation",
+      // },
     ],
   },
 }
