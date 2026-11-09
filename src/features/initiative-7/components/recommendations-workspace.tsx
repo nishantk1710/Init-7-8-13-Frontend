@@ -184,6 +184,7 @@ function LiveRecommendationsWorkspace({
             recommendations={filtered}
             // Any listed row with a backend conversion decision -- cold-start or
             // standard-path -- brings the column in, under whichever filter.
+            showConfidence={filters.type === "oar" || filtered.some((rec) => rec.confidence)}
             showMinMaxConversion={filters.type === "oar" || filtered.some((rec) => rec.conversionEligibility)}
           />
           {/* `count` is the rows the backend sent for this page, before the dedupe and the Circuit filter
