@@ -63,7 +63,7 @@ export function KpiSummary({ summary }: { summary: I13Summary }) {
         info={<DashboardInfo id="planOverdue" />}
       />
       <KpiCard
-        label="Non-AI Reservations"
+        label="Non-AI Reservations (Exceptions)"
         value={formatCount(summary.noPlanCount)}
         icon={<ListChecks className={ICON} aria-hidden />}
         accent="primary"
