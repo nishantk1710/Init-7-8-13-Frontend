@@ -97,7 +97,6 @@ export async function RepairRegisterPage({
       facets={data.facets}
       filters={filters}
       viewCounts={data.viewCounts}
-      sourceLoadedAt={data.sourceLoadedAt}
       repairRequestsEnabled={data.repairRequestsEnabled}
     />
   )

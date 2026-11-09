@@ -72,7 +72,6 @@ export async function RefurbishableSparesOverviewPage() {
       vendorOptions={register.vendorOptions}
       departmentOptions={departmentOptions([...register.chains, ...requests])}
       referenceDate={register.referenceDate}
-      sourceLoadedAt={register.sourceLoadedAt}
       repairRequestsNote={repairRequestsNote(register.repairRequestsEnabled, register.meta.openRepairRequests)}
     />
   )

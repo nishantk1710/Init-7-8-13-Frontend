@@ -23,7 +23,7 @@ import {
   type RegisterFilters,
 } from "@/features/initiative-8/data/live-register"
 import type { RepairChain } from "@/features/initiative-8/types/repair"
-import { i08DateTime, plantShort, plural, stageLabel } from "@/features/initiative-8/utils/format"
+import { plantShort, plural, stageLabel } from "@/features/initiative-8/utils/format"
 import { REGISTER_CSV_HEADERS, registerRowsToCsv } from "@/features/initiative-8/utils/register-view"
 import { DECLARATION_DISPLAY } from "@/features/initiative-8/utils/declaration"
 import {
@@ -58,7 +58,6 @@ export type RepairRegisterTableProps = {
   facets: RegisterFacets
   filters: RegisterFilters
   viewCounts: ApiRegisterViewCounts | null
-  sourceLoadedAt: string | null
   /** The backend serves PRs raised for repair with no PO yet as rows. False
    *  on an older backend, or when its settings could not be read. */
   repairRequestsEnabled?: boolean
@@ -140,7 +139,6 @@ export function RepairRegisterTable({
   facets,
   filters,
   viewCounts,
-  sourceLoadedAt,
   repairRequestsEnabled = false,
 }: RepairRegisterTableProps) {
   const router = useRouter()
@@ -292,12 +290,6 @@ export function RepairRegisterTable({
           {requestsNote && <span className="text-muted-foreground">{requestsNote}</span>}
           <Dot />
           <span>{plural(meta.distinctMaterials, "material")}</span>
-          {sourceLoadedAt && (
-            <>
-              <Dot />
-              <span>SAP data loaded {i08DateTime(sourceLoadedAt)}</span>
-            </>
-          )}
           <InfoPopover title="What this list holds">
             <p>
               Every repair PO line SAP still has open, for 80-series materials. A line leaves the list when SAP

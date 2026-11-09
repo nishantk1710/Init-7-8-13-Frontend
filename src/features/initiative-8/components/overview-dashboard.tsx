@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover"
-import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
+import { I08Page } from "@/features/initiative-8/components/kit/page"
 import { OverviewFigures } from "@/features/initiative-8/components/overview-figures"
 import { OverviewPrint } from "@/features/initiative-8/components/overview-print"
 import { FILTER_LIST_CLASS } from "@/features/initiative-8/components/url-filters"
@@ -52,7 +52,6 @@ export type OverviewDashboardProps = {
   /** The departments that raised the listed repairs (`departmentOptions`). */
   departmentOptions: { value: string; label: string }[]
   referenceDate: string
-  sourceLoadedAt: string | null
   /** "+3 PRs raised, no PO yet", or undefined when the backend does not serve
    *  them or has none. Never part of a figure about repairs that are out:
    *  `chains` holds PO lines only (see `withoutRepairRequests`). */
@@ -87,7 +86,6 @@ export function OverviewDashboard({
   vendorOptions,
   departmentOptions,
   referenceDate,
-  sourceLoadedAt,
   repairRequestsNote,
 }: OverviewDashboardProps) {
   const [filters, setFilters] = useState<OverviewFilters>(NO_OVERVIEW_FILTERS)
@@ -161,9 +159,7 @@ export function OverviewDashboard({
     repairsOnlyFiltered: filters.vendor !== ALL || filters.department !== ALL,
   }
   const plants = new Set(chains.map((c) => c.plant.plantId)).size
-  const loaded = sourceLoadedAt ? `SAP data loaded ${i08DateTime(sourceLoadedAt)}` : null
-  const caption =
-    `Open repair lines for 80-series spares, as at ${i08Date(referenceDate)}.` + (loaded ? ` ${loaded}.` : "")
+  const caption = `Open repair lines for 80-series spares, as at ${i08Date(referenceDate)}.`
 
   return (
     <I08Page
@@ -184,12 +180,6 @@ export function OverviewDashboard({
             >
               {repairRequestsNote}
             </Link>
-          )}
-          {loaded && (
-            <>
-              <Dot />
-              <span>{loaded}</span>
-            </>
           )}
           <InfoPopover title="What this page shows">
             <p>
