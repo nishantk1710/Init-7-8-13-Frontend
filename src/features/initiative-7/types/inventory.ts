@@ -196,6 +196,9 @@ export interface Recommendation {
   /** Live list rows only: the backend's verdict on moving this OAR material to Min-Max
    * ordering (see OarConversionInfo). `null` when it has none; absent off the live list. */
   conversionEligibility?: OarConversionInfo["conversionEligibility"]
+  /** Live list rows only: the backend's confidence in an OAR recommendation. `null` for a row that has none
+   * (only OAR recommendations carry one); absent off the live list. */
+  confidence?: "Low" | "Medium" | "High" | null
   risk: RiskLevel
   status: RecommendationStatus
   current: StockParameters
@@ -247,6 +250,9 @@ export interface Recommendation {
   /** Only present on live-API recommendations (see mapDetailToRecommendation
    * in services/i7-api.ts) -- absent for scenario/generated fixtures. */
   oarConversion?: OarConversionInfo
+  /** How the recommended levels were worked out, as the backend names it (`credibility_blend`, `similarity_weighted`, ...).
+   * Only present on live-API recommendations. */
+  safetyStockMethod?: string | null
   generatedAt: string
   /** When this recommendation's row last changed (submit/hold/approve/reject
    * all update the existing row in place) -- the correct "waiting since"

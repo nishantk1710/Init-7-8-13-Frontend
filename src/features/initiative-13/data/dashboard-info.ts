@@ -203,7 +203,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     },
   },
   nonAi: {
-    title: "Non-AI Reservations",
+    title: "Non-AI Reservations (Exceptions)",
     tone: "info",
     summary:
       "Counted from the assistant's go-live date only, not all reservations: OAR reservation lines made in SAP since go-live without a consumption plan from the assistant. 0 until Non-AI starts at go-live.",

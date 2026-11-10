@@ -49,8 +49,20 @@ export function changeErrorMessage(error: unknown): string {
   return "That change could not be saved. Nothing was changed. Try again shortly."
 }
 
+/** The sentence under the card's title. A blended recommendation (`credibility_blend`) combines the material's own
+ * usage with these similar materials, so it must not say the levels are an average of them. */
+export function similarMaterialsIntro(blended: boolean): string {
+  return blended
+    ? "The recommended levels combine this material's own usage with these similar materials, scaled to this material's usage. " +
+        "Only similar materials used in the last 12 months count, and closer matches count more. The split is shown under Reason."
+    : "The recommended reorder point, safety stock and max stock are an average of these materials' current SAP values, " +
+        "giving more weight to the closer matches. Best match first."
+}
+
 export interface SimilarMaterialsCardProps {
   state: State
+  /** The recommendation's levels are a blend of its own usage and these similar materials. */
+  blended?: boolean
   /** The similar material whose removal is being confirmed, if any. */
   confirming: SimilarMaterial | null
   reason: string
@@ -70,6 +82,7 @@ export interface SimilarMaterialsCardProps {
  * instead. Presentational: `SimilarMaterialsList` owns the state. */
 export function SimilarMaterialsCard({
   state,
+  blended = false,
   confirming,
   reason,
   busy,
@@ -95,8 +108,7 @@ export function SimilarMaterialsCard({
           : "Similar materials"}
       </h4>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        The recommended reorder point, safety stock and max stock are an average of these materials&apos; current SAP
-        values, giving more weight to the closer matches. Best match first.
+        {similarMaterialsIntro(blended)}
         {editable && " Remove one that is not a fair comparison — it is left out for this material only."}
       </p>
 
@@ -311,9 +323,12 @@ function SimilarRow({
  * max stock) moves with it. */
 export function SimilarMaterialsList({
   recommendationId,
+  blended = false,
   onChanged,
 }: {
   recommendationId: string
+  /** The levels are a blend of the material's own usage and these similar materials. */
+  blended?: boolean
   onChanged?: () => void
 }) {
   // What was loaded, and for which recommendation: data that belongs to another id reads as "loading", so
@@ -378,6 +393,7 @@ export function SimilarMaterialsList({
   return (
     <SimilarMaterialsCard
       state={state}
+      blended={blended}
       confirming={confirming}
       reason={reason}
       busy={busy}

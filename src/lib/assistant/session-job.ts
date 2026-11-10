@@ -48,10 +48,16 @@ export type SessionJobView =
   | { kind: "not-linked"; text: string }
   | { kind: "linked"; reservations: JobReservationRow[]; repairs: JobRepairRow[] }
 
-/** Strips a quantity's trailing zero decimals: "2.000" -> "2". Anything odd is shown as sent. */
-function qty(value: string): string {
-  const n = Number(value)
-  return Number.isFinite(n) && value.trim() !== "" ? String(n) : value
+/**
+ * Strips a quantity's trailing zero decimals: "2.000" -> "2". Anything odd is shown as sent.
+ * The job route sends the reservation quantity as a JSON number (1.0), not the
+ * decimal string the type says, so a number is read too rather than crashing the page.
+ */
+function qty(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return ""
+  const text = String(value)
+  const n = Number(text)
+  return Number.isFinite(n) && text.trim() !== "" ? String(n) : text
 }
 
 function movements(list: ApiJobMovement[] | undefined): JobMovementRow[] {

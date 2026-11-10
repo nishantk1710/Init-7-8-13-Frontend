@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { connection } from "next/server"
 import type { ReactNode } from "react"
-import { ArrowRight, Clock3, FileText } from "lucide-react"
+import { ArrowRight, FileText } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,7 +10,7 @@ import { DashboardInfo } from "@/features/initiative-13/components/dashboard-inf
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
 import { ExceptionPipeline } from "@/features/initiative-13/components/exception-pipeline"
 import { Card, CardHeading } from "@/features/initiative-13/components/ui/kpi-card"
-import { InfoChip, OarPageHeader, OarScope } from "@/features/initiative-13/components/ui/oar-scope"
+import { OarPageHeader, OarScope } from "@/features/initiative-13/components/ui/oar-scope"
 import { JustificationLog } from "@/features/initiative-13/components/justification-log"
 import { KpiSummary } from "@/features/initiative-13/components/kpi-summary"
 import {
@@ -36,7 +36,6 @@ import {
   PLAN_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
 import type { AcquiredVsPlanStatus, ActExceptionStatus } from "@/lib/api/i13"
-import { formatApiDateTime } from "@/lib/api/format"
 import { buttonVariants } from "@/components/ui/button"
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination"
 import { cn, formatCount } from "@/lib/utils"
@@ -162,10 +161,11 @@ export async function UtilisationDashboardPage({
   const referencePlanCount =
     dashboard.summary.status === "ready" ? dashboard.summary.data.referencePlanCount : null
 
+  // The pipeline's step 1 (OPEN: no requester identified yet), so the note
+  // under the steps says the same number. total - withRequester also counted
+  // closed exceptions that never had a requester (115 on non-prod, 9 Nov).
   const unroutedExceptions =
-    dashboard.exceptionCounts.status === "ready"
-      ? dashboard.exceptionCounts.data.total - dashboard.exceptionCounts.data.withRequester
-      : 0
+    dashboard.exceptionCounts.status === "ready" ? (dashboard.exceptionCounts.data.byStatus.OPEN ?? 0) : 0
 
   const countScope = [
     searchParams.plant ? `Plant ${searchParams.plant}` : "Plants 1300 and 1500 combined",
@@ -192,11 +192,6 @@ export async function UtilisationDashboardPage({
         }
         actions={
           <>
-            <InfoChip icon={<Clock3 aria-hidden className="size-3.5" />}>
-              {watch?.calculatedAt
-                ? `Data as of ${formatApiDateTime(watch.calculatedAt)}`
-                : "Computation time not recorded"}
-            </InfoChip>
             {watchCounts && <NonMoverExport filters={filters} />}
             {dashboard.reportEnabled && (
               <Link

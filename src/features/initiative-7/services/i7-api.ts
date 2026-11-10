@@ -271,6 +271,14 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     demandPattern: mapDemandPattern(row.demand_class),
     demandType: mapDemandType(row.demand_type),
     conversionEligibility: (row.conversion_eligibility as OarConversionInfo["conversionEligibility"]) ?? null,
+    confidence:
+      row.confidence === null || row.confidence === undefined
+        ? null
+        : row.confidence.toUpperCase() === "HIGH"
+          ? "High"
+          : row.confidence.toUpperCase() === "LOW"
+            ? "Low"
+            : "Medium",
     risk: deriveRisk(row.criticality, status),
     status,
     current: {
@@ -402,6 +410,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
       rationale: "",
     },
     workflow: [],
+    safetyStockMethod: detail.safety_stock_method ?? null,
     oarColdStart: detail.oar.is_oar
       ? {
           similarMaterials: [],
