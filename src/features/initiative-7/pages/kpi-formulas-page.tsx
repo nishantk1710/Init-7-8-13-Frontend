@@ -28,6 +28,7 @@ import {
 } from "@/features/initiative-7/services/kpi-formulas-api"
 import { OverviewFormulasProvider } from "@/features/initiative-7/components/overview-formulas-context"
 import type { FormulaPreview, FormulasPage, PortfolioFigures } from "@/features/initiative-7/types/kpi-formulas"
+import { PersonName } from "@/components/shared/person-name"
 import {
   CALC_VIEWS,
   STATUS_LABEL,
@@ -496,7 +497,9 @@ function HistoryCard({ history }: { history: FormulasPage["history"] }) {
                   {STATUS_LABEL[version.status] ?? version.status}
                   {version.error && <span className="block text-xs text-destructive">{version.error}</span>}
                 </TableCell>
-                <TableCell>{version.createdBy}</TableCell>
+                <TableCell>
+                  <PersonName id={version.createdBy} />
+                </TableCell>
                 <TableCell>{formatApiDateTime(version.createdAt)}</TableCell>
                 <TableCell className="text-muted-foreground">{version.note ?? "—"}</TableCell>
               </TableRow>

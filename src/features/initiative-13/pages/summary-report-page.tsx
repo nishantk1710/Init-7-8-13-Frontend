@@ -1,4 +1,6 @@
 import Link from "next/link"
+
+import { PersonName } from "@/components/shared/person-name"
 import { connection } from "next/server"
 import { FileText } from "lucide-react"
 
@@ -143,7 +145,14 @@ function History({ reports, selectedId }: { reports: SummaryReportListItem[]; se
                 </div>
                 <div className="text-muted-foreground">
                   {formatApiDateTime(r.generatedAt)}
-                  {r.generatedBy ? ` · ${r.generatedBy}` : ""}
+                  {r.generatedBy ? (
+                    <>
+                      {" · "}
+                      <PersonName id={r.generatedBy} />
+                    </>
+                  ) : (
+                    ""
+                  )}
                 </div>
               </Link>
             </li>
