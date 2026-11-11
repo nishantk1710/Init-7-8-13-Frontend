@@ -384,6 +384,8 @@ export interface ApiApprovalHistoryEntry {
   recommendation_id: string
   recommendation_version: number
   actor_id: string
+  /** The actor's display name from the backend's user directory; null until that person has signed in. */
+  actor_name?: string | null
   actor_role: string
   action: string
   previous_status: string
