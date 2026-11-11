@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api/client"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import { sapPlantName } from "@/lib/shared-data/sap-plants"
 import { formatCount } from "@/lib/utils"
+import { PersonName } from "@/components/shared/person-name"
 import {
   excludeSimilarMaterial,
   fetchSimilarMaterialsView,
@@ -198,7 +199,7 @@ export function SimilarMaterialsCard({
                       {entry.similarity !== null ? ` · was a ${percent(entry.similarity)} match` : ""}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      Removed by {whoRemoved(entry.excludedBy)}
+                      Removed by <PersonName id={entry.excludedBy}>{whoRemoved(entry.excludedBy)}</PersonName>
                       {date ? ` on ${date}` : ""}
                       {entry.reason ? ` — “${entry.reason}”` : ""}
                     </div>

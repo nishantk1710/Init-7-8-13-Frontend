@@ -20,6 +20,7 @@ import {
   formatMonth,
 } from "@/features/initiative-7/utils/criticality-reports"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { PersonName } from "@/components/shared/person-name"
 
 /** Every upload, per plant. The plant toggle filters what is already loaded. */
 export function CriticalityHistoryCard({
@@ -157,7 +158,7 @@ export function HistoryBody({
 
 function Uploader({ actor }: { actor: string | null }) {
   if (!actor) return <span className="text-muted-foreground">—</span>
-  if (!isPlaceholderActor(actor)) return <>{actor}</>
+  if (!isPlaceholderActor(actor)) return <PersonName id={actor} />
   // No one signed in, so the id is a placeholder (UNAUTHENTICATED-FRONTEND and the like). Show that
   // plainly as "Unauthorized" instead of the placeholder's technical name.
   return <span className="text-muted-foreground">Unauthorized</span>

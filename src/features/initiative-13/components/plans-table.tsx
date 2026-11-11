@@ -19,6 +19,7 @@ import type { ConsumptionPlan } from "@/lib/api/i13"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { badgeTone, PLAN_STATUS_LABEL, PLAN_STATUS_TONE } from "@/features/initiative-13/utils/status-labels"
 import { MaterialName } from "@/components/shared/material-name"
+import { PersonName } from "@/components/shared/person-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
@@ -129,7 +130,9 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
               <TableCell className="text-muted-foreground">
                 <div className="flex flex-col gap-0.5">
                   <span>{formatApiDateTime(plan.capturedAt)}</span>
-                  <span className="text-[11px]">{plan.capturedBy}</span>
+                  <span className="text-[11px]">
+                    <PersonName id={plan.capturedBy} />
+                  </span>
                 </div>
               </TableCell>
             </TableRow>

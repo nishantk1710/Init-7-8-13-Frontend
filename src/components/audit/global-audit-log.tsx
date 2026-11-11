@@ -24,6 +24,7 @@ import {
 import { formatWhen } from "@/lib/api/format"
 import type { AuditEvent } from "@/lib/domain/contracts"
 import { cn, downloadExcel } from "@/lib/utils"
+import { usePersonName } from "@/hooks/use-person-name"
 
 
 interface GlobalAuditLogProps {
@@ -50,6 +51,18 @@ interface GlobalAuditLogProps {
  * measured in tens of thousands of rows is a server job, not something to
  * assemble in a browser from whatever happened to load.
  */
+/** The actor column: the person's name from the user directory once known, the recorded id until then. */
+function AuditActor({ actor }: { actor: string }) {
+  const { name } = usePersonName(actor)
+  const label = name ?? actor
+  return (
+    <span className="flex items-center gap-2">
+      <Avatar name={label} size="sm" />
+      {label}
+    </span>
+  )
+}
+
 export function GlobalAuditLog({
   events,
   total,
@@ -223,10 +236,7 @@ export function GlobalAuditLog({
                     <TableCell className="font-medium text-foreground">{event.entityId}</TableCell>
                     <TableCell className="text-foreground">{event.eventType}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      <span className="flex items-center gap-2">
-                        <Avatar name={actor} size="sm" />
-                        {actor}
-                      </span>
+                      <AuditActor actor={actor} />
                     </TableCell>
                     <TableCell className="max-w-[320px] truncate text-muted-foreground">
                       {event.description}
