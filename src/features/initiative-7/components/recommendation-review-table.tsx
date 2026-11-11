@@ -170,6 +170,7 @@ function LiveExpandedRecommendationPanel({
           convertToMinMax={Boolean(detail.oarConversion)}
           canRequestAgain={detail.oarConversion?.conversionEligibility === "NOT_ELIGIBLE"}
           rejectionReason={detail.rejectionReason}
+          currentValues={detail.recommended}
         />
       }
     />

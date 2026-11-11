@@ -17,6 +17,7 @@ import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { blockingReasonText } from "@/features/initiative-7/utils/blocking-reason"
 import type {
+  ApiAdjustedValues,
   ApiAdoptionListItem,
   ApiForecastVsActualResponse,
   ApiAdoptionListResponse,
@@ -893,10 +894,12 @@ export async function applyApprovalAction(
   actorRole: ApiApprovalRole,
   action: ApiApprovalAction,
   comment?: string,
+  adjusted?: ApiAdjustedValues,
 ): Promise<ApiWorkflowStateResponse> {
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/actions`, {
     method: "POST",
-    body: JSON.stringify({ actor_role: actorRole, action, comment: comment ?? null }),
+    // `adjusted` only travels with an ADJUST; the backend ignores it for every other action.
+    body: JSON.stringify({ actor_role: actorRole, action, comment: comment ?? null, ...(adjusted ?? {}) }),
   })
 }
 
