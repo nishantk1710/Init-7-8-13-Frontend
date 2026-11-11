@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+import { PersonName } from "@/components/shared/person-name"
 import { isUnsigned } from "@/features/initiative-8/utils/format"
 
 /**
@@ -74,5 +75,10 @@ export function Actor({ actor }: { actor: string | null | undefined }) {
       </span>
     )
   }
-  return <span>{actor}</span>
+  // A real sign-in: the name from the user directory once known, the object id until then.
+  return (
+    <span>
+      <PersonName id={actor} />
+    </span>
+  )
 }

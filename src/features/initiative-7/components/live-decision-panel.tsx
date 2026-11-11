@@ -29,8 +29,9 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { cn } from "@/lib/utils"
 import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7/hooks/use-live-approval"
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
-import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
+import type { ApiApprovalHistoryEntry, ApiApprovalRole } from "@/features/initiative-7/types/api"
 import { testLoginApprovalRole } from "@/lib/api/actor"
+import { ApiError } from "@/lib/api/client"
 import { useRoles } from "@/hooks/use-roles"
 import { resolveActingRole } from "@/features/initiative-7/utils/acting-role"
 import {
@@ -53,8 +54,9 @@ const DECISION_TOAST: Record<"APPROVE" | "REJECT" | "SEND_BACK" | "ADJUST" | "HO
 }
 
 /** History written before the ID lost its "demo-" prefix still reads cleanly. */
-function actorLabel(actorId: string): string {
-  return actorId.replace(/^demo-/, "")
+/** The person's name from the backend's user directory; the Entra object id only until they have signed in. */
+function actorLabel(entry: Pick<ApiApprovalHistoryEntry, "actor_id" | "actor_name">): string {
+  return entry.actor_name?.trim() || entry.actor_id.replace(/^demo-/, "")
 }
 
 /**
@@ -355,7 +357,8 @@ export function LiveDecisionActions({
 
       {error && (
         <p className="text-[12px] text-destructive">
-          {error.message}
+          {/* The backend's own reason ("HOLD requires a non-empty comment"), not "failed with 409". */}
+          {error instanceof ApiError ? error.detailText() : error.message}
         </p>
       )}
     </div>
@@ -389,7 +392,7 @@ export function LiveDecisionHistory({ recommendationId, reloadKey }: { recommend
         <li key={`${entry.timestamp}-${index}`} className="py-2 first:pt-0 last:pb-0">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
             <span className={cn("text-[13px]", entry.action === "REJECT" ? "text-destructive" : "text-primary")}>
-              {actorLabel(entry.actor_id)} ({entry.actor_role}) —{entry.action.replace(/_/g, " ").toLowerCase()}
+              {actorLabel(entry)} ({entry.actor_role}) —{entry.action.replace(/_/g, " ").toLowerCase()}
             </span>
             <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
               {new Date(entry.timestamp).toLocaleString()}
