@@ -57,6 +57,9 @@ const TYPE_LABELS: Record<string, string> = {
   EXCEPTION_ESCALATED: "Escalation required",
   PR_RECEIVED: "Purchase requisition",
   PR_RECEIVED_DETAILS: "Purchase requisition",
+  RESERVATION_LINK_REQUIRED: "Link the reservation",
+  RESERVATION_REQUESTED: "Reservation requested",
+  RESERVATION_LINK_PENDING: "Reservation not linked",
   RESERVATION_LINKED: "Reservation linked",
   RESERVATION_LINK_REMINDER: "Reservation not linked",
 }
@@ -114,6 +117,8 @@ const SEVERITY: Record<string, NotificationSeverity> = {
   APPROVAL_SAP_UPDATE_REMINDER: "warning",
   APPROVAL_SAP_UPDATE_FINAL_REMINDER: "critical",
   RESERVATION_LINK_REMINDER: "warning",
+  RESERVATION_LINK_REQUIRED: "warning",
+  RESERVATION_LINK_PENDING: "warning",
   APPROVAL_ON_HOLD: "warning",
   APPROVAL_SENT_BACK: "warning",
   EXCEPTION_ACTION_REQUIRED: "warning",
