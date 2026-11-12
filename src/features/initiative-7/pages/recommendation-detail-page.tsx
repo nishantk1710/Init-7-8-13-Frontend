@@ -129,6 +129,7 @@ function RecommendationDetailView({
                   convertToMinMax={Boolean(recommendation.oarConversion)}
                   canRequestAgain={recommendation.oarConversion?.conversionEligibility === "NOT_ELIGIBLE"}
                   rejectionReason={recommendation.rejectionReason}
+                  currentValues={recommendation.recommended}
                 />
               }
             />
