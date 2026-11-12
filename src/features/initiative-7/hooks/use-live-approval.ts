@@ -27,6 +27,7 @@ import {
   submitForApproval,
 } from "@/features/initiative-7/services/i7-api"
 import type {
+  ApiAdjustedValues,
   ApiApprovalAction,
   ApiApprovalHistoryEntry,
   ApiApprovalRole,
@@ -44,7 +45,12 @@ export interface UseLiveApproval extends LiveApprovalState {
   submit: () => Promise<boolean>
   /** Declines a recommendation that has not been sent for approval. `comment` is the reason. */
   reject: (comment: string) => Promise<boolean>
-  act: (actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) => Promise<boolean>
+  act: (
+    actorRole: ApiApprovalRole,
+    action: ApiApprovalAction,
+    comment?: string,
+    adjusted?: ApiAdjustedValues,
+  ) => Promise<boolean>
 }
 
 /** `onChanged` is called after a successful submit/act so the caller can
@@ -86,8 +92,8 @@ export function useLiveApproval(recommendationId: string, onChanged?: () => void
   )
 
   const act = useCallback(
-    (actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string) =>
-      run(() => applyApprovalAction(recommendationId, actorRole, action, comment)),
+    (actorRole: ApiApprovalRole, action: ApiApprovalAction, comment?: string, adjusted?: ApiAdjustedValues) =>
+      run(() => applyApprovalAction(recommendationId, actorRole, action, comment, adjusted)),
     [recommendationId, run],
   )
 

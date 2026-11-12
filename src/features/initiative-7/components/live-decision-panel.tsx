@@ -30,6 +30,12 @@ import { cn } from "@/lib/utils"
 import { useLiveApproval, useLiveApprovalHistory } from "@/features/initiative-7/hooks/use-live-approval"
 import { useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import type { ApiApprovalHistoryEntry, ApiApprovalRole } from "@/features/initiative-7/types/api"
+import type { StockParameters } from "@/features/initiative-7/types/inventory"
+import {
+  adjustFieldsFrom,
+  checkAdjustedValues,
+  type AdjustFieldText,
+} from "@/features/initiative-7/utils/adjust-values"
 import { testLoginApprovalRole } from "@/lib/api/actor"
 import { ApiError } from "@/lib/api/client"
 import { useRoles } from "@/hooks/use-roles"
@@ -77,6 +83,7 @@ export function LiveDecisionActions({
   convertToMinMax = false,
   canRequestAgain = false,
   rejectionReason = null,
+  currentValues,
 }: {
   recommendationId: string
   onChanged: () => void
@@ -90,6 +97,9 @@ export function LiveDecisionActions({
   canRequestAgain?: boolean
   /** Why it was rejected (the ledger comment), shown with the Rejected badge. */
   rejectionReason?: string | null
+  /** The recommended reorder point, safety stock and maximum as they are now: what the Adjust form starts from.
+   * Without them Adjust is not offered. */
+  currentValues?: StockParameters
 }) {
   const { submitting, error, act, submit, reject, lastState } = useLiveApproval(recommendationId, onChanged)
   const { state: loadedWorkflow, loading: workflowLoading } = useLiveWorkflowState(recommendationId)
@@ -101,6 +111,10 @@ export function LiveDecisionActions({
   const [rejecting, setRejecting] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const rejectReasonId = useId()
+  // Adjusting: the three numbers the approver puts in place of the recommended ones, passed on with the comment.
+  const [adjusting, setAdjusting] = useState(false)
+  const [adjustFields, setAdjustFields] = useState<AdjustFieldText | null>(null)
+  const adjustIdPrefix = useId()
   // The approval role this person really holds (from their token roles), not a fixed placeholder.
   const { roles, authEnabled } = useRoles()
   const actorRole = resolveActingRole({
@@ -114,6 +128,34 @@ export function LiveDecisionActions({
     const accepted = await act(actorRole, action, comment.trim() || undefined)
     if (accepted) toast.success(DECISION_TOAST[action])
     setComment("")
+  }
+
+  function startAdjusting() {
+    if (!currentValues) return
+    setAdjustFields(adjustFieldsFrom(currentValues))
+    setAdjusting(true)
+  }
+
+  function stopAdjusting() {
+    setAdjusting(false)
+    setAdjustFields(null)
+  }
+
+  async function handleAdjust() {
+    if (!currentValues || !adjustFields) return
+    const checked = checkAdjustedValues(adjustFields, currentValues)
+    if (!checked.ok) return
+    const { rop, safetyStock, maxStock } = checked.values
+    const accepted = await act(actorRole, "ADJUST", comment.trim() || undefined, {
+      new_rop: rop,
+      new_safety_stock: safetyStock,
+      new_max_stock: maxStock,
+    })
+    if (accepted) {
+      toast.success("Adjusted", { description: "The new values are in place and it has moved to the next approver." })
+      setComment("")
+      stopAdjusting()
+    }
   }
 
   async function handleSend() {
@@ -151,6 +193,9 @@ export function LiveDecisionActions({
   const mode = decisionPanelMode(rawStatus, pendingRole)
   const content = panelContentFor(mode, surface)
   const canAct = !submitting && pendingRole === actorRole
+  // The last approver cannot adjust: nobody after them would see the changed values.
+  const isLastStep = workflow ? workflow.chain_index >= workflow.route.length - 1 : false
+  const adjustCheck = currentValues && adjustFields ? checkAdjustedValues(adjustFields, currentValues) : null
 
   if (content === "not-reviewable") {
     return (
@@ -327,7 +372,17 @@ export function LiveDecisionActions({
           <CircleCheck className="size-3.5" />
           Approve as {actorRole}
         </Button>
-        <Button size="sm" variant="outline" disabled={!canAct} onClick={() => handle("ADJUST")}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canAct || !currentValues || isLastStep || adjusting}
+          title={
+            isLastStep
+              ? "The last approver cannot adjust: nobody after them would review the changed values."
+              : undefined
+          }
+          onClick={startAdjusting}
+        >
           <SlidersHorizontal className="size-3.5" />
           Adjust
         </Button>
@@ -354,6 +409,58 @@ export function LiveDecisionActions({
           Reject
         </Button>
       </div>
+
+      {adjusting && adjustFields && currentValues && (
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <p className="text-[12px] text-muted-foreground">
+            Set the values you want instead. They replace the recommended ones and it moves on to the next approver,
+            who is told what changed.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["rop", "Reorder point", currentValues.rop],
+                ["safetyStock", "Safety stock", currentValues.safetyStock],
+                ["maxStock", "Maximum stock", currentValues.maxStock],
+              ] as const
+            ).map(([key, label, now]) => (
+              <div key={key} className="flex flex-col gap-1">
+                <label
+                  htmlFor={`${adjustIdPrefix}-${key}`}
+                  className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
+                >
+                  {label}
+                </label>
+                <input
+                  id={`${adjustIdPrefix}-${key}`}
+                  inputMode="numeric"
+                  value={adjustFields[key]}
+                  onChange={(event) => setAdjustFields({ ...adjustFields, [key]: event.target.value })}
+                  className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                />
+                <span className="text-[11px] text-muted-foreground">Now {Math.round(now)}</span>
+              </div>
+            ))}
+          </div>
+          {adjustCheck && !adjustCheck.ok && <p className="text-[12px] text-destructive">{adjustCheck.reason}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              disabled={submitting || !adjustCheck?.ok || comment.trim().length === 0}
+              onClick={handleAdjust}
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Confirm adjust
+            </Button>
+            <Button size="sm" variant="ghost" disabled={submitting} onClick={stopAdjusting}>
+              Cancel
+            </Button>
+            {comment.trim().length === 0 && (
+              <span className="text-[11px] text-muted-foreground">Add a comment above to say why.</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <p className="text-[12px] text-destructive">

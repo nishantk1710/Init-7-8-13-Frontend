@@ -370,6 +370,14 @@ export type ApiApprovalAction =
   | "HOLD"
   | "RELEASE_HOLD"
 
+/** What an ADJUST puts in place of the recommended values: all three, whole numbers, with
+ * safety stock <= ROP <= max. The backend checks them again and refuses a bad set (HTTP 409). */
+export interface ApiAdjustedValues {
+  new_rop: number
+  new_safety_stock: number
+  new_max_stock: number
+}
+
 export interface ApiWorkflowStateResponse {
   recommendation_id: string
   status: string
