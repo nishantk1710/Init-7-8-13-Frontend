@@ -169,6 +169,13 @@ describe("how urgent, where from, and when", () => {
     expect(actionLabelOf("GENERAL")).toBe("Open")
     expect(actionLabelOf("RESERVATION_LINKED")).toBe("Open Request")
     expect(actionLabelOf("RESERVATION_LINK_REMINDER")).toBe("Open Request")
+    expect(actionLabelOf("RESERVATION_REQUESTED")).toBe("Open Request")
+    expect(notificationTypeLabel("RESERVATION_REQUESTED")).toBe("Reservation requested")
+    expect(typeFamilyOf("RESERVATION_REQUESTED")).toBe("reservation")
+    expect(notificationTypeLabel("RESERVATION_LINK_REQUIRED")).toBe("Link the reservation")
+    expect(notificationTypeLabel("RESERVATION_LINK_PENDING")).toBe("Reservation not linked")
+    expect(severityOf("RESERVATION_LINK_REQUIRED")).toBe("warning")
+    expect(actionLabelOf("RESERVATION_LINK_PENDING")).toBe("Open Request")
   })
 
   it("names a request's reservation notices", () => {
