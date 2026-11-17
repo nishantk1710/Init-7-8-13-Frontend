@@ -12,7 +12,7 @@
 // prefixed with I7_BASE rather than reusing apiFetch's bare paths the way
 // getHealth() does.
 
-import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api/client"
+import { apiFetch, apiFetchBlob, ApiError } from "@/lib/api/client"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { blockingReasonText } from "@/features/initiative-7/utils/blocking-reason"
@@ -991,15 +991,12 @@ export async function fetchGenerationStatus(quarter: string): Promise<ApiGenerat
 export async function fetchQuarterlyReportExportBlob(
   quarter: string,
 ): Promise<{ blobUrl: string; filename: string }> {
-  const url = `${API_BASE_URL}${I7_BASE}/reports/quarterly/${encodeURIComponent(quarter)}/export`
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new ApiError(`GET ${url} failed with ${response.status}`, response.status)
-  }
-  const disposition = response.headers.get("Content-Disposition") ?? ""
-  const match = /filename="([^"]+)"/.exec(disposition)
-  const filename = match?.[1] ?? `i7-quarterly-report-${quarter.replace(/\s+/g, "_")}.xlsx`
-  const blob = await response.blob()
+  // apiFetchBlob sends the same identity as every other call (Bearer token or
+  // X-Actor-Id); a bare fetch() carried neither and the backend answered 401.
+  const { blob, filename } = await apiFetchBlob(
+    `${I7_BASE}/reports/quarterly/${encodeURIComponent(quarter)}/export`,
+    `i7-quarterly-report-${quarter.replace(/\s+/g, "_")}.xlsx`,
+  )
   return { blobUrl: URL.createObjectURL(blob), filename }
 }
 
