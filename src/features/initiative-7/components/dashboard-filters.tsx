@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { RotateCcw, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -191,7 +192,10 @@ export function DashboardFilters({
   resetFilters = EMPTY_DASHBOARD_FILTERS,
   hiddenDemandPatterns = [],
   mergeCriticalIntoHigh = false,
+  actions,
 }: {
+  /** Extra buttons shown right after "Clear filters" (the Recommendations page's Export CSV). */
+  actions?: ReactNode
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
   layout?: "rail" | "bar"
@@ -497,6 +501,7 @@ export function DashboardFilters({
         <RotateCcw className="size-3.5" />
         Clear filters
       </Button>
+      {actions}
     </div>
   )
 }

@@ -552,6 +552,19 @@ export async function fetchRecommendations(
   }
 }
 
+/** GET /api/v1/i7/recommendations/export -- every recommendation the given filters select (no paging),
+ * as a CSV. Same filter params as the list; page/pageSize/sort are ignored. Returns a blob URL and the
+ * suggested filename for the caller to trigger the download. */
+export async function fetchRecommendationsCsvBlob(
+  params: Omit<RecommendationListParams, "page" | "pageSize" | "sort" | "sortDesc"> = {},
+): Promise<{ blobUrl: string; filename: string }> {
+  const { blob, filename } = await apiFetchBlob(
+    `${I7_BASE}/recommendations/export${toQueryString(params)}`,
+    `i7-recommendations-${new Date().toISOString().slice(0, 10)}.csv`,
+  )
+  return { blobUrl: URL.createObjectURL(blob), filename }
+}
+
 export interface RecommendationSummaryStats {
   total: number
   byStatus: { status: string; count: number }[]
