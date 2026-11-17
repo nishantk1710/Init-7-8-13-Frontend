@@ -7,6 +7,8 @@ import { EMPTY_DASHBOARD_FILTERS, type DashboardFilterState } from "@/features/i
 import { fetchRecommendations } from "@/features/initiative-7/services/i7-api"
 import {
   DEMAND_CLASS_FOR_PATTERN,
+  exportParamsFromFilters,
+  isDefaultView,
   listFilterKey,
   listParamsFromFilters,
   normaliseRecommendationFilters,
@@ -19,6 +21,32 @@ function filters(overrides: Partial<DashboardFilterState> = {}): DashboardFilter
 }
 
 afterEach(() => vi.unstubAllGlobals())
+
+describe("exportParamsFromFilters (Export CSV)", () => {
+  it("exports every generated recommendation when nothing is applied", () => {
+    expect(isDefaultView(RECOMMENDATIONS_PAGE_FILTERS)).toBe(true)
+    expect(isDefaultView({ ...RECOMMENDATIONS_PAGE_FILTERS, material: "  " })).toBe(true)
+    // No type: both OAR and stock items. Not the page's OAR-only view.
+    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS)).toEqual({ hasRecommended: true })
+  })
+
+  it("exports exactly what the filters select, with no paging or sort", () => {
+    const applied = { ...RECOMMENDATIONS_PAGE_FILTERS, plant: "1300", criticality: "High", material: " 8000005029 " }
+    expect(isDefaultView(applied)).toBe(false)
+    const params = exportParamsFromFilters(applied)
+    expect(params).toMatchObject({ type: "oar", plant: "1300", criticalityLevel: "High", search: "8000005029" })
+    for (const key of ["page", "pageSize", "sort", "sortDesc"]) expect(params).not.toHaveProperty(key)
+    // The same filters the table sends, so the file and the screen cannot disagree.
+    const { page, pageSize, sort, sortDesc, ...table } = listParamsFromFilters(applied, 1)
+    void page, void pageSize, void sort, void sortDesc
+    expect(params).toEqual(table)
+  })
+
+  it("treats switching to Stock item as a filter", () => {
+    const params = exportParamsFromFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" })
+    expect(params).toMatchObject({ type: "stock_item", actionable: true })
+  })
+})
 
 describe("listParamsFromFilters", () => {
   it("asks for nothing extra when no filter is set", () => {
