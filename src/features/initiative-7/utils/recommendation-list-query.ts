@@ -58,6 +58,28 @@ export function listFilterKey(filters: DashboardFilterState): string {
   ].join("|")
 }
 
+/** True when the filter bar is exactly as the page opens (or "Clear filters" leaves it): nothing narrowed. */
+export function isDefaultView(filters: DashboardFilterState): boolean {
+  return (Object.keys(RECOMMENDATIONS_PAGE_FILTERS) as (keyof DashboardFilterState)[]).every((key) => {
+    const current = filters[key]
+    return (typeof current === "string" ? current.trim() : current) === RECOMMENDATIONS_PAGE_FILTERS[key]
+  })
+}
+
+/**
+ * What the Export CSV button asks for. Any filter applied: exactly what the table's filters select, every
+ * page of it. Nothing applied: all generated recommendations (OAR and stock items alike, whatever their
+ * status) that have at least one recommended value, since the page itself always opens on one group.
+ */
+export function exportParamsFromFilters(
+  filters: DashboardFilterState,
+): Omit<RecommendationListParams, "page" | "pageSize" | "sort" | "sortDesc"> {
+  if (isDefaultView(filters)) return { hasRecommended: true }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { page, pageSize, sort, sortDesc, ...filterParams } = listParamsFromFilters(filters, 1)
+  return filterParams
+}
+
 /**
  * The list request for a filter bar and a page. Newest first, so the latest pipeline run is
  * on page 1.
