@@ -13,7 +13,7 @@
  * field into a second shape that could drift from it.
  */
 
-import { API_BASE_URL, ApiError, apiFetch, apiPost } from "@/lib/api/client"
+import { apiFetch, apiFetchBlob, apiPost } from "@/lib/api/client"
 
 type RawRecord = Record<string, unknown>
 
@@ -160,12 +160,9 @@ export function generateSummaryReport(plant?: string): Promise<SummaryReport> {
 
 /** The saved report as an Excel workbook: a blob URL and the server's filename. */
 export async function fetchSummaryReportWorkbook(id: string): Promise<{ blobUrl: string; filename: string }> {
-  const url = `${API_BASE_URL}/i13/reports/${encodeURIComponent(id)}/export.xlsx`
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new ApiError(`GET ${url} failed with ${response.status}`, response.status)
-  }
-  const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")
-  const blob = await response.blob()
-  return { blobUrl: URL.createObjectURL(blob), filename: match?.[1] ?? `oar-utilization-report-${id.slice(0, 8)}.xlsx` }
+  const { blob, filename } = await apiFetchBlob(
+    `/i13/reports/${encodeURIComponent(id)}/export.xlsx`,
+    `oar-utilization-report-${id.slice(0, 8)}.xlsx`,
+  )
+  return { blobUrl: URL.createObjectURL(blob), filename }
 }
