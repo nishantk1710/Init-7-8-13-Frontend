@@ -22,7 +22,7 @@ function filters(overrides: Partial<DashboardFilterState> = {}): DashboardFilter
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe("exportParamsFromFilters (Export CSV)", () => {
+describe("exportParamsFromFilters (Export Excel)", () => {
   it("exports every generated recommendation when nothing is applied", () => {
     expect(isDefaultView(RECOMMENDATIONS_PAGE_FILTERS)).toBe(true)
     expect(isDefaultView({ ...RECOMMENDATIONS_PAGE_FILTERS, material: "  " })).toBe(true)

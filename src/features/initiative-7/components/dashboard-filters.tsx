@@ -194,7 +194,7 @@ export function DashboardFilters({
   mergeCriticalIntoHigh = false,
   actions,
 }: {
-  /** Extra buttons shown right after "Clear filters" (the Recommendations page's Export CSV). */
+  /** Extra buttons shown right after "Clear filters" (the Recommendations page's Export Excel). */
   actions?: ReactNode
   value: DashboardFilterState
   onChange: (value: DashboardFilterState) => void
