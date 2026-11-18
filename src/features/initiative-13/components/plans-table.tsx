@@ -15,9 +15,15 @@ import {
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
-import type { ConsumptionPlan } from "@/lib/api/i13"
+import type { AcquiredVsPlanStatus, ConsumptionPlan, PlanVsIssuedStatus } from "@/lib/api/i13"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
-import { badgeTone, PLAN_STATUS_LABEL, PLAN_STATUS_TONE } from "@/features/initiative-13/utils/status-labels"
+import {
+  badgeTone,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_TONE,
+  PLAN_VS_ISSUED_STATUS_LABEL,
+  PLAN_VS_ISSUED_STATUS_TONE,
+} from "@/features/initiative-13/utils/status-labels"
 import { MaterialName } from "@/components/shared/material-name"
 import { PersonName } from "@/components/shared/person-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
@@ -44,7 +50,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
     return (
       <EmptyState
         title="No consumption plans have been captured yet."
-        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every material and plant reads Non-AI on Acquired vs plan."
+        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every material and plant reads Non-AI on Acquired vs required."
       />
     )
   }
@@ -57,7 +63,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             <ColumnHead source="material">Material</ColumnHead>
             <ColumnHead source="plant">Plant</ColumnHead>
             <ColumnHead source="planPurpose">Purpose</ColumnHead>
-            <ColumnHead source="planQty" className="text-right">Planned qty</ColumnHead>
+            <ColumnHead source="planQty" className="text-right">Required qty</ColumnHead>
             <ColumnHead source="planWindow">Window</ColumnHead>
             <ColumnHead
               source="issuedOnReservation"
@@ -66,7 +72,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             >
               Issued
             </ColumnHead>
-            <ColumnHead source="acquiredVsPlan">Acquired vs plan</ColumnHead>
+            <ColumnHead source="acquiredVsPlan">Acquired vs required</ColumnHead>
             <ColumnHead source="planReservation">Reservation</ColumnHead>
             <ColumnHead source="planSession">Session</ColumnHead>
             <ColumnHead source="planCaptured">Captured</ColumnHead>
@@ -164,6 +170,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
   }
   const reservations = plan.matchedReservations ?? []
   const variance = plan.acquiredVsPlanVarianceQuantity
+  const issued = issuedStatus(status, plan.issuedQuantity)
   return (
     <>
       <TableCell className="text-right text-foreground">
@@ -180,7 +187,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
       </TableCell>
       <TableCell>
         <div className="flex flex-col items-start gap-0.5">
-          <StatusBadge tone={badgeTone(PLAN_STATUS_TONE[status])}>{PLAN_STATUS_LABEL[status]}</StatusBadge>
+          <StatusBadge tone={badgeTone(issued.tone)}>{issued.label}</StatusBadge>
           {variance !== null && variance !== undefined && Number(variance) !== 0 && (
             <span className="text-[11px] text-muted-foreground">
               {Number(variance) > 0 ? "+" : ""}
@@ -191,6 +198,21 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
       </TableCell>
     </>
   )
+}
+
+/**
+ * The plan's status in the Acquired vs required words: not, partially or fully
+ * issued against the required quantity (the backend's on / below / above plan,
+ * read with what was issued), or its own words when there is nothing to issue
+ * against yet.
+ */
+function issuedStatus(status: AcquiredVsPlanStatus, issuedQuantity: string | null | undefined) {
+  if (status === "NO_RESERVATION" || status === "NO_PLAN") {
+    return { label: PLAN_STATUS_LABEL[status], tone: PLAN_STATUS_TONE[status] }
+  }
+  const key: PlanVsIssuedStatus =
+    Number(issuedQuantity ?? 0) <= 0 ? "NOT_ISSUED" : status === "BELOW_PLAN" ? "PARTIALLY_ISSUED" : "FULLY_ISSUED"
+  return { label: PLAN_VS_ISSUED_STATUS_LABEL[key], tone: PLAN_VS_ISSUED_STATUS_TONE[key] }
 }
 
 /** A small count badge for the dashboard section header. */

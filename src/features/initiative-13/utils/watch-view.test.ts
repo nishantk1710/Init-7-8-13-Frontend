@@ -5,27 +5,26 @@ import { redirectTarget } from "@/features/initiative-13/utils/redirects"
 
 describe("parseWatchView", () => {
   it("accepts each known tab", () => {
-    expect(parseWatchView("metrics")).toBe("metrics")
     expect(parseWatchView("grni")).toBe("grni")
     expect(parseWatchView("usage")).toBe("usage")
   })
 
-  it("falls back to metrics for absent or unknown values", () => {
-    expect(parseWatchView(undefined)).toBe("metrics")
-    expect(parseWatchView("")).toBe("metrics")
-    expect(parseWatchView("reservations")).toBe("metrics")
-    expect(parseWatchView("GRNI")).toBe("metrics")
+  it("falls back to usage for absent, unknown or retired values", () => {
+    expect(parseWatchView(undefined)).toBe("usage")
+    expect(parseWatchView("")).toBe("usage")
+    expect(parseWatchView("metrics")).toBe("usage")
+    expect(parseWatchView("reservations")).toBe("usage")
+    expect(parseWatchView("GRNI")).toBe("usage")
   })
 })
 
 describe("watchViewHref", () => {
   it("drops view for the default tab", () => {
-    expect(watchViewHref("metrics")).toBe("/oar-utilization/watch")
+    expect(watchViewHref("usage")).toBe("/oar-utilization/watch")
   })
 
-  it("sets only view for the other tabs, so a tab opens with no filters", () => {
+  it("sets only view for the other tab, so it opens with no filters", () => {
     expect(watchViewHref("grni")).toBe("/oar-utilization/watch?view=grni")
-    expect(watchViewHref("usage")).toBe("/oar-utilization/watch?view=usage")
   })
 })
 

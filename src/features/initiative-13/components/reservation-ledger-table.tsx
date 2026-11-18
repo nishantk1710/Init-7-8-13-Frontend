@@ -73,7 +73,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
       <Table className="min-w-[880px] table-fixed">
         <TableHeader>
           <TableRow>
-            <ColumnHead source="material" className="w-[27%]">Material</ColumnHead>
+            <ColumnHead source="material" className="w-[22%]">Material</ColumnHead>
             <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
             <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
             <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
@@ -86,6 +86,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
             </ColumnHead>
             <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
             <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
+            <ColumnHead
+              source="requester"
+              className="w-[12%]"
+              note="Who the part was for, as typed in the assistant's Requester box. SAP holds no requester for a reservation."
+            >
+              Requester
+            </ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -138,11 +145,41 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                   <span className="text-[11px] text-muted-foreground">No session</span>
                 )}
               </TableCell>
+              <TableCell className="whitespace-normal">
+                <RequesterCell row={row} />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </DataTable>
+  )
+}
+
+/**
+ * The requester: the name typed in the assistant for a reservation made through
+ * it. A reservation raised directly in SAP (Non-AI) has none to show -- SAP
+ * keeps no requester on a reservation, and RESB-WEMPF is the goods recipient
+ * (often a system user or a role), not who asked -- so it reads as a placeholder.
+ */
+function RequesterCell({ row }: { row: ReservationLedgerRow }) {
+  if (row.requesterName) {
+    return <span className="text-[11px] text-foreground [overflow-wrap:anywhere]">{row.requesterName}</span>
+  }
+  if (row.sessionId) {
+    return (
+      <span className="text-[11px] text-muted-foreground" title="Made through the assistant, but no name was typed in its Requester box.">
+        Not given
+      </span>
+    )
+  }
+  return (
+    <span
+      className="text-[11px] text-muted-foreground"
+      title="Raised directly in SAP, without the assistant (Non-AI). SAP holds no requester for a reservation: RESB-WEMPF is the goods recipient, not who asked."
+    >
+      Non-AI: not recorded
+    </span>
   )
 }
 

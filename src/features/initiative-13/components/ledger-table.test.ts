@@ -66,19 +66,13 @@ describe("UtilizationLedgerTable", () => {
     for (const heading of [">Issued<", ">In store<", ">Next planned issue<", ">Utilization<"]) {
       expect(html).not.toContain(heading)
     }
-    expect(html).toContain(">Raised by<")
   })
 
-  it("links a line a reservation raised to that reservation", () => {
-    const html = render([raised])
-    expect(html).toContain("Reservation 5001/1")
-    expect(html).toContain('href="/oar-utilization/ledger?view=reservations&amp;reservation=5001"')
+  it("has no Raised by column (UAT, 18-Nov-2026): the requester is on the Reservations tab", () => {
+    const html = render([raised, refill])
+    expect(html).not.toContain(">Raised by<")
+    expect(html).not.toContain(">Stock refill</td>")
     expect(html).not.toContain("Partially issued")
-  })
-
-  it("calls any other line a stock refill, with no issue or estimate", () => {
-    const html = render([refill])
-    expect(html).toContain(">Stock refill</td>")
     expect(html).not.toContain("Not tracked")
     expect(html).not.toContain("Estimated")
   })

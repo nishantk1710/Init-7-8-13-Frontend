@@ -225,12 +225,20 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
             }
           />
           <Figure label="Busiest month" value={peak ? monthLabel(peak.month) : "None"} />
+          <Figure
+            label="Inventory turns"
+            value={row.inventoryTurns === null ? <EmptyValue kind="noConsumptionHistory" /> : row.inventoryTurns.toFixed(1)}
+          />
+          <Figure
+            label="Days since movement"
+            value={row.daysSinceLastMovement === null ? "Never" : String(row.daysSinceLastMovement)}
+          />
         </dl>
         <Link
-          href={`/oar-utilization/watch?material=${encodeURIComponent(row.material)}&plant=${encodeURIComponent(row.plant)}`}
+          href={`/oar-utilization/ledger?material=${encodeURIComponent(row.material)}&plant=${encodeURIComponent(row.plant)}`}
           className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-semibold text-action hover:bg-action/10"
         >
-          Open in Metrics
+          Open in Utilization Ledger
         </Link>
       </div>
 

@@ -90,6 +90,8 @@ export type DashboardFilters = {
   planStatus?: string
   reservation?: string
   overdue?: boolean
+  /** The Via assistant table's page (`?apage=`); the SAP table uses the tab's `?page=`. */
+  assistantPage?: number
 }
 
 export type LiveDashboard = {
@@ -108,10 +110,13 @@ export type LiveDashboard = {
   exceptionCounts: Section<ActExceptionCounts>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
-  /** The acquired-vs-plan tab: one page of captured plans and SAP reservations. */
-  planVsIssued: Section<Capped<PlanVsIssuedRow>>
-  /** Its badge and filter counts, over every row the tab's filters match. */
-  planVsIssuedCounts: Section<PlanVsIssuedCounts>
+  /** The Acquired vs required tab's first table: one page of captured plans. */
+  planAssistant: Section<Capped<PlanVsIssuedRow>>
+  /** Its total and overdue count, over every row the tab's filters match. */
+  planAssistantCounts: Section<PlanVsIssuedCounts>
+  /** The second table: one page of OAR reservations raised directly in SAP. Never overdue. */
+  planSap: Section<Capped<PlanVsIssuedRow>>
+  planSapCounts: Section<PlanVsIssuedCounts>
   /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
    * Any failure reads as "not offered": the button is a convenience, and a
    * broken check must never cost the dashboard. */
@@ -151,13 +156,11 @@ export async function loadLiveDashboard(
     pageSize: DEFAULT_PAGE_SIZE,
   })
   const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
-  const planVsIssuedFilters = {
-    ...scope,
-    source: filters.source,
-    status: filters.planStatus,
-    reservation: filters.reservation,
-    overdue: filters.overdue,
-  }
+  // Two tables, one per source. Overdue is a captured plan's only, so the
+  // Overdue filter narrows the first table and never the SAP one.
+  const planFilters = { ...scope, status: filters.planStatus, reservation: filters.reservation }
+  const assistantFilters = { ...planFilters, source: "ASSISTANT", overdue: filters.overdue }
+  const sapFilters = { ...planFilters, source: "SAP" }
 
   // All in flight together. Sequentially this would be eight round trips deep
   // on a screen whose whole job is to be glanced at.
@@ -169,8 +172,10 @@ export async function loadLiveDashboard(
     exceptionCounts,
     justifications,
     plans,
-    planVsIssued,
-    planVsIssuedCounts,
+    planAssistant,
+    planAssistantCounts,
+    planSap,
+    planSapCounts,
     reportEnabled,
   ] = await Promise.all([
       loadLiveWatchCounts(filters).then(
@@ -187,8 +192,15 @@ export async function loadLiveDashboard(
       section(loadLiveExceptionCounts(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope, pageOf("plans"))),
-      section(loadLivePlanVsIssued(planVsIssuedFilters, pageOf("plan"))),
-      section(loadLivePlanVsIssuedCounts(planVsIssuedFilters)),
+      section(
+        loadLivePlanVsIssued(assistantFilters, {
+          page: view.tab === "plan" ? (filters.assistantPage ?? 1) : 1,
+          pageSize: DEFAULT_PAGE_SIZE,
+        })
+      ),
+      section(loadLivePlanVsIssuedCounts(assistantFilters)),
+      section(loadLivePlanVsIssued(sapFilters, pageOf("plan"))),
+      section(loadLivePlanVsIssuedCounts(sapFilters)),
       listSummaryReports({ limit: 1 }).then(
         () => true,
         () => false
@@ -204,8 +216,10 @@ export async function loadLiveDashboard(
     exceptionCounts,
     justifications,
     plans,
-    planVsIssued,
-    planVsIssuedCounts,
+    planAssistant,
+    planAssistantCounts,
+    planSap,
+    planSapCounts,
     reportEnabled,
   }
 }

@@ -115,7 +115,7 @@ export function I13UrlFilters({
   function push(patch: Record<string, string | undefined>) {
     // Any filter change starts the result over at page 1: page 40 of the old
     // filter means nothing in the new one.
-    const query = mergeSearchParams(searchParams, { ...pin, ...patch, page: undefined })
+    const query = mergeSearchParams(searchParams, { ...pin, ...patch, page: undefined, apage: undefined })
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     })
@@ -131,7 +131,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -250,7 +250,7 @@ export function I13UrlFilters({
           />)}
 
         {fields.includes("deliveryStatus") && wrap("deliveryStatus", <UrlSelect
-            label="All delivery statuses"
+            label="All procurement statuses"
             width="sm:w-48"
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}

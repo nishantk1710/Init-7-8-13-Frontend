@@ -53,8 +53,8 @@ export const PLAN_STATUS_TONE: Record<AcquiredVsPlanStatus, Tone> = {
   NO_PLAN: "neutral",
 }
 
-// The acquired-vs-plan tab's rows: one rule for both sources -- issued (used)
-// against planned (asked for: a plan's quantity, a reservation's reserved one).
+// The Acquired vs required tab's rows: one rule for both sources -- issued
+// (used) against required (asked for: a plan's quantity, a reservation's reserved one).
 export const PLAN_VS_ISSUED_SOURCE_LABEL: Record<PlanVsIssuedSource, string> = {
   ASSISTANT: "Via assistant",
   SAP: "Direct from SAP",
@@ -62,26 +62,23 @@ export const PLAN_VS_ISSUED_SOURCE_LABEL: Record<PlanVsIssuedSource, string> = {
 
 export const PLAN_VS_ISSUED_STATUS_ORDER: PlanVsIssuedStatus[] = [
   "NO_RESERVATION",
-  "NOT_DUE",
-  "ON_PLAN",
-  "BELOW_PLAN",
-  "ABOVE_PLAN",
+  "NOT_ISSUED",
+  "PARTIALLY_ISSUED",
+  "FULLY_ISSUED",
 ]
 
 export const PLAN_VS_ISSUED_STATUS_LABEL: Record<PlanVsIssuedStatus, string> = {
   NO_RESERVATION: "Awaiting reservation",
-  NOT_DUE: "Not due yet",
-  ON_PLAN: "On plan",
-  BELOW_PLAN: "Below plan",
-  ABOVE_PLAN: "Above plan",
+  NOT_ISSUED: "Not issued",
+  PARTIALLY_ISSUED: "Partially issued",
+  FULLY_ISSUED: "Fully issued",
 }
 
 export const PLAN_VS_ISSUED_STATUS_TONE: Record<PlanVsIssuedStatus, Tone> = {
   NO_RESERVATION: "info",
-  NOT_DUE: "neutral",
-  ON_PLAN: "success",
-  BELOW_PLAN: "warning",
-  ABOVE_PLAN: "danger",
+  NOT_ISSUED: "neutral",
+  PARTIALLY_ISSUED: "warning",
+  FULLY_ISSUED: "success",
 }
 
 export const EXCEPTION_STATUS_ORDER: ActExceptionStatus[] = [
@@ -129,7 +126,8 @@ export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
 
 /** One-line explanation of each exception type, for tooltips. */
 export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
-  PLAN_BREACH: "A plan exists but nothing was issued within 14 days after the planned usage window ended",
+  PLAN_BREACH:
+    "A plan exists but nothing was issued by the end of the planned usage window. The requester is reminded every 3 days; after 14 days it goes to the HOD",
   NO_PLAN: "No consumption plan from the assistant is linked to this reservation",
   NO_PLAN_GRNI:
     "Retired on 5 Nov 2026: a Non-AI reservation whose material had stock received 30+ days ago and not issued",

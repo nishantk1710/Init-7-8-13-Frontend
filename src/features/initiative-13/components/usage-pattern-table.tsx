@@ -71,6 +71,8 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
             <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
             <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
             <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
+            <ColumnHead source="inventoryTurns" className="text-right">Turns</ColumnHead>
+            <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -113,6 +115,12 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
                 ) : (
                   row.monthsOfCover.toFixed(1)
                 )}
+              </TableCell>
+              <TableCell className="text-right text-foreground">
+                {row.inventoryTurns === null ? <EmptyValue kind="noConsumptionHistory" /> : row.inventoryTurns.toFixed(1)}
+              </TableCell>
+              <TableCell className="text-right text-foreground">
+                {row.daysSinceLastMovement === null ? "Never" : formatCount(row.daysSinceLastMovement)}
               </TableCell>
             </TableRow>
           ))}
