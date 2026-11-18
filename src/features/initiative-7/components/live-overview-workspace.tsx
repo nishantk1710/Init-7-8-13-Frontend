@@ -76,6 +76,13 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   const criticalityTier = criticalityLevel ? CRITICALITY_RAW_TIER[criticalityLevel as Criticality] : undefined
   // Low is asked by its level, the others by their raw tier -- as before; only Low had no way to be asked.
   const criticalityLevelParam = criticalityLevel && !criticalityTier ? criticalityLevel : undefined
+  // The Value Change filter exists only for stock items: Releases value (the reorder point goes down) or Ties up more
+  // value (it goes up). It narrows the same backend figures as the other filters -- working capital, excess, stockout,
+  // the plant cards and the SAP adoption counts -- so every card on the page speaks about the same materials.
+  const valueChangeParam =
+    typeParam === "stock_item" && (filters.valueChange === "released" || filters.valueChange === "tied_up")
+      ? filters.valueChange
+      : undefined
   const {
     summary,
     loading: summaryLoading,
@@ -86,6 +93,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     criticality: criticalityTier,
     criticalityLevel: criticalityLevelParam,
     isOar: isOarParam,
+    valueChange: valueChangeParam,
   })
   // New figures are on their way (first load, or a filter just changed): the cards and charts that read them show a
   // loader meanwhile.
@@ -107,6 +115,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     demandClass: demandClassParam,
     criticality: criticalityTier,
     criticalityLevel: criticalityLevelParam,
+    valueChange: valueChangeParam,
   })
   // Own plant filter, independent of the sidebar's Plant filter -- lets
   // someone compare adoption by plant without changing what the rest of the
@@ -120,6 +129,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
     type: typeParam,
     demandClass: demandClassParam,
     criticalityLevel,
+    valueChange: valueChangeParam,
   })
   // Only the first load replaces the page: a filter change refetches with the filters still on
   // screen, and the previous figures stay until the new ones arrive.
@@ -131,9 +141,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
 
   // Said once under the cards whose population is "recommended material-plants" when the type is
   // narrowed: the All figures also count Fast / Slow movers that have no recommendation at all.
-  const typeNote = typeParam
-    ? ` Counted over ${TYPE_LABEL[typeParam]} recommendations only.`
-    : ""
+  const typeNote =
+    (typeParam ? ` Counted over ${TYPE_LABEL[typeParam]} recommendations only.` : "") +
+    (valueChangeParam
+      ? ` Only materials that ${valueChangeParam === "released" ? "release value (reorder point goes down)" : "tie up more value (reorder point goes up)"}.`
+      : "")
 
   return (
     <OverviewFormulasProvider value={activeFormulas}>
@@ -141,9 +153,11 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
       <DashboardFilters
         layout="bar"
         value={filters}
-        onChange={setFilters}
+        // Leaving Stock item clears Value Change: it has no meaning (and no dropdown) for OAR or All.
+        onChange={(next) => setFilters(next.type === "stock_item" ? next : { ...next, valueChange: ALL_FILTER })}
         plantOptions={PLANT_OPTIONS}
         showSapAdoptionFilter
+        showValueChangeFilter
         showCircuitFilter={false}
         showStatusFilter={false}
         showRiskFilter={false}

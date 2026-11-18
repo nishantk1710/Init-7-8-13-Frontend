@@ -1207,6 +1207,8 @@ export interface AdoptionSummaryParams {
   demandClass?: string
   /** Critical | High | Medium | Low -- the level the pages show, not the raw tier. */
   criticalityLevel?: string
+  /** released | tied_up -- count only recommendations whose Value change releases or ties up working capital. */
+  valueChange?: "released" | "tied_up"
 }
 
 /** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide
@@ -1224,6 +1226,7 @@ export async function fetchAdoptionSummary(params: AdoptionSummaryParams = {}): 
   if (params.type) search.set("type", params.type)
   if (params.demandClass) search.set("demand_class", params.demandClass)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
+  if (params.valueChange) search.set("value_change", params.valueChange)
   const queryString = search.toString()
   const query = queryString ? `?${queryString}` : ""
   const response = await apiFetch<ApiAdoptionSummary>(`${I7_BASE}/recommendations/adoption/summary${query}`)
