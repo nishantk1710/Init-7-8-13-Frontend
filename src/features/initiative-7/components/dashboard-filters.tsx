@@ -79,6 +79,9 @@ export interface DashboardFilterState {
    * it in by recommendation id (a separate reconciliation fetch), so this
    * filter only has an effect where that join was actually performed. */
   sapAdoption: string
+  /** Overview, Stock item only. Whether the working-capital view is the materials that release value ("released":
+   * the reorder point goes down) or tie more up ("tied_up": it goes up). Sent to the backend as `value_change`. */
+  valueChange: string
 }
 
 export const RECOMMENDATION_FILTER_CALCULATED = "calculated"
@@ -113,6 +116,12 @@ export function matchesRiskFilter(filter: string, risk: RiskLevel, mergeCritical
 
 export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopted", "Unknown"] as const
 
+/** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values. */
+export const VALUE_CHANGE_OPTIONS = [
+  { value: "released", label: "Releases value" },
+  { value: "tied_up", label: "Ties up more value" },
+] as const
+
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   plant: ALL_FILTER,
   circuit: ALL_FILTER,
@@ -129,6 +138,7 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   confidence: ALL_FILTER,
   conversion: ALL_FILTER,
   sapAdoption: ALL_FILTER,
+  valueChange: ALL_FILTER,
 }
 
 /** Whether any filter differs from `baseline` -- what "Clear filters" would put back. The baseline is
@@ -181,6 +191,7 @@ export function DashboardFilters({
   plantOptions,
   showRecommendationFilter = false,
   showSapAdoptionFilter = false,
+  showValueChangeFilter = false,
   showCircuitFilter = true,
   showTypeFilter = false,
   typeFilterLabel = "Type",
@@ -210,6 +221,10 @@ export function DashboardFilters({
    * fetch keyed by recommendation id, see use-live-adoption.ts); the
    * scenario dataset carries no such field at all. */
   showSapAdoptionFilter?: boolean
+  /** Overview: adds the Value Change dropdown (Releases value / Ties up more value), right after SAP Adoption. It
+   * shows only while the Recommendation filter is Stock item -- the working-capital view it narrows is a stock-item
+   * one -- and the caller clears it when the type changes. */
+  showValueChangeFilter?: boolean
   /** False hides the Circuit dropdown -- for a page whose rows have no real
    * circuit, where every option would filter to nothing. */
   showCircuitFilter?: boolean
@@ -467,6 +482,28 @@ export function DashboardFilters({
               {SAP_ADOPTION_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s === "Unknown" ? "Pending" : s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
+
+      {showValueChangeFilter && value.type === "stock_item" && (
+        <FilterField label="Value Change">
+          <Select value={value.valueChange} onValueChange={(v) => set("valueChange", v ?? ALL_FILTER)}>
+            <SelectTrigger className="h-8 w-full">
+              <SelectValue placeholder="All">
+                {(v: string) =>
+                  v === ALL_FILTER ? "All" : (VALUE_CHANGE_OPTIONS.find((o) => o.value === v)?.label ?? v)
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>All</SelectItem>
+              {VALUE_CHANGE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
