@@ -17,7 +17,7 @@ import {
 } from "@/features/initiative-7/components/dashboard-filters"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
-import { fetchRecommendationsCsvBlob } from "@/features/initiative-7/services/i7-api"
+import { fetchRecommendationsExcelBlob } from "@/features/initiative-7/services/i7-api"
 import { ApiError } from "@/lib/api/client"
 import {
   exportParamsFromFilters,
@@ -94,15 +94,15 @@ function LiveRecommendationsWorkspace({
     [data, filters.circuit],
   )
 
-  // Export CSV: the filters applied right now (every page of the result), or all generated
+  // Export Excel: the filters applied right now (every page of the result), or all generated
   // recommendations when nothing is applied. Built by the backend from the same filter rules as the list.
   const [exportState, setExportState] = useState<"idle" | "preparing">("idle")
   const [exportError, setExportError] = useState<string | null>(null)
-  async function exportCsv() {
+  async function exportExcel() {
     setExportError(null)
     setExportState("preparing")
     try {
-      const { blobUrl, filename } = await fetchRecommendationsCsvBlob(exportParamsFromFilters(queryFilters))
+      const { blobUrl, filename } = await fetchRecommendationsExcelBlob(exportParamsFromFilters(queryFilters))
       const link = document.createElement("a")
       link.href = blobUrl
       link.download = filename
@@ -112,7 +112,7 @@ function LiveRecommendationsWorkspace({
       URL.revokeObjectURL(blobUrl)
     } catch (err) {
       setExportError(
-        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "The CSV export failed.",
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "The Excel export failed.",
       )
     } finally {
       setExportState("idle")
@@ -183,16 +183,16 @@ function LiveRecommendationsWorkspace({
             size="sm"
             // Same highlighted style as "Clear filters", beside it.
             className="shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
-            onClick={exportCsv}
+            onClick={exportExcel}
             disabled={exportState === "preparing"}
             title={
               isDefaultView(queryFilters)
-                ? "Download every generated recommendation as CSV"
-                : "Download the recommendations matching the current filters as CSV"
+                ? "Download every generated recommendation as an Excel file"
+                : "Download the recommendations matching the current filters as an Excel file"
             }
           >
             <Download className="size-3.5" />
-            {exportState === "preparing" ? "Preparing CSV…" : "Export CSV"}
+            {exportState === "preparing" ? "Preparing Excel…" : "Export Excel"}
           </Button>
         }
       />

@@ -67,7 +67,7 @@ export function isDefaultView(filters: DashboardFilterState): boolean {
 }
 
 /**
- * What the Export CSV button asks for. Any filter applied: exactly what the table's filters select, every
+ * What the Export Excel button asks for. Any filter applied: exactly what the table's filters select, every
  * page of it. Nothing applied: all generated recommendations (OAR and stock items alike, whatever their
  * status) that have at least one recommended value, since the page itself always opens on one group.
  */
