@@ -29,6 +29,8 @@ export interface PlantPositionFilters {
   criticality?: string
   /** The display level, for the one level that has no single raw tier (Low: NORMAL, OBSOLETE or no tier). */
   criticalityLevel?: string
+  /** released | tied_up: only recommendations whose Value change releases or ties up working capital. */
+  valueChange?: "released" | "tied_up"
   /** False: ask for nothing (the caller already knows the filters cannot be applied). */
   enabled?: boolean
 }
@@ -45,7 +47,7 @@ export function usePlantPositions(filters: PlantPositionFilters = {}): PlantPosi
   }
 
   useEffect(() => {
-    const { plant, isOar, demandClass, criticality, criticalityLevel, enabled = true } = JSON.parse(
+    const { plant, isOar, demandClass, criticality, criticalityLevel, valueChange, enabled = true } = JSON.parse(
       filtersKey,
     ) as PlantPositionFilters
     if (!enabled) return
@@ -61,6 +63,7 @@ export function usePlantPositions(filters: PlantPositionFilters = {}): PlantPosi
             demandClass,
             criticality,
             criticalityLevel,
+            valueChange,
           }),
         ),
       ),
