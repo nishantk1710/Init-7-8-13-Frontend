@@ -29,6 +29,7 @@ import {
   RECOMMENDATIONS_PAGE_SIZE,
 } from "@/features/initiative-7/utils/recommendation-list-query"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
+import type { ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 import { useLiveRecommendationSummary } from "@/features/initiative-7/hooks/use-live-recommendation-summary"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import type { DemandPattern, Recommendation } from "@/features/initiative-7/types/inventory"
@@ -80,15 +81,23 @@ function LiveRecommendationsWorkspace({
   // group lists only the recommendations that have been calculated (see listParamsFromFilters).
   const onlyCalculated = filters.type !== ALL_FILTER
 
+  // The Value change arrow in the table header: released only, or tied-up only, across every page. Sent to the
+  // backend with the rest of the filters, so it narrows and orders the whole list, not just the page in view. No
+  // arrow on shows every row; on the Stock item list they come released first, then tied-up.
+  const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
+
   // Page number, back to 1 whenever any filter that decides the rows changes. Derived during
   // render -- not in an effect -- the way the live hooks do it.
-  const filterKey = listFilterKey(queryFilters)
+  const filterKey = `${listFilterKey(queryFilters)}|${valueSort ?? ""}`
   const [pageState, setPageState] = useState({ key: filterKey, page: 1 })
   const page = pageState.key === filterKey ? pageState.page : 1
   const setPage = (next: number) => setPageState({ key: filterKey, page: next })
 
-  // Newest first (Part 27): the latest pipeline run is on page 1.
-  const { data, total, loading, error, refetch } = useLiveRecommendations(listParamsFromFilters(queryFilters, page))
+  // Newest first (Part 27): the latest pipeline run is on page 1. Stock items are ordered by Value change instead,
+  // released first, across every page (see listParamsFromFilters).
+  const { data, total, loading, error, refetch } = useLiveRecommendations(
+    listParamsFromFilters(queryFilters, page, valueSort),
+  )
   const filtered = useMemo(
     () => (data ? applyCircuitFilter(dedupeByMaterialPlant(data), filters.circuit) : []),
     [data, filters.circuit],
@@ -102,7 +111,9 @@ function LiveRecommendationsWorkspace({
     setExportError(null)
     setExportState("preparing")
     try {
-      const { blobUrl, filename } = await fetchRecommendationsExcelBlob(exportParamsFromFilters(queryFilters))
+      const { blobUrl, filename } = await fetchRecommendationsExcelBlob(
+        exportParamsFromFilters(queryFilters, valueSort),
+      )
       const link = document.createElement("a")
       link.href = blobUrl
       link.download = filename
@@ -229,11 +240,15 @@ function LiveRecommendationsWorkspace({
             filters.risk,
             filters.confidence,
             filters.conversion,
+            valueSort,
           ].join("|")}
           className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
         >
           <RecommendationReviewTable
             recommendations={filtered}
+            valueSort={valueSort}
+            onValueSortChange={setValueSort}
+            valueOrderFromBackend={filters.type === "stock_item"}
             // Any listed row with a backend conversion decision -- cold-start or
             // standard-path -- brings the column in, under whichever filter.
             showConfidence={filters.type === "oar" || filtered.some((rec) => rec.confidence)}

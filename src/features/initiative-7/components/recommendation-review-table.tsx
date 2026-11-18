@@ -24,7 +24,7 @@ import { LiveDecisionActions } from "@/features/initiative-7/components/live-dec
 import { useLiveRecommendation } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
-import { filterByValueChange, sortByValueChange, sortByValueChangeDirection, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
+import { sortByValueChangeDirection, valueChangeView, type ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 const COLUMN_COUNT = 11 // every column, with the optional Circuit, Confidence and Min-Max conversion ones counted
 
@@ -197,10 +197,20 @@ function ExpandedRecommendationPanel({
  * rationale and the submit action. */
 export function RecommendationReviewTable({
   recommendations,
+  valueSort,
+  onValueSortChange,
+  valueOrderFromBackend = false,
   showMinMaxConversion = false,
   showConfidence = false,
 }: {
   recommendations: Recommendation[]
+  /** The Value change arrow that is on. The page owns it and sends it to the backend, which filters and orders
+   * every page by it -- this table only shows the rows it is given. */
+  valueSort: ValueChangeSort
+  onValueSortChange: (next: ValueChangeSort) => void
+  /** The backend already ordered these rows by Value change (released first), so they are shown as sent. When
+   * false, and no arrow is on, the rows of the page are grouped released first in the browser. */
+  valueOrderFromBackend?: boolean
   /** Adds the Confidence column. Meant for a list of OAR recommendations: no other recommendation carries one. */
   showConfidence?: boolean
   /** Adds the Min-Max conversion column. Meant for a list of OAR recommendations: no other
@@ -223,21 +233,19 @@ export function RecommendationReviewTable({
   const columnCount = COLUMN_COUNT - (showCircuit ? 0 : 1) - (showConfidence ? 0 : 1) - (showMinMaxConversion ? 0 : 1)
 
   // The Value change header has two arrows: down shows only released rows, up shows only increased (tied-up)
-  // rows, each largest first; neither active shows all. The backend pages the list and has no filter or sort for
-  // this figure, so this narrows and reorders the rows on this page only.
-  const [valueSort, setValueSort] = useState<ValueChangeSort>(null)
+  // rows, each largest first; neither active shows all. The backend does the filtering and the ordering across every
+  // page (the page sends the arrow with the request), so the rows arrive ready. Only a list the backend did not order
+  // by Value change still has its page grouped released-first here.
   const rows = useMemo(
     () =>
-      valueSort === null
-        ? sortByValueChangeDirection(recommendations)
-        : sortByValueChange(filterByValueChange(recommendations, valueSort), valueSort),
-    [recommendations, valueSort],
+      valueSort !== null || valueOrderFromBackend ? recommendations : sortByValueChangeDirection(recommendations),
+    [recommendations, valueSort, valueOrderFromBackend],
   )
   // Clicking the active arrow again turns the filter off.
-  const toggleValueSort = (next: Exclude<ValueChangeSort, null>) =>
-    setValueSort((current) => (current === next ? null : next))
+  const toggleValueSort = (next: Exclude<ValueChangeSort, null>) => onValueSortChange(valueSort === next ? null : next)
 
-  if (recommendations.length === 0) {
+  // With an arrow on and nothing matching, the table stays (with its arrows) so the filter can be turned off.
+  if (recommendations.length === 0 && valueSort === null) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         No recommendations match these filters.
@@ -309,7 +317,7 @@ export function RecommendationReviewTable({
             {rows.length === 0 && (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columnCount} className="py-6 text-center text-muted-foreground">
-                  No {valueSort === "released-first" ? "released" : "tied-up"} value change on this page.
+                  No {valueSort === "released-first" ? "released" : "tied-up"} value change matches these filters.
                 </TableCell>
               </TableRow>
             )}
@@ -411,7 +419,7 @@ export function RecommendationReviewTable({
         Showing {rows.length} recommendation{rows.length === 1 ? "" : "s"} · open a row for the
         forecast, rationale and submit action.
         {valueSort !== null &&
-          ` Only ${valueSort === "released-first" ? "released" : "tied-up"} value change on this page is shown (${recommendations.length} on the page); other pages are not filtered.`}
+          ` Only ${valueSort === "released-first" ? "released" : "tied-up"} value change is shown, across all pages.`}
       </p>
     </div>
   )

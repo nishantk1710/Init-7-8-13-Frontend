@@ -22,6 +22,62 @@ function filters(overrides: Partial<DashboardFilterState> = {}): DashboardFilter
 
 afterEach(() => vi.unstubAllGlobals())
 
+describe("Value change across every page", () => {
+  const stock = { ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" }
+
+  it("shows every stock item by default, released first and then tied-up, with no value filter", () => {
+    const params = listParamsFromFilters(stock, 1)
+    expect(params).toMatchObject({ type: "stock_item", sort: "value_change", sortDesc: true })
+    expect(params.valueChange).toBeUndefined()
+  })
+
+  it("orders stock items by value change, released first, across all pages", () => {
+    expect(listParamsFromFilters(stock, 1)).toMatchObject({ sort: "value_change", sortDesc: true })
+    expect(listParamsFromFilters(stock, 1).valueChange).toBeUndefined()
+  })
+
+  it("keeps OAR and the unfiltered list newest first", () => {
+    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1)).toMatchObject({ sort: "generated_at" })
+    expect(listParamsFromFilters(filters(), 1)).toMatchObject({ sort: "generated_at" })
+  })
+
+  it("sends the header arrows to the backend as a filter, largest amount first", () => {
+    expect(listParamsFromFilters(stock, 2, "released-first")).toMatchObject({
+      page: 2,
+      valueChange: "released",
+      sort: "value_change",
+      sortDesc: true,
+    })
+    expect(listParamsFromFilters(stock, 1, "tied-up-first").valueChange).toBe("tied_up")
+    // An arrow also orders an OAR list by value change, since it narrows to one direction.
+    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1, "released-first")).toMatchObject({
+      type: "oar",
+      valueChange: "released",
+      sort: "value_change",
+    })
+  })
+
+  it("lets the export follow the arrow, and counts it as a filter", () => {
+    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, "released-first")).toMatchObject({
+      type: "oar",
+      valueChange: "released",
+    })
+    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, null)).toEqual({ hasRecommended: true })
+  })
+
+  it("puts value_change on the request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 25 }), { status: 200 }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    await fetchRecommendations(listParamsFromFilters(stock, 1, "released-first"))
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain("value_change=released")
+    expect(url).toContain("sort=value_change")
+    expect(url).toContain("sort_desc=true")
+  })
+})
+
 describe("exportParamsFromFilters (Export Excel)", () => {
   it("exports every generated recommendation when nothing is applied", () => {
     expect(isDefaultView(RECOMMENDATIONS_PAGE_FILTERS)).toBe(true)
