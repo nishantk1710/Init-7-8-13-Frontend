@@ -1,4 +1,4 @@
-// The Overview's Value Change filter (Stock item): Releases value / Ties up more value. Every figure on the page
+// The Overview's Value Change filter (Stock item): Releases value / Ties up value. Every figure on the page
 // is a backend aggregate, so the filter has to reach each call -- the summary (working capital, excess, stockout,
 // plant cards) and the adoption summary (the Adopted card).
 
@@ -30,10 +30,10 @@ const ADOPTION_BODY = {
 }
 
 describe("Value Change on the Overview", () => {
-  it("offers Releases value and Ties up more value, mapped to the backend's values", () => {
+  it("offers Releases value and Ties up value, mapped to the backend's values", () => {
     expect(VALUE_CHANGE_OPTIONS.map((o) => [o.value, o.label])).toEqual([
       ["released", "Releases value"],
-      ["tied_up", "Ties up more value"],
+      ["tied_up", "Ties up value"],
     ])
   })
 
