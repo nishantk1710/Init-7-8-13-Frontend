@@ -11,6 +11,12 @@ import {
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import type { DemandPattern } from "@/features/initiative-7/types/inventory"
+import type { ValueChangeSort } from "@/features/initiative-7/utils/value-change"
+
+/** The backend's Value change filter for a header arrow: down = released, up = tied up, none = no filter. */
+function valueChangeParam(valueSort: ValueChangeSort): "released" | "tied_up" | undefined {
+  return valueSort === "released-first" ? "released" : valueSort === "tied-up-first" ? "tied_up" : undefined
+}
 
 /** The demand pattern the table shows -> the backend's stored demand class. The inverse of
  * DEMAND_MAP in services/i7-api.ts. */
@@ -73,10 +79,12 @@ export function isDefaultView(filters: DashboardFilterState): boolean {
  */
 export function exportParamsFromFilters(
   filters: DashboardFilterState,
+  valueSort: ValueChangeSort = null,
 ): Omit<RecommendationListParams, "page" | "pageSize" | "sort" | "sortDesc"> {
-  if (isDefaultView(filters)) return { hasRecommended: true }
+  // A Value change arrow is a filter too, so the default view with one on is not "nothing applied".
+  if (isDefaultView(filters) && valueSort === null) return { hasRecommended: true }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { page, pageSize, sort, sortDesc, ...filterParams } = listParamsFromFilters(filters, 1)
+  const { page, pageSize, sort, sortDesc, ...filterParams } = listParamsFromFilters(filters, 1, valueSort)
   return filterParams
 }
 
@@ -89,15 +97,24 @@ export function exportParamsFromFilters(
  * recommendations to show, in which case it decides: Approved with OAR means the approved OAR
  * ones, and "Pending Review" keeps the calculated restriction.
  */
-export function listParamsFromFilters(filters: DashboardFilterState, page: number): RecommendationListParams {
+export function listParamsFromFilters(
+  filters: DashboardFilterState,
+  page: number,
+  valueSort: ValueChangeSort = null,
+): RecommendationListParams {
   const onlyCalculated = filters.type !== ALL_FILTER
   const statusDecides = filters.status !== ALL_FILTER && filters.status !== "Pending Review"
   const search = filters.material.trim()
+  // Stock items are ordered by Value change across every page -- released first, the largest release at the top,
+  // then tied-up, unchanged and rows with no figure -- and so is any list with a Value change arrow on. Other lists
+  // stay newest first, so the latest pipeline run is on page 1.
+  const byValueChange = filters.type === "stock_item" || valueSort !== null
   return {
     page,
     pageSize: RECOMMENDATIONS_PAGE_SIZE,
-    sort: "generated_at",
+    sort: byValueChange ? "value_change" : "generated_at",
     sortDesc: true,
+    valueChange: valueChangeParam(valueSort),
     status: onlyCalculated && !statusDecides ? "READY_FOR_REVIEW" : undefined,
     plant: chosen(filters.plant),
     type: chosen(filters.type) as RecommendationListParams["type"],
