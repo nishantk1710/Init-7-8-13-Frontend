@@ -4,17 +4,12 @@ import { connection } from "next/server"
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { GrniTable } from "@/features/initiative-13/components/grni-table"
-import { CalculatedAtNote, LoadFailure } from "@/features/initiative-13/components/load-states"
+import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
 import { UsagePatternView } from "@/features/initiative-13/components/usage-pattern-view"
-import { WatchTable } from "@/features/initiative-13/components/watch-table"
-import {
-  loadLiveGrni,
-  loadLiveUsagePatterns,
-  loadLiveWatch,
-} from "@/features/initiative-13/data/live-loaders"
+import { loadLiveGrni, loadLiveUsagePatterns } from "@/features/initiative-13/data/live-loaders"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import {
   WATCH_VIEWS,
@@ -70,15 +65,15 @@ function Pager({
 }
 
 /**
- * WATCH — FR-1 and FR-6's metrics, per material and plant, in three tabs.
+ * WATCH — FR-1 and FR-6's metrics, per material and plant, in two tabs.
  *
- *   - **Metrics** (default): the persisted W6.3 mart through
- *     `/i13/act/utilisation`, rather than `/i13/watch`, which recomputes the
- *     whole population on every request to answer a filtered question.
+ *   - **Usage Pattern** (default): month-by-month net issues with stock, cover,
+ *     turns and days since movement (`GET /i13/usage-patterns`).
  *   - **30-Day GR-Not-Issued** (`?view=grni`): the reservation lines behind
  *     WATCH's GRNI flag, oldest receipt first (`GET /i13/grni`).
- *   - **Usage Pattern** (`?view=usage`): month-by-month net issues, the shape
- *     behind WATCH's consumption figure (`GET /i13/usage-patterns`).
+ *
+ * The Metrics tab (one row per material and plant from the W6.3 mart) was
+ * removed in UAT on 18-Nov-2026; an old `?view=metrics` link opens Usage.
  *
  * The last two were screens of their own; the FRS treats both as WATCH metrics.
  * The tab lives in the URL like every other I13 filter, and only the active
@@ -98,16 +93,14 @@ export async function WatchPage({ searchParams }: { searchParams: I13SearchParam
     <OarScope>
       {view === "grni" ? (
         <GrniView searchParams={searchParams} />
-      ) : view === "usage" ? (
-        <UsageView searchParams={searchParams} />
       ) : (
-        <MetricsView searchParams={searchParams} />
+        <UsageView searchParams={searchParams} />
       )}
     </OarScope>
   )
 }
 
-/** Metrics | 30-Day GR-Not-Issued | Usage Pattern. A tab opens with its filters cleared. */
+/** Usage Pattern | 30-Day GR-Not-Issued. A tab opens with its filters cleared. */
 function WatchTabs({ active }: { active: WatchView }) {
   return (
     <SegmentedTabs
@@ -118,53 +111,6 @@ function WatchTabs({ active }: { active: WatchView }) {
         active: view === active,
       }))}
     />
-  )
-}
-
-async function MetricsView({ searchParams }: { searchParams: I13SearchParams }) {
-  let live: Awaited<ReturnType<typeof loadLiveWatch>> | null = null
-  let loadError: string | null = null
-  try {
-    live = await loadLiveWatch(
-      {
-        plant: searchParams.plant,
-        material: searchParams.material,
-        agingBand: searchParams.agingBand,
-        acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
-      },
-      pagingOf(searchParams)
-    )
-  } catch (error) {
-    loadError = error instanceof Error ? error.message : String(error)
-  }
-  redirectIfPastEnd(searchParams, live?.total)
-
-  return (
-    <>
-      <OarPageHeader
-        title="Live Consumption Tracking"
-        subtitle="Live consumption health per material and plant — months of cover, stock type, received-not-issued, and consumption plan status."
-        meta={<CalculatedAtNote calculatedAt={live?.calculatedAt ?? null} />}
-      />
-      <ToolbarRow>
-        <WatchTabs active="metrics" />
-        <I13UrlFilters
-          className="flex-1"
-          fields={["plant", "material", "agingBand", "acquiredVsPlanStatus"]}
-          plants={live?.plantOptions}
-          agingBands={live?.agingBandOptions}
-        />
-      </ToolbarRow>
-
-      {live === null ? (
-        <LoadFailure what="consumption tracking data" message={loadError} />
-      ) : (
-        <>
-          <WatchTable metrics={live.rows} />
-          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="materials" />
-        </>
-      )}
-    </>
   )
 }
 

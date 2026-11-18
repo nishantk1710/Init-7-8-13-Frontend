@@ -62,10 +62,11 @@ describe("DASHBOARD_INFO", () => {
     expect(days).toBeGreaterThanOrEqual(30)
   })
 
-  it("plan overdue: due is window end + 14 days, and the overdue days add up", () => {
+  it("plan overdue: overdue from the day after the window ends, reminders every 3 days, HOD on day 14", () => {
     const end = input("planOverdue", "Usage window ends")
-    const due = input("planOverdue", "Due date (+14 days)")
-    expect(daysBetween(end, due)).toBe(14)
-    expect(DASHBOARD_INFO.planOverdue.example.result).toContain(`${daysBetween(due, EXAMPLE_AS_OF)} days overdue`)
+    const from = input("planOverdue", "Overdue from")
+    expect(daysBetween(end, from)).toBe(1)
+    expect(DASHBOARD_INFO.planOverdue.example.result).toContain("days 3, 6, 9 and 12")
+    expect(DASHBOARD_INFO.planOverdue.example.result).toContain("day 14")
   })
 })

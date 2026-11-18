@@ -46,12 +46,14 @@ export type I13SearchParams = {
   reservationStatus?: string
   /** Ledger screen, reservations view: `NOT_ISSUED`, `PARTIALLY_ISSUED` or `FULLY_ISSUED`. */
   issued?: string
-  /** Dashboard, acquired-vs-plan tab: `ASSISTANT` or `SAP`. */
+  /** Dashboard, Acquired vs required tab: `ASSISTANT` or `SAP` (old links; the tab now shows both tables). */
   source?: string
-  /** Dashboard, acquired-vs-plan tab: one row status (`BELOW_PLAN`, `NOT_ISSUED`, ...). */
+  /** Dashboard, Acquired vs required tab: one row status (`NOT_ISSUED`, `PARTIALLY_ISSUED`, ...). */
   planStatus?: string
-  /** Dashboard, acquired-vs-plan tab: `1` keeps below-plan rows whose date has passed. */
+  /** Dashboard, Acquired vs required tab: `1` keeps captured plans that are Planned Consumption Overdue. */
   overdue?: string
+  /** Dashboard, Acquired vs required tab: the Via assistant table's page. Absent means page 1. */
+  apage?: number
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -97,6 +99,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),
+    apage: parsePage(raw.apage),
   }
 }
 
@@ -122,7 +125,7 @@ export function mergeSearchParams(
 
 /** True when nothing is set — for an "all positions" vs "filtered" caption. A page is not a filter. */
 export function isUnfiltered(params: I13SearchParams): boolean {
-  return Object.entries(params).every(([key, value]) => key === "page" || value === undefined)
+  return Object.entries(params).every(([key, value]) => key === "page" || key === "apage" || value === undefined)
 }
 
 /**

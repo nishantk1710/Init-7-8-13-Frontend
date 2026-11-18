@@ -115,11 +115,16 @@ function procurementReceipt(input: {
   }
 }
 
-/** Filter labels, in the order a reader expects them; the cell's wording. */
+/**
+ * The Procurement status filter and the Received cell's wording, in the order a
+ * reader expects them. The backend's delivery state is the procurement status
+ * read as delivery plus "No PO yet", so the Procurement lines tab filters on it
+ * alone, under the procurement words (UAT, 18-Nov-2026).
+ */
 export const DELIVERY_STATE_LABELS: Record<DeliveryState, string> = {
-  DELIVERED: "Delivered",
+  DELIVERED: "Received",
   PARTIAL: "Partially received",
-  NOT_DELIVERED: "Not delivered",
+  NOT_DELIVERED: "Not received",
   CLOSED: "Closed in SAP",
   NOT_AN_ORDER: "Not an order",
   NO_PO: "No PO yet",
@@ -135,8 +140,8 @@ export const DELIVERY_STATE_EXPLANATIONS: Partial<Record<DeliveryState, string>>
 
 /** The procurement-status filter and badge wording. */
 export const PROCUREMENT_STATUS_LABELS: Record<ProcurementStatus, string> = {
-  OPEN: "Open",
-  PARTIALLY_RECEIVED: "Partially Received",
+  OPEN: "Not received",
+  PARTIALLY_RECEIVED: "Partially received",
   RECEIVED: "Received",
   CLOSED: "Closed in SAP",
   NOT_AN_ORDER: "Not an order",

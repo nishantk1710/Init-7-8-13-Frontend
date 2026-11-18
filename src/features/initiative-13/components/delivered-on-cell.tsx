@@ -106,7 +106,7 @@ export function DeliveredOnCell({
         {lead}
         <span className="whitespace-nowrap text-foreground">{formatApiDate(status.date)}</span>
         {status.state === "DELIVERED" ? (
-          <StatusBadge tone="success">Delivered</StatusBadge>
+          <StatusBadge tone="success">Received</StatusBadge>
         ) : (
           <StatusBadge tone="warning">Partially received · {partialDetail}</StatusBadge>
         )}

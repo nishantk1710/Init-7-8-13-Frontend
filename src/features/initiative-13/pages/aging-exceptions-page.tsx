@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { connection } from "next/server"
-import { ListChecks, UserCheck, UserX } from "lucide-react"
+import { ListChecks, UserCheck } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
 import { ActExceptionsBoard } from "@/features/initiative-13/components/act-exceptions-board"
@@ -92,7 +92,7 @@ export async function ExceptionsPage({
         />
 
         {live !== null && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <KpiCard
               label="Exceptions on this page"
               icon={<ListChecks className="size-3.5" aria-hidden />}
@@ -105,13 +105,6 @@ export async function ExceptionsPage({
               icon={<UserCheck className="size-3.5" aria-hidden />}
               value={formatCount(live.ownedCount)}
               hint="Routed to the requester for a reason."
-            />
-            <KpiCard
-              accent="urgent"
-              label="Requester not identified"
-              icon={<UserX className="size-3.5" aria-hidden />}
-              value={formatCount(unrouted)}
-              hint="Nobody has been asked, so these cannot escalate."
             />
           </div>
         )}

@@ -185,7 +185,7 @@ export function SummaryReportDocument({ report, className }: { report: SummaryRe
                 count(pos[band]),
               ]),
               ...PLAN_STATUS_ORDER.map((status) => [
-                `Acquired vs plan: ${label(PLAN_STATUS_LABEL, status)}`,
+                `Acquired vs required: ${label(PLAN_STATUS_LABEL, status)}`,
                 count(facts.plans.acquired_vs_plan[status]),
               ]),
             ]}

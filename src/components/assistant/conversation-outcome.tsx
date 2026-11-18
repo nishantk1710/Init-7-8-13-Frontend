@@ -26,7 +26,7 @@ function destinations(sessionId: string, routing: ApiRouting): Destination[] {
       {
         href: `/oar-utilization/watch?${scope}`,
         label: "Live Consumption Tracking",
-        what: "cover and acquired-vs-plan for this part, now measured against your plan",
+        what: "cover and usage for this part",
       },
       {
         href: `/oar-utilization/ledger?view=reservations&session=${encodeURIComponent(sessionId)}`,
