@@ -144,7 +144,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   const typeNote =
     (typeParam ? ` Counted over ${TYPE_LABEL[typeParam]} recommendations only.` : "") +
     (valueChangeParam
-      ? ` Only materials that ${valueChangeParam === "released" ? "release value (reorder point goes down)" : "tie up more value (reorder point goes up)"}.`
+      ? ` Only materials that ${valueChangeParam === "released" ? "release value (reorder point goes down)" : "tie up value (reorder point goes up)"}.`
       : "")
 
   return (

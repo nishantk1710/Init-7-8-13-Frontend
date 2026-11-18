@@ -119,7 +119,7 @@ export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopt
 /** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values. */
 export const VALUE_CHANGE_OPTIONS = [
   { value: "released", label: "Releases value" },
-  { value: "tied_up", label: "Ties up more value" },
+  { value: "tied_up", label: "Ties up value" },
 ] as const
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
@@ -221,7 +221,7 @@ export function DashboardFilters({
    * fetch keyed by recommendation id, see use-live-adoption.ts); the
    * scenario dataset carries no such field at all. */
   showSapAdoptionFilter?: boolean
-  /** Overview: adds the Value Change dropdown (Releases value / Ties up more value), right after SAP Adoption. It
+  /** Overview: adds the Value Change dropdown (Releases value / Ties up value), right after SAP Adoption. It
    * shows only while the Recommendation filter is Stock item -- the working-capital view it narrows is a stock-item
    * one -- and the caller clears it when the type changes. */
   showValueChangeFilter?: boolean
