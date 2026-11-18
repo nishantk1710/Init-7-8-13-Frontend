@@ -481,6 +481,9 @@ export interface RecommendationListParams {
    * One with no SAP change evidence yet is left out. Applied in SQL. */
   adoptedInSap?: boolean
   criticality?: string
+  /** released | tied_up -- only recommendations whose Value change releases working capital (ROP goes down) or
+   * ties more up (ROP goes up). Applied in SQL, so it covers every page. */
+  valueChange?: "released" | "tied_up"
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
   /** Critical | High | Medium | Low -- the level the table shows, not the raw tier. */
@@ -523,6 +526,7 @@ function toQueryString(params: RecommendationListParams): string {
   if (params.hasRecommended) search.set("has_recommended", "true")
   if (params.adoptedInSap) search.set("adopted_in_sap", "true")
   if (params.criticality) search.set("criticality", params.criticality)
+  if (params.valueChange) search.set("value_change", params.valueChange)
   if (params.search) search.set("search", params.search)
   if (params.criticalityLevel) search.set("criticality_level", params.criticalityLevel)
   if (params.statusGroup) search.set("status_group", params.statusGroup)
