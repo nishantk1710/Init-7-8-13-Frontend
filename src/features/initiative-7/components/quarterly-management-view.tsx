@@ -21,6 +21,7 @@ import { InfoPopup } from "@/components/shared/info-popup"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { buttonVariants } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -213,8 +214,12 @@ function ActivityTable({ management, totalLabel }: { management: ApiQuarterManag
   const { months, rows } = management.monthly_activity
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <Table>
+      <div className="rounded-lg border border-border">
+        <StickyScrollTable
+          widths={[30, ...Array.from({ length: months.length + 1 }, () => 70 / (months.length + 1))]}
+          minWidth={240 + (months.length + 1) * 100}
+          wrapCells
+        >
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead>Metric</TableHead>
@@ -252,7 +257,7 @@ function ActivityTable({ management, totalLabel }: { management: ApiQuarterManag
               )
             })}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       </div>
     </>
   )
@@ -364,8 +369,8 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
         <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
-          <div className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <Table className="text-base">
+          <div className={cn("rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
+            <StickyScrollTable tableClassName="text-base" widths={[22, 8, 8, 12, 10, 10, 10, 10, 10]} minWidth={900} wrapCells>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead>Material</TableHead>
@@ -410,7 +415,7 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </StickyScrollTable>
           </div>
           <TablePagination
             page={page}
@@ -530,11 +535,11 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
         <LoadingSpinner label="Loading recommendations" className="h-48 w-full" />
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
-          <div className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <Table className="text-base">
+          <div className={cn("rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
+            <StickyScrollTable tableClassName="text-base" widths={[28, 8, 11, 11, 11, 11, 10, 10]} minWidth={900} wrapCells>
               <TableHeader>
                 <TableRow className="bg-action/10 hover:bg-action/10">
-                  <TableHead rowSpan={2} className="min-w-[260px] align-bottom">
+                  <TableHead rowSpan={2} className="align-bottom">
                     Material
                   </TableHead>
                   <TableHead rowSpan={2} className="align-bottom">
@@ -580,7 +585,7 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </StickyScrollTable>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-action/40 border-l-4 border-l-action bg-action/10 px-3 py-2.5">
             <span className="flex items-center gap-2 text-sm font-semibold text-foreground">

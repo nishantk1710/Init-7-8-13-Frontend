@@ -38,8 +38,8 @@ import {
 } from "@/components/ui/select"
 import { PageLoader } from "@/components/shared/page-loader"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -157,9 +157,9 @@ export function AdoptionTrackingWorkspace() {
           for reduced motion. */}
       <div
         key={statusFilter}
-        className="overflow-x-auto rounded-xl border border-border bg-card animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
+        className="rounded-xl border border-border bg-card animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-fill-mode:backwards] motion-reduce:animate-none"
       >
-        <Table>
+        <StickyScrollTable widths={[16, 10, 16, 18, 40]} minWidth={600} wrapCells>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead>Material</TableHead>
@@ -191,7 +191,7 @@ export function AdoptionTrackingWorkspace() {
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       </div>
 
       {/* `count` is the rows the backend sent for this page, not `visible`: the status and search boxes

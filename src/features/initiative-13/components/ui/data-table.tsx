@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { cn } from "@/lib/utils"
 
 /**
@@ -16,15 +17,35 @@ export const FITTED_TABLE =
  * (13px medium, as in the other modules) comes from `.oar-scope` in globals.css, which reaches
  * every table on these screens, framed here or not.
  */
-export function DataTable({ children, className }: { children: ReactNode; className?: string }) {
+export function DataTable({
+  children,
+  className,
+  widths,
+  minWidth,
+}: {
+  children: ReactNode
+  className?: string
+  /** Column weights. When given, `children` is the table's `<thead>`/`<tbody>` (not a `<Table>`) and the table
+   *  fits the page with a fixed layout, scrolling sideways only below `minWidth` px, with the scrollbar pinned
+   *  under the table (`StickyScrollTable`). Without it, `children` is a `<Table>` that scrolls in its own box. */
+  widths?: number[]
+  minWidth?: number
+}) {
   return (
     <div
       className={cn(
-        "max-w-full overflow-x-auto rounded-card border border-line bg-card [&_[data-slot=table-head]]:h-11 [&_[data-slot=table-head]]:px-3 [&_[data-slot=table-cell]:not(.p-0)]:px-3 [&_[data-slot=table-cell]:not(.p-0)]:py-3",
+        "max-w-full rounded-card border border-line bg-card [&_[data-slot=table-head]]:h-11 [&_[data-slot=table-head]]:px-3 [&_[data-slot=table-cell]:not(.p-0)]:px-3 [&_[data-slot=table-cell]:not(.p-0)]:py-3",
+        !widths && "overflow-x-auto",
         className
       )}
     >
-      {children}
+      {widths ? (
+        <StickyScrollTable widths={widths} minWidth={minWidth} wrapCells>
+          {children}
+        </StickyScrollTable>
+      ) : (
+        children
+      )}
     </div>
   )
 }

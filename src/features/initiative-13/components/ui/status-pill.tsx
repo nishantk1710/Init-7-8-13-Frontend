@@ -23,7 +23,9 @@ export function StatusPill({
     <span
       title={title}
       className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap",
+        // Wraps only when its column is narrower than the label (fixed-layout tables), so a pill never spills
+        // over the next column; at normal width it is the same single-line capsule.
+        "inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-2xl px-2.5 py-0.5 text-xs leading-tight font-semibold",
         TONE_TINT[tone],
         className
       )}

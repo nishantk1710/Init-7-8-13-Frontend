@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { PageLoader } from "@/components/shared/page-loader"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ApiError } from "@/lib/api/client"
@@ -479,7 +480,7 @@ function HistoryCard({ history }: { history: FormulasPage["history"] }) {
       {history.length === 0 ? (
         <p className="text-sm text-muted-foreground">No changes yet. The built-in calculation has always been in use.</p>
       ) : (
-        <Table>
+        <StickyScrollTable widths={[9, 18, 20, 20, 33]} minWidth={560} wrapCells>
           <TableHeader>
             <TableRow>
               <TableHead>Version</TableHead>
@@ -505,7 +506,7 @@ function HistoryCard({ history }: { history: FormulasPage["history"] }) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       )}
     </ChartCard>
   )

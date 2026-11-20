@@ -7,7 +7,6 @@ import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/components/issued-on-cell"
 import { ISSUE_MATCH_EXPLANATIONS, ISSUE_MATCH_LABELS } from "@/features/initiative-13/utils/issue-match"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -41,80 +40,78 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
   }
 
   return (
-    <DataTable className={FITTED_TABLE}>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <ColumnHead source="material">Material</ColumnHead>
-            <ColumnHead source="plant">Plant</ColumnHead>
-            <ColumnHead source="po">PO</ColumnHead>
-            <ColumnHead source="received" className="text-right">Received</ColumnHead>
-            <ColumnHead source="matchedIssue" className="text-right">Issued</ColumnHead>
-            <ColumnHead source="matchedIssue" className="text-right" note="Received and not yet issued">In stock</ColumnHead>
-            <ColumnHead source="lastGr">Last GR</ColumnHead>
-            <ColumnHead source="daysSinceGr" className="text-right">Days since GR</ColumnHead>
-            <ColumnHead source="matchedIssue">Issued on</ColumnHead>
-            <ColumnHead source="nextPlannedIssue">Next planned issue</ColumnHead>
-            <ColumnHead source="matchedIssue">How matched</ColumnHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={`${row.poNumber}|${row.poItem}`}>
-              <TableCell className="font-medium text-foreground">
-                <div className="flex flex-col gap-0.5">
-                  <MaterialName material={row.material} description={row.materialDescription} />
-                </div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
-              <TableCell>
-                <DocNo number={row.poNumber} item={row.poItem} />
-              </TableCell>
-              <TableCell className="text-right text-foreground">
-                <div className="flex flex-col items-end gap-0.5">
-                  <span>{formatCount(row.receivedQuantity)}</span>
-                  {row.deliveryCount > 1 && (
-                    <span className="text-xs whitespace-nowrap text-muted-foreground">
-                      {formatCount(row.deliveryCount)} deliveries
-                    </span>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantity)}</TableCell>
-              <TableCell className="text-right font-semibold text-foreground">
-                {formatCount(row.outstandingQuantity)}
-              </TableCell>
-              <TableCell className="text-muted-foreground">{formatApiDate(row.lastGrDate)}</TableCell>
-              <TableCell className="text-right">
-                <StatusPill tone={row.daysSinceGr >= row.thresholdDays * 3 ? "urgent" : "caution"}>
-                  {formatCount(row.daysSinceGr)} days
-                </StatusPill>
-              </TableCell>
-              <IssuedOnCell
-                firstDate={row.firstIssueDate}
-                lastDate={row.lastIssueDate}
-                received={row.receivedQuantity > 0}
-                issueMatch={row.issueMatch}
-              />
-              <NextPlannedIssueCell
-                date={row.nextPlannedIssueDate}
-                quantity={row.nextPlannedIssueQuantity}
-                inStock={row.outstandingQuantity > 0}
-              />
-              <TableCell>
-                {row.issueMatch && (
-                  <span
-                    className="cursor-help text-xs whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
-                    title={ISSUE_MATCH_EXPLANATIONS[row.issueMatch]}
-                  >
-                    {ISSUE_MATCH_LABELS[row.issueMatch]}
+    <DataTable className={FITTED_TABLE} widths={[17, 7, 9, 8, 8, 8, 9, 8, 9, 9, 8]} minWidth={1100}>
+      <TableHeader>
+        <TableRow>
+          <ColumnHead source="material">Material</ColumnHead>
+          <ColumnHead source="plant">Plant</ColumnHead>
+          <ColumnHead source="po">PO</ColumnHead>
+          <ColumnHead source="received" className="text-right">Received</ColumnHead>
+          <ColumnHead source="matchedIssue" className="text-right">Issued</ColumnHead>
+          <ColumnHead source="matchedIssue" className="text-right" note="Received and not yet issued">In stock</ColumnHead>
+          <ColumnHead source="lastGr">Last GR</ColumnHead>
+          <ColumnHead source="daysSinceGr" className="text-right">Days since GR</ColumnHead>
+          <ColumnHead source="matchedIssue">Issued on</ColumnHead>
+          <ColumnHead source="nextPlannedIssue">Next planned issue</ColumnHead>
+          <ColumnHead source="matchedIssue">How matched</ColumnHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={`${row.poNumber}|${row.poItem}`}>
+            <TableCell className="font-medium text-foreground">
+              <div className="flex flex-col gap-0.5">
+                <MaterialName material={row.material} description={row.materialDescription} />
+              </div>
+            </TableCell>
+            <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+            <TableCell>
+              <DocNo number={row.poNumber} item={row.poItem} />
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              <div className="flex flex-col items-end gap-0.5">
+                <span>{formatCount(row.receivedQuantity)}</span>
+                {row.deliveryCount > 1 && (
+                  <span className="text-xs whitespace-nowrap text-muted-foreground">
+                    {formatCount(row.deliveryCount)} deliveries
                   </span>
                 )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </div>
+            </TableCell>
+            <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantity)}</TableCell>
+            <TableCell className="text-right font-semibold text-foreground">
+              {formatCount(row.outstandingQuantity)}
+            </TableCell>
+            <TableCell className="text-muted-foreground">{formatApiDate(row.lastGrDate)}</TableCell>
+            <TableCell className="text-right">
+              <StatusPill tone={row.daysSinceGr >= row.thresholdDays * 3 ? "urgent" : "caution"}>
+                {formatCount(row.daysSinceGr)} days
+              </StatusPill>
+            </TableCell>
+            <IssuedOnCell
+              firstDate={row.firstIssueDate}
+              lastDate={row.lastIssueDate}
+              received={row.receivedQuantity > 0}
+              issueMatch={row.issueMatch}
+            />
+            <NextPlannedIssueCell
+              date={row.nextPlannedIssueDate}
+              quantity={row.nextPlannedIssueQuantity}
+              inStock={row.outstandingQuantity > 0}
+            />
+            <TableCell>
+              {row.issueMatch && (
+                <span
+                  className="cursor-help text-xs whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
+                  title={ISSUE_MATCH_EXPLANATIONS[row.issueMatch]}
+                >
+                  {ISSUE_MATCH_LABELS[row.issueMatch]}
+                </span>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
     </DataTable>
   )
 }

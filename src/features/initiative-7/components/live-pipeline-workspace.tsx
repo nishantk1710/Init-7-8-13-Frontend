@@ -29,9 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PageLoader } from "@/components/shared/page-loader"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -384,10 +384,10 @@ export function LivePipelineWorkspace() {
         <EmptyState title="Nothing matches this view" />
       ) : (
         <div
-          className={cn("overflow-x-auto rounded-xl border border-border transition-opacity", loading && "opacity-50")}
+          className={cn("rounded-xl border border-border transition-opacity", loading && "opacity-50")}
           aria-busy={loading}
         >
-          <Table>
+          <StickyScrollTable widths={[26, 9, 17, 17, 9, 10, 12]} minWidth={900} wrapCells>
             <TableHeader>
               <TableRow>
                 <TableHead>Material</TableHead>
@@ -462,7 +462,7 @@ export function LivePipelineWorkspace() {
                 )
               })}
             </TableBody>
-          </Table>
+          </StickyScrollTable>
         </div>
       )}
 
