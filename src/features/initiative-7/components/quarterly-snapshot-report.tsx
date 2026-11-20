@@ -17,7 +17,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount, formatIsoDateDMY } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { ALL_FILTER } from "@/features/initiative-7/components/dashboard-filters"
@@ -351,8 +352,8 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
                   }
                   span={12}
                 >
-                  <div className="overflow-x-auto rounded-lg border border-border">
-                    <Table>
+                  <div className="rounded-lg border border-border">
+                    <StickyScrollTable widths={[31, 23, 23, 23]} minWidth={480} wrapCells>
                       <TableHeader>
                         <TableRow className="bg-muted/40 hover:bg-muted/40">
                           <TableHead>Stock level</TableHead>
@@ -399,7 +400,7 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
                           )
                         })}
                       </TableBody>
-                    </Table>
+                    </StickyScrollTable>
                   </div>
                 </ChartCard>
 
@@ -418,8 +419,8 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
                     </p>
                   ) : (
                     <>
-                      <div className="overflow-x-auto rounded-lg border border-border">
-                        <Table>
+                      <div className="rounded-lg border border-border">
+                        <StickyScrollTable widths={[30, 11, 10, 17, 18, 14]} minWidth={700} wrapCells>
                           <TableHeader>
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
                               <TableHead>Material</TableHead>
@@ -468,7 +469,7 @@ export function QuarterlySnapshotReport({ onBack }: { onBack: () => void }) {
                               ))
                             )}
                           </TableBody>
-                        </Table>
+                        </StickyScrollTable>
                       </div>
 
                       <TablePagination

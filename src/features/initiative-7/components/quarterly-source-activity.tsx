@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ApiSourceActivitySection } from "@/features/initiative-7/types/api"
 import {
   countOrDash,
@@ -28,7 +29,7 @@ export function QuarterlySourceActivity({
   const monthly = kind === "monthly"
   return (
     <div className="flex flex-col gap-3">
-      <Table>
+      <StickyScrollTable widths={[14, 22, 16, 16, 18, 14]} minWidth={640} wrapCells>
         <TableHeader>
           <TableRow>
             <TableHead>Month</TableHead>
@@ -69,7 +70,7 @@ export function QuarterlySourceActivity({
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </StickyScrollTable>
 
       <div className="flex flex-col gap-1 text-[11px] leading-relaxed text-muted-foreground">
         <p>

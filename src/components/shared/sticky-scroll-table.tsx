@@ -32,13 +32,36 @@ export function StickyScrollTable({
   children,
   className,
   tableClassName,
+  widths,
+  minWidth,
+  wrapCells,
 }: {
   children: ReactNode
   className?: string
   /** Extra classes for the `<table>` itself, e.g. a fixed layout with a
    *  minimum width that only overflows once more columns are switched on. */
   tableClassName?: string
+  /** Column widths as relative weights (any unit; they are normalised to 100%).
+   *  Gives the table a fixed layout, so every column fits the page by default
+   *  instead of the table growing to its widest cell. Without it the caller
+   *  supplies its own `<colgroup>` / layout through `tableClassName`. */
+  widths?: number[]
+  /** Below this width in px the table stops shrinking and scrolls sideways
+   *  (browser zoom, narrow windows). Only used together with `widths`. */
+  minWidth?: number
+  /** Let cell text wrap (the shared Table's cells are `nowrap`), so a fixed
+   *  column shows its whole value rather than spilling into the next one. */
+  wrapCells?: boolean
 }) {
+  const widthTotal = widths?.reduce((sum, w) => sum + w, 0) ?? 0
+  const tableClasses = [
+    "w-full caption-bottom text-sm",
+    widths ? "table-fixed" : "",
+    wrapCells ? "[&_td]:whitespace-normal [&_th]:whitespace-normal [&_td]:break-words" : "",
+    tableClassName ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ")
   const wrapperRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -124,8 +147,16 @@ export function StickyScrollTable({
         <table
           ref={tableRef}
           data-slot="table"
-          className={tableClassName ? `w-full caption-bottom text-sm ${tableClassName}` : "w-full caption-bottom text-sm"}
+          className={tableClasses}
+          style={widths && minWidth ? { minWidth } : undefined}
         >
+          {widths && (
+            <colgroup>
+              {widths.map((width, index) => (
+                <col key={index} style={{ width: `${((width / widthTotal) * 100).toFixed(2)}%` }} />
+              ))}
+            </colgroup>
+          )}
           {children}
         </table>
       </div>

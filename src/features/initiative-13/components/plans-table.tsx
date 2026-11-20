@@ -6,8 +6,8 @@ import { MessagesSquare } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -50,8 +50,8 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
-      <Table>
+    <div className="rounded-xl border border-border">
+      <StickyScrollTable widths={[16, 7, 9, 7, 11, 7, 12, 11, 10, 10]} minWidth={1000} wrapCells>
         <TableHeader>
           <TableRow>
             <ColumnHead source="material">Material</ColumnHead>
@@ -138,7 +138,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+      </StickyScrollTable>
     </div>
   )
 }

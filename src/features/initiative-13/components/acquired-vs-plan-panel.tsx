@@ -5,8 +5,8 @@ import Link from "next/link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -103,8 +103,8 @@ export function AcquiredVsPlanPanel({
       {rows.length === 0 && !total ? (
         <EmptyState title="No plans or reservations for the selected filters." />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <Table className="min-w-[720px] table-fixed">
+        <div className="rounded-xl border border-border">
+          <StickyScrollTable widths={[38, 14, 12, 12, 24]} minWidth={720} wrapCells>
             <TableHeader>
               <TableRow>
                 <ColumnHead source="material" className="w-[40%]">Material &amp; plant</ColumnHead>
@@ -155,7 +155,7 @@ export function AcquiredVsPlanPanel({
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </StickyScrollTable>
         </div>
       )}
       {pagination}
