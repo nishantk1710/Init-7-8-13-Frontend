@@ -235,13 +235,18 @@ export function RequestBuilder({
   }
 
   /**
-   * A checked upload (UAT, 22 Oct): the file sets the plant and department, and
-   * its materials are previewed UPLOAD_PREVIEW_CHUNK at a time -- rows appear as
-   * each group answers rather than after one long wait. The file was already
-   * held to the cap, the plant and the rows on screen.
+   * A checked upload (UAT, 22 Oct): the file sets the plant, and its materials
+   * are previewed UPLOAD_PREVIEW_CHUNK at a time -- rows appear as each group
+   * answers rather than after one long wait. The file was already held to the
+   * cap, the plant and the rows on screen.
+   *
+   * The department is not in the file (TL, 20 Nov): one already picked is kept,
+   * and an upload onto an empty request leaves it to be picked once the plant
+   * is set -- the picker needs the plant for its codes, and Submit waits for it.
    */
   async function addMany(plan: UploadPlan) {
-    setPicked({ plant: plan.plant, code: plan.department })
+    const keep = picked.plant === plan.plant ? picked.code : ""
+    setPicked({ plant: plan.plant, code: keep })
     const pending = plan.materials.map((materialId) => pendingLine(materialId, plan.plant, null))
     setRows((current) => [...current, ...pending])
     for (let start = 0; start < pending.length; start += UPLOAD_PREVIEW_CHUNK) {
@@ -272,13 +277,14 @@ export function RequestBuilder({
         return
       }
     }
-    toast.success(`${pending.length} material${pending.length === 1 ? "" : "s"} added from the file`)
+    toast.success(`${pending.length} material${pending.length === 1 ? "" : "s"} added from the file`, {
+      description: keep ? undefined : "Pick the department above to finish the request.",
+    })
   }
 
   const uploadContext: UploadContext = {
     maxLines,
     requestPlant,
-    requestDepartment: department || null,
     existing: rows,
   }
 

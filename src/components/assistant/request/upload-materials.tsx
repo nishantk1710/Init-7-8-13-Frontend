@@ -76,9 +76,9 @@ export function UploadMaterials({
           <Download /> Download Excel format
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Fill in the format. <span className="font-medium text-foreground">Required:</span> Material, Plant,
-          Department. <span className="font-medium text-foreground">Optional:</span> Material name, for your reference.
-          One plant and one department, up to {context.maxLines} materials.
+          Fill in the format. <span className="font-medium text-foreground">Required:</span> Material, Plant.{" "}
+          <span className="font-medium text-foreground">Optional:</span> Material name, for your reference. One plant,
+          up to {context.maxLines} materials. The department is picked above, not in the file.
         </span>
         <input
           ref={input}
@@ -164,6 +164,7 @@ async function downloadTemplate() {
 
 function Summary({ plan }: { plan: UploadPlan }) {
   const plantName = sapPlantName(plan.plant)
+  // The department is not in the file (TL, 20 Nov): the request's own picker holds it.
   return (
     <div className="flex flex-col gap-3">
       <p className="flex items-center gap-2 font-medium">
@@ -174,10 +175,6 @@ function Summary({ plan }: { plan: UploadPlan }) {
         <dt className="text-muted-foreground">Plant</dt>
         <dd>
           <span className="font-mono font-semibold">{plan.plant}</span> {plantName}
-        </dd>
-        <dt className="text-muted-foreground">Department</dt>
-        <dd>
-          <span className="font-mono font-semibold">{plan.department}</span> {plan.departmentName}
         </dd>
         <dt className="text-muted-foreground">Rows read</dt>
         <dd>{plan.rowCount}</dd>
@@ -198,8 +195,8 @@ function Summary({ plan }: { plan: UploadPlan }) {
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
-        The plant and department are set from the file. Each material is then checked and goes to its table; you
-        answer the quantity and reasons on screen as usual.
+        The plant is set from the file; the department stays the one picked on the request. Each material is then
+        checked and goes to its table; you answer the quantity and reasons on screen as usual.
       </p>
     </div>
   )

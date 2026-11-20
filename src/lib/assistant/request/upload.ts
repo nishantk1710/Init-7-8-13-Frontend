@@ -1,10 +1,13 @@
 /**
  * A request's materials from an Excel file (UAT, 22 Oct). The backend reads
  * and checks the file itself (`POST /assistant/requests/upload`: the template's
- * format, one plant, one department, the cap). What it cannot know is the
- * request on screen, so the three rules that depend on it are checked here:
- * the file must be for the request's plant and department, materials already
- * on the request are skipped, and the rows on screen count against the cap.
+ * format, one plant, the cap). What it cannot know is the request on screen,
+ * so the three rules that depend on it are checked here: the file must be for
+ * the request's plant, materials already on the request are skipped, and the
+ * rows on screen count against the cap.
+ *
+ * The department is not in the file (TL, 20 Nov): it is picked once on the
+ * request, so there is nothing here to hold it to.
  */
 
 import type { ApiUploadResult } from "@/lib/api/assistant-requests"
@@ -13,8 +16,6 @@ export type UploadContext = {
   maxLines: number
   /** The request's plant once it has rows; the file must agree. */
   requestPlant: string | null
-  /** The department already picked on the request, if any; the file must agree. */
-  requestDepartment: string | null
   /** Materials already on the request: skipped, never added twice. */
   existing: readonly { materialId: string; plant: string }[]
 }
@@ -22,8 +23,6 @@ export type UploadContext = {
 export type UploadPlan = {
   ok: true
   plant: string
-  department: string
-  departmentName: string | null
   /** In file order: duplicates and materials already on the request removed. */
   materials: string[]
   rowCount: number
@@ -50,11 +49,6 @@ export function checkAgainstRequest(file: ApiUploadResult, context: UploadContex
       `This request is for plant ${context.requestPlant}; the file is for ${file.plant}. Start another request for ${file.plant}.`
     )
   }
-  if (context.requestDepartment && file.department !== context.requestDepartment) {
-    errors.push(
-      `This request's department is ${context.requestDepartment}; the file says ${file.department}. Change the department on screen or fix the file.`
-    )
-  }
 
   const onRequest = new Set(
     context.existing.filter((e) => e.plant === file.plant).map((e) => bareMaterial(e.materialId))
@@ -76,8 +70,6 @@ export function checkAgainstRequest(file: ApiUploadResult, context: UploadContex
   return {
     ok: true,
     plant: file.plant,
-    department: file.department,
-    departmentName: file.departmentName,
     materials,
     rowCount: file.rowCount,
     duplicates: file.duplicates,
