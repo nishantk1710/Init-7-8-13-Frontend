@@ -13,7 +13,6 @@ import { relativeDue, type DisplayTone } from "@/features/initiative-13/utils/oa
 import { EMPTY_LABEL } from "@/features/initiative-13/utils/empty-labels"
 import { Button } from "@/components/ui/button"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -142,155 +141,153 @@ export function ActExceptionsBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      <DataTable className={FITTED_TABLE}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">
-                <span className="sr-only">Details</span>
-              </TableHead>
-              <ColumnHead source="material">Material</ColumnHead>
-              <ColumnHead source="exceptionType">Type</ColumnHead>
-              <ColumnHead source="plant">Plant</ColumnHead>
-              <ColumnHead source="reservation">Reservation</ColumnHead>
-              <ColumnHead source="exceptionOwner">Owner</ColumnHead>
-              <ColumnHead source="exceptionStatus">Status</ColumnHead>
-              <ColumnHead source="exceptionDetected">Detected</ColumnHead>
-              <ColumnHead source="exceptionDue">Due</ColumnHead>
-              <ColumnHead source="exceptionAction" className="text-right">Action</ColumnHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {exceptions.map((exception) => {
-              const isExpanded = expandedId === exception.exceptionId
-              // The state machine allows a confirmation only from
-              // AWAITING_REQUESTER: ESCALATED goes on to RESOLVED and nothing
-              // else. Mirrored here so the button explains itself rather than
-              // producing a 422 on click.
-              const canConfirm = exception.status === "AWAITING_REQUESTER"
-              return (
-                <Fragment key={exception.exceptionId}>
-                  <TableRow
-                    className="cursor-pointer"
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : exception.exceptionId)
-                    }
-                  >
-                    <TableCell className="px-1">
-                      <RowToggle
-                        expanded={isExpanded}
-                        onToggle={() => setExpandedId(isExpanded ? null : exception.exceptionId)}
-                        label={`${EXCEPTION_TYPE_LABEL[exception.exceptionType]} exception on material ${exception.material}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      <div className="flex flex-col gap-0.5">
-                        <MaterialName material={exception.material} description={exception.materialDescription} />
-                        <span
-                          className="flex items-center gap-1"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {/* The exception's OWN session, where it has one —
-                              a plan breach or a quantity override knows the
-                              exact conversation it came from. Nothing else:
-                              a session for the same material and plant says
-                              nothing about this reservation (one material
-                              and plant has many), and on Non-AI rows it read
-                              as if the reservation had used the assistant. */}
-                          {exception.sessionId && (
-                            <Link
-                              href={`/assistant/sessions/${encodeURIComponent(exception.sessionId)}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-action transition-colors hover:bg-action/10"
-                            >
-                              <MessagesSquare className="size-3" aria-hidden />
-                              Session
-                            </Link>
-                          )}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusPill
-                        tone={TYPE_TONE[exception.exceptionType]}
-                        title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
-                        className="h-auto py-0.5 leading-tight whitespace-normal"
+      <DataTable className={FITTED_TABLE} widths={[4, 18, 11, 8, 12, 12, 10, 10, 8, 7]} minWidth={1000}>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">
+              <span className="sr-only">Details</span>
+            </TableHead>
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="exceptionType">Type</ColumnHead>
+            <ColumnHead source="plant">Plant</ColumnHead>
+            <ColumnHead source="reservation">Reservation</ColumnHead>
+            <ColumnHead source="exceptionOwner">Owner</ColumnHead>
+            <ColumnHead source="exceptionStatus">Status</ColumnHead>
+            <ColumnHead source="exceptionDetected">Detected</ColumnHead>
+            <ColumnHead source="exceptionDue">Due</ColumnHead>
+            <ColumnHead source="exceptionAction" className="text-right">Action</ColumnHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {exceptions.map((exception) => {
+            const isExpanded = expandedId === exception.exceptionId
+            // The state machine allows a confirmation only from
+            // AWAITING_REQUESTER: ESCALATED goes on to RESOLVED and nothing
+            // else. Mirrored here so the button explains itself rather than
+            // producing a 422 on click.
+            const canConfirm = exception.status === "AWAITING_REQUESTER"
+            return (
+              <Fragment key={exception.exceptionId}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() =>
+                    setExpandedId(isExpanded ? null : exception.exceptionId)
+                  }
+                >
+                  <TableCell className="px-1">
+                    <RowToggle
+                      expanded={isExpanded}
+                      onToggle={() => setExpandedId(isExpanded ? null : exception.exceptionId)}
+                      label={`${EXCEPTION_TYPE_LABEL[exception.exceptionType]} exception on material ${exception.material}`}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    <div className="flex flex-col gap-0.5">
+                      <MaterialName material={exception.material} description={exception.materialDescription} />
+                      <span
+                        className="flex items-center gap-1"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
-                      </StatusPill>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {sapPlantLabel(exception.plant)}
-                    </TableCell>
-                    <TableCell>
-                      {exception.reservationNumber ? (
-                        <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
-                      ) : (
-                        <EmptyValue kind="noReservationLinked" />
-                      )}
-                    </TableCell>
-                    <TableCell className="font-semibold text-foreground">
-                      {exception.ownerRequesterId ?? (
-                        <span
-                          className="font-semibold text-destructive"
-                          title="No requester could be resolved, so this exception has never been routed and cannot escalate."
-                        >
-                          Unresolved
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <StatusPill tone={STATUS_TONE[exception.status]} title={EXCEPTION_STATUS_HINT[exception.status]} className="h-auto py-0.5 leading-tight whitespace-normal">
-                        {EXCEPTION_STATUS_LABEL[exception.status]}
-                      </StatusPill>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatApiDateTime(exception.detectedAt)}
-                    </TableCell>
-                    <TableCell>
-                      <DueCell dueAt={exception.requesterDueAt} />
-                    </TableCell>
-                    <TableCell
-                      className="text-right"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 min-h-9! px-3 font-semibold"
-                        disabled={!canConfirm || isPending}
-                        onClick={() => setConfirming(exception)}
-                        title={
-                          canConfirm
-                            ? "Record a structured confirmation against this exception"
-                            : CONFIRM_BLOCKED_HINT[exception.status]
-                        }
-                      >
-                        Confirm
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell className="p-0" />
-                    <TableCell colSpan={9} className="p-0">
-                      <div
-                        className={cn(
-                          "grid transition-[grid-template-rows] duration-300 ease-out",
-                          isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                        {/* The exception's OWN session, where it has one —
+                            a plan breach or a quantity override knows the
+                            exact conversation it came from. Nothing else:
+                            a session for the same material and plant says
+                            nothing about this reservation (one material
+                            and plant has many), and on Non-AI rows it read
+                            as if the reservation had used the assistant. */}
+                        {exception.sessionId && (
+                          <Link
+                            href={`/assistant/sessions/${encodeURIComponent(exception.sessionId)}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-action transition-colors hover:bg-action/10"
+                          >
+                            <MessagesSquare className="size-3" aria-hidden />
+                            Session
+                          </Link>
                         )}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusPill
+                      tone={TYPE_TONE[exception.exceptionType]}
+                      title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
+                      className="h-auto py-0.5 leading-tight whitespace-normal"
+                    >
+                      {EXCEPTION_TYPE_LABEL[exception.exceptionType]}
+                    </StatusPill>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {sapPlantLabel(exception.plant)}
+                  </TableCell>
+                  <TableCell>
+                    {exception.reservationNumber ? (
+                      <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
+                    ) : (
+                      <EmptyValue kind="noReservationLinked" />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-semibold text-foreground">
+                    {exception.ownerRequesterId ?? (
+                      <span
+                        className="font-semibold text-destructive"
+                        title="No requester could be resolved, so this exception has never been routed and cannot escalate."
                       >
-                        <div className="min-h-0 overflow-hidden">
-                          <div className="bg-muted/40 px-4 py-5">
-                            {isExpanded && <ExceptionDetail exception={exception} />}
-                          </div>
+                        Unresolved
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <StatusPill tone={STATUS_TONE[exception.status]} title={EXCEPTION_STATUS_HINT[exception.status]} className="h-auto py-0.5 leading-tight whitespace-normal">
+                      {EXCEPTION_STATUS_LABEL[exception.status]}
+                    </StatusPill>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatApiDateTime(exception.detectedAt)}
+                  </TableCell>
+                  <TableCell>
+                    <DueCell dueAt={exception.requesterDueAt} />
+                  </TableCell>
+                  <TableCell
+                    className="text-right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 min-h-9! px-3 font-semibold"
+                      disabled={!canConfirm || isPending}
+                      onClick={() => setConfirming(exception)}
+                      title={
+                        canConfirm
+                          ? "Record a structured confirmation against this exception"
+                          : CONFIRM_BLOCKED_HINT[exception.status]
+                      }
+                    >
+                      Confirm
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow className="hover:bg-transparent">
+                  <TableCell className="p-0" />
+                  <TableCell colSpan={9} className="p-0">
+                    <div
+                      className={cn(
+                        "grid transition-[grid-template-rows] duration-300 ease-out",
+                        isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      )}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="bg-muted/40 px-4 py-5">
+                          {isExpanded && <ExceptionDetail exception={exception} />}
                         </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                </Fragment>
-              )
-            })}
-          </TableBody>
-        </Table>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </Fragment>
+            )
+          })}
+        </TableBody>
       </DataTable>
 
       {confirming && (

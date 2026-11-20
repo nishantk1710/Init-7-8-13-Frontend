@@ -37,8 +37,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import { PageLoader } from "@/components/shared/page-loader"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -635,8 +635,8 @@ export function QuarterlyReportsWorkspace() {
                   subtitle="Current SAP values against I07 recommendations, over rows generated this quarter."
                   span={12}
                 >
-                  <div className="overflow-x-auto rounded-lg border border-border">
-                    <Table>
+                  <div className="rounded-lg border border-border">
+                    <StickyScrollTable widths={[31, 23, 23, 23]} minWidth={480} wrapCells>
                       <TableHeader>
                         <TableRow className="bg-muted/40 hover:bg-muted/40">
                           <TableHead>Stock level</TableHead>
@@ -668,7 +668,7 @@ export function QuarterlyReportsWorkspace() {
                           />
                         )}
                       </TableBody>
-                    </Table>
+                    </StickyScrollTable>
                   </div>
                   <p className="mt-2 text-[11px] text-muted-foreground">
                     A dash means no value is set in SAP — not a stock level of zero. Current Safety Stock is
@@ -689,10 +689,14 @@ export function QuarterlyReportsWorkspace() {
                   ) : pagedTableView(materialsLoading, materials) === "rows" && materials ? (
                     <div className="flex flex-col gap-3">
                       <div
-                        className={cn("overflow-x-auto rounded-lg border border-border transition-opacity", materialsLoading && "opacity-50")}
+                        className={cn("rounded-lg border border-border transition-opacity", materialsLoading && "opacity-50")}
                         aria-busy={materialsLoading}
                       >
-                        <Table>
+                        <StickyScrollTable
+                          widths={[28, 9, ...(showCircuit ? [10] : []), 10, 15, 17, 11]}
+                          minWidth={(showCircuit ? 7 : 6) * 110}
+                          wrapCells
+                        >
                           <TableHeader>
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
                               <TableHead>Material</TableHead>
@@ -731,7 +735,7 @@ export function QuarterlyReportsWorkspace() {
                               </TableRow>
                             ))}
                           </TableBody>
-                        </Table>
+                        </StickyScrollTable>
                       </div>
 
                       <TablePagination

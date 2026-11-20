@@ -6,8 +6,8 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Minus, TriangleAlert } f
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { RiskBadge } from "@/components/shared/risk-badge"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -95,7 +95,7 @@ function ValueChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?
     view.kind === "released" ? "text-success" : view.kind === "tied-up" ? "text-warning" : "text-muted-foreground"
 
   return (
-    <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
+    <div className={cn("flex items-center justify-end gap-1 font-medium whitespace-nowrap tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
       {formatMoney(view.amount, source.workingCapitalCurrency ?? source.currency)}
       {view.ropPercent !== null && (
@@ -121,7 +121,7 @@ function RopChangeCell({ rec, liveDetail }: { rec: Recommendation; liveDetail?: 
   const tone = delta < 0 ? "text-success" : "text-warning"
 
   return (
-    <div className={cn("flex items-center justify-end gap-1 font-medium tabular-nums", tone)}>
+    <div className={cn("flex items-center justify-end gap-1 font-medium whitespace-nowrap tabular-nums", tone)}>
       <DeltaIcon className="size-3 shrink-0" />
       {formatCount(Math.abs(delta))} {Math.abs(delta) === 1 ? "unit" : "units"}
     </div>
@@ -255,8 +255,24 @@ export function RecommendationReviewTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <Table>
+      <div className="rounded-xl border border-border">
+        <StickyScrollTable
+          widths={[
+            3,
+            18,
+            10,
+            17,
+            ...(showCircuit ? [8] : []),
+            9,
+            16,
+            12,
+            12,
+            ...(showConfidence ? [8] : []),
+            ...(showMinMaxConversion ? [11] : []),
+          ]}
+          minWidth={columnCount * 125}
+          wrapCells
+        >
           <TableHeader>
             <TableRow>
               <TableHead className="w-8" />
@@ -354,7 +370,9 @@ export function RecommendationReviewTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
-                        <StatusBadge tone="default">{segmentLabel(rec)}</StatusBadge>
+                        <StatusBadge tone="default" className="h-auto min-h-5 max-w-full py-0.5 leading-tight whitespace-normal">
+                          {segmentLabel(rec)}
+                        </StatusBadge>
                         {rec.demandType === "Declining" && <StatusBadge tone="warning">Declining</StatusBadge>}
                       </div>
                     </TableCell>
@@ -413,7 +431,7 @@ export function RecommendationReviewTable({
               )
             })}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       </div>
       <p className="text-xs text-muted-foreground">
         Showing {rows.length} recommendation{rows.length === 1 ? "" : "s"} · open a row for the

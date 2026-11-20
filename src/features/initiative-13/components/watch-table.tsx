@@ -12,7 +12,6 @@ import {
   isLongIdle,
 } from "@/features/initiative-13/utils/oar-display"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -109,88 +108,86 @@ export function WatchTable({ metrics }: { metrics: WatchMetric[] }) {
           description="Try clearing the plant/material/aging-band filters."
         />
       ) : (
-        <DataTable className={FITTED_TABLE}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <ColumnHead source="material">Material</ColumnHead>
-                <ColumnHead source="plant">Plant</ColumnHead>
-                <ColumnHead source="stockType">Stock type</ColumnHead>
-                <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
-                <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
-                <ColumnHead source="issues" className="text-right">Consumption (12m)</ColumnHead>
-                <ColumnHead source="inventoryTurns" className="text-right">Inventory turns</ColumnHead>
-                <ColumnHead source="grNotIssued">GR not issued (30d)</ColumnHead>
-                <ColumnHead source="acquiredVsPlan">Acquired vs. plan</ColumnHead>
+        <DataTable className={FITTED_TABLE} widths={[19, 8, 10, 9, 10, 11, 9, 12, 14]} minWidth={1100}>
+          <TableHeader>
+            <TableRow>
+              <ColumnHead source="material">Material</ColumnHead>
+              <ColumnHead source="plant">Plant</ColumnHead>
+              <ColumnHead source="stockType">Stock type</ColumnHead>
+              <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
+              <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
+              <ColumnHead source="issues" className="text-right">Consumption (12m)</ColumnHead>
+              <ColumnHead source="inventoryTurns" className="text-right">Inventory turns</ColumnHead>
+              <ColumnHead source="grNotIssued">GR not issued (30d)</ColumnHead>
+              <ColumnHead source="acquiredVsPlan">Acquired vs. plan</ColumnHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((m) => (
+              <TableRow key={`${m.material}-${m.plant}`}>
+                <TableCell className="text-foreground">
+                  <MaterialName material={m.material} description={m.materialDescription} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(m.plant)}</TableCell>
+                <TableCell>
+                  <StatusPill tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusPill>
+                </TableCell>
+                <TableCell className="text-right text-foreground">
+                  <CoverCell months={m.monthsOfCover} />
+                </TableCell>
+                <TableCell className="text-right text-foreground">
+                  {m.daysSinceLastMovement !== null ? (
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        isLongIdle(m.daysSinceLastMovement) ? "font-semibold text-destructive" : "font-semibold"
+                      )}
+                    >
+                      {m.daysSinceLastMovement}d
+                      {isLongIdle(m.daysSinceLastMovement) && <span className="sr-only"> (idle 150 days or more)</span>}
+                    </span>
+                  ) : (
+                    <EmptyValue kind="noMovement" />
+                  )}
+                </TableCell>
+                <TableCell className="text-right text-foreground">
+                  <span className="font-semibold tabular-nums">{formatCount(m.consumptionCount12m)}</span>{" "}
+                  <span className="text-muted-foreground">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
+                </TableCell>
+                <TableCell className="text-right text-foreground">
+                  {m.inventoryTurns !== null ? (
+                    <span className="font-semibold tabular-nums">{m.inventoryTurns.toFixed(2)}</span>
+                  ) : (
+                    <EmptyValue kind="noConsumptionHistory" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {m.grNotIssuedFlag ? (
+                    <span title={grNotIssuedHover(m)}>
+                      <StatusPill tone="urgent">
+                        {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
+                      </StatusPill>
+                    </span>
+                  ) : (
+                    <EmptyValue kind="noGrNotIssued" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <StatusPill tone={PLAN_TONE[m.acquiredVsPlanStatus]}>
+                    {PLAN_LABEL[m.acquiredVsPlanStatus]}
+                  </StatusPill>
+                  {m.acquiredVsPlanStatus !== "NO_PLAN" && (
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      planned {formatCount(m.plannedQuantity ?? 0)} ·{" "}
+                      {m.acquiredVsPlanStatus === "NO_RESERVATION"
+                        ? "no reservation yet"
+                        : `issued ${formatCount(m.issuedQuantity ?? 0)}`}
+                    </div>
+                  )}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((m) => (
-                <TableRow key={`${m.material}-${m.plant}`}>
-                  <TableCell className="text-foreground">
-                    <MaterialName material={m.material} description={m.materialDescription} />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(m.plant)}</TableCell>
-                  <TableCell>
-                    <StatusPill tone={AGING_TONE[m.agingBand]}>{AGING_LABEL[m.agingBand]}</StatusPill>
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">
-                    <CoverCell months={m.monthsOfCover} />
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">
-                    {m.daysSinceLastMovement !== null ? (
-                      <span
-                        className={cn(
-                          "tabular-nums",
-                          isLongIdle(m.daysSinceLastMovement) ? "font-semibold text-destructive" : "font-semibold"
-                        )}
-                      >
-                        {m.daysSinceLastMovement}d
-                        {isLongIdle(m.daysSinceLastMovement) && <span className="sr-only"> (idle 150 days or more)</span>}
-                      </span>
-                    ) : (
-                      <EmptyValue kind="noMovement" />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">
-                    <span className="font-semibold tabular-nums">{formatCount(m.consumptionCount12m)}</span>{" "}
-                    <span className="text-muted-foreground">({formatCount(m.consumedQty12m ?? 0)} qty)</span>
-                  </TableCell>
-                  <TableCell className="text-right text-foreground">
-                    {m.inventoryTurns !== null ? (
-                      <span className="font-semibold tabular-nums">{m.inventoryTurns.toFixed(2)}</span>
-                    ) : (
-                      <EmptyValue kind="noConsumptionHistory" />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {m.grNotIssuedFlag ? (
-                      <span title={grNotIssuedHover(m)}>
-                        <StatusPill tone="urgent">
-                          {m.grNotIssuedDaysSinceGr !== null ? `${m.grNotIssuedDaysSinceGr}d since GR` : "Flagged – GR date unknown"}
-                        </StatusPill>
-                      </span>
-                    ) : (
-                      <EmptyValue kind="noGrNotIssued" />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill tone={PLAN_TONE[m.acquiredVsPlanStatus]}>
-                      {PLAN_LABEL[m.acquiredVsPlanStatus]}
-                    </StatusPill>
-                    {m.acquiredVsPlanStatus !== "NO_PLAN" && (
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        planned {formatCount(m.plannedQuantity ?? 0)} ·{" "}
-                        {m.acquiredVsPlanStatus === "NO_RESERVATION"
-                          ? "no reservation yet"
-                          : `issued ${formatCount(m.issuedQuantity ?? 0)}`}
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+            ))}
+          </TableBody>
         </DataTable>
       )}
     </div>

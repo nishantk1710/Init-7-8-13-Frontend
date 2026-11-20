@@ -7,7 +7,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { ChartLoader } from "@/components/shared/chart-loader"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { usePaginatedRows } from "@/hooks/use-paginated-rows"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { isPlaceholderActor } from "@/lib/api/actor"
 import { formatApiDateTime } from "@/lib/api/format"
 import { cn, formatCount } from "@/lib/utils"
@@ -106,8 +107,8 @@ export function HistoryBody({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <Table>
+      <div className="rounded-xl border border-border">
+        <StickyScrollTable widths={[10, 14, 22, 16, 17, 7, 14]} minWidth={760} wrapCells>
           <TableHeader>
             <TableRow>
               <TableHead>Month</TableHead>
@@ -142,7 +143,7 @@ export function HistoryBody({
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       </div>
       <TablePagination
         page={page}

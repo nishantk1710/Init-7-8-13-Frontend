@@ -4,7 +4,6 @@ import type { ReactNode } from "react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -102,33 +101,31 @@ export function NonMoverTable({
         </p>
         <ExportButton label="Export Excel" onExport={exportExcel} />
       </div>
-      <DataTable>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <ColumnHead source="material">Material</ColumnHead>
-              <ColumnHead source="plant">Plant</ColumnHead>
-              <ColumnHead source="lastIssue" className="text-right">Last issued</ColumnHead>
-              <ColumnHead source="stockOnHand" className="text-right">Stock on hand</ColumnHead>
+      <DataTable widths={[40, 16, 22, 22]} minWidth={640}>
+        <TableHeader>
+          <TableRow>
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="plant">Plant</ColumnHead>
+            <ColumnHead source="lastIssue" className="text-right">Last issued</ColumnHead>
+            <ColumnHead source="stockOnHand" className="text-right">Stock on hand</ColumnHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={`${row.material}-${row.plant}`}>
+              <TableCell>
+                <MaterialName material={row.material} description={row.materialDescription} />
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+              <TableCell className="text-right">
+                <LastIssued row={row} />
+              </TableCell>
+              <TableCell className="text-right text-foreground">
+                {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={`${row.material}-${row.plant}`}>
-                <TableCell>
-                  <MaterialName material={row.material} description={row.materialDescription} />
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
-                <TableCell className="text-right">
-                  <LastIssued row={row} />
-                </TableCell>
-                <TableCell className="text-right text-foreground">
-                  {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          ))}
+        </TableBody>
       </DataTable>
       {pagination}
     </div>

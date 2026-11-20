@@ -12,6 +12,7 @@ import type { ReactNode } from "react"
 import { ChartCard } from "@/components/shared/chart-card"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { INFO_TONE, InfoPopup, riseIn, slideIn } from "@/components/shared/info-popup"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn, formatCount } from "@/lib/utils"
 import type { ApiAdoptionQuarter, ApiKpiCard, ApiQuarterManagement } from "@/features/initiative-7/types/api"
@@ -223,8 +224,8 @@ export function ExcessByPlantValues({ management }: { management: ApiQuarterMana
   const rows = plantExcessRows(management, plantName)
   return (
     <div className="mt-3">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <Table>
+      <div className="rounded-lg border border-border">
+        <StickyScrollTable widths={[30, 30, 40]} minWidth={420} wrapCells>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead>Plant</TableHead>
@@ -243,7 +244,7 @@ export function ExcessByPlantValues({ management }: { management: ApiQuarterMana
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </StickyScrollTable>
       </div>
       <MoreInfo summary="About these amounts" className="mt-2">
         These are expected figures, worked out from I07&apos;s recommendations. Money actually saved is not measured: nothing records stock that
@@ -334,8 +335,8 @@ export function CoverageStatusTable({ management, problemsOnly = false }: { mana
     return <p className="text-sm text-muted-foreground">Everything this report uses is up to date.</p>
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <Table>
+    <div className="rounded-lg border border-border">
+      <StickyScrollTable widths={[22, 14, 16, 48]} minWidth={480} wrapCells>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
             <TableHead>What</TableHead>
@@ -356,7 +357,7 @@ export function CoverageStatusTable({ management, problemsOnly = false }: { mana
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+      </StickyScrollTable>
     </div>
   )
 }
