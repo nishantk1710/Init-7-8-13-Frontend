@@ -4,13 +4,11 @@ import { uploadErrors, type ApiUploadResult } from "@/lib/api/assistant-requests
 import { ApiError } from "@/lib/api/client"
 import { bareMaterial, checkAgainstRequest, type UploadContext } from "@/lib/assistant/request/upload"
 
-const EMPTY: UploadContext = { maxLines: 20, requestPlant: null, requestDepartment: null, existing: [] }
+const EMPTY: UploadContext = { maxLines: 20, requestPlant: null, existing: [] }
 
 function file(materials: string[], overrides: Partial<ApiUploadResult> = {}): ApiUploadResult {
   return {
     plant: "1300",
-    department: "10303",
-    departmentName: "ENGG-PLANT MAINT.",
     materials,
     rowCount: materials.length,
     duplicates: [],
@@ -24,8 +22,6 @@ describe("checkAgainstRequest", () => {
     expect(checkAgainstRequest(file(["1000000123", "1000000456"]), EMPTY)).toEqual({
       ok: true,
       plant: "1300",
-      department: "10303",
-      departmentName: "ENGG-PLANT MAINT.",
       materials: ["1000000123", "1000000456"],
       rowCount: 2,
       duplicates: [],
@@ -33,18 +29,16 @@ describe("checkAgainstRequest", () => {
     })
   })
 
-  it("must agree with the request's plant and department", () => {
+  it("must agree with the request's plant", () => {
     const context = {
       ...EMPTY,
       requestPlant: "1500",
-      requestDepartment: "40100",
       existing: [{ materialId: "1000000934", plant: "1500" }],
     }
     const check = checkAgainstRequest(file(["1000000123"]), context)
     expect(check.ok).toBe(false)
     const errors = check.ok ? [] : check.errors
     expect(errors.some((e) => /request is for plant 1500/.test(e))).toBe(true)
-    expect(errors.some((e) => /department is 40100; the file says 10303/.test(e))).toBe(true)
   })
 
   it("skips materials already on the request, leading zeros or not", () => {
