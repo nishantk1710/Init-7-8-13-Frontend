@@ -21,6 +21,11 @@ import type { ScopeDefinition, ScopeEntitySet } from "./types"
 /** MRP Type (`MARC.DISMM`) values that identify an OAR material-plant row. */
 export const OAR_MRP_TYPES = ["ND", "PD"] as const
 
+/** The SAP field the I13 OAR rule reads (21 Nov 2026: ND or PD, blank is not
+ * OAR; materials flagged for deletion are left out). For explanatory text, so
+ * screens never spell the field out themselves. */
+export const OAR_MRP_TYPE_FIELD = "MARC-DISMM"
+
 /** MRP Type for normally reorder-point-planned stock — must never appear in OAR_MRP_TYPES. */
 export const PLANNED_MRP_TYPE = "VB"
 
