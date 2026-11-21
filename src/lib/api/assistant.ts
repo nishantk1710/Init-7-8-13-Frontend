@@ -99,11 +99,12 @@ export type ApiRouting = {
   plant: string
   eightySeries: boolean
   materialScope: string
-  mrpType: string | null
   /**
-   * MARC's MRP controller (DISPO) — the OAR rule since 20 Oct 2026: `OAR` is
-   * OAR, anything else (or blank) is not. Absent from an older backend.
+   * MARC's MRP type — the I13 OAR rule since 21 Nov 2026 (see lib/material-scope
+   * OAR_MRP_TYPES); anything else, or blank, is not OAR.
    */
+  mrpType: string | null
+  /** MARC's MRP controller (DISPO) — shown nowhere, no longer part of the OAR rule. */
   mrpController?: string | null
   /**
    * The flow that lost the tie. 97.6% of 80-series rows are also OAR, so this is
@@ -463,8 +464,8 @@ export type ApiMaterialMatch = {
   plant: string
   plantName: string | null
   flowHint: ApiFlow
-  /** MARC's MRP controller (DISPO), which the I13 half of `flowHint` is read from. */
-  mrpController?: string | null
+  /** MARC's MRP type, which the I13 half of `flowHint` is read from. */
+  mrpType?: string | null
 }
 
 export type MaterialSearchResponse = {
