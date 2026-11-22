@@ -60,9 +60,9 @@ export const EXAMPLE_AS_OF = "27 Oct 2026"
 
 export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   totalOar: {
-    title: "Total OAR materials",
+    title: "Total OAR positions",
     tone: "info",
-    summary: "How many OAR material-plant positions are in scope.",
+    summary: "How many OAR material-plant positions are in scope, and how many distinct materials they are.",
     rule: [
       "A position = one material at one plant",
       `counted when its MRP type (${OAR_MRP_TYPE_FIELD}) is ${OAR_MRP_TYPES.join(" or ")}`,
@@ -70,8 +70,9 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     ],
     steps: [
       "Counted once per material and plant: the same material at Gamsberg (1500) and Black Mountain (1300) is two positions.",
-      "Fast-moving, slow-moving and non-moving split this total; the three add up to it.",
-      "The plant and material filters narrow the count.",
+      "Unique materials, under the number, counts each material once, even when it is OAR at both plants. With one plant selected the two are equal.",
+      "Fast-moving, slow-moving and non-moving split the positions; the three add up to them.",
+      "The plant and material filters narrow both counts, and both follow every refresh of the SAP data.",
     ],
     example: {
       subject: "Four material-plants",
@@ -81,7 +82,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
         { label: "Material B at 1300, MRP type VB (or blank)", value: "not counted" },
         { label: "Material C at 1500, ND but flagged for deletion", value: "not counted" },
       ],
-      result: "Total OAR materials = 2.",
+      result: "Total OAR positions = 2 (Material A at both plants); unique materials = 1.",
     },
   },
   fastMoving: {

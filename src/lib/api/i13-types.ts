@@ -626,7 +626,11 @@ export interface ValidationResult {
 }
 
 export interface I13Summary {
+  /** OAR material-plant positions: a material OAR at both plants counts twice. */
   totalOarPositions: number
+  /** Distinct materials among those positions: a material OAR at both plants
+   * counts once. Same filters. `null` from a backend that predates the field. */
+  uniqueOarMaterials: number | null
   fastMovingCount: number
   slowMovingCount: number
   nonMovingCount: number

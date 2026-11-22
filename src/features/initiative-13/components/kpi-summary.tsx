@@ -17,12 +17,19 @@ const ICON = "size-3.5"
  * split into fast / slow / non-moving, then the three counts that each ask for
  * a follow-up. Each card's (i) explains its rule (`data/dashboard-info.ts`).
  */
+/** "13,513 unique materials" under the positions; nothing from a backend that does not send it. */
+export function uniqueMaterialsLine(count: number | null): string | undefined {
+  if (count == null) return undefined
+  return `${formatCount(count)} unique ${count === 1 ? "material" : "materials"}`
+}
+
 export function KpiSummary({ summary }: { summary: I13Summary }) {
   return (
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
       <KpiCard
-        label="Total OAR materials"
+        label="Total OAR positions"
         value={formatCount(summary.totalOarPositions)}
+        hint={uniqueMaterialsLine(summary.uniqueOarMaterials)}
         icon={<Boxes className={ICON} aria-hidden />}
         accent="primary"
         info={<DashboardInfo id="totalOar" />}
