@@ -26,6 +26,12 @@ export interface ScopeCondition {
    * three-valued design; this exists because the OAR rule specifically was
    * confirmed the other way (see scope/config.ts's oar scope). */
   blankMeansInScope?: boolean
+  /** The opposite exception: when true, a blank field (absent, null, or
+   * whitespace-only) evaluates to false -- not in scope -- instead of
+   * "unknown". For a field whose presence is the evidence, like the OAR MRP
+   * type (Dismm): no MRP type is no evidence of OAR. Never set together with
+   * `blankMeansInScope`. */
+  blankMeansOutOfScope?: boolean
 }
 
 export interface ScopeAnd {
