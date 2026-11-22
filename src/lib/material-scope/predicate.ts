@@ -14,9 +14,11 @@ function evaluateCondition(condition: ScopeCondition, row: FieldRow): Trilean {
   // except where a condition has explicitly opted into treating that as
   // in-scope (see ScopeCondition.blankMeansInScope's docstring).
   if (value === undefined || value === null) {
+    if (condition.blankMeansOutOfScope) return false
     return condition.blankMeansInScope ? true : "unknown"
   }
   const raw = String(value)
+  if (condition.blankMeansOutOfScope && raw.trim() === "") return false
   if (condition.unknownValues?.includes(raw)) return "unknown"
 
   switch (condition.op) {

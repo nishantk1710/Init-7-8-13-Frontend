@@ -23,13 +23,12 @@ describe("isInScope — the configured oar scope", () => {
     expect(isInScope("oar", { Mstae: "01" }, { Dismm: "ND" })).toBe("in-scope")
   })
 
-  it("counts an unmaintained MRP Type as OAR -- business-confirmed 2026-09-21", () => {
-    // 47% of live MaterialPlantSet rows look like this — see phase_summary.md
-    // Phase 0. Until 2026-09-21 they were cannot-determine; they are now in
-    // scope, both as a literal blank and as a field absent from the row (see
-    // config.ts's header and ScopeCondition.blankMeansInScope).
-    expect(isInScope("oar", {}, { Dismm: "" })).toBe("in-scope")
-    expect(isInScope("oar", {}, {})).toBe("in-scope")
+  it("does not count an unmaintained MRP Type as OAR -- 2026-11-21 ruling", () => {
+    // A blank Dismm is not OAR, both as a literal blank and as a field absent
+    // from the row (see config.ts's header and ScopeCondition.blankMeansOutOfScope).
+    expect(isInScope("oar", {}, { Dismm: "" })).toBe("not-in-scope")
+    expect(isInScope("oar", {}, { Dismm: "  " })).toBe("not-in-scope")
+    expect(isInScope("oar", {}, {})).toBe("not-in-scope")
   })
 
   it("treats MRP Types nobody has ruled on as out of scope, not in it", () => {
@@ -76,16 +75,16 @@ describe("isMaterialInScope — roll-up policy", () => {
     expect(isMaterialInScope("__test_any", material, [oarPlant, unmaintainedPlant])).toBe("in-scope")
   })
 
-  it("any-plant: an unmaintained plant is a yes since 2026-09-21, so it alone makes the material in-scope", () => {
-    expect(isMaterialInScope("__test_any", material, [plannedPlant, unmaintainedPlant])).toBe("in-scope")
+  it("any-plant: an unmaintained plant is a no since 2026-11-21, so it alone does not make the material in-scope", () => {
+    expect(isMaterialInScope("__test_any", material, [plannedPlant, unmaintainedPlant])).toBe("not-in-scope")
   })
 
   it("all-plants: a definite no outranks an unmaintained plant", () => {
     expect(isMaterialInScope("__test_all", material, [plannedPlant, unmaintainedPlant])).toBe("not-in-scope")
   })
 
-  it("all-plants: an OAR plant plus an unmaintained plant is all yes -> in-scope", () => {
-    expect(isMaterialInScope("__test_all", material, [oarPlant, unmaintainedPlant])).toBe("in-scope")
+  it("all-plants: an OAR plant plus an unmaintained plant is not all yes -> not-in-scope", () => {
+    expect(isMaterialInScope("__test_all", material, [oarPlant, unmaintainedPlant])).toBe("not-in-scope")
   })
 
   it("a material with no plant rows at all is cannot-determine, not a rollup identity value", () => {
@@ -166,9 +165,9 @@ describe("toODataFilter — pushdown", () => {
     for (const value of OAR_MRP_TYPES) {
       expect(filter).toContain(`Dismm eq '${value}'`)
     }
-    // Plus the literal blank, in scope since 2026-09-21 (config.ts).
-    expect(filter).toContain(`Dismm eq ''`)
+    // Blank is not OAR (2026-11-21), so no literal-blank clause.
+    expect(filter).not.toContain(`Dismm eq ''`)
     const quotedValues = filter.match(/'[^']*'/g) ?? []
-    expect(quotedValues).toHaveLength(OAR_MRP_TYPES.length + 1)
+    expect(quotedValues).toHaveLength(OAR_MRP_TYPES.length)
   })
 })
