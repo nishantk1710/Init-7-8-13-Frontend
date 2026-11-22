@@ -96,3 +96,19 @@ describe("evaluate — and/or combinations", () => {
     expect(evaluate({ or: [] }, {})).toBe("not-in-scope")
   })
 })
+
+describe("blankMeansOutOfScope", () => {
+  const rule: ScopeRule = { field: "Dismm", op: "in", values: ["ND", "PD"], blankMeansOutOfScope: true }
+
+  it("treats an absent, null or whitespace-only field as not-in-scope, never cannot-determine", () => {
+    expect(evaluate(rule, {})).toBe("not-in-scope")
+    expect(evaluate(rule, { Dismm: null })).toBe("not-in-scope")
+    expect(evaluate(rule, { Dismm: "" })).toBe("not-in-scope")
+    expect(evaluate(rule, { Dismm: "  " })).toBe("not-in-scope")
+  })
+
+  it("still matches maintained values normally", () => {
+    expect(evaluate(rule, { Dismm: "ND" })).toBe("in-scope")
+    expect(evaluate(rule, { Dismm: "VB" })).toBe("not-in-scope")
+  })
+})
