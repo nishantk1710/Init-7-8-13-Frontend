@@ -91,7 +91,9 @@ export const RECOMMENDATION_STATUSES: RecommendationStatus[] = [
 
 export interface StockParameters {
   rop: number
-  safetyStock: number
+  /** `null` = no value: SAP holds none, or (for a recommendation) none was recommended. Never read it as 0 -- a
+   * real 0 is `0`. A new recommendation carries no safety stock; an older one keeps the one it was made with. */
+  safetyStock: number | null
   maxStock: number
 }
 
@@ -126,7 +128,8 @@ export interface ConsumptionPoint {
 export interface OarColdStartGuidance {
   similarMaterials: string[]
   suggestedRop: number
-  suggestedSafetyStock: number
+  /** `null` when no safety stock was suggested (the current behaviour); then nothing about it is shown. */
+  suggestedSafetyStock: number | null
   confidence: "Low" | "Medium" | "High"
   factors: string[]
   note: string
@@ -193,6 +196,9 @@ export interface Recommendation {
   demandPattern: DemandPattern
   /** Live API only; absent on the scenario fixtures. */
   demandType?: RecommendationType
+  /** Live API only: the backend's own `is_oar` flag -- the reliable OAR / stock-item test. `null` when the backend
+   * did not say; absent on the scenario fixtures. Do not infer it from the demand pattern or the conversion block. */
+  isOar?: boolean | null
   /** Live list rows only: the backend's verdict on moving this OAR material to Min-Max
    * ordering (see OarConversionInfo). `null` when it has none; absent off the live list. */
   conversionEligibility?: OarConversionInfo["conversionEligibility"]

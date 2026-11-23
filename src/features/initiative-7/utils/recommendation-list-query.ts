@@ -30,16 +30,30 @@ export const DEMAND_CLASS_FOR_PATTERN: Partial<Record<DemandPattern, string>> = 
 }
 
 /** The Recommendations page starts on OAR and has no "All": it lists OAR materials or stock items, and
- * "Clear filters" returns to this. */
-export const RECOMMENDATIONS_PAGE_FILTERS: DashboardFilterState = { ...EMPTY_DASHBOARD_FILTERS, type: "oar" }
+ * "Clear filters" returns to this. OAR opens on the materials that are Eligible for the Min-Max conversion; the
+ * Min-Max conversion filter still offers All and Not eligible. */
+export const RECOMMENDATIONS_PAGE_FILTERS: DashboardFilterState = {
+  ...EMPTY_DASHBOARD_FILTERS,
+  type: "oar",
+  conversion: "ELIGIBLE",
+}
 
 /** The filter bar's new state, kept valid for this page: the Recommendation group is always OAR or
- * Stock item (never "All"), and a confidence only goes with OAR -- leaving OAR drops it rather than
- * leaving a hidden filter the table cannot satisfy. */
-export function normaliseRecommendationFilters(next: DashboardFilterState): DashboardFilterState {
+ * Stock item (never "All"), and a confidence and a Min-Max conversion only go with OAR -- leaving OAR drops them
+ * rather than leaving a hidden filter the table cannot satisfy. Coming back to OAR from Stock item (``previous``
+ * is the state before the change) starts on Eligible again, as the page opens. */
+export function normaliseRecommendationFilters(
+  next: DashboardFilterState,
+  previous?: DashboardFilterState,
+): DashboardFilterState {
   const type = next.type === "oar" || next.type === "stock_item" ? next.type : RECOMMENDATIONS_PAGE_FILTERS.type
+  const enteringOar = type === "oar" && previous !== undefined && previous.type !== "oar"
   const confidence = type === "oar" ? next.confidence : ALL_FILTER
-  return type === next.type && confidence === next.confidence ? next : { ...next, type, confidence }
+  const conversion =
+    type !== "oar" ? ALL_FILTER : enteringOar ? RECOMMENDATIONS_PAGE_FILTERS.conversion : next.conversion
+  return type === next.type && confidence === next.confidence && conversion === next.conversion
+    ? next
+    : { ...next, type, confidence, conversion }
 }
 
 /** Rows per page. 25, the same as every I13 table. */
@@ -55,6 +69,7 @@ export function listFilterKey(filters: DashboardFilterState): string {
   return [
     filters.type,
     filters.confidence,
+    filters.conversion,
     filters.plant,
     filters.criticality,
     filters.demandPattern,
@@ -73,16 +88,14 @@ export function isDefaultView(filters: DashboardFilterState): boolean {
 }
 
 /**
- * What the Export Excel button asks for. Any filter applied: exactly what the table's filters select, every
- * page of it. Nothing applied: all generated recommendations (OAR and stock items alike, whatever their
- * status) that have at least one recommended value, since the page itself always opens on one group.
+ * What the Export Excel button asks for: exactly what the table shows -- the same filters it sends, every page
+ * of it, with no paging or sort. That includes the page's default view (OAR, Eligible for the Min-Max
+ * conversion), so the file and the screen cannot disagree.
  */
 export function exportParamsFromFilters(
   filters: DashboardFilterState,
   valueSort: ValueChangeSort = null,
 ): Omit<RecommendationListParams, "page" | "pageSize" | "sort" | "sortDesc"> {
-  // A Value change arrow is a filter too, so the default view with one on is not "nothing applied".
-  if (isDefaultView(filters) && valueSort === null) return { hasRecommended: true }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { page, pageSize, sort, sortDesc, ...filterParams } = listParamsFromFilters(filters, 1, valueSort)
   return filterParams
