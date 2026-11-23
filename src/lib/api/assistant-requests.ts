@@ -226,12 +226,11 @@ export function conflictDetail(error: unknown): ConflictDetail | null {
 /**
  * `POST /assistant/requests/upload`: the filled-in template, read and checked
  * by the backend. Nothing is stored; each material is then previewed as one
- * added by hand.
+ * added by hand. The department is not in the file (TL, 20 Nov): it is picked
+ * on the request itself.
  */
 export type ApiUploadResult = {
   plant: string
-  department: string
-  departmentName: string | null
   /** In file order, duplicates removed. */
   materials: string[]
   rowCount: number

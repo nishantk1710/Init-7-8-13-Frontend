@@ -8,7 +8,7 @@ import { toODataFilter as buildODataFilter } from "./odata-filter"
 import type { FieldRow, ScopeEntitySet, ScopeVerdict } from "./types"
 
 export type { ScopeVerdict, FieldRow, ScopeDefinition, RollupMode, ScopeRule, ScopeCondition } from "./types"
-export { SCOPES } from "./config"
+export { SCOPES, OAR_MRP_TYPES, OAR_MRP_TYPE_FIELD } from "./config"
 export type { ScopeName } from "./config"
 
 function getScope(scopeName: string) {

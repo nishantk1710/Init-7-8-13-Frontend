@@ -424,7 +424,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
         }
       : undefined,
     // FRS SOP 3.1.1 -- shown whenever the backend made a conversion decision,
-    // on either path: an OAR (ND/PD/blank) material can be cold-start or have
+    // on either path: an OAR (ND/PD) material can be cold-start or have
     // enough history for a normal forecast, and the backend evaluates both. A
     // material it did not evaluate (not OAR, or an older row) has no decision,
     // and inventing a section for it would be a fabricated "not eligible".

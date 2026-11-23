@@ -14,7 +14,6 @@ import { Stepper } from "@/features/initiative-13/components/ui/stepper-dots"
 import { RAISED_BY_RESERVATION_EXPLANATION, STOCK_REFILL_EXPLANATION } from "@/features/initiative-13/utils/issue-match"
 import { journeySteps, journeyStop, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -150,112 +149,110 @@ export function UtilizationLedgerTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <DataTable className={FITTED_TABLE}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">
-                <span className="sr-only">Details</span>
-              </TableHead>
-              <ColumnHead source="material">Material</ColumnHead>
-              <ColumnHead source="poPr">PO / PR</ColumnHead>
-              <ColumnHead source="received" note="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</ColumnHead>
-              <ColumnHead source="procurement">Procurement</ColumnHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((entry) => {
-              const key = rowKey(entry)
-              const isExpanded = expandedId === key
-              return (
-                <Fragment key={key}>
-                  <TableRow
-                    className="cursor-pointer"
-                    onClick={() => setExpandedId(isExpanded ? null : key)}
-                  >
-                    <TableCell className="px-1">
-                      <RowToggle
-                        expanded={isExpanded}
-                        onToggle={() => setExpandedId(isExpanded ? null : key)}
-                        label={`ledger line ${entry.material}${entry.poNumber ? ` PO ${entry.poNumber}` : entry.prNumber ? ` PR ${entry.prNumber}` : ""}`}
-                      />
-                    </TableCell>
-                    <TableCell className="text-foreground">
-                      <div className="flex max-w-[200px] flex-col gap-0.5">
-                        {entry.materialDescription ? (
-                          <>
-                            <span className="truncate font-medium" title={entry.materialDescription}>
-                              {entry.materialDescription}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground">{entry.material}</span>
-                          </>
-                        ) : (
-                          <span className="font-medium">{entry.material}</span>
-                        )}
-                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">
-                          {sapPlantLabel(entry.plant)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        {entry.poNumber ? (
-                          <DocNo number={entry.poNumber} item={entry.poItem} />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No PO yet</span>
-                        )}
-                        {entry.prNumber && (
-                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            PR <DocNo number={entry.prNumber} item={entry.prItem} />
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    {/* The quantity sits on top only when something arrived:
-                        underneath, the date cell already says "No PO yet" or
-                        "Not delivered" -- a label where the backend recorded
-                        nothing, never a bare zero. Once the ordered quantity is
-                        known, "0 of 6" says how much is still to come. */}
-                    <DeliveredOnCell
-                      status={deliveryOf(entry)}
-                      receivedQuantity={entry.receivedQuantity}
-                      lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
+      <DataTable className={FITTED_TABLE} widths={[5, 30, 20, 22, 23]} minWidth={820}>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">
+              <span className="sr-only">Details</span>
+            </TableHead>
+            <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="poPr">PO / PR</ColumnHead>
+            <ColumnHead source="received" note="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</ColumnHead>
+            <ColumnHead source="procurement">Procurement</ColumnHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry) => {
+            const key = rowKey(entry)
+            const isExpanded = expandedId === key
+            return (
+              <Fragment key={key}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() => setExpandedId(isExpanded ? null : key)}
+                >
+                  <TableCell className="px-1">
+                    <RowToggle
+                      expanded={isExpanded}
+                      onToggle={() => setExpandedId(isExpanded ? null : key)}
+                      label={`ledger line ${entry.material}${entry.poNumber ? ` PO ${entry.poNumber}` : entry.prNumber ? ` PR ${entry.prNumber}` : ""}`}
                     />
-                    <TableCell>
-                      <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
-                        {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
-                      </StatusPill>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell className="p-0" />
-                    <TableCell colSpan={4} className="p-0">
-                      <div
-                        className={cn(
-                          "grid transition-[grid-template-rows] duration-300 ease-out",
-                          isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                        )}
-                      >
-                        <div className="min-h-0 overflow-hidden">
-                          <div className="bg-muted/40 px-4 py-5">
-                            {/* Rendered from the row we already have.
-                                This used to call GET /i13/ledger/{id} on
-                                every expansion -- which returns the SAME
-                                model this list response already contained,
-                                and rebuilds the entire unfiltered ledger
-                                server-side to linear-scan for one row. A
-                                request per click, for data in hand. */}
-                            {isExpanded && <DocumentChainDetail entry={entry} />}
-                          </div>
+                  </TableCell>
+                  <TableCell className="text-foreground">
+                    <div className="flex max-w-[200px] flex-col gap-0.5">
+                      {entry.materialDescription ? (
+                        <>
+                          <span className="truncate font-medium" title={entry.materialDescription}>
+                            {entry.materialDescription}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">{entry.material}</span>
+                        </>
+                      ) : (
+                        <span className="font-medium">{entry.material}</span>
+                      )}
+                      <span className="text-[11px] whitespace-nowrap text-muted-foreground">
+                        {sapPlantLabel(entry.plant)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      {entry.poNumber ? (
+                        <DocNo number={entry.poNumber} item={entry.poItem} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No PO yet</span>
+                      )}
+                      {entry.prNumber && (
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          PR <DocNo number={entry.prNumber} item={entry.prItem} />
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  {/* The quantity sits on top only when something arrived:
+                      underneath, the date cell already says "No PO yet" or
+                      "Not delivered" -- a label where the backend recorded
+                      nothing, never a bare zero. Once the ordered quantity is
+                      known, "0 of 6" says how much is still to come. */}
+                  <DeliveredOnCell
+                    status={deliveryOf(entry)}
+                    receivedQuantity={entry.receivedQuantity}
+                    lead={<ReceivedLead received={entry.receivedQuantity} ordered={entry.orderedQuantity} />}
+                  />
+                  <TableCell>
+                    <StatusPill tone={PROCUREMENT_TONE[entry.procurementStatus]} className="h-auto py-0.5 leading-tight whitespace-normal">
+                      {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
+                    </StatusPill>
+                  </TableCell>
+                </TableRow>
+                <TableRow className="hover:bg-transparent">
+                  <TableCell className="p-0" />
+                  <TableCell colSpan={4} className="p-0">
+                    <div
+                      className={cn(
+                        "grid transition-[grid-template-rows] duration-300 ease-out",
+                        isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      )}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="bg-muted/40 px-4 py-5">
+                          {/* Rendered from the row we already have.
+                              This used to call GET /i13/ledger/{id} on
+                              every expansion -- which returns the SAME
+                              model this list response already contained,
+                              and rebuilds the entire unfiltered ledger
+                              server-side to linear-scan for one row. A
+                              request per click, for data in hand. */}
+                          {isExpanded && <DocumentChainDetail entry={entry} />}
                         </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                </Fragment>
-              )
-            })}
-          </TableBody>
-        </Table>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </Fragment>
+            )
+          })}
+        </TableBody>
       </DataTable>
     </div>
   )

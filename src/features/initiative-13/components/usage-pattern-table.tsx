@@ -5,7 +5,6 @@ import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -57,75 +56,73 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
   }
 
   return (
-    <DataTable className={FITTED_TABLE}>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <ColumnHead source="material">Material</ColumnHead>
-            <ColumnHead source="plant">Plant</ColumnHead>
-            <ColumnHead source="stockType">Stock type</ColumnHead>
-            <ColumnHead source="issues">Monthly issues</ColumnHead>
-            <ColumnHead source="issues" className="text-right">Issued (history)</ColumnHead>
-            <ColumnHead source="issues" className="text-right">Active months</ColumnHead>
-            <ColumnHead source="lastIssue">Last issue</ColumnHead>
-            <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
-            <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
-            <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
-            <ColumnHead source="inventoryTurns" className="text-right">Turns</ColumnHead>
-            <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
+    <DataTable className={FITTED_TABLE} widths={[14, 6, 8, 14, 8, 7, 8, 7, 7, 7, 7, 7]} minWidth={1150}>
+      <TableHeader>
+        <TableRow>
+          <ColumnHead source="material">Material</ColumnHead>
+          <ColumnHead source="plant">Plant</ColumnHead>
+          <ColumnHead source="stockType">Stock type</ColumnHead>
+          <ColumnHead source="issues">Monthly issues</ColumnHead>
+          <ColumnHead source="issues" className="text-right">Issued (history)</ColumnHead>
+          <ColumnHead source="issues" className="text-right">Active months</ColumnHead>
+          <ColumnHead source="lastIssue">Last issue</ColumnHead>
+          <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
+          <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
+          <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
+          <ColumnHead source="inventoryTurns" className="text-right">Turns</ColumnHead>
+          <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={`${row.material}::${row.plant}`}>
+            <TableCell className="font-medium text-foreground">
+              <div className="flex flex-col gap-0.5">
+                <MaterialName material={row.material} description={row.materialDescription} />
+              </div>
+            </TableCell>
+            <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+            <TableCell>
+              {row.agingBand ? (
+                <StatusPill tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusPill>
+              ) : (
+                <EmptyValue kind="notClassified" />
+              )}
+            </TableCell>
+            <TableCell>
+              <MonthBars months={row.months} />
+            </TableCell>
+            <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantityTotal)}</TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.activeMonths} / {row.months.length}
+            </TableCell>
+            <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.averageMonthlyConsumption === null ? (
+                <EmptyValue kind="noConsumptionHistory" />
+              ) : (
+                row.averageMonthlyConsumption.toFixed(1)
+              )}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.monthsOfCover === null ? (
+                <EmptyValue kind="noConsumptionHistory" />
+              ) : (
+                row.monthsOfCover.toFixed(1)
+              )}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.inventoryTurns === null ? <EmptyValue kind="noConsumptionHistory" /> : row.inventoryTurns.toFixed(1)}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.daysSinceLastMovement === null ? "Never" : formatCount(row.daysSinceLastMovement)}
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={`${row.material}::${row.plant}`}>
-              <TableCell className="font-medium text-foreground">
-                <div className="flex flex-col gap-0.5">
-                  <MaterialName material={row.material} description={row.materialDescription} />
-                </div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
-              <TableCell>
-                {row.agingBand ? (
-                  <StatusPill tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusPill>
-                ) : (
-                  <EmptyValue kind="notClassified" />
-                )}
-              </TableCell>
-              <TableCell>
-                <MonthBars months={row.months} />
-              </TableCell>
-              <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantityTotal)}</TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.activeMonths} / {row.months.length}
-              </TableCell>
-              <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
-              </TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.averageMonthlyConsumption === null ? (
-                  <EmptyValue kind="noConsumptionHistory" />
-                ) : (
-                  row.averageMonthlyConsumption.toFixed(1)
-                )}
-              </TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.monthsOfCover === null ? (
-                  <EmptyValue kind="noConsumptionHistory" />
-                ) : (
-                  row.monthsOfCover.toFixed(1)
-                )}
-              </TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.inventoryTurns === null ? <EmptyValue kind="noConsumptionHistory" /> : row.inventoryTurns.toFixed(1)}
-              </TableCell>
-              <TableCell className="text-right text-foreground">
-                {row.daysSinceLastMovement === null ? "Never" : formatCount(row.daysSinceLastMovement)}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        ))}
+      </TableBody>
     </DataTable>
   )
 }

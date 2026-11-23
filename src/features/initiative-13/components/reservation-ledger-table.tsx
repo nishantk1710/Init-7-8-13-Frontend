@@ -11,7 +11,6 @@ import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import type { DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import { issuedUnknownReason, lifecycleView } from "@/features/initiative-13/utils/reservation-lifecycle"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHeader,
@@ -69,89 +68,86 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   }
 
   return (
-    <DataTable className={FITTED_TABLE}>
-      <Table className="min-w-[880px] table-fixed">
-        <TableHeader>
-          <TableRow>
-            <ColumnHead source="material" className="w-[22%]">Material</ColumnHead>
-            <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
-            <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
-            <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
-            <ColumnHead
-              source="issuedOnReservation"
-              className="w-[11%] text-right"
-              note="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)"
-            >
-              Issued
-            </ColumnHead>
-            <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
-            <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
-            <ColumnHead
-              source="requester"
-              className="w-[12%]"
-              note="Who the part was for, as typed in the assistant's Requester box. SAP holds no requester for a reservation."
-            >
-              Requester
-            </ColumnHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.ledgerId}>
-              <TableCell className={cn("text-foreground", LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone])}>
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  {row.materialDescription ? (
-                    <>
-                      <span className="line-clamp-2 font-semibold [overflow-wrap:anywhere]" title={row.materialDescription}>
-                        {row.materialDescription}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">{row.material}</span>
-                    </>
-                  ) : (
-                    <span className="font-medium">{row.material}</span>
-                  )}
-                  <span className="text-[11px] whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <DocNo number={row.reservationNumber} item={row.reservationItem} />
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
-              <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
-              <IssuedCell row={row} />
-              <TableCell className="!pl-5">
-                <div className="flex flex-col items-start gap-1">
-                  <LifecyclePill status={row.lifecycleStatus} />
-                  <OwnProcurement row={row} />
-                </div>
-              </TableCell>
-              <TableCell>
-                {row.sessionId ? (
-                  <Link
-                    href={`/assistant/sessions/${encodeURIComponent(row.sessionId)}`}
-                    className="inline-flex items-center gap-1 font-mono text-[11px] text-action underline-offset-4 hover:underline"
-                  >
-                    <MessagesSquare className="size-3" aria-hidden />
-                    {row.sessionReference ?? row.sessionId}
-                  </Link>
-                ) : row.sgtxt ? (
-                  <span
-                    className="text-[11px] text-muted-foreground"
-                    title="The reservation's item text (RESB-SGTXT), as typed in SAP. It names no session ID."
-                  >
-                    Item text: &ldquo;{row.sgtxt}&rdquo;
-                  </span>
+    <DataTable className={FITTED_TABLE} widths={[22, 11, 11, 7, 11, 15, 13, 10]} minWidth={960}>
+      <TableHeader>
+        <TableRow>
+          <ColumnHead source="material" className="w-[22%]">Material</ColumnHead>
+          <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
+          <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
+          <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
+          <ColumnHead
+            source="issuedOnReservation"
+            className="w-[11%] text-right"
+            note="Quantity issued against this reservation (MSEG 201/261, less 202/262 reversals), with the latest issue date (MKPF-BUDAT)"
+          >
+            Issued
+          </ColumnHead>
+          <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
+          <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
+          <ColumnHead
+            source="requester"
+            note="Who the part was for, as typed in the assistant's Requester box. SAP holds no requester for a reservation."
+          >
+            Requester
+          </ColumnHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.ledgerId}>
+            <TableCell className={cn("text-foreground", LIFECYCLE_EDGE[lifecycleView(row.lifecycleStatus).tone])}>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                {row.materialDescription ? (
+                  <>
+                    <span className="line-clamp-2 font-semibold [overflow-wrap:anywhere]" title={row.materialDescription}>
+                      {row.materialDescription}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">{row.material}</span>
+                  </>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">No session</span>
+                  <span className="font-medium">{row.material}</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-normal">
-                <RequesterCell row={row} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                <span className="text-[11px] whitespace-nowrap text-muted-foreground">{sapPlantLabel(row.plant)}</span>
+              </div>
+            </TableCell>
+            <TableCell>
+              <DocNo number={row.reservationNumber} item={row.reservationItem} />
+            </TableCell>
+            <TableCell className="whitespace-nowrap text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
+            <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
+            <IssuedCell row={row} />
+            <TableCell className="!pl-5">
+              <div className="flex flex-col items-start gap-1">
+                <LifecyclePill status={row.lifecycleStatus} />
+                <OwnProcurement row={row} />
+              </div>
+            </TableCell>
+            <TableCell>
+              {row.sessionId ? (
+                <Link
+                  href={`/assistant/sessions/${encodeURIComponent(row.sessionId)}`}
+                  className="inline-flex items-center gap-1 font-mono text-[11px] text-action underline-offset-4 hover:underline"
+                >
+                  <MessagesSquare className="size-3" aria-hidden />
+                  {row.sessionReference ?? row.sessionId}
+                </Link>
+              ) : row.sgtxt ? (
+                <span
+                  className="text-[11px] text-muted-foreground"
+                  title="The reservation's item text (RESB-SGTXT), as typed in SAP. It names no session ID."
+                >
+                  Item text: &ldquo;{row.sgtxt}&rdquo;
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">No session</span>
+              )}
+            </TableCell>
+            <TableCell className="whitespace-normal">
+              <RequesterCell row={row} />
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
     </DataTable>
   )
 }

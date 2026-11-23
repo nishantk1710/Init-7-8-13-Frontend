@@ -3,7 +3,7 @@
 // the Initiative 7 and 8 Overview popups.
 //
 // Every rule here is the backend's, read from it on 27 Oct 2026, never a rule of this screen's own:
-//   OAR scope        MARC-DISPO = OAR, material not flagged for deletion   (I13_OAR_MRP_CONTROLLERS)
+//   OAR scope        MRP type in OAR_MRP_TYPES, material not flagged for deletion   (I13_OAR_MRP_TYPES, 21 Nov 2026)
 //   movement bands   days since the last goods issue: <= 365 fast, <= 730 slow, else or never: non-moving
 //                    (app/initiatives/i13/aging.py, I13_AGING_FAST_MAX_DAYS / I13_AGING_SLOW_MAX_DAYS)
 //   GR not issued    oldest receipt still not issued >= 30 days, per material and plant (watch.py)
@@ -16,6 +16,7 @@
 // The thresholds are backend settings; if one changes, change its text here. dashboard-info.test.ts
 // checks each example lands in the band its text claims.
 import type { InfoTone } from "@/components/shared/info-popup"
+import { OAR_MRP_TYPE_FIELD, OAR_MRP_TYPES } from "@/lib/material-scope"
 
 export type DashboardInfoId =
   | "totalOar"
@@ -59,28 +60,29 @@ export const EXAMPLE_AS_OF = "27 Oct 2026"
 
 export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   totalOar: {
-    title: "Total OAR materials",
+    title: "Total OAR positions",
     tone: "info",
-    summary: "How many OAR material-plant positions are in scope.",
+    summary: "How many OAR material-plant positions are in scope, and how many distinct materials they are.",
     rule: [
       "A position = one material at one plant",
-      "counted when its MRP controller (MARC-DISPO) is OAR",
+      `counted when its MRP type (${OAR_MRP_TYPE_FIELD}) is ${OAR_MRP_TYPES.join(" or ")}`,
       "and the material is not flagged for deletion in SAP",
     ],
     steps: [
       "Counted once per material and plant: the same material at Gamsberg (1500) and Black Mountain (1300) is two positions.",
-      "Fast-moving, slow-moving and non-moving split this total; the three add up to it.",
-      "The plant and material filters narrow the count.",
+      "Unique materials, under the number, counts each material once, even when it is OAR at both plants. With one plant selected the two are equal.",
+      "Fast-moving, slow-moving and non-moving split the positions; the three add up to them.",
+      "The plant and material filters narrow both counts, and both follow every refresh of the SAP data.",
     ],
     example: {
       subject: "Four material-plants",
       inputs: [
-        { label: "Material A at 1300, MRP controller OAR", value: "counted" },
-        { label: "Material A at 1500, MRP controller OAR", value: "counted" },
-        { label: "Material B at 1300, another MRP controller", value: "not counted" },
-        { label: "Material C at 1500, OAR but flagged for deletion", value: "not counted" },
+        { label: "Material A at 1300, MRP type ND", value: "counted" },
+        { label: "Material A at 1500, MRP type PD", value: "counted" },
+        { label: "Material B at 1300, MRP type VB (or blank)", value: "not counted" },
+        { label: "Material C at 1500, ND but flagged for deletion", value: "not counted" },
       ],
-      result: "Total OAR materials = 2.",
+      result: "Total OAR positions = 2 (Material A at both plants); unique materials = 1.",
     },
   },
   fastMoving: {

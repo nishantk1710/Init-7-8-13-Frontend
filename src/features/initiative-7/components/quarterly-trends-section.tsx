@@ -14,7 +14,8 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 
 import { ChartCard } from "@/components/shared/chart-card"
 import { InfoPopup, type InfoTone } from "@/components/shared/info-popup"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
 import type { ApiQuarterTrends } from "@/features/initiative-7/types/api"
 import {
@@ -190,8 +191,8 @@ export function QuarterEndCard({ trends, period = "quarter" }: { trends: ApiQuar
       span={12}
     >
       {available ? (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table>
+        <div className="rounded-lg border border-border">
+          <StickyScrollTable widths={[31, 27, 27, 15]} minWidth={480} wrapCells>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead>Stock level</TableHead>
@@ -213,7 +214,7 @@ export function QuarterEndCard({ trends, period = "quarter" }: { trends: ApiQuar
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </StickyScrollTable>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 py-2 text-center">

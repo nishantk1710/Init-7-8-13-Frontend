@@ -64,7 +64,7 @@ export const getInitiative13LiveSummary = cache(async (): Promise<InitiativeSumm
     href: initiative13Manifest.href,
     health,
     metrics: [
-      { label: "OAR materials", value: s.totalOarPositions },
+      { label: "OAR positions", value: s.totalOarPositions },
       { label: "Planned Consumption Overdue", value: s.planBreachCount },
       { label: "Non-AI Reservations", value: s.noPlanCount },
       { label: "GR not issued 30d+", value: s.grNotIssued30DayCount },

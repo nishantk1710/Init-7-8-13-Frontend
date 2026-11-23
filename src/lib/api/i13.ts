@@ -453,6 +453,8 @@ function toGr30DayValidation(raw: RawRecord): Gr30DayValidation {
 function toSummary(raw: RawRecord): I13Summary {
   return {
     totalOarPositions: toCount(raw.total_oar_positions as number),
+    uniqueOarMaterials:
+      raw.unique_oar_materials == null ? null : toCount(raw.unique_oar_materials as number),
     fastMovingCount: toCount(raw.fast_moving_count as number),
     slowMovingCount: toCount(raw.slow_moving_count as number),
     nonMovingCount: toCount(raw.non_moving_count as number),

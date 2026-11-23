@@ -29,8 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -303,16 +303,16 @@ export function LiveApprovalsWorkspace({
           {rows.length === 0 ? (
             <EmptyState title="Nothing in this queue right now" />
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border">
-              <Table>
+            <div className="rounded-xl border border-border">
+              <StickyScrollTable widths={[32, 17, 15, 12, 13, 11]} minWidth={760} wrapCells>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[230px]">Material</TableHead>
-                    <TableHead className="w-[112px]">Change summary</TableHead>
-                    <TableHead className="w-[110px] text-right">Impact</TableHead>
-                    <TableHead className="w-[92px]">Risk</TableHead>
-                    <TableHead className="w-[96px]">Status</TableHead>
-                    <TableHead className="w-[84px]">Action</TableHead>
+                    <TableHead>Material</TableHead>
+                    <TableHead>Change summary</TableHead>
+                    <TableHead className="text-right">Impact</TableHead>
+                    <TableHead>Risk</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -380,7 +380,7 @@ export function LiveApprovalsWorkspace({
                     )
                   })}
                 </TableBody>
-              </Table>
+              </StickyScrollTable>
             </div>
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
