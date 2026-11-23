@@ -47,6 +47,7 @@ afterEach(() => vi.useRealTimers())
 describe("getInitiative13LiveSummary", () => {
   const summary = (overrides: Record<string, unknown> = {}) => ({
     totalOarPositions: 44394,
+    uniqueOarMaterials: 44000,
     planBreachCount: 12,
     noPlanCount: 30,
     grNotIssued30DayCount: 8,
@@ -59,7 +60,7 @@ describe("getInitiative13LiveSummary", () => {
     api.getI13Summary.mockResolvedValue(summary())
     const s = await getInitiative13LiveSummary()
     expect(s.metrics.slice(0, 4).map((m) => [m.label, m.value])).toEqual([
-      ["OAR materials", 44394],
+      ["OAR positions", 44394],
       ["Planned Consumption Overdue", 12],
       ["Non-AI Reservations", 30],
       ["GR not issued 30d+", 8],

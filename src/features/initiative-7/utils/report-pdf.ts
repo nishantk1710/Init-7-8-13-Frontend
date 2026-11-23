@@ -33,6 +33,7 @@ import {
 } from "@/features/initiative-7/utils/quarterly-management"
 import { CARD_FORMULA, approvalStageRows, coverageItemsOf } from "@/features/initiative-7/utils/quarterly-sections"
 import { reportKindOf, reportNoun } from "@/features/initiative-7/utils/report-period"
+import { anyRecommendedSafetyStock } from "@/features/initiative-7/utils/safety-stock-display"
 import { stockFigure } from "@/features/initiative-7/utils/stock-figure"
 
 type RGB = [number, number, number]
@@ -377,24 +378,38 @@ export async function composeReportPdf(input: ReportPdfInput): Promise<jsPDF> {
   })
 
   // --- The two material tables --------------------------------------------------------------------------------------
-  const levels: { key: keyof StockParameters; label: string }[] = [
-    { key: "safetyStock", label: "Safety stock" },
+  // The Safety stock pair of columns only for a list where some recommendation carries one: otherwise it is all dashes.
+  const levelsFor = (recs: Recommendation[]): { key: keyof StockParameters; label: string }[] => [
+    ...(anyRecommendedSafetyStock(recs) ? [{ key: "safetyStock" as const, label: "Safety stock" }] : []),
     { key: "rop", label: "Reorder point" },
     { key: "maxStock", label: "Maximum stock" },
   ]
   const figure = (rec: Recommendation, side: "current" | "recommended", key: keyof StockParameters) => dash(stockFigure(rec, side, key))
-  const materialRows = (recs: Recommendation[]) =>
-    recs.map((rec) => [
+  const materialRows = (recs: Recommendation[]) => {
+    const levels = levelsFor(recs)
+    return recs.map((rec) => [
       `${rec.material.description}\n${rec.material.materialCode}`,
       rec.plantId,
       ...levels.flatMap((level) => [figure(rec, "current", level.key), figure(rec, "recommended", level.key)]),
     ])
-  const materialHead = ["Material", "Plant", ...levels.flatMap((level) => [`${level.label}: SAP now`, `${level.label}: suggested`])]
-  const materialStyles = { 0: { cellWidth: 52 }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" }, 4: { halign: "right" }, 5: { halign: "right", fontStyle: "bold" }, 6: { halign: "right" }, 7: { halign: "right", fontStyle: "bold" } }
+  }
+  const materialHead = (recs: Recommendation[]) => [
+    "Material",
+    "Plant",
+    ...levelsFor(recs).flatMap((level) => [`${level.label}: SAP now`, `${level.label}: suggested`]),
+  ]
+  const materialStylesFor = (recs: Recommendation[]) => {
+    const styles: Record<number, { cellWidth?: number; halign?: string; fontStyle?: string }> = { 0: { cellWidth: 52 } }
+    levelsFor(recs).forEach((_, i) => {
+      styles[2 + i * 2] = { halign: "right" }
+      styles[3 + i * 2] = { halign: "right", fontStyle: "bold" }
+    })
+    return styles
+  }
 
   heading(`Current vs recommended in ${periodName}`, "These are the eligible OAR materials only (OAR materials that can move to Min-Max ordering), newest first.")
   if (input.eligibleOar.length > 0) {
-    table(materialHead, materialRows(input.eligibleOar), { columnStyles: materialStyles, fontSize: 7.5 })
+    table(materialHead(input.eligibleOar), materialRows(input.eligibleOar), { columnStyles: materialStylesFor(input.eligibleOar), fontSize: 7.5 })
     paragraph(
       `${formatCount(input.eligibleOar.length)} of ${formatCount(input.eligibleOarTotal)} eligible OAR materials. “SAP now” is the value SAP held when each recommendation was generated. ` +
         "Stock items and other materials are on the Recommendations page.",
@@ -405,7 +420,7 @@ export async function composeReportPdf(input: ReportPdfInput): Promise<jsPDF> {
 
   heading(`Adopted recommendations in ${periodName}`, "Only adopted recommendations are listed: those SAP now holds. The numbers above cover all recommendations, not only these.")
   if (input.adopted.length > 0) {
-    table(materialHead, materialRows(input.adopted), { columnStyles: materialStyles, fontSize: 7.5 })
+    table(materialHead(input.adopted), materialRows(input.adopted), { columnStyles: materialStylesFor(input.adopted), fontSize: 7.5 })
     paragraph(`${formatCount(input.adopted.length)} of ${formatCount(input.adoptedTotal)} adopted recommendations, newest first.`)
   } else {
     paragraph("No recommendation generated in this period has been adopted in SAP yet.")
