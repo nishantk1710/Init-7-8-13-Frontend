@@ -219,10 +219,10 @@ export function I13UrlFilters({
           />)}
 
         {fields.includes("overdue") && wrap("overdue", <UrlSelect
-            label="Overdue: any"
+            label="All plans"
             width="sm:w-40"
             value={searchParams.get("overdue") ?? ""}
-            options={[{ value: "1", label: "Overdue only" }]}
+            options={[{ value: "1", label: "Overdue plans only" }]}
             onChange={(value) => push({ overdue: value })}
           />)}
 

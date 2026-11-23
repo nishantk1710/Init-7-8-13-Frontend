@@ -58,7 +58,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
 
   return (
     <div className="rounded-xl border border-border">
-      <StickyScrollTable widths={[14, 7, 9, 9, 11, 9, 12, 11, 10, 8]} minWidth={1000} wrapCells>
+      <StickyScrollTable widths={[13, 7, 9, 9, 10, 9, 15, 11, 10, 7]} minWidth={1000} wrapCells>
         <TableHeader>
           <TableRow>
             <ColumnHead source="material">Material</ColumnHead>
@@ -188,7 +188,10 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
       </TableCell>
       <TableCell>
         <div className="flex flex-col items-start gap-0.5">
-          <StatusBadge tone={badgeTone(issued.tone)}>{issued.label}</StatusBadge>
+          {/* Allowed to wrap: a badge wider than its column must never run over the next one. */}
+          <StatusBadge tone={badgeTone(issued.tone)} className="h-auto py-0.5 leading-tight whitespace-normal">
+            {issued.label}
+          </StatusBadge>
           {variance !== null && variance !== undefined && Number(variance) !== 0 && (
             <span className="text-[11px] whitespace-nowrap text-muted-foreground">
               {Number(variance) > 0 ? "+" : ""}
