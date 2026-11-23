@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { cn } from "@/lib/utils"
+import { ConfidenceInfo } from "@/features/initiative-7/components/confidence-info"
+import { DemandPatternInfo } from "@/features/initiative-7/components/demand-pattern-info"
 import {
   CIRCUITS,
   CRITICALITIES,
@@ -159,20 +161,33 @@ export function isDashboardFiltersActive(
 function FilterField({
   label,
   className,
+  info,
   children,
 }: {
   label: string
   className?: string
+  /** An (i) icon shown beside the label. */
+  info?: React.ReactNode
   children: React.ReactNode
 }) {
+  const labelText = (
+    <span
+      data-slot="filter-label"
+      className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
+    >
+      {label}
+    </span>
+  )
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <span
-        data-slot="filter-label"
-        className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase"
-      >
-        {label}
-      </span>
+      {info ? (
+        <div className="flex items-center gap-1">
+          {labelText}
+          {info}
+        </div>
+      ) : (
+        labelText
+      )}
       {children}
     </div>
   )
@@ -202,6 +217,8 @@ export function DashboardFilters({
   showConversionFilter = false,
   resetFilters = EMPTY_DASHBOARD_FILTERS,
   hiddenDemandPatterns = [],
+  showDemandPatternInfo = false,
+  showConfidenceInfo = false,
   mergeCriticalIntoHigh = false,
   actions,
 }: {
@@ -254,6 +271,10 @@ export function DashboardFilters({
   /** Demand patterns to leave out of the Demand Pattern dropdown. The Recommendations page leaves out
    * Smooth: a smooth-demand material is sized by SAP, not recommended, so it is never in that list. */
   hiddenDemandPatterns?: readonly DemandPattern[]
+  /** Adds an (i) icon beside the Demand Pattern label that defines each pattern the dropdown offers. */
+  showDemandPatternInfo?: boolean
+  /** Adds an (i) icon beside the Recommendation Confidence label that explains High, Medium and Low. */
+  showConfidenceInfo?: boolean
   /** The Stockout Risk filter offers High, Medium and Low only; High stands for Critical and
    * High together. The caller matches rows accordingly (see matchesRiskFilter). */
   mergeCriticalIntoHigh?: boolean
@@ -377,7 +398,14 @@ export function DashboardFilters({
         </Select>
       </FilterField>
 
-      <FilterField label="Demand Pattern">
+      <FilterField
+        label="Demand Pattern"
+        info={
+          showDemandPatternInfo ? (
+            <DemandPatternInfo patterns={DEMAND_PATTERNS.filter((d) => !hiddenDemandPatterns.includes(d))} />
+          ) : undefined
+        }
+      >
         <Select value={value.demandPattern} onValueChange={(v) => set("demandPattern", v ?? ALL_FILTER)}>
           <SelectTrigger className="h-8 w-full">
             <SelectValue placeholder="All">{(v: string) => (v === ALL_FILTER ? "All" : v)}</SelectValue>
@@ -412,7 +440,7 @@ export function DashboardFilters({
       )}
 
       {showConfidenceFilter && (
-        <FilterField label="Recommendation Confidence">
+        <FilterField label="Recommendation Confidence" info={showConfidenceInfo ? <ConfidenceInfo /> : undefined}>
           <Select value={value.confidence} onValueChange={(v) => set("confidence", v ?? ALL_FILTER)}>
             <SelectTrigger className="h-8 w-full">
               <SelectValue placeholder="All">

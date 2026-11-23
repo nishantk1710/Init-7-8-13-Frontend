@@ -48,17 +48,18 @@ export function OarColdStartPanel({ guidance }: { guidance: OarColdStartGuidance
             <StatusBadge tone={CONFIDENCE_TONE[guidance.confidence]}>{guidance.confidence}</StatusBadge>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={cn("grid grid-cols-1 gap-3", guidance.suggestedSafetyStock != null && "sm:grid-cols-2")}>
             <div className="min-w-0">
               <div className="text-[11px] text-muted-foreground">Suggested initial ROP</div>
               <div className="text-lg font-semibold text-foreground tabular-nums">{guidance.suggestedRop}</div>
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] text-muted-foreground">Suggested initial Safety Stock</div>
-              <div className="text-lg font-semibold text-foreground tabular-nums">
-                {guidance.suggestedSafetyStock}
+            {/* Only when a safety stock was suggested: a missing one is not a 0. */}
+            {guidance.suggestedSafetyStock != null && (
+              <div className="min-w-0">
+                <div className="text-[11px] text-muted-foreground">Suggested initial Safety Stock</div>
+                <div className="text-lg font-semibold text-foreground tabular-nums">{guidance.suggestedSafetyStock}</div>
               </div>
-            </div>
+            )}
           </div>
 
           <div>

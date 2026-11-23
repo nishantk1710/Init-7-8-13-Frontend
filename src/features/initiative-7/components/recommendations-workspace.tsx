@@ -21,7 +21,6 @@ import { fetchRecommendationsExcelBlob } from "@/features/initiative-7/services/
 import { ApiError } from "@/lib/api/client"
 import {
   exportParamsFromFilters,
-  isDefaultView,
   listFilterKey,
   listParamsFromFilters,
   normaliseRecommendationFilters,
@@ -176,9 +175,11 @@ function LiveRecommendationsWorkspace({
     <div className="flex flex-col gap-4">
       <DashboardFilters
         value={filters}
-        onChange={(next) => setFilters(normaliseRecommendationFilters(next))}
+        onChange={(next) => setFilters(normaliseRecommendationFilters(next, filters))}
         resetFilters={RECOMMENDATIONS_PAGE_FILTERS}
         hiddenDemandPatterns={SMOOTH_ONLY}
+        showDemandPatternInfo
+        showConfidenceInfo
         layout="bar"
         plantOptions={plantOptions}
         showTypeFilter
@@ -196,11 +197,7 @@ function LiveRecommendationsWorkspace({
             className="shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
             onClick={exportExcel}
             disabled={exportState === "preparing"}
-            title={
-              isDefaultView(queryFilters)
-                ? "Download every generated recommendation as an Excel file"
-                : "Download the recommendations matching the current filters as an Excel file"
-            }
+            title="Download the recommendations shown in the table (every page) as an Excel file"
           >
             <Download className="size-3.5" />
             {exportState === "preparing" ? "Preparing Excel…" : "Export Excel"}

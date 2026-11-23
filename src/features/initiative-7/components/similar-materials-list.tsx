@@ -56,7 +56,7 @@ export function similarMaterialsIntro(blended: boolean): string {
   return blended
     ? "The recommended levels combine this material's own usage with these similar materials, scaled to this material's usage. " +
         "Only similar materials used in the last 12 months count, and closer matches count more. The split is shown under Reason."
-    : "The recommended reorder point, safety stock and max stock are an average of these materials' current SAP values, " +
+    : "The recommended reorder point and max stock are an average of these materials' current SAP values, " +
         "giving more weight to the closer matches. Best match first."
 }
 
@@ -139,7 +139,6 @@ export function SimilarMaterialsCard({
                 <th className="py-1.5 pr-2 font-medium">Plant</th>
                 <th className="py-1.5 pr-2 text-right font-medium">Match</th>
                 <th className="py-1.5 pr-2 text-right font-medium">Current ROP</th>
-                <th className="py-1.5 pr-2 text-right font-medium">Current Safety</th>
                 <th className="py-1.5 text-right font-medium">Current Max</th>
                 {editable && <th className="py-1.5 pl-2 text-right font-medium">Action</th>}
               </tr>
@@ -259,7 +258,6 @@ function SimilarRow({
         <td className="py-1.5 pr-2 text-muted-foreground">{sapPlantName(item.plant)}</td>
         <td className="py-1.5 pr-2 text-right font-medium tabular-nums">{percent(item.similarity)}</td>
         <td className="py-1.5 pr-2 text-right tabular-nums">{stock(item.rop)}</td>
-        <td className="py-1.5 pr-2 text-right tabular-nums">{stock(item.safetyStock)}</td>
         <td className="py-1.5 text-right tabular-nums">{stock(item.maxStock)}</td>
         {editable && (
           <td className="py-1.5 pl-2 text-right">
@@ -277,7 +275,7 @@ function SimilarRow({
       </tr>
       {isConfirming && (
         <tr className="border-b border-border/60">
-          <td colSpan={editable ? 8 : 7} className="pb-2.5">
+          <td colSpan={editable ? 7 : 6} className="pb-2.5">
             <div className="flex flex-col gap-2 rounded-md bg-muted/40 p-2.5">
               <p className="text-xs text-foreground">
                 Remove <span className="font-medium">{item.description ?? item.material}</span>{" "}
@@ -320,8 +318,8 @@ function SimilarRow({
 }
 
 /** The similar-materials card for one recommendation. `onChanged` is called after a removal or restore has been
- * saved, so the parent can re-read the recommendation and every figure it shows (reorder point, safety stock,
- * max stock) moves with it. */
+ * saved, so the parent can re-read the recommendation and every figure it shows (reorder point, max stock)
+ * moves with it. */
 export function SimilarMaterialsList({
   recommendationId,
   blended = false,

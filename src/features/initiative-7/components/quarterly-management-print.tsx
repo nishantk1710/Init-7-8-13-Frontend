@@ -16,6 +16,7 @@
 // Reports saved before the management view keep the older print view (report-print-view.tsx), unchanged.
 
 import { stockChange, stockFigure } from "@/features/initiative-7/components/quarterly-management-view"
+import { anyRecommendedSafetyStock } from "@/features/initiative-7/utils/safety-stock-display"
 import { Row, Section, Table } from "@/features/initiative-7/components/report-print-view"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatCount, formatIsoDateDMY } from "@/lib/utils"
@@ -48,6 +49,12 @@ const KIND_LABEL = {
 /** A recommended figure, or a dash when there is none -- never a 0 that nothing set. */
 const recommendedFigure = (rec: Recommendation, key: keyof StockParameters) => {
   const value = stockFigure(rec, "recommended", key)
+  return value === null ? "—" : formatCount(value)
+}
+
+/** The safety stock figure of one side of a recommendation, or a dash when there is none -- never a 0. */
+const stockFigureText = (rec: Recommendation, side: "current" | "recommended") => {
+  const value = stockFigure(rec, side, "safetyStock")
   return value === null ? "—" : formatCount(value)
 }
 
@@ -84,6 +91,10 @@ export function ManagementPrintView({ report, management, materials, materialsTo
   const coverage = management.data_coverage
   const cards = orderedKpis(management.kpis)
   const baseline = new Map(report.baseline_comparison.rows.map((row) => [row.metric, row]))
+  // A Safety stock column only where some listed recommendation carries one; otherwise it would be all dashes.
+  const conversionSs = anyRecommendedSafetyStock(conversion)
+  const comparisonSs = anyRecommendedSafetyStock(comparison)
+  const materialsSs = anyRecommendedSafetyStock(materials)
   let section = 0
   const next = () => ++section
 
@@ -237,14 +248,14 @@ export function ManagementPrintView({ report, management, materials, materialsTo
                 {`${formatCount(conversion.length)} of ${formatCount(conversionTotal)} converted material-plants, newest first. This is the list the card opens on the page.`}
               </p>
               <Table
-                headers={["Material", "Plant", "Crit.", "Safety stock", "Reorder point", "Max stock", "Status", "Generated"]}
+                headers={["Material", "Plant", "Crit.", ...(conversionSs ? ["Safety stock"] : []), "Reorder point", "Max stock", "Status", "Generated"]}
                 rows={conversion.map((rec) => [
                   <span key="m">
                     {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
                   </span>,
                   rec.plantId,
                   rec.criticality,
-                  <span key="s" className="print-mono">{recommendedFigure(rec, "safetyStock")}</span>,
+                  ...(conversionSs ? [<span key="s" className="print-mono">{recommendedFigure(rec, "safetyStock")}</span>] : []),
                   <span key="r" className="print-mono">{recommendedFigure(rec, "rop")}</span>,
                   <span key="x" className="print-mono">{recommendedFigure(rec, "maxStock")}</span>,
                   rec.status,
@@ -402,13 +413,13 @@ export function ManagementPrintView({ report, management, materials, materialsTo
               {`${formatCount(comparison.length)} of ${formatCount(comparisonTotal)} recommendations with a recommended value, newest first. Those with no recommended value are not listed.`}
             </p>
             <Table
-              headers={["Material", "Plant", "Safety stock: SAP → rec. (diff.)", "Reorder point: SAP → rec. (diff.)", "Max stock: SAP → rec. (diff.)", "Generated"]}
+              headers={["Material", "Plant", ...(comparisonSs ? ["Safety stock: SAP → rec. (diff.)"] : []), "Reorder point: SAP → rec. (diff.)", "Max stock: SAP → rec. (diff.)", "Generated"]}
               rows={comparison.map((rec) => [
                 <span key="m">
                   {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
                 </span>,
                 rec.plantId,
-                ...(["safetyStock", "rop", "maxStock"] as const).map((key) => {
+                ...((comparisonSs ? ["safetyStock", "rop", "maxStock"] : ["rop", "maxStock"]) as ("safetyStock" | "rop" | "maxStock")[]).map((key) => {
                   const current = stockFigure(rec, "current", key)
                   const recommended = stockFigure(rec, "recommended", key)
                   const change = stockChange(current, recommended)
@@ -465,7 +476,7 @@ export function ManagementPrintView({ report, management, materials, materialsTo
           {`${formatCount(materials.length)} of ${formatCount(materialsTotal)} recommendations generated in this period, newest first. This is a list, not the population the figures above are over: those cover all ${formatCount(materialsTotal)}.`}
         </p>
         <Table
-          headers={["Material", "Plant", "Crit.", "Demand pattern", "Safety stock", "Reorder point", "Max stock", "Status", "Generated"]}
+          headers={["Material", "Plant", "Crit.", "Demand pattern", ...(materialsSs ? ["Safety stock"] : []), "Reorder point", "Max stock", "Status", "Generated"]}
           rows={materials.map((rec) => [
             <span key="m">
               {rec.material.description} <span className="print-mono">{rec.material.materialId}</span>
@@ -473,9 +484,13 @@ export function ManagementPrintView({ report, management, materials, materialsTo
             rec.plantId,
             rec.criticality,
             rec.demandPattern,
-            <span key="s" className="print-mono">
-              {formatCount(rec.current.safetyStock)} &rarr; {formatCount(rec.recommended.safetyStock)}
-            </span>,
+            ...(materialsSs
+              ? [
+                  <span key="s" className="print-mono">
+                    {stockFigureText(rec, "current")} &rarr; {stockFigureText(rec, "recommended")}
+                  </span>,
+                ]
+              : []),
             <span key="r" className="print-mono">
               {formatCount(rec.current.rop)} &rarr; {formatCount(rec.recommended.rop)}
             </span>,

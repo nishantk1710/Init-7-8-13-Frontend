@@ -188,6 +188,21 @@ describe("changeErrorMessage", () => {
   })
 })
 
+describe("safety stock is not shown", () => {
+  it("has no safety stock column or wording, whether the recommendation is blended or not", () => {
+    for (const markup of [render(), render({ blended: true })]) {
+      expect(markup).not.toContain("Current Safety")
+      expect(markup.toLowerCase()).not.toContain("safety stock")
+    }
+  })
+
+  it("still shows each similar material's current ROP and max", () => {
+    const markup = render()
+    expect(markup).toContain("Current ROP")
+    expect(markup).toContain("Current Max")
+  })
+})
+
 describe("the sentence under the title", () => {
   it("says the levels are an average of the similar materials when they are", () => {
     const markup = render()

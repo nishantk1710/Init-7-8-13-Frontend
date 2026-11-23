@@ -40,6 +40,8 @@ import {
 import { cn, formatMoney } from "@/lib/utils"
 import { useLiveApprovalQueue, useLiveWorkflowState } from "@/features/initiative-7/hooks/use-live-approval-queue"
 import { CRITICALITIES, type Recommendation } from "@/features/initiative-7/types/inventory"
+import { recHasRecommendedSafetyStock, safetyStockText } from "@/features/initiative-7/utils/safety-stock-display"
+import { stockFigure } from "@/features/initiative-7/utils/stock-figure"
 
 const ALL = "all"
 
@@ -70,9 +72,13 @@ function statusTabFor(rec: Recommendation): StatusTab {
 function ChangeSummary({ rec }: { rec: Recommendation }) {
   return (
     <div className="flex flex-col gap-0.5 text-[11px] tabular-nums text-muted-foreground">
-      <span>
-        SS {rec.current.safetyStock} → <span className="font-medium text-foreground">{rec.recommended.safetyStock}</span>
-      </span>
+      {/* Only a recommendation that carries a safety stock shows one: a missing one is not "SS 650 → 0". */}
+      {recHasRecommendedSafetyStock(rec) && (
+        <span>
+          SS {safetyStockText(stockFigure(rec, "current", "safetyStock"))} →{" "}
+          <span className="font-medium text-foreground">{safetyStockText(stockFigure(rec, "recommended", "safetyStock"))}</span>
+        </span>
+      )}
       <span>
         ROP {rec.current.rop} → <span className="font-medium text-foreground">{rec.recommended.rop}</span>
       </span>

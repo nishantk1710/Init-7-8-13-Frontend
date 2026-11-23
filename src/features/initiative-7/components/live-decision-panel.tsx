@@ -34,6 +34,7 @@ import type { StockParameters } from "@/features/initiative-7/types/inventory"
 import {
   adjustFieldsFrom,
   checkAdjustedValues,
+  hasAdjustSafetyStock,
   type AdjustFieldText,
 } from "@/features/initiative-7/utils/adjust-values"
 import { testLoginApprovalRole } from "@/lib/api/actor"
@@ -148,7 +149,8 @@ export function LiveDecisionActions({
     const { rop, safetyStock, maxStock } = checked.values
     const accepted = await act(actorRole, "ADJUST", comment.trim() || undefined, {
       new_rop: rop,
-      new_safety_stock: safetyStock,
+      // Only when the form had a safety stock; otherwise it is left out and the backend never reads it as 0.
+      ...(safetyStock === null ? {} : { new_safety_stock: safetyStock }),
       new_max_stock: maxStock,
     })
     if (accepted) {
@@ -416,11 +418,14 @@ export function LiveDecisionActions({
             Set the values you want instead. They replace the recommended ones and it moves on to the next approver,
             who is told what changed.
           </p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={hasAdjustSafetyStock(currentValues) ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
             {(
               [
                 ["rop", "Reorder point", currentValues.rop],
-                ["safetyStock", "Safety stock", currentValues.safetyStock],
+                // Offered only when the recommendation carries a safety stock.
+                ...(currentValues.safetyStock != null
+                  ? ([["safetyStock", "Safety stock", currentValues.safetyStock]] as const)
+                  : []),
                 ["maxStock", "Maximum stock", currentValues.maxStock],
               ] as const
             ).map(([key, label, now]) => (
@@ -434,7 +439,7 @@ export function LiveDecisionActions({
                 <input
                   id={`${adjustIdPrefix}-${key}`}
                   inputMode="numeric"
-                  value={adjustFields[key]}
+                  value={adjustFields[key] ?? ""}
                   onChange={(event) => setAdjustFields({ ...adjustFields, [key]: event.target.value })}
                   className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 />

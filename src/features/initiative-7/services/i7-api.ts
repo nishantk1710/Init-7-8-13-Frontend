@@ -271,6 +271,7 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     criticalityTier: row.criticality ? row.criticality.toUpperCase() : null,
     demandPattern: mapDemandPattern(row.demand_class),
     demandType: mapDemandType(row.demand_type),
+    isOar: row.is_oar ?? null,
     conversionEligibility: (row.conversion_eligibility as OarConversionInfo["conversionEligibility"]) ?? null,
     confidence:
       row.confidence === null || row.confidence === undefined
@@ -284,12 +285,13 @@ export function mapSummaryToRecommendation(row: ApiRecommendationSummary): Recom
     status,
     current: {
       rop: toNumber(row.current.rop) ?? 0,
-      safetyStock: toNumber(row.current.safety_stock) ?? 0,
+      // Safety stock stays null when absent: a missing figure is not a 0 (rop and max keep their 0 fallback).
+      safetyStock: toNumber(row.current.safety_stock),
       maxStock: toNumber(row.current.max_stock) ?? 0,
     },
     recommended: {
       rop: toNumber(row.recommended.rop) ?? 0,
-      safetyStock: toNumber(row.recommended.safety_stock) ?? 0,
+      safetyStock: toNumber(row.recommended.safety_stock),
       maxStock: toNumber(row.recommended.max_stock) ?? 0,
     },
     present: {
@@ -363,16 +365,17 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
     criticality,
     criticalityTier: detail.criticality.value ? detail.criticality.value.toUpperCase() : null,
     demandPattern: mapDemandPattern(detail.demand.demand_class),
+    isOar: detail.oar.is_oar ?? null,
     risk: deriveRisk(detail.criticality.value, status),
     status,
     current: {
       rop: toNumber(detail.current.rop) ?? 0,
-      safetyStock: toNumber(detail.current.safety_stock) ?? 0,
+      safetyStock: toNumber(detail.current.safety_stock),
       maxStock: toNumber(detail.current.max_stock) ?? 0,
     },
     recommended: {
       rop: toNumber(detail.recommended.rop) ?? 0,
-      safetyStock: toNumber(detail.recommended.safety_stock) ?? 0,
+      safetyStock: toNumber(detail.recommended.safety_stock),
       maxStock: toNumber(detail.recommended.max_stock) ?? 0,
     },
     avgDailyConsumption: toNumber(detail.demand.forecast_rate) ?? 0,
@@ -416,7 +419,7 @@ export function mapDetailToRecommendation(detail: ApiRecommendationDetail): Reco
       ? {
           similarMaterials: [],
           suggestedRop: toNumber(detail.recommended.rop) ?? 0,
-          suggestedSafetyStock: toNumber(detail.recommended.safety_stock) ?? 0,
+          suggestedSafetyStock: toNumber(detail.recommended.safety_stock),
           confidence:
             detail.oar.confidence === "HIGH" ? "High" : detail.oar.confidence === "LOW" ? "Low" : "Medium",
           factors: detail.oar.conversion_detail ? [detail.oar.conversion_detail] : [],
@@ -906,6 +909,14 @@ export async function rejectRecommendation(id: string, comment: string): Promise
   })
 }
 
+/** The adjusted values as they travel: `new_safety_stock` only when there is one, so the backend never reads a missing
+ * safety stock as 0. */
+export function adjustedValuesBody(adjusted: ApiAdjustedValues | undefined): Partial<ApiAdjustedValues> {
+  if (!adjusted) return {}
+  const { new_safety_stock: safetyStock, ...rest } = adjusted
+  return safetyStock == null ? rest : { ...rest, new_safety_stock: safetyStock }
+}
+
 export async function applyApprovalAction(
   id: string,
   actorRole: ApiApprovalRole,
@@ -916,7 +927,7 @@ export async function applyApprovalAction(
   return apiFetch<ApiWorkflowStateResponse>(`${I7_BASE}/recommendations/${encodeURIComponent(id)}/actions`, {
     method: "POST",
     // `adjusted` only travels with an ADJUST; the backend ignores it for every other action.
-    body: JSON.stringify({ actor_role: actorRole, action, comment: comment ?? null, ...(adjusted ?? {}) }),
+    body: JSON.stringify({ actor_role: actorRole, action, comment: comment ?? null, ...adjustedValuesBody(adjusted) }),
   })
 }
 

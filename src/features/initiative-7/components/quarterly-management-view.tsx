@@ -48,6 +48,7 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import type { ApiKpiCard, ApiQuarterlyReport, ApiQuarterManagement } from "@/features/initiative-7/types/api"
 import type { Criticality, StockParameters } from "@/features/initiative-7/types/inventory"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
+import { anyRecommendedSafetyStock } from "@/features/initiative-7/utils/safety-stock-display"
 import { stockFigure } from "@/features/initiative-7/utils/stock-figure"
 import { reportKindOf, reportNoun } from "@/features/initiative-7/utils/report-period"
 import {
@@ -326,6 +327,8 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
     ...statusOption.query,
   })
   const view = pagedTableView(loading, data)
+  // The Safety stock column only when some listed recommendation carries one: a column of dashes says nothing.
+  const showSafetyStock = anyRecommendedSafetyStock(data ?? [])
   return (
     <ChartCard
       size="large"
@@ -370,14 +373,19 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
           <div className={cn("rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <StickyScrollTable tableClassName="text-base" widths={[22, 8, 8, 12, 10, 10, 10, 10, 10]} minWidth={900} wrapCells>
+            <StickyScrollTable
+              tableClassName="text-base"
+              widths={showSafetyStock ? [22, 8, 8, 12, 10, 10, 10, 10, 10] : [24, 9, 9, 14, 11, 11, 11, 11]}
+              minWidth={900}
+              wrapCells
+            >
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead>Material</TableHead>
                   <TableHead>Plant</TableHead>
                   <TableHead>Crit.</TableHead>
                   <TableHead>Demand pattern</TableHead>
-                  <TableHead className="text-right">Safety stock</TableHead>
+                  {showSafetyStock && <TableHead className="text-right">Safety stock</TableHead>}
                   <TableHead className="text-right">Reorder point</TableHead>
                   <TableHead className="text-right">Max stock</TableHead>
                   <TableHead>Status</TableHead>
@@ -399,9 +407,12 @@ function PeriodMaterials({ report }: { report: ApiQuarterlyReport }) {
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.demandPattern}</TableCell>
-                    <TableCell className="text-right font-mono text-[15px] tabular-nums">
-                      {formatCount(rec.recommended.safetyStock)}
-                    </TableCell>
+                    {showSafetyStock && (
+                      <TableCell className="text-right font-mono text-[15px] tabular-nums">
+                        {/* A dash, never a 0, for a recommendation that carries no safety stock. */}
+                        {figureCell(stockFigure(rec, "recommended", "safetyStock"))}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-mono text-[15px] tabular-nums">
                       {formatCount(rec.recommended.rop)}
                     </TableCell>
@@ -504,6 +515,8 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
     hasRecommended: true,
   })
   const view = pagedTableView(loading, data)
+  // The Safety stock pair only when some listed recommendation carries a safety stock: a pair of dashes says nothing.
+  const levels = STOCK_LEVELS.filter((level) => level.key !== "safetyStock" || anyRecommendedSafetyStock(data ?? []))
 
   return (
     <ChartCard
@@ -536,7 +549,7 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
       ) : view === "rows" && data && data.length > 0 ? (
         <div className="flex flex-col gap-3">
           <div className={cn("rounded-lg border border-border transition-opacity", loading && "opacity-50")} aria-busy={loading}>
-            <StickyScrollTable tableClassName="text-base" widths={[28, 8, 11, 11, 11, 11, 10, 10]} minWidth={900} wrapCells>
+            <StickyScrollTable tableClassName="text-base" widths={levels.length === 3 ? [28, 8, 11, 11, 11, 11, 10, 10] : [34, 10, 14, 14, 14, 14]} minWidth={900} wrapCells>
               <TableHeader>
                 <TableRow className="bg-action/10 hover:bg-action/10">
                   <TableHead rowSpan={2} className="align-bottom">
@@ -545,14 +558,14 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
                   <TableHead rowSpan={2} className="align-bottom">
                     Plant
                   </TableHead>
-                  {STOCK_LEVELS.map((level) => (
+                  {levels.map((level) => (
                     <TableHead key={level.key} colSpan={2} className="border-l border-action/20 text-center font-semibold text-action">
                       {level.label}
                     </TableHead>
                   ))}
                 </TableRow>
                 <TableRow className="bg-action/10 hover:bg-action/10">
-                  {STOCK_LEVELS.flatMap((level) => [
+                  {levels.flatMap((level) => [
                     <TableHead key={`${level.key}-now`} className="border-l border-action/20 text-right text-sm font-normal text-muted-foreground">
                       SAP now
                     </TableHead>,
@@ -574,7 +587,7 @@ function PeriodStockComparison({ report }: { report: ApiQuarterlyReport }) {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
-                    {STOCK_LEVELS.flatMap((level) => [
+                    {levels.flatMap((level) => [
                       <TableCell key={`${level.key}-now`} className="border-l border-action/20 text-right text-muted-foreground">
                         {figureCell(stockFigure(rec, "current", level.key))}
                       </TableCell>,

@@ -19,6 +19,7 @@ import {
   fetchQuarterlyReport,
   fetchQuarterlyReports,
   generateQuarterlyReport,
+  adjustedValuesBody,
   mapDetailToRecommendation,
   mapStatus,
   adoptionPageStatus,
@@ -301,15 +302,72 @@ describe("mapSummaryToRecommendation", () => {
     expect(mapSummaryToRecommendation(summaryFixture({ working_capital_impact: 0 })).workingCapitalImpact).toBe(0)
   })
 
-  it("falls back to null-safe zero when the summary endpoint's stock fields are absent", () => {
+  it("falls back to null-safe zero for ROP and Max, but keeps an absent safety stock null, when the stock fields are absent", () => {
     const rec = mapSummaryToRecommendation(
       summaryFixture({
         current: { safety_stock: null, rop: null, max_stock: null },
         recommended: { safety_stock: null, rop: null, max_stock: null },
       }),
     )
-    expect(rec.current).toEqual({ rop: 0, safetyStock: 0, maxStock: 0 })
-    expect(rec.recommended).toEqual({ rop: 0, safetyStock: 0, maxStock: 0 })
+    expect(rec.current).toEqual({ rop: 0, safetyStock: null, maxStock: 0 })
+    expect(rec.recommended).toEqual({ rop: 0, safetyStock: null, maxStock: 0 })
+  })
+
+  it("keeps a missing recommended safety stock null and a real 0 as 0 (list)", () => {
+    const missing = mapSummaryToRecommendation(
+      summaryFixture({ current: { safety_stock: 650, rop: 850, max_stock: 1440 }, recommended: { safety_stock: null, rop: 120, max_stock: 255 } }),
+    )
+    expect(missing.current.safetyStock).toBe(650) // SAP's figure is still there
+    expect(missing.recommended.safetyStock).toBeNull()
+    expect(missing.present?.recommended.safetyStock).toBe(false)
+
+    const zero = mapSummaryToRecommendation(summaryFixture({ recommended: { safety_stock: 0, rop: 120, max_stock: 255 } }))
+    expect(zero.recommended.safetyStock).toBe(0)
+    expect(zero.present?.recommended.safetyStock).toBe(true)
+  })
+
+  it("keeps a missing recommended safety stock null and a real 0 as 0 (detail)", () => {
+    const missing = mapDetailToRecommendation(
+      detailFixture({ current: { safety_stock: 650, rop: 850, max_stock: 1440 }, recommended: { safety_stock: null, rop: 120, max_stock: 255 } }),
+    )
+    expect(missing.current.safetyStock).toBe(650)
+    expect(missing.recommended.safetyStock).toBeNull()
+
+    const zero = mapDetailToRecommendation(detailFixture({ recommended: { safety_stock: 0, rop: 120, max_stock: 255 } }))
+    expect(zero.recommended.safetyStock).toBe(0)
+  })
+
+  it("carries the backend's is_oar flag on a list row and a detail, and null when it said nothing", () => {
+    expect(mapSummaryToRecommendation(summaryFixture({ is_oar: true })).isOar).toBe(true)
+    expect(mapSummaryToRecommendation(summaryFixture({ is_oar: false })).isOar).toBe(false)
+    expect(mapSummaryToRecommendation(summaryFixture({ is_oar: null })).isOar).toBeNull()
+
+    const oar = detailFixture()
+    expect(mapDetailToRecommendation({ ...oar, oar: { ...oar.oar, is_oar: true } }).isOar).toBe(true)
+    expect(mapDetailToRecommendation(oar).isOar).toBe(false)
+    expect(mapDetailToRecommendation({ ...oar, oar: { ...oar.oar, is_oar: null } }).isOar).toBeNull()
+  })
+
+  it("gives an OAR cold-start suggestion no safety stock when none was recommended, rather than 0", () => {
+    const base = detailFixture()
+    const rec = mapDetailToRecommendation({
+      ...base,
+      oar: { ...base.oar, is_oar: true },
+      recommended: { safety_stock: null, rop: 12, max_stock: 30 },
+    })
+    expect(rec.oarColdStart?.suggestedRop).toBe(12)
+    expect(rec.oarColdStart?.suggestedSafetyStock).toBeNull()
+  })
+
+  it("leaves new_safety_stock out of the ADJUST body when there is none, and sends it when there is one", () => {
+    expect(adjustedValuesBody(undefined)).toEqual({})
+    expect(adjustedValuesBody({ new_rop: 30, new_max_stock: 40 })).toEqual({ new_rop: 30, new_max_stock: 40 })
+    expect(adjustedValuesBody({ new_rop: 30, new_max_stock: 40 })).not.toHaveProperty("new_safety_stock")
+    expect(adjustedValuesBody({ new_rop: 30, new_safety_stock: 0, new_max_stock: 40 })).toEqual({
+      new_rop: 30,
+      new_safety_stock: 0, // a real 0 still travels
+      new_max_stock: 40,
+    })
   })
 
   it("never shows a fabricated MEDIUM risk badge for a material with no real criticality", () => {
