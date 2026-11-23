@@ -237,10 +237,15 @@ describe("the period's recommendations table", () => {
   })
 
   it("shows only the recommended values, not current → recommended", () => {
-    for (const field of ["safetyStock", "rop", "maxStock"]) {
+    for (const field of ["rop", "maxStock"]) {
       expect(viewSource).toContain(`rec.recommended.${field}`)
       expect(viewSource).not.toContain(`rec.current.${field}`)
     }
+    // Safety stock goes through stockFigure, so a recommendation with none is a dash, never a 0, and its column is left out
+    // when no listed row has one.
+    expect(viewSource).toContain('stockFigure(rec, "recommended", "safetyStock")')
+    expect(viewSource).not.toContain("rec.current.safetyStock")
+    expect(viewSource).toContain("anyRecommendedSafetyStock(")
   })
 })
 

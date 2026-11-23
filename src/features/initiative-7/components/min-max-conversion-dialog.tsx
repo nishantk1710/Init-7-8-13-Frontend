@@ -21,6 +21,7 @@ import { CRITICALITY_TIER_LABEL } from "@/features/initiative-7/components/dashb
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import type { Criticality } from "@/features/initiative-7/types/inventory"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
+import { anyRecommendedSafetyStock } from "@/features/initiative-7/utils/safety-stock-display"
 import { stockFigure } from "@/features/initiative-7/utils/stock-figure"
 
 const PAGE_SIZE = 10
@@ -62,6 +63,8 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
       </p>
     )
   }
+  // The Safety stock column only when some listed recommendation carries one: a column of dashes says nothing.
+  const showSafetyStock = anyRecommendedSafetyStock(data)
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
@@ -77,7 +80,7 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
               <TableHead>Material</TableHead>
               <TableHead>Plant</TableHead>
               <TableHead>Crit.</TableHead>
-              <TableHead className="text-right">Safety stock</TableHead>
+              {showSafetyStock && <TableHead className="text-right">Safety stock</TableHead>}
               <TableHead className="text-right">Reorder point</TableHead>
               <TableHead className="text-right">Max stock</TableHead>
               <TableHead>Status</TableHead>
@@ -94,9 +97,11 @@ function MaterialList({ view, generatedFrom, generatedTo }: { view: View; genera
                 </TableCell>
                 <TableCell className="text-muted-foreground">{rec.plantId}</TableCell>
                 <TableCell className="text-xs">{CRITICALITY_TIER_LABEL[rec.criticality as Criticality]}</TableCell>
-                <TableCell className="text-right font-mono text-[13px] tabular-nums">
-                  {figureCell(stockFigure(rec, "recommended", "safetyStock"))}
-                </TableCell>
+                {showSafetyStock && (
+                  <TableCell className="text-right font-mono text-[13px] tabular-nums">
+                    {figureCell(stockFigure(rec, "recommended", "safetyStock"))}
+                  </TableCell>
+                )}
                 <TableCell className="text-right font-mono text-[13px] tabular-nums">
                   {figureCell(stockFigure(rec, "recommended", "rop"))}
                 </TableCell>

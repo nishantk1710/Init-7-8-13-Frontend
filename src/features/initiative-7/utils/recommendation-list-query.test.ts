@@ -62,7 +62,10 @@ describe("Value change across every page", () => {
       type: "oar",
       valueChange: "released",
     })
-    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, null)).toEqual({ hasRecommended: true })
+    // no arrow: still exactly what the default table shows
+    const { page, pageSize, sort, sortDesc, ...table } = listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1)
+    void page, void pageSize, void sort, void sortDesc
+    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, null)).toEqual(table)
   })
 
   it("puts value_change on the request", async () => {
@@ -79,11 +82,22 @@ describe("Value change across every page", () => {
 })
 
 describe("exportParamsFromFilters (Export Excel)", () => {
-  it("exports every generated recommendation when nothing is applied", () => {
+  it("exports what the default table shows: OAR materials that are Eligible, not everything", () => {
     expect(isDefaultView(RECOMMENDATIONS_PAGE_FILTERS)).toBe(true)
     expect(isDefaultView({ ...RECOMMENDATIONS_PAGE_FILTERS, material: "  " })).toBe(true)
-    // No type: both OAR and stock items. Not the page's OAR-only view.
-    expect(exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS)).toEqual({ hasRecommended: true })
+    const params = exportParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS)
+    expect(params).toMatchObject({ type: "oar", conversionEligibility: "ELIGIBLE", status: "READY_FOR_REVIEW" })
+    expect(params).not.toHaveProperty("hasRecommended")
+    const { page, pageSize, sort, sortDesc, ...table } = listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1)
+    void page, void pageSize, void sort, void sortDesc
+    expect(params).toEqual(table)
+  })
+
+  it("follows the Min-Max conversion filter: All or Not eligible export that, not Eligible", () => {
+    expect(exportParamsFromFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "all" }).conversionEligibility).toBeUndefined()
+    expect(
+      exportParamsFromFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "NOT_ELIGIBLE" }).conversionEligibility,
+    ).toBe("NOT_ELIGIBLE")
   })
 
   it("exports exactly what the filters select, with no paging or sort", () => {
@@ -263,10 +277,48 @@ describe("the Recommendations page has no All: it is OAR or Stock item", () => {
   })
 
   it("keeps a valid choice as it is", () => {
-    const stock = { ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" }
+    const stock = { ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item", conversion: "all" }
     expect(normaliseRecommendationFilters(stock)).toBe(stock)
     const oar = { ...RECOMMENDATIONS_PAGE_FILTERS, confidence: "HIGH" }
     expect(normaliseRecommendationFilters(oar)).toBe(oar)
+  })
+
+  it("opens on OAR materials that are Eligible for the Min-Max conversion", () => {
+    expect(RECOMMENDATIONS_PAGE_FILTERS.conversion).toBe("ELIGIBLE")
+    expect(listParamsFromFilters(RECOMMENDATIONS_PAGE_FILTERS, 1)).toMatchObject({
+      type: "oar",
+      conversionEligibility: "ELIGIBLE",
+    })
+  })
+
+  it("lets the Min-Max conversion filter move to All or Not eligible while on OAR", () => {
+    const all = normaliseRecommendationFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "all" }, RECOMMENDATIONS_PAGE_FILTERS)
+    expect(all.conversion).toBe("all")
+    expect(listParamsFromFilters(all, 1).conversionEligibility).toBeUndefined()
+    const not = normaliseRecommendationFilters(
+      { ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "NOT_ELIGIBLE" },
+      RECOMMENDATIONS_PAGE_FILTERS,
+    )
+    expect(listParamsFromFilters(not, 1).conversionEligibility).toBe("NOT_ELIGIBLE")
+  })
+
+  it("drops the conversion filter when the group leaves OAR, and starts on Eligible when it comes back", () => {
+    const stock = normaliseRecommendationFilters({ ...RECOMMENDATIONS_PAGE_FILTERS, type: "stock_item" }, RECOMMENDATIONS_PAGE_FILTERS)
+    expect(stock).toMatchObject({ type: "stock_item", conversion: "all" })
+    expect(listParamsFromFilters(stock, 1).conversionEligibility).toBeUndefined()
+    const back = normaliseRecommendationFilters({ ...stock, type: "oar" }, stock)
+    expect(back).toMatchObject({ type: "oar", conversion: "ELIGIBLE" })
+  })
+
+  it("treats Eligible as the page's default view, and anything else as filtered", () => {
+    expect(isDefaultView(RECOMMENDATIONS_PAGE_FILTERS)).toBe(true)
+    expect(isDefaultView({ ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "all" })).toBe(false)
+  })
+
+  it("goes back to page 1 when the conversion filter changes the rows", () => {
+    expect(listFilterKey(RECOMMENDATIONS_PAGE_FILTERS)).not.toBe(
+      listFilterKey({ ...RECOMMENDATIONS_PAGE_FILTERS, conversion: "all" }),
+    )
   })
 
   it("drops a confidence when the group leaves OAR, so no hidden filter is left behind", () => {
