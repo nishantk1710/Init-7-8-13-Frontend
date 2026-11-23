@@ -57,7 +57,7 @@ export function AcquiredVsPlanPanel({
 }) {
   return (
     <div className="flex flex-col gap-5">
-      <I13UrlFilters fields={["planStatus", "overdue", "reservation"]} pin={{ tab: "plan" }} />
+      <I13UrlFilters fields={["planMaterial", "planStatus", "overdue", "reservation"]} pin={{ tab: "plan" }} />
       <PlanVsIssuedSection
         title="Via assistant"
         subtitle="Plans captured in the assistant"

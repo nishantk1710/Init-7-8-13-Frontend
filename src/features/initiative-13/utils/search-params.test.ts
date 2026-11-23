@@ -22,6 +22,13 @@ describe("parseSearchParams", () => {
     })
   })
 
+  it("reads the Acquired vs required tab's own material, apart from the page's", () => {
+    expect(parseSearchParams({ material: "5000014659", planMaterial: " 8000004298 " })).toMatchObject({
+      material: "5000014659",
+      planMaterial: "8000004298",
+    })
+  })
+
   it("treats a repeated parameter as malformed rather than guessing", () => {
     // `?plant=1300&plant=1500` has no defensible single answer, so it gets
     // none -- the same rule the assistant's deep-link route applies.

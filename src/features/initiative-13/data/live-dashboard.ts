@@ -92,6 +92,8 @@ export type DashboardFilters = {
   overdue?: boolean
   /** The Via assistant table's page (`?apage=`); the SAP table uses the tab's `?page=`. */
   assistantPage?: number
+  /** The tab's own Material: narrows its two tables, not the cards. Wins over `material` there. */
+  planMaterial?: string
 }
 
 export type LiveDashboard = {
@@ -158,7 +160,12 @@ export async function loadLiveDashboard(
   const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
   // Two tables, one per source. Overdue is a captured plan's only, so the
   // Overdue filter narrows the first table and never the SAP one.
-  const planFilters = { ...scope, status: filters.planStatus, reservation: filters.reservation }
+  const planFilters = {
+    ...scope,
+    material: filters.planMaterial || scope.material,
+    status: filters.planStatus,
+    reservation: filters.reservation,
+  }
   const assistantFilters = { ...planFilters, source: "ASSISTANT", overdue: filters.overdue }
   const sapFilters = { ...planFilters, source: "SAP" }
 

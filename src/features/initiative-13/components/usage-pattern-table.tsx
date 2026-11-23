@@ -56,17 +56,17 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[14, 6, 8, 14, 8, 7, 8, 7, 7, 7, 7, 7]} minWidth={1150}>
+    <DataTable className={FITTED_TABLE} widths={[14, 6, 7, 8, 14, 8, 7, 8, 7, 7, 7, 7]} minWidth={1150}>
       <TableHeader>
         <TableRow>
           <ColumnHead source="material">Material</ColumnHead>
           <ColumnHead source="plant">Plant</ColumnHead>
+          <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
           <ColumnHead source="stockType">Stock type</ColumnHead>
           <ColumnHead source="issues">Monthly issues</ColumnHead>
           <ColumnHead source="issues" className="text-right">Issued (history)</ColumnHead>
           <ColumnHead source="issues" className="text-right">Active months</ColumnHead>
           <ColumnHead source="lastIssue">Last issue</ColumnHead>
-          <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
           <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
           <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
           <ColumnHead source="inventoryTurns" className="text-right">Turns</ColumnHead>
@@ -82,6 +82,9 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               </div>
             </TableCell>
             <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
+            </TableCell>
             <TableCell>
               {row.agingBand ? (
                 <StatusPill tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusPill>
@@ -97,9 +100,6 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               {row.activeMonths} / {row.months.length}
             </TableCell>
             <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
-            <TableCell className="text-right text-foreground">
-              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
-            </TableCell>
             <TableCell className="text-right text-foreground">
               {row.averageMonthlyConsumption === null ? (
                 <EmptyValue kind="noConsumptionHistory" />

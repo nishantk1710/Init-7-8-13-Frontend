@@ -54,6 +54,8 @@ export type I13SearchParams = {
   overdue?: string
   /** Dashboard, Acquired vs required tab: the Via assistant table's page. Absent means page 1. */
   apage?: number
+  /** Dashboard, Acquired vs required tab: one material, for its two tables only (the KPI cards keep `material`). */
+  planMaterial?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -100,6 +102,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     month: single(raw.month),
     page: parsePage(raw.page),
     apage: parsePage(raw.apage),
+    planMaterial: single(raw.planMaterial),
   }
 }
 

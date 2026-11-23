@@ -91,6 +91,7 @@ export function I13UrlFilters({
     | "source"
     | "planStatus"
     | "overdue"
+    | "planMaterial"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -131,7 +132,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue","planMaterial":"Material"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -199,6 +200,14 @@ export function I13UrlFilters({
             value={searchParams.get("source") ?? ""}
             options={PLAN_VS_ISSUED_SOURCES.map((value) => ({ value, label: PLAN_VS_ISSUED_SOURCE_LABEL[value] }))}
             onChange={(value) => push({ source: value })}
+          />)}
+
+        {/* The Acquired vs required tab's own Material: narrows its two tables only, never the KPI cards. */}
+        {fields.includes("planMaterial") && wrap("planMaterial", <DebouncedInput
+            placeholder="Material"
+            value={searchParams.get("planMaterial") ?? ""}
+            onCommit={(value) => push({ planMaterial: value })}
+            className="sm:w-44"
           />)}
 
         {fields.includes("planStatus") && wrap("planStatus", <UrlSelect

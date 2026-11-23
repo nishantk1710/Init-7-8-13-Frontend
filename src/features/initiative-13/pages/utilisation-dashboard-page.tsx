@@ -111,7 +111,8 @@ export async function UtilisationDashboardPage({
   // The Acquired vs required tab's rows have their own filters, set inside the tab.
   const planVsIssuedFilters = {
     plant: searchParams.plant,
-    material: searchParams.material,
+    // The tab's own Material wins; else the page's, which narrows everything.
+    material: searchParams.planMaterial || searchParams.material,
     status: searchParams.planStatus,
     reservation: searchParams.reservation,
     overdue: searchParams.overdue === "1",
@@ -125,6 +126,7 @@ export async function UtilisationDashboardPage({
       reservation: searchParams.reservation,
       overdue: searchParams.overdue === "1",
       assistantPage: searchParams.apage ?? 1,
+      planMaterial: searchParams.planMaterial,
     },
     { tab: initialTab, page }
   )
