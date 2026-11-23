@@ -24,6 +24,7 @@ export type DashboardInfoId =
   | "slowMoving"
   | "nonMoving"
   | "grNotIssued"
+  | "grniTab"
   | "planOverdue"
   | "nonAi"
   | "exceptionPipeline"
@@ -176,6 +177,32 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
         { label: "Line 2: days since receipt", value: "56" },
       ],
       result: "56 ≥ 30, so the material counts once.",
+    },
+  },
+  grniTab: {
+    title: "30-Day GR-Not-Issued",
+    tone: "danger",
+    summary:
+      "OAR PO lines received 30 or more days ago whose stock has not been issued, or only partly issued.",
+    rule: [
+      "One row per PO line with a goods receipt",
+      "Days since GR = data date − the line's latest goods receipt",
+      "Listed when that is 30 days or more and the line is not fully issued",
+    ],
+    steps: [
+      "SAP records the goods receipt against the PO, but a goods issue against the material and its reservation — never against the PO.",
+      "Where a reservation raised the PO, that reservation's own goods issues decide whether the line was issued.",
+      "Otherwise this material's goods issues at the plant are counted against the oldest delivery first.",
+      "That is how a line is put on this list. The issued quantity itself is not shown, because SAP cannot confirm it per PO line.",
+    ],
+    example: {
+      subject: "One material at Black Mountain (1300), two PO lines",
+      inputs: [
+        { label: "PO line A: received 10 on 1 Aug", value: "fully used" },
+        { label: "PO line B: received 10 on 1 Sep", value: "not fully used" },
+        { label: "Issued at the plant since 1 Aug", value: "12" },
+      ],
+      result: "Oldest delivery first: A's 10 are used, then 2 of B's. B is listed, with its GR date and 10 received; A is not.",
     },
   },
   planOverdue: {

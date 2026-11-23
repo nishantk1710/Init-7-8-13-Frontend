@@ -3,6 +3,7 @@ import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { DashboardInfo } from "@/features/initiative-13/components/dashboard-info"
 import { GrniTable } from "@/features/initiative-13/components/grni-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
@@ -115,12 +116,12 @@ function WatchTabs({ active }: { active: WatchView }) {
 }
 
 /**
- * 30-Day GR-Not-Issued — FR-6, per reservation line.
+ * 30-Day GR-Not-Issued — FR-6, per PO line.
  *
- * WATCH flags a material-plant when any of its reservation lines has been
- * received and not issued for the threshold (30 days by default). This tab
- * lists those lines themselves, so a storeman can see which receipt is sitting
- * on the shelf rather than only that one is.
+ * WATCH flags a material-plant when any of its PO lines has been received and
+ * not (fully) issued for the threshold (30 days by default). This tab lists
+ * those lines themselves, showing only what SAP records against a PO line: the
+ * goods receipt. Why the issued quantity is not shown is in the tab's (i).
  */
 async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
   let live: Awaited<ReturnType<typeof loadLiveGrni>> | null = null
@@ -140,9 +141,12 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
       <OarPageHeader
         title="Live Consumption Tracking"
         subtitle={
-          live
-            ? `${formatCount(live.total ?? live.count)} OAR PO lines received and not issued for 30 days or more, oldest receipt first. Estimated: a stock refill's issues are counted oldest stock first (How matched).`
-            : "OAR PO lines received into stock and not issued for 30 days or more (FR-6). Estimated: a stock refill's issues are counted oldest stock first."
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            {live
+              ? `${formatCount(live.total ?? live.count)} OAR PO lines received 30 or more days ago and not, or only partly, issued — oldest receipt first.`
+              : "OAR PO lines received 30 or more days ago and not, or only partly, issued."}
+            <DashboardInfo id="grniTab" />
+          </span>
         }
       />
       <ToolbarRow>
@@ -155,12 +159,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
       ) : (
         <>
           <GrniTable rows={live.rows} />
-          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="reservation lines" />
-          <p className="text-sm text-muted-foreground">
-            Outstanding across the lines on this page:{" "}
-            <span className="font-semibold text-foreground">{formatCount(live.outstandingQuantity)} units</span>. The
-            same rule marks a material &ldquo;GRNI&rdquo; on the Metrics tab.
-          </p>
+          <Pager searchParams={searchParams} total={live.total} count={live.count} noun="PO lines" />
         </>
       )}
     </>
