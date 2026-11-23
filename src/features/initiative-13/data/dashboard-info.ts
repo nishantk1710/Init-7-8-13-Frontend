@@ -328,7 +328,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "The comparison is exact: 9 issued against 10 required is Partially issued.",
       "A reservation raised directly in SAP has no consumption plan, so it is never overdue: the Non-AI and 30-day checks cover it.",
       "Hover a status to see its Required by date: the plan's window end or the reservation's requirement date.",
-      "Switch between Direct from SAP and Via assistant; each view has its own filters, count, pages and export, and switching keeps the Material filter. Each row links to its reservation in the Utilization Ledger.",
+      "Switch between Direct from SAP and Via assistant; each view has its own filters, count, pages and export, and switching starts the view with no filters. Each row links to its reservation in the Utilization Ledger.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",

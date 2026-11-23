@@ -43,9 +43,10 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
  *
  * Each view has its own filters: Overdue (Planned Consumption Overdue) only on
  * Via assistant, and no "Awaiting reservation" status on Direct from SAP, which
- * has no plan to await one. Switching views keeps Material and clears the rest
- * (the server page builds those links). The switch shows both views' totals
- * under Material. One server page of 25, latest required-by date first. */
+ * has no plan to await one. Switching views clears every filter of the view,
+ * Material included (the server page builds those links). The switch shows both
+ * views' totals under the page's own filters. One server page of 25, latest
+ * required-by date first. */
 export function AcquiredVsPlanPanel({
   view,
   table,

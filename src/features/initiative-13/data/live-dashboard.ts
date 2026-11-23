@@ -116,7 +116,7 @@ export type LiveDashboard = {
   planRows: Section<Capped<PlanVsIssuedRow>>
   /** The open view's counts under every filter (its overdue count). */
   planCounts: Section<PlanVsIssuedCounts>
-  /** Each view's total under the Material filter only -- the switch's numbers. */
+  /** Each view's total under the page's Plant and Material only -- the switch's numbers. */
   planViewTotals: Section<{ SAP: number; ASSISTANT: number }>
   /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
    * Any failure reads as "not offered": the button is a convenience, and a
@@ -158,8 +158,8 @@ export async function loadLiveDashboard(
   })
   const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
   // One view at a time. Overdue is a captured plan's only, so it never
-  // narrows Direct from SAP. The switch's numbers follow Material alone,
-  // because switching views keeps Material and clears the rest.
+  // narrows Direct from SAP. Switching views clears every filter of the view,
+  // so the switch's numbers follow only the page's own Plant and Material.
   const planView = filters.planView ?? "SAP"
   const planMaterialScope = { ...scope, material: filters.planMaterial || scope.material }
   const openFilters = {
@@ -203,7 +203,7 @@ export async function loadLiveDashboard(
       section(loadLivePlanVsIssuedCounts(openFilters)),
       // by_source ignores the source filter: both views' totals in one call.
       section(
-        loadLivePlanVsIssuedCounts(planMaterialScope).then((c) => ({
+        loadLivePlanVsIssuedCounts(scope).then((c) => ({
           SAP: c.bySource.SAP ?? 0,
           ASSISTANT: c.bySource.ASSISTANT ?? 0,
         }))

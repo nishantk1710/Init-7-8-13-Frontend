@@ -139,8 +139,9 @@ export async function UtilisationDashboardPage({
   /** The page a tab is showing: the URL's for the open tab, else its first. */
   const pageOf = (tab: DetailTabId) => (tab === initialTab ? page : 1)
   const hrefFor = (tab: DetailTabId) => (p: number) => pageHref(PATH, { ...searchParams, tab }, p)
-  /** A view of the Acquired vs required tab: Material and the page's own filters
-   * kept; the view's Status, Overdue, Reservation and page cleared. */
+  /** A view of the Acquired vs required tab, opened clean: the view's own
+   * filters (Material, Status, Overdue, Reservation) and page cleared; only the
+   * page's own Plant and Material, which narrow the whole dashboard, kept. */
   const planViewHref = (to: "SAP" | "ASSISTANT") =>
     pageHref(
       PATH,
@@ -148,6 +149,7 @@ export async function UtilisationDashboardPage({
         ...searchParams,
         tab: "plan",
         planView: to === "ASSISTANT" ? "assistant" : undefined,
+        planMaterial: undefined,
         planStatus: undefined,
         overdue: undefined,
         reservation: undefined,
