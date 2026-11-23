@@ -3,6 +3,7 @@ import { connection } from "next/server"
 
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { DataUpdatedNote } from "@/features/initiative-13/components/data-updated-note"
 import { DashboardInfo } from "@/features/initiative-13/components/dashboard-info"
 import { GrniTable } from "@/features/initiative-13/components/grni-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
@@ -140,6 +141,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
     <>
       <OarPageHeader
         title="Live Consumption Tracking"
+        meta={<DataUpdatedNote />}
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             {live
@@ -199,6 +201,7 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
     <>
       <OarPageHeader
         title="Live Consumption Tracking"
+        meta={<DataUpdatedNote />}
         subtitle="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
       />
       <ToolbarRow>

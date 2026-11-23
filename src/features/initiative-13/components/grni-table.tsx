@@ -13,7 +13,7 @@ import {
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { GrniEntry } from "@/lib/api/i13"
-import { formatCount } from "@/lib/utils"
+import { formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -80,7 +80,7 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
                 )}
               </div>
             </TableCell>
-            <TableCell className="text-right font-semibold text-foreground">{formatCount(row.receivedQuantity)}</TableCell>
+            <TableCell className="text-right font-semibold text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(row.receivedQuantity)}</span></TableCell>
             <TableCell className="text-right">
               <StatusPill tone={row.daysSinceGr >= row.thresholdDays * 3 ? "urgent" : "caution"}>
                 {formatCount(row.daysSinceGr)} days

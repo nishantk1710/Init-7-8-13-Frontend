@@ -18,7 +18,7 @@ import {
 } from "@/features/initiative-13/utils/usage-pattern"
 import type { UsagePattern } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatCount, formatQuantity } from "@/lib/utils"
 
 const BAND_TONE = { FAST: "healthy", SLOW: "caution", NON_MOVING: "urgent" } as const
 const BAND_LABEL = { FAST: "Fast", SLOW: "Slow", NON_MOVING: "Non-moving" } as const
@@ -78,9 +78,9 @@ export function UsagePatternCards({ rows, layoutSwitch }: { rows: UsagePattern[]
       {/* The column headings, with the cards/table switch above the Show details buttons. */}
       <div className={cn("flex items-end justify-end gap-4 px-5 text-[13px] font-medium text-muted-foreground md:grid", ROW_COLUMNS)}>
         <span aria-hidden className="hidden md:block">Material</span>
+        <span aria-hidden className="hidden text-right md:block">Stock</span>
         <span aria-hidden className="hidden text-right md:block">Issued</span>
         <span aria-hidden className="hidden text-right md:block">Last issue</span>
-        <span aria-hidden className="hidden text-right md:block">Stock</span>
         <div className="md:justify-self-end">{layoutSwitch}</div>
       </div>
       <ul className="flex flex-col gap-2.5">
@@ -139,20 +139,20 @@ function UsageCard({
             <span className="font-mono">{row.material}</span> · {sapPlantLabel(row.plant)}
           </span>
         </div>
-        <Cell label="Issued" className="md:text-right">
-          <span className="text-lg font-semibold tabular-nums text-foreground">{formatCount(row.issuedQuantityTotal)}</span>
-        </Cell>
-        <Cell label="Last issue" className="md:text-right">
-          <span className="text-sm font-semibold text-foreground">{row.lastIssueMonth ?? "Never"}</span>
-        </Cell>
         <Cell label="Stock" className="md:text-right">
           {row.stockOnHand === null ? (
             <EmptyValue kind="noStockRecord" />
           ) : (
-            <span className={cn("text-base font-semibold tabular-nums", row.stockOnHand === 0 ? "text-destructive" : "text-foreground")}>
-              {formatCount(row.stockOnHand)}
+            <span className={cn("text-base font-semibold whitespace-nowrap tabular-nums", row.stockOnHand === 0 ? "text-destructive" : "text-foreground")}>
+              {formatQuantity(row.stockOnHand)}
             </span>
           )}
+        </Cell>
+        <Cell label="Issued" className="md:text-right">
+          <span className="text-lg font-semibold whitespace-nowrap tabular-nums text-foreground">{formatQuantity(row.issuedQuantityTotal)}</span>
+        </Cell>
+        <Cell label="Last issue" className="md:text-right">
+          <span className="text-sm font-semibold text-foreground">{row.lastIssueMonth ?? "Never"}</span>
         </Cell>
         <button
           type="button"
@@ -256,7 +256,7 @@ function UsageDetail({ row, reading }: { row: UsagePattern; reading: UsageReadin
                 <button
                   key={m.month}
                   type="button"
-                  aria-label={`${monthLabel(m.month)}: ${formatCount(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}, ${formatCount(m.receivedQuantity)} received`}
+                  aria-label={`${monthLabel(m.month)}: ${formatQuantity(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}, ${formatQuantity(m.receivedQuantity)} received`}
                   onMouseEnter={() => setHover(i)}
                   onFocus={() => setHover(i)}
                   onBlur={() => setHover(null)}

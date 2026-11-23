@@ -9,7 +9,7 @@ import {
   DELIVERY_STATE_LABELS,
   type DeliveryStatus,
 } from "@/features/initiative-13/utils/delivery-status"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatQuantity } from "@/lib/utils"
 
 /** Hover text naming the SAP field, so the cell itself can stay short. */
 const EXPECTED_TITLE = "Expected delivery date (EKET-EINDT): the PO line's next schedule line still to deliver"
@@ -67,7 +67,7 @@ export function DeliveredOnCell({
           )}
           <StatusBadge>
             {DELIVERY_STATE_LABELS[status.state]}
-            {received > 0 ? ` · ${formatCount(received)} received` : ""}
+            {received > 0 ? ` · ${formatQuantity(received)} received` : ""}
           </StatusBadge>
         </div>
       </TableCell>
@@ -97,8 +97,8 @@ export function DeliveredOnCell({
     : `Received ${formatApiDate(status.date)}`
   const received = receivedQuantity ?? 0
   const partialDetail = orderedQuantity
-    ? `${formatCount(received)} of ${formatCount(orderedQuantity)}`
-    : `${formatCount(received)} received`
+    ? `${formatQuantity(received)} of ${formatQuantity(orderedQuantity)}`
+    : `${formatQuantity(received)} received`
 
   return (
     <TableCell title={title}>

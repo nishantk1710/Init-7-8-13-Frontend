@@ -23,7 +23,7 @@ import {
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatQuantity } from "@/lib/utils"
 
 const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
   OPEN: "primary",
@@ -42,7 +42,7 @@ function reservationHref(entry: UtilisationLedgerEntry): string {
 /** The quantity drawn on top of the Received cell; nothing when there is none to show. */
 function QuantityLead({ value }: { value: number | null }) {
   if (!value) return null
-  return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
+  return <span className="font-semibold whitespace-nowrap tabular-nums text-foreground">{formatQuantity(value)}</span>
 }
 
 /**
@@ -54,9 +54,9 @@ function QuantityLead({ value }: { value: number | null }) {
 function ReceivedLead({ received, ordered }: { received: number | null; ordered: number | null }) {
   if (!ordered) return <QuantityLead value={received} />
   return (
-    <span className="tabular-nums" title="Received of ordered (EKPO-MENGE)">
-      <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
-      <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
+    <span className="whitespace-nowrap tabular-nums" title="Received of ordered (EKPO-MENGE)">
+      <span className="font-semibold text-foreground">{formatQuantity(received ?? 0)}</span>
+      <span className="text-muted-foreground"> of {formatQuantity(ordered)}</span>
     </span>
   )
 }

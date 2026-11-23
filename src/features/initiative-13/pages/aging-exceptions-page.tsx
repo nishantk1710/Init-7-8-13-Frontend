@@ -3,6 +3,7 @@ import { connection } from "next/server"
 import { ListChecks, UserCheck } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
+import { DataUpdatedNote } from "@/features/initiative-13/components/data-updated-note"
 import { ActExceptionsBoard } from "@/features/initiative-13/components/act-exceptions-board"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { AttentionBanner } from "@/features/initiative-13/components/ui/attention-banner"
@@ -88,6 +89,7 @@ export async function ExceptionsPage({
     <OarScope>
         <OarPageHeader
           title="Procurement Exceptions"
+          meta={<DataUpdatedNote />}
           subtitle="Planned consumption overdue, Non-AI reservations, materials received but not issued for 30+ days, and quantity overridden reservations — with the requester's reason and HOD escalation."
         />
 

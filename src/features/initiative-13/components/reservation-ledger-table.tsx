@@ -20,10 +20,10 @@ import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatCount, formatQuantity } from "@/lib/utils"
 
 function qty(value: number | null) {
-  return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
+  return value === null ? <EmptyValue kind="notRecorded" /> : <span className="whitespace-nowrap tabular-nums">{formatQuantity(value)}</span>
 }
 
 /** The lifecycle view's own tones, in the pills' vocabulary. */
@@ -68,13 +68,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[22, 11, 11, 7, 11, 15, 13, 10]} minWidth={960}>
+    <DataTable className={FITTED_TABLE} widths={[20, 11, 11, 9, 11, 15, 13, 10]} minWidth={1000}>
       <TableHeader>
         <TableRow>
-          <ColumnHead source="material" className="w-[22%]">Material</ColumnHead>
+          <ColumnHead source="material" className="w-[20%]">Material</ColumnHead>
           <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
           <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
-          <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
+          <ColumnHead source="reservedQty" className="w-[9%] text-right">Qty</ColumnHead>
           <ColumnHead
             source="issuedOnReservation"
             className="w-[11%] text-right"

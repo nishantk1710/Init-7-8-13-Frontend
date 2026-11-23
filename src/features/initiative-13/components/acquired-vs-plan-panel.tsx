@@ -25,7 +25,7 @@ import {
   PLAN_VS_ISSUED_STATUS_LABEL,
   PLAN_VS_ISSUED_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
-import { downloadExcel, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -187,9 +187,9 @@ function PlanVsIssuedSection({
                   <TableCell className="whitespace-normal">
                     <ReservationLinks reservations={r.reservations} />
                   </TableCell>
-                  {/* Rendered as the strings the backend sent, as on the plans table. */}
-                  <TableCell className="text-right text-foreground">{r.plannedQuantity}</TableCell>
-                  <TableCell className="text-right text-foreground">{r.issuedQuantity}</TableCell>
+                  {/* The backend's quantity strings, without the trailing ".000"; real fractions kept. */}
+                  <TableCell className="text-right text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(r.plannedQuantity)}</span></TableCell>
+                  <TableCell className="text-right text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(r.issuedQuantity)}</span></TableCell>
                   <TableCell>
                     <div
                       className="flex flex-wrap items-center gap-1"

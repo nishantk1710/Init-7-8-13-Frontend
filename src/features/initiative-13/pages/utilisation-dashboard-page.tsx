@@ -5,6 +5,7 @@ import { ArrowRight, FileText } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DataUpdatedNote } from "@/features/initiative-13/components/data-updated-note"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { DashboardInfo } from "@/features/initiative-13/components/dashboard-info"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
@@ -182,6 +183,7 @@ export async function UtilisationDashboardPage({
     <OarScope>
       <OarPageHeader
         title="OAR Utilization"
+        meta={<DataUpdatedNote />}
         subtitle="How OAR spares move from reservation to issue — what is idle, what is off plan, and what needs a follow-up."
         notes={
           dashboard.summary.status === "ready" ? (

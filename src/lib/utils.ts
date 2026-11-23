@@ -108,5 +108,18 @@ export function formatCount(n: number): string {
   return Math.round(n).toLocaleString("en-US")
 }
 
+/**
+ * A SAP quantity as written, never rounded: "15.000" -> "15", "1250" -> "1,250",
+ * "694.906" -> "694.906", "2.500" -> "2.5". SAP keeps three decimals; a whole
+ * number shows none, and a real fraction (tons, kilograms) keeps the digits it
+ * has. Anything that is not a number is shown as it came.
+ */
+export function formatQuantity(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return ""
+  const n = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(n)) return String(value)
+  return n.toLocaleString("en-US", { maximumFractionDigits: 3 })
+}
+
 /** Exports are Excel workbooks; see export-excel.ts. */
 export { downloadExcel } from "./export-excel"

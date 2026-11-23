@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { MonthlyConsumption, UsagePattern } from "@/lib/api/i13"
-import { formatCount } from "@/lib/utils"
+import { formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -34,7 +34,7 @@ function MonthBars({ months }: { months: MonthlyConsumption[] }) {
         return (
           <div
             key={m.month}
-            title={`${m.month}: ${formatCount(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}; ${formatCount(m.receivedQuantity)} received`}
+            title={`${m.month}: ${formatQuantity(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}; ${formatQuantity(m.receivedQuantity)} received`}
             className="flex h-full w-2 items-end rounded-sm bg-muted"
           >
             {height > 0 && <div className="w-full rounded-sm bg-primary" style={{ height: `${height}%` }} />}
@@ -83,7 +83,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
             </TableCell>
             <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
             <TableCell className="text-right text-foreground">
-              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
+              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : <span className="whitespace-nowrap tabular-nums">{formatQuantity(row.stockOnHand)}</span>}
             </TableCell>
             <TableCell>
               {row.agingBand ? (
@@ -95,7 +95,7 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
             <TableCell>
               <MonthBars months={row.months} />
             </TableCell>
-            <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantityTotal)}</TableCell>
+            <TableCell className="text-right text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(row.issuedQuantityTotal)}</span></TableCell>
             <TableCell className="text-right text-foreground">
               {row.activeMonths} / {row.months.length}
             </TableCell>

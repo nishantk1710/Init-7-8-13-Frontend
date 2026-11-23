@@ -27,6 +27,7 @@ import {
 import { MaterialName } from "@/components/shared/material-name"
 import { PersonName } from "@/components/shared/person-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { formatQuantity } from "@/lib/utils"
 
 /**
  * Consumption plans captured through the assistant — FR-4's record.
@@ -57,7 +58,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
 
   return (
     <div className="rounded-xl border border-border">
-      <StickyScrollTable widths={[16, 7, 9, 7, 11, 7, 12, 11, 10, 10]} minWidth={1000} wrapCells>
+      <StickyScrollTable widths={[14, 7, 9, 9, 11, 9, 12, 11, 10, 8]} minWidth={1000} wrapCells>
         <TableHeader>
           <TableRow>
             <ColumnHead source="material">Material</ColumnHead>
@@ -92,7 +93,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                 {/* Rendered as the string the backend sent. A planned quantity
                     round-tripped through a JS number is not the number that was
                     recorded, and this one is read by a compliance engine. */}
-                {plan.plannedQuantity}
+                <span className="whitespace-nowrap tabular-nums">{formatQuantity(plan.plannedQuantity)}</span>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {plan.windowStart || plan.windowEnd ? (
@@ -178,7 +179,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
           <EmptyValue kind="noReservationYet" />
         ) : (
           <div className="flex flex-col items-end gap-0.5">
-            <span>{plan.issuedQuantity}</span>
+            <span className="whitespace-nowrap tabular-nums">{formatQuantity(plan.issuedQuantity)}</span>
             <span className="text-[11px] text-muted-foreground" title={reservations.join(", ")}>
               on {reservations.length === 1 ? reservations[0] : `${reservations.length} reservations`}
             </span>
@@ -189,9 +190,9 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
         <div className="flex flex-col items-start gap-0.5">
           <StatusBadge tone={badgeTone(issued.tone)}>{issued.label}</StatusBadge>
           {variance !== null && variance !== undefined && Number(variance) !== 0 && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[11px] whitespace-nowrap text-muted-foreground">
               {Number(variance) > 0 ? "+" : ""}
-              {variance}
+              {formatQuantity(variance)}
             </span>
           )}
         </div>
