@@ -23,66 +23,90 @@ import { planVsIssuedRowsToCsv } from "@/features/initiative-13/utils/dashboard-
 import {
   badgeTone,
   PLAN_VS_ISSUED_STATUS_LABEL,
+  PLAN_VS_ISSUED_STATUS_ORDER,
   PLAN_VS_ISSUED_STATUS_TONE,
 } from "@/features/initiative-13/utils/status-labels"
+import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
+import { ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { downloadExcel, formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
-/** Acquired vs required (FR-6/FR-10 "acquired versus plan"), in two tables:
- * every plan captured in the assistant ("via assistant"), then every OAR
- * reservation raised directly in SAP ("direct from SAP"). Each row is required
- * (asked for: the plan's quantity, or the reservation's reserved one) against
+/** Acquired vs required (FR-6/FR-10 "acquired versus plan"), one view at a
+ * time behind a switch, like the Ledger's Reservations | Procurement lines:
+ * **Direct from SAP** (OAR reservations raised directly in SAP, the default)
+ * or **Via assistant** (plans captured in the assistant). Each row is required
+ * (asked for: the reservation's reserved quantity, or the plan's) against
  * issued (used). A reservation a plan owns is on that plan's row only. Issued is
  * the goods issue, never a receipt -- OAR is issued from stock. Statuses and the
  * Overdue marker are the backend's, rendered as-is.
  *
- * Overdue (Planned Consumption Overdue) belongs to a captured plan only: its
- * window has ended with nothing issued. A SAP reservation has no consumption
- * plan, so its table has no Overdue marker, and the Overdue filter narrows the
- * first table only.
- *
- * Each table keeps few columns: each row links to its reservation in the
- * Utilization Ledger, which holds the rest. The required-by date shows on the
- * status's hover. The export keeps the full detail. One server page of 25 each,
- * latest required-by date first. */
+ * Each view has its own filters: Overdue (Planned Consumption Overdue) only on
+ * Via assistant, and no "Awaiting reservation" status on Direct from SAP, which
+ * has no plan to await one. Switching views keeps Material and clears the rest
+ * (the server page builds those links). The switch shows both views' totals
+ * under Material. One server page of 25, latest required-by date first. */
 export function AcquiredVsPlanPanel({
-  assistant,
-  sap,
+  view,
+  table,
   filters,
+  viewHrefs,
+  viewTotals,
 }: {
-  assistant: PlanVsIssuedTable
-  sap: PlanVsIssuedTable
+  view: "SAP" | "ASSISTANT"
+  table: PlanVsIssuedTable
   filters: PlanVsIssuedFilters
+  viewHrefs: { SAP: string; ASSISTANT: string }
+  viewTotals: { SAP: number; ASSISTANT: number } | null
 }) {
+  const assistant = view === "ASSISTANT"
+  const label = (name: string, total: number | undefined) =>
+    total === undefined ? name : `${name} (${formatCount(total)})`
   return (
-    <div className="flex flex-col gap-5">
-      <I13UrlFilters fields={["planMaterial", "planStatus", "overdue", "reservation"]} pin={{ tab: "plan" }} />
-      <PlanVsIssuedSection
-        title="Via assistant"
-        subtitle="Plans captured in the assistant"
-        table={assistant}
-        filters={{ ...filters, source: "ASSISTANT" }}
-        withOverdue
-        empty="No plans from the assistant for the selected filters."
-      />
-      <PlanVsIssuedSection
-        title="Direct from SAP"
-        subtitle="OAR reservations raised in SAP without the assistant: no consumption plan, so never overdue"
-        table={sap}
-        filters={{ ...filters, source: "SAP", overdue: undefined }}
-        withOverdue={false}
-        empty="No SAP reservations for the selected filters."
-      />
+    <div className="flex flex-col gap-3">
+      <ToolbarRow>
+        <SegmentedTabs
+          label="Acquired vs required view"
+          tabs={[
+            { href: viewHrefs.SAP, label: label("Direct from SAP", viewTotals?.SAP), active: !assistant },
+            { href: viewHrefs.ASSISTANT, label: label("Via assistant", viewTotals?.ASSISTANT), active: assistant },
+          ]}
+        />
+        <I13UrlFilters
+          fields={assistant ? ["planMaterial", "planStatus", "overdue", "reservation"] : ["planMaterial", "planStatus", "reservation"]}
+          planStatuses={assistant ? PLAN_VS_ISSUED_STATUS_ORDER : SAP_STATUSES}
+          pin={assistant ? { tab: "plan", planView: "assistant" } : { tab: "plan" }}
+        />
+      </ToolbarRow>
+      {assistant ? (
+        <PlanVsIssuedSection
+          subtitle="Plans captured in the assistant"
+          table={table}
+          filters={{ ...filters, source: "ASSISTANT" }}
+          withOverdue
+          empty="No plans from the assistant for the selected filters."
+        />
+      ) : (
+        <PlanVsIssuedSection
+          subtitle="OAR reservations raised in SAP without the assistant: no consumption plan, so never overdue"
+          table={table}
+          filters={{ ...filters, source: "SAP", overdue: undefined }}
+          withOverdue={false}
+          empty="No SAP reservations for the selected filters."
+        />
+      )}
     </div>
   )
 }
+
+/** A SAP reservation has no plan, so it is never awaiting one. */
+const SAP_STATUSES = PLAN_VS_ISSUED_STATUS_ORDER.filter((s) => s !== "NO_RESERVATION")
 
 /** One table's page, its total under the filters and its pager. */
 export type PlanVsIssuedTable = {
   rows: PlanVsIssuedRow[]
   total: number | null
-  /** Overdue count, for the first table's caption. */
+  /** Overdue count, for the Via assistant caption. */
   overdue?: number | null
   /**
    * The pager, rendered by the server page and handed in as a node. Not built
@@ -96,14 +120,12 @@ export type PlanVsIssuedTable = {
 }
 
 function PlanVsIssuedSection({
-  title,
   subtitle,
   table,
   filters,
   withOverdue,
   empty,
 }: {
-  title: string
   subtitle: string
   table: PlanVsIssuedTable
   filters: PlanVsIssuedFilters
@@ -132,10 +154,9 @@ function PlanVsIssuedSection({
   const overdue = withOverdue ? (table.overdue ?? null) : null
 
   return (
-    <section className="flex flex-col gap-2" aria-label={title}>
+    <section className="flex flex-col gap-2" aria-label={subtitle}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col">
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
           <p className="text-[11px] text-muted-foreground">
             {subtitle} · {formatCount(shown)} row{shown === 1 ? "" : "s"}
             {overdue !== null && overdue > 0 && <> · {formatCount(overdue)} overdue</>}, latest required-by date first

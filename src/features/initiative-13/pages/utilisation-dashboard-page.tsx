@@ -110,13 +110,16 @@ export async function UtilisationDashboardPage({
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
   }
   // The Acquired vs required tab's rows have their own filters, set inside the tab.
+  // Direct from SAP opens first; ?planView=assistant opens Via assistant.
+  const planView: "SAP" | "ASSISTANT" = searchParams.planView === "assistant" ? "ASSISTANT" : "SAP"
   const planVsIssuedFilters = {
     plant: searchParams.plant,
     // The tab's own Material wins; else the page's, which narrows everything.
     material: searchParams.planMaterial || searchParams.material,
+    source: planView,
     status: searchParams.planStatus,
     reservation: searchParams.reservation,
-    overdue: searchParams.overdue === "1",
+    overdue: planView === "ASSISTANT" && searchParams.overdue === "1",
   }
   const initialTab = resolveDetailTab(searchParams.tab)
   const page = searchParams.page ?? 1
@@ -126,7 +129,7 @@ export async function UtilisationDashboardPage({
       planStatus: searchParams.planStatus,
       reservation: searchParams.reservation,
       overdue: searchParams.overdue === "1",
-      assistantPage: searchParams.apage ?? 1,
+      planView,
       planMaterial: searchParams.planMaterial,
     },
     { tab: initialTab, page }
@@ -136,9 +139,21 @@ export async function UtilisationDashboardPage({
   /** The page a tab is showing: the URL's for the open tab, else its first. */
   const pageOf = (tab: DetailTabId) => (tab === initialTab ? page : 1)
   const hrefFor = (tab: DetailTabId) => (p: number) => pageHref(PATH, { ...searchParams, tab }, p)
-  /** The Via assistant table pages on `?apage=`, leaving the SAP table's `?page=` as it is. */
-  const assistantHref = (p: number) =>
-    pageHref(PATH, { ...searchParams, tab: "plan", apage: p > 1 ? p : undefined }, searchParams.page ?? 1)
+  /** A view of the Acquired vs required tab: Material and the page's own filters
+   * kept; the view's Status, Overdue, Reservation and page cleared. */
+  const planViewHref = (to: "SAP" | "ASSISTANT") =>
+    pageHref(
+      PATH,
+      {
+        ...searchParams,
+        tab: "plan",
+        planView: to === "ASSISTANT" ? "assistant" : undefined,
+        planStatus: undefined,
+        overdue: undefined,
+        reservation: undefined,
+      },
+      1
+    )
 
   const nonMoverRows = nonMovers?.rows ?? []
 
@@ -296,10 +311,7 @@ export async function UtilisationDashboardPage({
                 <DetailTab
                   value="plan"
                   label="Acquired vs required"
-                  count={sumCounts(
-                    sectionCount(dashboard.planAssistantCounts, (d) => d.total),
-                    sectionCount(dashboard.planSapCounts, (d) => d.total)
-                  )}
+                  count={sectionCount(dashboard.planViewTotals, (d) => d.SAP + d.ASSISTANT)}
                 />
                 <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
                 <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
@@ -338,40 +350,27 @@ export async function UtilisationDashboardPage({
               <TabsContent value="plan">
                 <div className="flex flex-col gap-3">
                   <TabIntro info="acquiredVsPlanTab">
-                    What was issued against what was required: first the plans captured in the assistant, then the
-                    OAR reservations raised directly in SAP.
+                    What was issued against what was required: OAR reservations raised directly in SAP, or the
+                    plans captured in the assistant.
                   </TabIntro>
                   <AcquiredVsPlanPanel
+                    view={planView}
                     filters={planVsIssuedFilters}
-                    assistant={{
-                      rows: dashboard.planAssistant.status === "ready" ? dashboard.planAssistant.data.rows : [],
-                      total: dashboard.planAssistant.status === "ready" ? dashboard.planAssistant.data.total : null,
-                      overdue: dashboard.planAssistantCounts.status === "ready" ? dashboard.planAssistantCounts.data.overdue : null,
-                      error: sectionError(dashboard.planAssistant),
+                    viewHrefs={{ SAP: planViewHref("SAP"), ASSISTANT: planViewHref("ASSISTANT") }}
+                    viewTotals={dashboard.planViewTotals.status === "ready" ? dashboard.planViewTotals.data : null}
+                    table={{
+                      rows: dashboard.planRows.status === "ready" ? dashboard.planRows.data.rows : [],
+                      total: dashboard.planRows.status === "ready" ? dashboard.planRows.data.total : null,
+                      overdue: dashboard.planCounts.status === "ready" ? dashboard.planCounts.data.overdue : null,
+                      error: sectionError(dashboard.planRows),
                       pagination:
-                        dashboard.planAssistant.status === "ready" ? (
-                          <TablePagination
-                            page={searchParams.apage ?? 1}
-                            pageSize={DEFAULT_PAGE_SIZE}
-                            total={dashboard.planAssistant.data.total}
-                            count={dashboard.planAssistant.data.count}
-                            noun="plans"
-                            hrefFor={assistantHref}
-                          />
-                        ) : null,
-                    }}
-                    sap={{
-                      rows: dashboard.planSap.status === "ready" ? dashboard.planSap.data.rows : [],
-                      total: dashboard.planSap.status === "ready" ? dashboard.planSap.data.total : null,
-                      error: sectionError(dashboard.planSap),
-                      pagination:
-                        dashboard.planSap.status === "ready" ? (
+                        dashboard.planRows.status === "ready" ? (
                           <TablePagination
                             page={pageOf("plan")}
                             pageSize={DEFAULT_PAGE_SIZE}
-                            total={dashboard.planSap.data.total}
-                            count={dashboard.planSap.data.count}
-                            noun="reservations"
+                            total={dashboard.planRows.data.total}
+                            count={dashboard.planRows.data.count}
+                            noun={planView === "ASSISTANT" ? "plans" : "reservations"}
                             hrefFor={hrefFor("plan")}
                           />
                         ) : null,
@@ -459,11 +458,6 @@ function TabIntro({ info, children }: { info: DashboardInfoId; children: ReactNo
 
 function sectionCount<T>(section: Section<T>, count: (data: T) => number): number | null {
   return section.status === "ready" ? count(section.data) : null
-}
-
-/** The tab badge over both tables; unknown while either count is. */
-function sumCounts(a: number | null, b: number | null): number | null {
-  return a === null || b === null ? null : a + b
 }
 
 /** A section's failure as one line, or null when it loaded. */

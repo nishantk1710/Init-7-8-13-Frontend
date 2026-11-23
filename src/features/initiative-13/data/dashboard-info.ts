@@ -313,7 +313,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
   acquiredVsPlanTab: {
     title: "Acquired vs required",
     tone: "warning",
-    summary: "What was issued against what was required, in two tables: plans captured in the assistant, and OAR reservations raised directly in SAP.",
+    summary: "What was issued against what was required, in two views: OAR reservations raised directly in SAP, and plans captured in the assistant.",
     rule: [
       "Required = what was asked for: the plan's quantity in the assistant, or the reserved quantity in SAP",
       "Issued = what was used: goods issued against the reservation(s), reversals taken off",
@@ -328,7 +328,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "The comparison is exact: 9 issued against 10 required is Partially issued.",
       "A reservation raised directly in SAP has no consumption plan, so it is never overdue: the Non-AI and 30-day checks cover it.",
       "Hover a status to see its Required by date: the plan's window end or the reservation's requirement date.",
-      "Each table has its own count, pages and export; each row links to its reservation in the Utilization Ledger.",
+      "Switch between Direct from SAP and Via assistant; each view has its own filters, count, pages and export, and switching keeps the Material filter. Each row links to its reservation in the Utilization Ledger.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",

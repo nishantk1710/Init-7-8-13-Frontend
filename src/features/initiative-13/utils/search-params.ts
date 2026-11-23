@@ -52,8 +52,8 @@ export type I13SearchParams = {
   planStatus?: string
   /** Dashboard, Acquired vs required tab: `1` keeps captured plans that are Planned Consumption Overdue. */
   overdue?: string
-  /** Dashboard, Acquired vs required tab: the Via assistant table's page. Absent means page 1. */
-  apage?: number
+  /** Dashboard, Acquired vs required tab: `assistant` opens Via assistant; absent (or anything else) is Direct from SAP. */
+  planView?: string
   /** Dashboard, Acquired vs required tab: one material, for its two tables only (the KPI cards keep `material`). */
   planMaterial?: string
   tab?: string
@@ -101,7 +101,7 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),
-    apage: parsePage(raw.apage),
+    planView: single(raw.planView),
     planMaterial: single(raw.planMaterial),
   }
 }
@@ -128,7 +128,7 @@ export function mergeSearchParams(
 
 /** True when nothing is set — for an "all positions" vs "filtered" caption. A page is not a filter. */
 export function isUnfiltered(params: I13SearchParams): boolean {
-  return Object.entries(params).every(([key, value]) => key === "page" || key === "apage" || value === undefined)
+  return Object.entries(params).every(([key, value]) => key === "page" || value === undefined)
 }
 
 /**

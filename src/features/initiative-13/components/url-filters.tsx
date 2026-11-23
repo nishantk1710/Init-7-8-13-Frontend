@@ -36,7 +36,7 @@ import {
   PLAN_VS_ISSUED_STATUS_LABEL,
   PLAN_VS_ISSUED_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
-import { ACT_EXCEPTION_FILTER_TYPES, PLAN_VS_ISSUED_SOURCES } from "@/lib/api/i13"
+import { ACT_EXCEPTION_FILTER_TYPES, PLAN_VS_ISSUED_SOURCES, type PlanVsIssuedStatus } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -74,6 +74,7 @@ export function I13UrlFilters({
   className,
   layout = "bar",
   pin,
+  planStatuses = PLAN_VS_ISSUED_STATUS_ORDER,
 }: {
   /** Which controls this screen wants. Not every screen filters by everything. */
   fields: readonly (
@@ -107,6 +108,8 @@ export function I13UrlFilters({
   /** Parameters every change also sets -- a bar inside a tab keeps that tab
    * open (`{ tab: "plan" }`) when the page re-renders. */
   pin?: Record<string, string>
+  /** The Acquired vs required statuses this view can hold (Direct from SAP has no "Awaiting reservation"). */
+  planStatuses?: readonly PlanVsIssuedStatus[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -116,7 +119,7 @@ export function I13UrlFilters({
   function push(patch: Record<string, string | undefined>) {
     // Any filter change starts the result over at page 1: page 40 of the old
     // filter means nothing in the new one.
-    const query = mergeSearchParams(searchParams, { ...pin, ...patch, page: undefined, apage: undefined })
+    const query = mergeSearchParams(searchParams, { ...pin, ...patch, page: undefined })
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     })
@@ -214,7 +217,7 @@ export function I13UrlFilters({
             label="All statuses"
             width="sm:w-48"
             value={searchParams.get("planStatus") ?? ""}
-            options={PLAN_VS_ISSUED_STATUS_ORDER.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
+            options={planStatuses.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
             onChange={(value) => push({ planStatus: value })}
           />)}
 

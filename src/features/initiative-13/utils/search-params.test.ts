@@ -29,6 +29,11 @@ describe("parseSearchParams", () => {
     })
   })
 
+  it("reads which Acquired vs required view is open; none means Direct from SAP", () => {
+    expect(parseSearchParams({ planView: "assistant" }).planView).toBe("assistant")
+    expect(parseSearchParams({}).planView).toBeUndefined()
+  })
+
   it("treats a repeated parameter as malformed rather than guessing", () => {
     // `?plant=1300&plant=1500` has no defensible single answer, so it gets
     // none -- the same rule the assistant's deep-link route applies.
