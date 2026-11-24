@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { MonthlyConsumption, UsagePattern } from "@/lib/api/i13"
-import { formatCount } from "@/lib/utils"
+import { formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -34,7 +34,7 @@ function MonthBars({ months }: { months: MonthlyConsumption[] }) {
         return (
           <div
             key={m.month}
-            title={`${m.month}: ${formatCount(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}; ${formatCount(m.receivedQuantity)} received`}
+            title={`${m.month}: ${formatQuantity(m.issuedQuantity)} issued in ${m.issueCount} movement${m.issueCount === 1 ? "" : "s"}; ${formatQuantity(m.receivedQuantity)} received`}
             className="flex h-full w-2 items-end rounded-sm bg-muted"
           >
             {height > 0 && <div className="w-full rounded-sm bg-primary" style={{ height: `${height}%` }} />}
@@ -56,19 +56,21 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[16, 7, 9, 16, 9, 8, 9, 8, 8, 9]} minWidth={1000}>
+    <DataTable className={FITTED_TABLE} widths={[14, 6, 7, 8, 14, 8, 7, 8, 7, 7, 7, 7]} minWidth={1150}>
       <TableHeader>
         <TableRow>
           <ColumnHead source="material">Material</ColumnHead>
           <ColumnHead source="plant">Plant</ColumnHead>
+          <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
           <ColumnHead source="stockType">Stock type</ColumnHead>
           <ColumnHead source="issues">Monthly issues</ColumnHead>
           <ColumnHead source="issues" className="text-right">Issued (history)</ColumnHead>
           <ColumnHead source="issues" className="text-right">Active months</ColumnHead>
           <ColumnHead source="lastIssue">Last issue</ColumnHead>
-          <ColumnHead source="stockOnHand" className="text-right">Stock</ColumnHead>
           <ColumnHead source="issues" className="text-right">Avg / month</ColumnHead>
           <ColumnHead source="monthsOfCover" className="text-right">Months of cover</ColumnHead>
+          <ColumnHead source="inventoryTurns" className="text-right">Turns</ColumnHead>
+          <ColumnHead source="daysSinceMovement" className="text-right">Days since movement</ColumnHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -80,6 +82,9 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               </div>
             </TableCell>
             <TableCell className="text-muted-foreground">{sapPlantLabel(row.plant)}</TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : <span className="whitespace-nowrap tabular-nums">{formatQuantity(row.stockOnHand)}</span>}
+            </TableCell>
             <TableCell>
               {row.agingBand ? (
                 <StatusPill tone={BAND_TONE[row.agingBand]}>{row.agingBand.replace("_", " ")}</StatusPill>
@@ -90,14 +95,11 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
             <TableCell>
               <MonthBars months={row.months} />
             </TableCell>
-            <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantityTotal)}</TableCell>
+            <TableCell className="text-right text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(row.issuedQuantityTotal)}</span></TableCell>
             <TableCell className="text-right text-foreground">
               {row.activeMonths} / {row.months.length}
             </TableCell>
             <TableCell className="text-muted-foreground">{row.lastIssueMonth ?? "Never"}</TableCell>
-            <TableCell className="text-right text-foreground">
-              {row.stockOnHand === null ? <EmptyValue kind="noStockRecord" /> : formatCount(row.stockOnHand)}
-            </TableCell>
             <TableCell className="text-right text-foreground">
               {row.averageMonthlyConsumption === null ? (
                 <EmptyValue kind="noConsumptionHistory" />
@@ -111,6 +113,12 @@ export function UsagePatternTable({ rows }: { rows: UsagePattern[] }) {
               ) : (
                 row.monthsOfCover.toFixed(1)
               )}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.inventoryTurns === null ? <EmptyValue kind="noConsumptionHistory" /> : row.inventoryTurns.toFixed(1)}
+            </TableCell>
+            <TableCell className="text-right text-foreground">
+              {row.daysSinceLastMovement === null ? "Never" : formatCount(row.daysSinceLastMovement)}
             </TableCell>
           </TableRow>
         ))}

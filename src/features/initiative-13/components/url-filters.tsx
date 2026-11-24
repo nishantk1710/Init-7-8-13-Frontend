@@ -36,7 +36,7 @@ import {
   PLAN_VS_ISSUED_STATUS_LABEL,
   PLAN_VS_ISSUED_STATUS_ORDER,
 } from "@/features/initiative-13/utils/status-labels"
-import { ACT_EXCEPTION_FILTER_TYPES, PLAN_VS_ISSUED_SOURCES } from "@/lib/api/i13"
+import { ACT_EXCEPTION_FILTER_TYPES, PLAN_VS_ISSUED_SOURCES, type PlanVsIssuedStatus } from "@/lib/api/i13"
 import { cn } from "@/lib/utils"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -74,6 +74,7 @@ export function I13UrlFilters({
   className,
   layout = "bar",
   pin,
+  planStatuses = PLAN_VS_ISSUED_STATUS_ORDER,
 }: {
   /** Which controls this screen wants. Not every screen filters by everything. */
   fields: readonly (
@@ -91,6 +92,9 @@ export function I13UrlFilters({
     | "source"
     | "planStatus"
     | "overdue"
+    | "planMaterial"
+    | "document"
+    | "reservationCreated"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -106,6 +110,8 @@ export function I13UrlFilters({
   /** Parameters every change also sets -- a bar inside a tab keeps that tab
    * open (`{ tab: "plan" }`) when the page re-renders. */
   pin?: Record<string, string>
+  /** The Acquired vs required statuses this view can hold (Direct from SAP has no "Awaiting reservation"). */
+  planStatuses?: readonly PlanVsIssuedStatus[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -131,7 +137,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Delivery status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue","planMaterial":"Material","document":"PR / PO number","reservationCreated":"Reservation created"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -171,6 +177,13 @@ export function I13UrlFilters({
             className="sm:w-44"
           />)}
 
+        {fields.includes("document") && wrap("document", <DebouncedInput
+            placeholder="Search PR / PO number"
+            value={searchParams.get("document") ?? ""}
+            onCommit={(value) => push({ document: value })}
+            className="sm:w-52"
+          />)}
+
         {fields.includes("agingBand") && wrap("agingBand", <UrlSelect
             label="All stock types"
             width="sm:w-40"
@@ -201,19 +214,27 @@ export function I13UrlFilters({
             onChange={(value) => push({ source: value })}
           />)}
 
+        {/* The Acquired vs required tab's own Material: narrows its two tables only, never the KPI cards. */}
+        {fields.includes("planMaterial") && wrap("planMaterial", <DebouncedInput
+            placeholder="Material"
+            value={searchParams.get("planMaterial") ?? ""}
+            onCommit={(value) => push({ planMaterial: value })}
+            className="sm:w-44"
+          />)}
+
         {fields.includes("planStatus") && wrap("planStatus", <UrlSelect
             label="All statuses"
             width="sm:w-48"
             value={searchParams.get("planStatus") ?? ""}
-            options={PLAN_VS_ISSUED_STATUS_ORDER.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
+            options={planStatuses.map((value) => ({ value, label: PLAN_VS_ISSUED_STATUS_LABEL[value] }))}
             onChange={(value) => push({ planStatus: value })}
           />)}
 
         {fields.includes("overdue") && wrap("overdue", <UrlSelect
-            label="Overdue: any"
+            label="All plans"
             width="sm:w-40"
             value={searchParams.get("overdue") ?? ""}
-            options={[{ value: "1", label: "Overdue only" }]}
+            options={[{ value: "1", label: "Overdue plans only" }]}
             onChange={(value) => push({ overdue: value })}
           />)}
 
@@ -229,8 +250,9 @@ export function I13UrlFilters({
             onChange={(value) => push({ type: value })}
           />)}
 
+        {/* No status = the open queue; Closed is one of the choices. */}
         {fields.includes("status") && wrap("status", <UrlSelect
-            label="All statuses"
+            label="All open"
             width="sm:w-48"
             value={searchParams.get("status") ?? ""}
             options={filterOptions(
@@ -250,11 +272,22 @@ export function I13UrlFilters({
           />)}
 
         {fields.includes("deliveryStatus") && wrap("deliveryStatus", <UrlSelect
-            label="All delivery statuses"
+            label="All procurement statuses"
             width="sm:w-48"
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ deliveryStatus: value })}
+          />)}
+
+        {fields.includes("reservationCreated") && wrap("reservationCreated", <UrlSelect
+            label="All lines"
+            width="sm:w-56"
+            value={searchParams.get("reservationCreated") ?? ""}
+            options={[
+              { value: "yes", label: "Reservation created" },
+              { value: "no", label: "No reservation (stock refill)" },
+            ]}
+            onChange={(value) => push({ reservationCreated: value })}
           />)}
 
         {fields.includes("reservationStatus") && wrap("reservationStatus", <UrlSelect

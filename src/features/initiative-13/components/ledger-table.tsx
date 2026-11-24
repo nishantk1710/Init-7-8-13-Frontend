@@ -23,7 +23,7 @@ import {
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import type { ProcurementStatus, UtilisationLedgerEntry } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatQuantity } from "@/lib/utils"
 
 const PROCUREMENT_TONE: Record<ProcurementStatus, DisplayTone> = {
   OPEN: "primary",
@@ -39,38 +39,10 @@ function reservationHref(entry: UtilisationLedgerEntry): string {
   return `/oar-utilization/ledger?${params.toString()}`
 }
 
-/**
- * Who raised the line. A reservation that raised its own PR (RESB-BANFN) is
- * linked: its goods issues are on the Reservations tab. Any other line refills
- * the material's stock -- SAP records a goods issue against a reservation,
- * never against a PO line, so nothing here says what was issued from it.
- */
-function RaisedByCell({ entry }: { entry: UtilisationLedgerEntry }) {
-  if (!entry.reservationNumber) {
-    return (
-      <TableCell className="text-xs text-muted-foreground" title={STOCK_REFILL_EXPLANATION}>
-        Stock refill
-      </TableCell>
-    )
-  }
-  return (
-    <TableCell className="text-xs" title={RAISED_BY_RESERVATION_EXPLANATION}>
-      <Link
-        href={reservationHref(entry)}
-        onClick={(event) => event.stopPropagation()}
-        className="font-medium whitespace-nowrap text-action underline-offset-2 hover:underline"
-      >
-        Reservation {entry.reservationNumber}
-        {entry.reservationItem ? `/${entry.reservationItem}` : ""}
-      </Link>
-    </TableCell>
-  )
-}
-
 /** The quantity drawn on top of the Received cell; nothing when there is none to show. */
 function QuantityLead({ value }: { value: number | null }) {
   if (!value) return null
-  return <span className="font-semibold tabular-nums text-foreground">{formatCount(value)}</span>
+  return <span className="font-semibold whitespace-nowrap tabular-nums text-foreground">{formatQuantity(value)}</span>
 }
 
 /**
@@ -82,9 +54,9 @@ function QuantityLead({ value }: { value: number | null }) {
 function ReceivedLead({ received, ordered }: { received: number | null; ordered: number | null }) {
   if (!ordered) return <QuantityLead value={received} />
   return (
-    <span className="tabular-nums" title="Received of ordered (EKPO-MENGE)">
-      <span className="font-semibold text-foreground">{formatCount(received ?? 0)}</span>
-      <span className="text-muted-foreground"> of {formatCount(ordered)}</span>
+    <span className="whitespace-nowrap tabular-nums" title="Received of ordered (EKPO-MENGE)">
+      <span className="font-semibold text-foreground">{formatQuantity(received ?? 0)}</span>
+      <span className="text-muted-foreground"> of {formatQuantity(ordered)}</span>
     </span>
   )
 }
@@ -177,7 +149,7 @@ export function UtilizationLedgerTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <DataTable className={FITTED_TABLE} widths={[4, 17, 13, 14, 17, 22]} minWidth={1000}>
+      <DataTable className={FITTED_TABLE} widths={[5, 30, 20, 22, 23]} minWidth={820}>
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
@@ -187,9 +159,6 @@ export function UtilizationLedgerTable({
             <ColumnHead source="poPr">PO / PR</ColumnHead>
             <ColumnHead source="received" note="Quantity received, with the goods-receipt date (EKBE-BUDAT) underneath">Received</ColumnHead>
             <ColumnHead source="procurement">Procurement</ColumnHead>
-            <ColumnHead source="raisedBy" note="The reservation that raised this line's PR (RESB-BANFN), or a stock refill when none did">
-              Raised by
-            </ColumnHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -255,11 +224,10 @@ export function UtilizationLedgerTable({
                       {PROCUREMENT_STATUS_LABELS[entry.procurementStatus]}
                     </StatusPill>
                   </TableCell>
-                  <RaisedByCell entry={entry} />
                 </TableRow>
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="p-0" />
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={4} className="p-0">
                     <div
                       className={cn(
                         "grid transition-[grid-template-rows] duration-300 ease-out",

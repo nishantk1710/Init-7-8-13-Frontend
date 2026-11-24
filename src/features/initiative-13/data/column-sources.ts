@@ -22,6 +22,7 @@ export const COLUMN_SOURCES = {
   stage:
     "Calculated from SAP: RESB-BANFN → EBAN (PR) → EKPO (PO) → EKBE (receipts) → MSEG 201/261 (issues), deletion flags RESB-XLOEK / EBAN-LOEKZ",
   sessionItemText: "SAP: RESB-SGTXT (item text), read for the request (R…) or session (S…) ID",
+  requester: "Spares AI: the Requester box of the assistant session the reservation's item text names (not in SAP)",
 
   // --- procurement lines
   poPr: "SAP: EKPO-EBELN / EBELP (PO / item) · EBAN-BANFN / BNFPO (PR / item)",

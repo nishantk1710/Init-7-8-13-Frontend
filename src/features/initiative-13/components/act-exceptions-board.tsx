@@ -11,6 +11,7 @@ import { DataTable, RowToggle, FITTED_TABLE } from "@/features/initiative-13/com
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import { relativeDue, type DisplayTone } from "@/features/initiative-13/utils/oar-display"
 import { EMPTY_LABEL } from "@/features/initiative-13/utils/empty-labels"
+import { ownerLabel } from "@/features/initiative-13/utils/owner-label"
 import { Button } from "@/components/ui/button"
 import {
   TableBody,
@@ -68,7 +69,24 @@ function ReservationChip({ number, item }: { number: string; item: string | null
   )
 }
 
-function DueCell({ dueAt }: { dueAt: string | null }) {
+function DueCell({
+  dueAt,
+  status,
+  resolvedAt,
+}: {
+  dueAt: string | null
+  status: ActException["status"]
+  resolvedAt: string | null
+}) {
+  // A closed exception has nothing due: say when it closed instead.
+  if (status === "RESOLVED") {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="font-semibold text-success">Closed</span>
+        {resolvedAt && <span className="text-xs text-muted-foreground">{formatApiDateTime(resolvedAt)}</span>}
+      </div>
+    )
+  }
   if (!dueAt) return <EmptyValue kind="noDueDate" />
   const hint = relativeDue(dueAt)
   return (
@@ -141,16 +159,16 @@ export function ActExceptionsBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      <DataTable className={FITTED_TABLE} widths={[4, 18, 11, 8, 12, 12, 10, 10, 8, 7]} minWidth={1000}>
+      <DataTable className={FITTED_TABLE} widths={[4, 18, 12, 11, 8, 12, 10, 10, 8, 7]} minWidth={1000}>
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
               <span className="sr-only">Details</span>
             </TableHead>
             <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="reservation">Reservation</ColumnHead>
             <ColumnHead source="exceptionType">Type</ColumnHead>
             <ColumnHead source="plant">Plant</ColumnHead>
-            <ColumnHead source="reservation">Reservation</ColumnHead>
             <ColumnHead source="exceptionOwner">Owner</ColumnHead>
             <ColumnHead source="exceptionStatus">Status</ColumnHead>
             <ColumnHead source="exceptionDetected">Detected</ColumnHead>
@@ -208,6 +226,13 @@ export function ActExceptionsBoard({
                     </div>
                   </TableCell>
                   <TableCell>
+                    {exception.reservationNumber ? (
+                      <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
+                    ) : (
+                      <EmptyValue kind="noReservationLinked" />
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <StatusPill
                       tone={TYPE_TONE[exception.exceptionType]}
                       title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
@@ -219,15 +244,8 @@ export function ActExceptionsBoard({
                   <TableCell className="whitespace-nowrap text-muted-foreground">
                     {sapPlantLabel(exception.plant)}
                   </TableCell>
-                  <TableCell>
-                    {exception.reservationNumber ? (
-                      <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
-                    ) : (
-                      <EmptyValue kind="noReservationLinked" />
-                    )}
-                  </TableCell>
                   <TableCell className="font-semibold text-foreground">
-                    {exception.ownerRequesterId ?? (
+                    {ownerLabel(exception.ownerRequesterId) ?? (
                       <span
                         className="font-semibold text-destructive"
                         title="No requester could be resolved, so this exception has never been routed and cannot escalate."
@@ -245,7 +263,11 @@ export function ActExceptionsBoard({
                     {formatApiDateTime(exception.detectedAt)}
                   </TableCell>
                   <TableCell>
-                    <DueCell dueAt={exception.requesterDueAt} />
+                    <DueCell
+                      dueAt={exception.requesterDueAt}
+                      status={exception.status}
+                      resolvedAt={exception.resolvedAt}
+                    />
                   </TableCell>
                   <TableCell
                     className="text-right"

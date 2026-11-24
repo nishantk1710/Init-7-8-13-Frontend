@@ -15,12 +15,19 @@ import {
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
-import type { ConsumptionPlan } from "@/lib/api/i13"
+import type { AcquiredVsPlanStatus, ConsumptionPlan, PlanVsIssuedStatus } from "@/lib/api/i13"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
-import { badgeTone, PLAN_STATUS_LABEL, PLAN_STATUS_TONE } from "@/features/initiative-13/utils/status-labels"
+import {
+  badgeTone,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_TONE,
+  PLAN_VS_ISSUED_STATUS_LABEL,
+  PLAN_VS_ISSUED_STATUS_TONE,
+} from "@/features/initiative-13/utils/status-labels"
 import { MaterialName } from "@/components/shared/material-name"
 import { PersonName } from "@/components/shared/person-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
+import { formatQuantity } from "@/lib/utils"
 
 /**
  * Consumption plans captured through the assistant — FR-4's record.
@@ -44,20 +51,20 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
     return (
       <EmptyState
         title="No consumption plans have been captured yet."
-        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every material and plant reads Non-AI on Acquired vs plan."
+        description="A plan is recorded when somebody completes the OAR flow in the reservation assistant. Until then, every material and plant reads Non-AI on Acquired vs required."
       />
     )
   }
 
   return (
     <div className="rounded-xl border border-border">
-      <StickyScrollTable widths={[16, 7, 9, 7, 11, 7, 12, 11, 10, 10]} minWidth={1000} wrapCells>
+      <StickyScrollTable widths={[13, 7, 9, 9, 10, 9, 15, 11, 10, 7]} minWidth={1000} wrapCells>
         <TableHeader>
           <TableRow>
             <ColumnHead source="material">Material</ColumnHead>
             <ColumnHead source="plant">Plant</ColumnHead>
             <ColumnHead source="planPurpose">Purpose</ColumnHead>
-            <ColumnHead source="planQty" className="text-right">Planned qty</ColumnHead>
+            <ColumnHead source="planQty" className="text-right">Required qty</ColumnHead>
             <ColumnHead source="planWindow">Window</ColumnHead>
             <ColumnHead
               source="issuedOnReservation"
@@ -66,7 +73,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
             >
               Issued
             </ColumnHead>
-            <ColumnHead source="acquiredVsPlan">Acquired vs plan</ColumnHead>
+            <ColumnHead source="acquiredVsPlan">Acquired vs required</ColumnHead>
             <ColumnHead source="planReservation">Reservation</ColumnHead>
             <ColumnHead source="planSession">Session</ColumnHead>
             <ColumnHead source="planCaptured">Captured</ColumnHead>
@@ -86,7 +93,7 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                 {/* Rendered as the string the backend sent. A planned quantity
                     round-tripped through a JS number is not the number that was
                     recorded, and this one is read by a compliance engine. */}
-                {plan.plannedQuantity}
+                <span className="whitespace-nowrap tabular-nums">{formatQuantity(plan.plannedQuantity)}</span>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {plan.windowStart || plan.windowEnd ? (
@@ -164,6 +171,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
   }
   const reservations = plan.matchedReservations ?? []
   const variance = plan.acquiredVsPlanVarianceQuantity
+  const issued = issuedStatus(status, plan.issuedQuantity)
   return (
     <>
       <TableCell className="text-right text-foreground">
@@ -171,7 +179,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
           <EmptyValue kind="noReservationYet" />
         ) : (
           <div className="flex flex-col items-end gap-0.5">
-            <span>{plan.issuedQuantity}</span>
+            <span className="whitespace-nowrap tabular-nums">{formatQuantity(plan.issuedQuantity)}</span>
             <span className="text-[11px] text-muted-foreground" title={reservations.join(", ")}>
               on {reservations.length === 1 ? reservations[0] : `${reservations.length} reservations`}
             </span>
@@ -180,17 +188,35 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
       </TableCell>
       <TableCell>
         <div className="flex flex-col items-start gap-0.5">
-          <StatusBadge tone={badgeTone(PLAN_STATUS_TONE[status])}>{PLAN_STATUS_LABEL[status]}</StatusBadge>
+          {/* Allowed to wrap: a badge wider than its column must never run over the next one. */}
+          <StatusBadge tone={badgeTone(issued.tone)} className="h-auto py-0.5 leading-tight whitespace-normal">
+            {issued.label}
+          </StatusBadge>
           {variance !== null && variance !== undefined && Number(variance) !== 0 && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[11px] whitespace-nowrap text-muted-foreground">
               {Number(variance) > 0 ? "+" : ""}
-              {variance}
+              {formatQuantity(variance)}
             </span>
           )}
         </div>
       </TableCell>
     </>
   )
+}
+
+/**
+ * The plan's status in the Acquired vs required words: not, partially or fully
+ * issued against the required quantity (the backend's on / below / above plan,
+ * read with what was issued), or its own words when there is nothing to issue
+ * against yet.
+ */
+function issuedStatus(status: AcquiredVsPlanStatus, issuedQuantity: string | null | undefined) {
+  if (status === "NO_RESERVATION" || status === "NO_PLAN") {
+    return { label: PLAN_STATUS_LABEL[status], tone: PLAN_STATUS_TONE[status] }
+  }
+  const key: PlanVsIssuedStatus =
+    Number(issuedQuantity ?? 0) <= 0 ? "NOT_ISSUED" : status === "BELOW_PLAN" ? "PARTIALLY_ISSUED" : "FULLY_ISSUED"
+  return { label: PLAN_VS_ISSUED_STATUS_LABEL[key], tone: PLAN_VS_ISSUED_STATUS_TONE[key] }
 }
 
 /** A small count badge for the dashboard section header. */

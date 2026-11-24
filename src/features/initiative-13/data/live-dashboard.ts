@@ -90,6 +90,10 @@ export type DashboardFilters = {
   planStatus?: string
   reservation?: string
   overdue?: boolean
+  /** The Acquired vs required view that is open: `SAP` (the default) or `ASSISTANT`. */
+  planView?: "SAP" | "ASSISTANT"
+  /** The tab's own Material: narrows its two tables, not the cards. Wins over `material` there. */
+  planMaterial?: string
 }
 
 export type LiveDashboard = {
@@ -108,10 +112,12 @@ export type LiveDashboard = {
   exceptionCounts: Section<ActExceptionCounts>
   justifications: Section<UnifiedJustification[]>
   plans: Section<LivePlans>
-  /** The acquired-vs-plan tab: one page of captured plans and SAP reservations. */
-  planVsIssued: Section<Capped<PlanVsIssuedRow>>
-  /** Its badge and filter counts, over every row the tab's filters match. */
-  planVsIssuedCounts: Section<PlanVsIssuedCounts>
+  /** The Acquired vs required tab's open view: one page of its rows. */
+  planRows: Section<Capped<PlanVsIssuedRow>>
+  /** The open view's counts under every filter (its overdue count). */
+  planCounts: Section<PlanVsIssuedCounts>
+  /** Each view's total under the page's Plant and Material only -- the switch's numbers. */
+  planViewTotals: Section<{ SAP: number; ASSISTANT: number }>
   /** Whether the backend offers the summary report (`I13_REPORT_ENABLED`).
    * Any failure reads as "not offered": the button is a convenience, and a
    * broken check must never cost the dashboard. */
@@ -151,12 +157,17 @@ export async function loadLiveDashboard(
     pageSize: DEFAULT_PAGE_SIZE,
   })
   const nonMoverFilter = !filters.agingBand || filters.agingBand === "NON_MOVING"
-  const planVsIssuedFilters = {
-    ...scope,
-    source: filters.source,
+  // One view at a time. Overdue is a captured plan's only, so it never
+  // narrows Direct from SAP. Switching views clears every filter of the view,
+  // so the switch's numbers follow only the page's own Plant and Material.
+  const planView = filters.planView ?? "SAP"
+  const planMaterialScope = { ...scope, material: filters.planMaterial || scope.material }
+  const openFilters = {
+    ...planMaterialScope,
+    source: planView,
     status: filters.planStatus,
     reservation: filters.reservation,
-    overdue: filters.overdue,
+    overdue: planView === "ASSISTANT" ? filters.overdue : undefined,
   }
 
   // All in flight together. Sequentially this would be eight round trips deep
@@ -169,8 +180,9 @@ export async function loadLiveDashboard(
     exceptionCounts,
     justifications,
     plans,
-    planVsIssued,
-    planVsIssuedCounts,
+    planRows,
+    planCounts,
+    planViewTotals,
     reportEnabled,
   ] = await Promise.all([
       loadLiveWatchCounts(filters).then(
@@ -187,8 +199,15 @@ export async function loadLiveDashboard(
       section(loadLiveExceptionCounts(scope)),
       section(getI13AllJustifications(scope)),
       section(loadLivePlans(scope, pageOf("plans"))),
-      section(loadLivePlanVsIssued(planVsIssuedFilters, pageOf("plan"))),
-      section(loadLivePlanVsIssuedCounts(planVsIssuedFilters)),
+      section(loadLivePlanVsIssued(openFilters, pageOf("plan"))),
+      section(loadLivePlanVsIssuedCounts(openFilters)),
+      // by_source ignores the source filter: both views' totals in one call.
+      section(
+        loadLivePlanVsIssuedCounts(scope).then((c) => ({
+          SAP: c.bySource.SAP ?? 0,
+          ASSISTANT: c.bySource.ASSISTANT ?? 0,
+        }))
+      ),
       listSummaryReports({ limit: 1 }).then(
         () => true,
         () => false
@@ -204,8 +223,9 @@ export async function loadLiveDashboard(
     exceptionCounts,
     justifications,
     plans,
-    planVsIssued,
-    planVsIssuedCounts,
+    planRows,
+    planCounts,
+    planViewTotals,
     reportEnabled,
   }
 }

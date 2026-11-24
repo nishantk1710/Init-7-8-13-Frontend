@@ -5,6 +5,7 @@ import { ArrowRight, FileText } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DataUpdatedNote } from "@/features/initiative-13/components/data-updated-note"
 import { AcquiredVsPlanPanel } from "@/features/initiative-13/components/acquired-vs-plan-panel"
 import { DashboardInfo } from "@/features/initiative-13/components/dashboard-info"
 import { DistributionBar } from "@/features/initiative-13/components/distribution-bar"
@@ -108,24 +109,28 @@ export async function UtilisationDashboardPage({
     // ?agingBand= must not narrow the page with no filter on screen to say so.
     acquiredVsPlanStatus: searchParams.acquiredVsPlanStatus,
   }
-  // The acquired-vs-plan tab's rows have their own filters, set inside the tab.
+  // The Acquired vs required tab's rows have their own filters, set inside the tab.
+  // Direct from SAP opens first; ?planView=assistant opens Via assistant.
+  const planView: "SAP" | "ASSISTANT" = searchParams.planView === "assistant" ? "ASSISTANT" : "SAP"
   const planVsIssuedFilters = {
     plant: searchParams.plant,
-    material: searchParams.material,
-    source: searchParams.source,
+    // The tab's own Material wins; else the page's, which narrows everything.
+    material: searchParams.planMaterial || searchParams.material,
+    source: planView,
     status: searchParams.planStatus,
     reservation: searchParams.reservation,
-    overdue: searchParams.overdue === "1",
+    overdue: planView === "ASSISTANT" && searchParams.overdue === "1",
   }
   const initialTab = resolveDetailTab(searchParams.tab)
   const page = searchParams.page ?? 1
   const dashboard = await loadLiveDashboard(
     {
       ...filters,
-      source: searchParams.source,
       planStatus: searchParams.planStatus,
       reservation: searchParams.reservation,
       overdue: searchParams.overdue === "1",
+      planView,
+      planMaterial: searchParams.planMaterial,
     },
     { tab: initialTab, page }
   )
@@ -134,6 +139,23 @@ export async function UtilisationDashboardPage({
   /** The page a tab is showing: the URL's for the open tab, else its first. */
   const pageOf = (tab: DetailTabId) => (tab === initialTab ? page : 1)
   const hrefFor = (tab: DetailTabId) => (p: number) => pageHref(PATH, { ...searchParams, tab }, p)
+  /** A view of the Acquired vs required tab, opened clean: the view's own
+   * filters (Material, Status, Overdue, Reservation) and page cleared; only the
+   * page's own Plant and Material, which narrow the whole dashboard, kept. */
+  const planViewHref = (to: "SAP" | "ASSISTANT") =>
+    pageHref(
+      PATH,
+      {
+        ...searchParams,
+        tab: "plan",
+        planView: to === "ASSISTANT" ? "assistant" : undefined,
+        planMaterial: undefined,
+        planStatus: undefined,
+        overdue: undefined,
+        reservation: undefined,
+      },
+      1
+    )
 
   const nonMoverRows = nonMovers?.rows ?? []
 
@@ -178,6 +200,7 @@ export async function UtilisationDashboardPage({
     <OarScope>
       <OarPageHeader
         title="OAR Utilization"
+        meta={<DataUpdatedNote />}
         subtitle="How OAR spares move from reservation to issue — what is idle, what is off plan, and what needs a follow-up."
         notes={
           dashboard.summary.status === "ready" ? (
@@ -289,8 +312,8 @@ export async function UtilisationDashboardPage({
                 <DetailTab value="non-movers" label="Non-movers" count={nonMovers?.total ?? null} />
                 <DetailTab
                   value="plan"
-                  label="Acquired vs plan"
-                  count={sectionCount(dashboard.planVsIssuedCounts, (d) => d.total)}
+                  label="Acquired vs required"
+                  count={sectionCount(dashboard.planViewTotals, (d) => d.SAP + d.ASSISTANT)}
                 />
                 <DetailTab value="plans" label="Captured plans" count={capturedPlanCount} />
                 <DetailTab value="justifications" label="Justifications" count={sectionCount(dashboard.justifications, (d) => d.length)} />
@@ -327,32 +350,35 @@ export async function UtilisationDashboardPage({
               </TabsContent>
 
               <TabsContent value="plan">
-                {dashboard.planVsIssued.status === "ready" ? (
-                  <div className="flex flex-col gap-3">
-                    <TabIntro info="acquiredVsPlanTab">
-                      Every plan captured in the assistant and every OAR reservation raised directly in SAP,
-                      with the quantity issued against it.
-                    </TabIntro>
-                    <AcquiredVsPlanPanel
-                      rows={dashboard.planVsIssued.data.rows}
-                      total={dashboard.planVsIssued.data.total}
-                      counts={dashboard.planVsIssuedCounts.status === "ready" ? dashboard.planVsIssuedCounts.data : null}
-                      filters={planVsIssuedFilters}
-                      pagination={
-                        <TablePagination
-                          page={pageOf("plan")}
-                          pageSize={DEFAULT_PAGE_SIZE}
-                          total={dashboard.planVsIssued.data.total}
-                          count={dashboard.planVsIssued.data.count}
-                          noun="rows"
-                          hrefFor={hrefFor("plan")}
-                        />
-                      }
-                    />
-                  </div>
-                ) : (
-                  <SectionFallback section={dashboard.planVsIssued} what="acquired-vs-plan rows" />
-                )}
+                <div className="flex flex-col gap-3">
+                  <TabIntro info="acquiredVsPlanTab">
+                    What was issued against what was required: OAR reservations raised directly in SAP, or the
+                    plans captured in the assistant.
+                  </TabIntro>
+                  <AcquiredVsPlanPanel
+                    view={planView}
+                    filters={planVsIssuedFilters}
+                    viewHrefs={{ SAP: planViewHref("SAP"), ASSISTANT: planViewHref("ASSISTANT") }}
+                    viewTotals={dashboard.planViewTotals.status === "ready" ? dashboard.planViewTotals.data : null}
+                    table={{
+                      rows: dashboard.planRows.status === "ready" ? dashboard.planRows.data.rows : [],
+                      total: dashboard.planRows.status === "ready" ? dashboard.planRows.data.total : null,
+                      overdue: dashboard.planCounts.status === "ready" ? dashboard.planCounts.data.overdue : null,
+                      error: sectionError(dashboard.planRows),
+                      pagination:
+                        dashboard.planRows.status === "ready" ? (
+                          <TablePagination
+                            page={pageOf("plan")}
+                            pageSize={DEFAULT_PAGE_SIZE}
+                            total={dashboard.planRows.data.total}
+                            count={dashboard.planRows.data.count}
+                            noun={planView === "ASSISTANT" ? "plans" : "reservations"}
+                            hrefFor={hrefFor("plan")}
+                          />
+                        ) : null,
+                    }}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="plans">
@@ -434,6 +460,11 @@ function TabIntro({ info, children }: { info: DashboardInfoId; children: ReactNo
 
 function sectionCount<T>(section: Section<T>, count: (data: T) => number): number | null {
   return section.status === "ready" ? count(section.data) : null
+}
+
+/** A section's failure as one line, or null when it loaded. */
+function sectionError<T>(section: Section<T>): string | null {
+  return section.status === "ready" ? null : section.message
 }
 
 /** A calm "nothing to do" — smaller than `EmptyState`, which is sized for a page. */

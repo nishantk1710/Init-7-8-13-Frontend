@@ -17,7 +17,7 @@ import { exportNonMoverRows } from "@/features/initiative-13/export-actions"
 import { NEVER_ISSUED, nonMoverRowsToCsv } from "@/features/initiative-13/utils/dashboard-transforms"
 import { formatApiDate } from "@/lib/api/format"
 import type { WatchMetric } from "@/lib/api/i13"
-import { downloadExcel, formatCount } from "@/lib/utils"
+import { downloadExcel, formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
@@ -121,7 +121,7 @@ export function NonMoverTable({
                 <LastIssued row={row} />
               </TableCell>
               <TableCell className="text-right text-foreground">
-                {row.stockOnHand !== null ? <span className="font-semibold">{formatCount(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
+                {row.stockOnHand !== null ? <span className="font-semibold whitespace-nowrap tabular-nums">{formatQuantity(row.stockOnHand)}</span> : <EmptyValue kind="noStockRecord" />}
               </TableCell>
             </TableRow>
           ))}

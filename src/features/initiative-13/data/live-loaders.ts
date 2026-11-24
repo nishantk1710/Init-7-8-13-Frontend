@@ -185,6 +185,10 @@ export type ProcurementLedgerFilters = LedgerFilters & {
   procurementStatus?: string
   utilisationStatus?: string
   deliveryStatus?: string
+  /** A PR or PO number. */
+  document?: string
+  /** `yes` / `no` from the URL: lines a reservation raised, or the rest. */
+  reservationCreated?: string
 }
 
 export type LiveLedger = Capped<UtilisationLedgerEntry> & {
@@ -210,6 +214,9 @@ export async function loadLiveLedger(
     procurementStatus: filters.procurementStatus || undefined,
     utilisationStatus: filters.utilisationStatus || undefined,
     deliveryStatus: filters.deliveryStatus || undefined,
+    document: filters.document || undefined,
+    hasReservation:
+      filters.reservationCreated === "yes" ? true : filters.reservationCreated === "no" ? false : undefined,
   }
   const [{ items: rows, total }, counts] = await Promise.all([
     getI13LedgerList({ ...scope, ...pageRequest(paging) }),
@@ -253,6 +260,8 @@ export async function loadLiveActExceptions(
     material: filters.material || undefined,
     type: filters.type || undefined,
     status: filters.status || undefined,
+    // No status picked = the open queue: Closed is a choice, not the default (24-Nov-2026).
+    openOnly: !filters.status,
     ...pageRequest(paging),
   })
 

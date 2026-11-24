@@ -3,6 +3,7 @@ import { connection } from "next/server"
 import { ListChecks, MessagesSquare, Rows3, Unlink } from "lucide-react"
 
 import { TablePagination } from "@/components/shared/table-pagination"
+import { DataUpdatedNote } from "@/features/initiative-13/components/data-updated-note"
 import { UtilizationLedgerTable } from "@/features/initiative-13/components/ledger-table"
 import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
@@ -88,7 +89,9 @@ export async function UtilizationLedgerPage({
   // time forever -- so a reservation raised afterwards never appears.
   await connection()
 
-  const reservationsView = searchParams.view === "reservations" || Boolean(searchParams.session)
+  // Reservations first (UAT, 18-Nov-2026): the plain ledger link opens it, and
+  // Procurement lines is `?view=lines`. An old `?view=reservations` link still works.
+  const reservationsView = searchParams.view !== "lines" || Boolean(searchParams.session)
 
   return reservationsView ? (
     <ReservationsView searchParams={searchParams} />
@@ -97,20 +100,20 @@ export async function UtilizationLedgerPage({
   )
 }
 
-/** Procurement lines | Reservations, keeping the current filters. */
+/** Reservations | Procurement lines, keeping the current filters. */
 function ViewToggle({ searchParams, active }: { searchParams: I13SearchParams; active: "lines" | "reservations" }) {
   const base = new URLSearchParams()
   if (searchParams.plant) base.set("plant", searchParams.plant)
   if (searchParams.material) base.set("material", searchParams.material)
-  const lines = base.toString()
-  const reservations = new URLSearchParams(base)
-  reservations.set("view", "reservations")
+  const reservations = base.toString()
+  const lines = new URLSearchParams(base)
+  lines.set("view", "lines")
   return (
     <SegmentedTabs
       label="Ledger view"
       tabs={[
-        { href: `/oar-utilization/ledger${lines ? `?${lines}` : ""}`, label: "Procurement lines", active: active === "lines" },
-        { href: `/oar-utilization/ledger?${reservations.toString()}`, label: "Reservations", active: active === "reservations" },
+        { href: `/oar-utilization/ledger${reservations ? `?${reservations}` : ""}`, label: "Reservations", active: active === "reservations" },
+        { href: `/oar-utilization/ledger?${lines.toString()}`, label: "Procurement lines", active: active === "lines" },
       ]}
     />
   )
@@ -169,6 +172,7 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
     <OarScope>
         <OarPageHeader
           title="Utilization Ledger"
+          meta={<DataUpdatedNote />}
           subtitle={
             sessionLabel ??
             "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
@@ -242,6 +246,8 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
         material: searchParams.material,
         procurementStatus: searchParams.procurementStatus,
         deliveryStatus: searchParams.deliveryStatus,
+        document: searchParams.document,
+        reservationCreated: searchParams.reservationCreated,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
     )
@@ -260,6 +266,7 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
     <OarScope>
         <OarPageHeader
           title="Utilization Ledger"
+          meta={<DataUpdatedNote />}
           subtitle="Every OAR procurement line, newest first, followed from PR through goods receipt."
         />
 
@@ -291,7 +298,7 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           <ViewToggle searchParams={searchParams} active="lines" />
           <I13UrlFilters
             className="flex-1"
-            fields={["plant", "material", "procurementStatus", "deliveryStatus"]}
+            fields={["plant", "material", "document", "deliveryStatus", "reservationCreated"]}
             plants={live?.plantOptions}
           />
         </ToolbarRow>

@@ -122,23 +122,22 @@ export const ACQUIRED_VS_PLAN_STATUSES: readonly AcquiredVsPlanStatus[] = [
 ]
 // The acquired-vs-plan tab's rows (`GET /i13/acquired-vs-plan`): a captured
 // plan, or an OAR reservation raised directly in SAP, read the same way --
-// planned (asked for: a plan's quantity, a reservation's reserved quantity)
+// required (asked for: a plan's quantity, a reservation's reserved quantity)
 // against issued (used; the goods issue, never a GR). Awaiting reservation (a
-// plan nothing is reserved for yet), not due yet (nothing issued, date ahead),
-// else on, below or above plan. Overdue is a marker on a below-plan row whose
-// date has passed, not a status.
+// plan nothing is reserved for yet), else not, partially or fully issued.
+// Overdue (Planned Consumption Overdue) is a marker on a captured plan only:
+// its window has ended and nothing was issued. A SAP row is never overdue.
 export type PlanVsIssuedSource = "ASSISTANT" | "SAP"
 
-export type PlanVsIssuedStatus = "NO_RESERVATION" | "NOT_DUE" | "ON_PLAN" | "BELOW_PLAN" | "ABOVE_PLAN"
+export type PlanVsIssuedStatus = "NO_RESERVATION" | "NOT_ISSUED" | "PARTIALLY_ISSUED" | "FULLY_ISSUED"
 
 export const PLAN_VS_ISSUED_SOURCES: readonly PlanVsIssuedSource[] = ["ASSISTANT", "SAP"]
 
 export const PLAN_VS_ISSUED_STATUSES: readonly PlanVsIssuedStatus[] = [
   "NO_RESERVATION",
-  "NOT_DUE",
-  "ON_PLAN",
-  "BELOW_PLAN",
-  "ABOVE_PLAN",
+  "NOT_ISSUED",
+  "PARTIALLY_ISSUED",
+  "FULLY_ISSUED",
 ]
 
 export type PlanVsIssuedRow = {
@@ -156,14 +155,14 @@ export type PlanVsIssuedRow = {
   /** What was used: goods issued, reversals netted. */
   issuedQuantity: string
   status: PlanVsIssuedStatus
-  /** Null while awaiting a reservation or not due yet. */
+  /** Null while awaiting a reservation. */
   varianceQuantity: string | null
   /** Also null when nothing was planned. */
   variancePercentage: number | null
   /** A plan's window end, a reservation's requirement date. */
   dueDate: string | null
   windowStart: string | null
-  /** Below plan, and `dueDate` has passed. */
+  /** A captured plan, nothing issued, and `dueDate` (its window end) has passed. Never a SAP row. */
   overdue: boolean
 }
 
@@ -705,6 +704,9 @@ export interface UsagePattern {
   stockOnHand: number | null
   averageMonthlyConsumption: number | null
   monthsOfCover: number | null
+  /** WATCH's inventory turns and days since the last movement of any type. */
+  inventoryTurns: number | null
+  daysSinceLastMovement: number | null
   issuedQuantityTotal: number
   issueCountTotal: number
   activeMonths: number
@@ -757,6 +759,8 @@ export interface ReservationLedgerRow {
   sessionId: string | null
   /** The linked session as the requester knows it: `R.../n` for a request line, else the session ID. */
   sessionReference: string | null
+  /** The name in the assistant's Requester box. Null for a reservation raised directly in SAP (Non-AI). */
+  requesterName: string | null
   sgtxt: string | null
   uatSimulated: boolean
   /**

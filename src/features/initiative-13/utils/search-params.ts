@@ -36,6 +36,10 @@ export type I13SearchParams = {
   procurementStatus?: string
   utilisationStatus?: string
   deliveryStatus?: string
+  /** Ledger screen, procurement view: a PR or PO number (exact; leading zeros optional). */
+  document?: string
+  /** Ledger screen, procurement view: `yes` keeps lines a reservation raised, `no` the stock refills. */
+  reservationCreated?: string
   /** Ledger screen: `reservations` shows the reservation-anchored ledger. */
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
@@ -46,12 +50,16 @@ export type I13SearchParams = {
   reservationStatus?: string
   /** Ledger screen, reservations view: `NOT_ISSUED`, `PARTIALLY_ISSUED` or `FULLY_ISSUED`. */
   issued?: string
-  /** Dashboard, acquired-vs-plan tab: `ASSISTANT` or `SAP`. */
+  /** Dashboard, Acquired vs required tab: `ASSISTANT` or `SAP` (old links; the tab now shows both tables). */
   source?: string
-  /** Dashboard, acquired-vs-plan tab: one row status (`BELOW_PLAN`, `NOT_ISSUED`, ...). */
+  /** Dashboard, Acquired vs required tab: one row status (`NOT_ISSUED`, `PARTIALLY_ISSUED`, ...). */
   planStatus?: string
-  /** Dashboard, acquired-vs-plan tab: `1` keeps below-plan rows whose date has passed. */
+  /** Dashboard, Acquired vs required tab: `1` keeps captured plans that are Planned Consumption Overdue. */
   overdue?: string
+  /** Dashboard, Acquired vs required tab: `assistant` opens Via assistant; absent (or anything else) is Direct from SAP. */
+  planView?: string
+  /** Dashboard, Acquired vs required tab: one material, for its two tables only (the KPI cards keep `material`). */
+  planMaterial?: string
   tab?: string
   /** Validation screen: the ZMM065 report month (`YYYY-MM`) to reconcile against. */
   month?: string
@@ -86,6 +94,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     procurementStatus: single(raw.procurementStatus),
     utilisationStatus: single(raw.utilisationStatus),
     deliveryStatus: single(raw.deliveryStatus),
+    document: single(raw.document),
+    reservationCreated: single(raw.reservationCreated),
     view: single(raw.view),
     session: single(raw.session),
     reservation: single(raw.reservation),
@@ -97,6 +107,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     tab: single(raw.tab),
     month: single(raw.month),
     page: parsePage(raw.page),
+    planView: single(raw.planView),
+    planMaterial: single(raw.planMaterial),
   }
 }
 

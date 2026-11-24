@@ -189,7 +189,7 @@ function planRow(overrides: Partial<PlanVsIssuedRow>): PlanVsIssuedRow {
     planId: null,
     plannedQuantity: "15.000",
     issuedQuantity: "15.000",
-    status: "ON_PLAN",
+    status: "FULLY_ISSUED",
     varianceQuantity: "0",
     variancePercentage: 0,
     dueDate: "2026-06-04",
@@ -205,7 +205,7 @@ describe("planVsIssuedRowsToCsv", () => {
       planRow({}),
       planRow({
         rowId: "PLAN-P1", source: "ASSISTANT", reservations: [], sessionId: "SABC", planId: "P1",
-        plannedQuantity: "5.000", issuedQuantity: "0", status: "BELOW_PLAN",
+        plannedQuantity: "5.000", issuedQuantity: "0", status: "NOT_ISSUED",
         varianceQuantity: "-5.000", variancePercentage: -100, dueDate: "2026-10-23", overdue: true,
       }),
       planRow({
@@ -215,9 +215,9 @@ describe("planVsIssuedRowsToCsv", () => {
       }),
     ]
     expect(planVsIssuedRowsToCsv(rows)).toEqual([
-      ["Direct from SAP", "MAT-1", "1300", "2022510/1", "15.000", "15.000", "On plan", "2026-06-04", "No"],
-      ["Via assistant", "MAT-1", "1300", "", "5.000", "0", "Below plan", "2026-10-23", "Yes"],
-      ["Via assistant", "MAT-1", "1300", "", "2.000", "0", "Awaiting reservation", "2026-12-01", "No"],
+      ["Direct from SAP", "MAT-1", "1300", "2022510/1", 15, 15, "Fully issued", "2026-06-04", "No"],
+      ["Via assistant", "MAT-1", "1300", "", 5, 0, "Not issued", "2026-10-23", "Yes"],
+      ["Via assistant", "MAT-1", "1300", "", 2, 0, "Awaiting reservation", "2026-12-01", "No"],
     ])
   })
 })

@@ -4,8 +4,6 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
 import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
-import { IssuedOnCell, NextPlannedIssueCell } from "@/features/initiative-13/components/issued-on-cell"
-import { ISSUE_MATCH_EXPLANATIONS, ISSUE_MATCH_LABELS } from "@/features/initiative-13/utils/issue-match"
 import {
   TableBody,
   TableCell,
@@ -15,45 +13,49 @@ import {
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { GrniEntry } from "@/lib/api/i13"
-import { formatCount } from "@/lib/utils"
+import { formatCount, formatQuantity } from "@/lib/utils"
 import { MaterialName } from "@/components/shared/material-name"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 
 /**
- * Goods received and not issued for 30+ days, one row per PO line.
+ * Goods received 30+ days ago and not (fully) issued, one row per PO line.
  *
- * "Issued" is what has gone out of the line's deliveries: its reservation's
- * issues where a reservation raised the PR, else the material's stock issues
- * counted against the oldest delivery first (the "How matched" column). The
- * age is the days since the line's **last** goods receipt, measured as of the
- * backend snapshot's date — the same rule, and the same threshold, WATCH
- * applies per material and plant. Nothing here re-derives it.
+ * Only what SAP records against the PO line is shown: the goods receipt -- its
+ * date and quantity -- and the days since. SAP posts a goods issue against the
+ * material and the reservation, never against a PO, so how much of a line was
+ * issued is not a fact SAP holds; it is not shown (UAT, 23-Nov-2026). Which
+ * lines are listed still follows the backend's rule (the reservation's own
+ * issues where a reservation raised the PR, else the material's issues counted
+ * oldest delivery first), and the tab's (i) says so. The age is the days since
+ * the line's last goods receipt, as of the backend snapshot's date.
  */
 export function GrniTable({ rows }: { rows: GrniEntry[] }) {
   if (rows.length === 0) {
     return (
       <EmptyState
         title="Nothing has been sitting unissued past the threshold."
-        description="No PO line with these filters was received and left with stock unissued for 30 days or more."
+        description="No PO line with these filters was received 30 or more days ago and left not, or only partly, issued."
       />
     )
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[17, 7, 9, 8, 8, 8, 9, 8, 9, 9, 8]} minWidth={1100}>
+    <DataTable className={FITTED_TABLE} widths={[34, 14, 14, 14, 12, 12]} minWidth={760}>
       <TableHeader>
         <TableRow>
           <ColumnHead source="material">Material</ColumnHead>
           <ColumnHead source="plant">Plant</ColumnHead>
           <ColumnHead source="po">PO</ColumnHead>
-          <ColumnHead source="received" className="text-right">Received</ColumnHead>
-          <ColumnHead source="matchedIssue" className="text-right">Issued</ColumnHead>
-          <ColumnHead source="matchedIssue" className="text-right" note="Received and not yet issued">In stock</ColumnHead>
-          <ColumnHead source="lastGr">Last GR</ColumnHead>
+          <ColumnHead
+            source="lastGr"
+            note="Date of the goods receipt on this PO line. If it was received in several deliveries, the latest one."
+          >
+            GR date
+          </ColumnHead>
+          <ColumnHead source="received" className="text-right" note="Quantity received on this PO line, reversals taken off">
+            Received qty
+          </ColumnHead>
           <ColumnHead source="daysSinceGr" className="text-right">Days since GR</ColumnHead>
-          <ColumnHead source="matchedIssue">Issued on</ColumnHead>
-          <ColumnHead source="nextPlannedIssue">Next planned issue</ColumnHead>
-          <ColumnHead source="matchedIssue">How matched</ColumnHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -68,46 +70,21 @@ export function GrniTable({ rows }: { rows: GrniEntry[] }) {
             <TableCell>
               <DocNo number={row.poNumber} item={row.poItem} />
             </TableCell>
-            <TableCell className="text-right text-foreground">
-              <div className="flex flex-col items-end gap-0.5">
-                <span>{formatCount(row.receivedQuantity)}</span>
+            <TableCell className="text-foreground">
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="whitespace-nowrap">{formatApiDate(row.lastGrDate)}</span>
                 {row.deliveryCount > 1 && (
                   <span className="text-xs whitespace-nowrap text-muted-foreground">
-                    {formatCount(row.deliveryCount)} deliveries
+                    latest of {formatCount(row.deliveryCount)} deliveries
                   </span>
                 )}
               </div>
             </TableCell>
-            <TableCell className="text-right text-foreground">{formatCount(row.issuedQuantity)}</TableCell>
-            <TableCell className="text-right font-semibold text-foreground">
-              {formatCount(row.outstandingQuantity)}
-            </TableCell>
-            <TableCell className="text-muted-foreground">{formatApiDate(row.lastGrDate)}</TableCell>
+            <TableCell className="text-right font-semibold text-foreground"><span className="whitespace-nowrap tabular-nums">{formatQuantity(row.receivedQuantity)}</span></TableCell>
             <TableCell className="text-right">
               <StatusPill tone={row.daysSinceGr >= row.thresholdDays * 3 ? "urgent" : "caution"}>
                 {formatCount(row.daysSinceGr)} days
               </StatusPill>
-            </TableCell>
-            <IssuedOnCell
-              firstDate={row.firstIssueDate}
-              lastDate={row.lastIssueDate}
-              received={row.receivedQuantity > 0}
-              issueMatch={row.issueMatch}
-            />
-            <NextPlannedIssueCell
-              date={row.nextPlannedIssueDate}
-              quantity={row.nextPlannedIssueQuantity}
-              inStock={row.outstandingQuantity > 0}
-            />
-            <TableCell>
-              {row.issueMatch && (
-                <span
-                  className="cursor-help text-xs whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
-                  title={ISSUE_MATCH_EXPLANATIONS[row.issueMatch]}
-                >
-                  {ISSUE_MATCH_LABELS[row.issueMatch]}
-                </span>
-              )}
             </TableCell>
           </TableRow>
         ))}
