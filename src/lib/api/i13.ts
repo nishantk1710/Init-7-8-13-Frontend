@@ -940,6 +940,8 @@ export function getI13ActExceptions(params?: {
   type?: string
   status?: string
   ownerRequesterId?: string
+  /** Leave out closed (RESOLVED) exceptions; a `status` wins over it. */
+  openOnly?: boolean
   limit?: number
   offset?: number
 }): Promise<ActException[]> {
@@ -967,6 +969,7 @@ export function getI13ActExceptionsList(
     type: params?.type,
     status: params?.status,
     owner_requester_id: params?.ownerRequesterId,
+    open_only: params?.openOnly ? "true" : undefined,
     limit: params?.limit,
     offset: params?.offset,
   })

@@ -99,7 +99,11 @@ export async function ExceptionsPage({
               label="Exceptions on this page"
               icon={<ListChecks className="size-3.5" aria-hidden />}
               value={formatCount(live.count)}
-              hint={live.total !== null ? `of ${formatCount(live.total)} in the queue` : undefined}
+              hint={
+                live.total !== null
+                  ? `of ${formatCount(live.total)} ${searchParams.status ? "" : "open "}in the queue`
+                  : undefined
+              }
             />
             <KpiCard
               accent="healthy"

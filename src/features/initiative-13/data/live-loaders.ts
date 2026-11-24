@@ -260,6 +260,8 @@ export async function loadLiveActExceptions(
     material: filters.material || undefined,
     type: filters.type || undefined,
     status: filters.status || undefined,
+    // No status picked = the open queue: Closed is a choice, not the default (24-Nov-2026).
+    openOnly: !filters.status,
     ...pageRequest(paging),
   })
 
