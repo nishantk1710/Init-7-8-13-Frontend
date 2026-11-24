@@ -172,6 +172,11 @@ export interface ApiPlantCount {
   count: number
 }
 
+/** GET /last-rebuilt: when the results the app shows were last rebuilt (UTC), or null when nothing is built. */
+export interface ApiLastRebuilt {
+  rebuilt_at: string | null
+}
+
 export interface ApiRecommendationSummaryStats {
   total: number
   by_status: ApiStatusCount[]
