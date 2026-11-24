@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header"
+import { LastRebuiltBadge } from "@/features/initiative-7/components/last-rebuilt-badge"
 import { InventoryOptimizationOverviewWorkspace } from "@/features/initiative-7/components/overview-workspace"
 
 export function InventoryOptimizationOverviewPage() {
@@ -8,6 +9,7 @@ export function InventoryOptimizationOverviewPage() {
         <PageHeader
           title="Inventory Planning"
           description="Criticality-aware ROP, safety-stock and max-stock recommendations."
+          actions={<LastRebuiltBadge />}
         />
 
         <InventoryOptimizationOverviewWorkspace />
