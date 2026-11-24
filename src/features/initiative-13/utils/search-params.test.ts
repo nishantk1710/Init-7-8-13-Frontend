@@ -34,6 +34,13 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams({}).planView).toBeUndefined()
   })
 
+  it("reads the procurement lines' PR / PO search and Reservation created filter", () => {
+    expect(parseSearchParams({ document: " 4500012345 ", reservationCreated: "yes" })).toMatchObject({
+      document: "4500012345",
+      reservationCreated: "yes",
+    })
+  })
+
   it("treats a repeated parameter as malformed rather than guessing", () => {
     // `?plant=1300&plant=1500` has no defensible single answer, so it gets
     // none -- the same rule the assistant's deep-link route applies.

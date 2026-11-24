@@ -36,6 +36,10 @@ export type I13SearchParams = {
   procurementStatus?: string
   utilisationStatus?: string
   deliveryStatus?: string
+  /** Ledger screen, procurement view: a PR or PO number (exact; leading zeros optional). */
+  document?: string
+  /** Ledger screen, procurement view: `yes` keeps lines a reservation raised, `no` the stock refills. */
+  reservationCreated?: string
   /** Ledger screen: `reservations` shows the reservation-anchored ledger. */
   view?: string
   /** Ledger screen: only reservations whose item text names this session. */
@@ -90,6 +94,8 @@ export function parseSearchParams(raw: RawSearchParams): I13SearchParams {
     procurementStatus: single(raw.procurementStatus),
     utilisationStatus: single(raw.utilisationStatus),
     deliveryStatus: single(raw.deliveryStatus),
+    document: single(raw.document),
+    reservationCreated: single(raw.reservationCreated),
     view: single(raw.view),
     session: single(raw.session),
     reservation: single(raw.reservation),

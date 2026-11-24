@@ -246,6 +246,8 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
         material: searchParams.material,
         procurementStatus: searchParams.procurementStatus,
         deliveryStatus: searchParams.deliveryStatus,
+        document: searchParams.document,
+        reservationCreated: searchParams.reservationCreated,
       },
       { page, pageSize: DEFAULT_PAGE_SIZE }
     )
@@ -296,7 +298,7 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           <ViewToggle searchParams={searchParams} active="lines" />
           <I13UrlFilters
             className="flex-1"
-            fields={["plant", "material", "deliveryStatus"]}
+            fields={["plant", "material", "document", "deliveryStatus", "reservationCreated"]}
             plants={live?.plantOptions}
           />
         </ToolbarRow>

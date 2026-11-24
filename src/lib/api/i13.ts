@@ -511,6 +511,10 @@ export type LedgerListFilters = {
   utilisationStatus?: string
   /** `DELIVERED`, `PARTIAL`, `NOT_DELIVERED` or `NO_PO` — see `utils/delivery-status.ts`. */
   deliveryStatus?: string
+  /** A PR or PO number: that PR's or PO's lines (exact number, leading zeros optional). */
+  document?: string
+  /** `true`: lines a reservation raised (RESB-BANFN); `false`: stock refills. */
+  hasReservation?: boolean
 }
 
 function ledgerFilterQuery(params?: LedgerListFilters) {
@@ -520,6 +524,8 @@ function ledgerFilterQuery(params?: LedgerListFilters) {
     procurement_status: params?.procurementStatus,
     utilisation_status: params?.utilisationStatus,
     delivery_status: params?.deliveryStatus,
+    document: params?.document,
+    has_reservation: params?.hasReservation === undefined ? undefined : String(params.hasReservation),
   }
 }
 

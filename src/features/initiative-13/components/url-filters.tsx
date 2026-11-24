@@ -93,6 +93,8 @@ export function I13UrlFilters({
     | "planStatus"
     | "overdue"
     | "planMaterial"
+    | "document"
+    | "reservationCreated"
   )[]
   /** Bands seen in the data. Added to the full list, never instead of it. */
   agingBands?: string[]
@@ -135,7 +137,7 @@ export function I13UrlFilters({
   const selectedPlant = searchParams.get("plant")
   const panel = layout === "panel"
   const Shell = panel ? PanelBar : FilterBar
-  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue","planMaterial":"Material"}
+  const titles: Record<string, string> = {"plant":"Plant","material":"Material","reservation":"Reservation ID","agingBand":"Stock type","acquiredVsPlanStatus":"Plan status","type":"Exception type","status":"Status","procurementStatus":"Procurement status","deliveryStatus":"Procurement status","reservationStatus":"Stage","issued":"Issued","source":"Source","planStatus":"Status","overdue":"Overdue","planMaterial":"Material","document":"PR / PO number","reservationCreated":"Reservation created"}
   /** In the panel every control sits under its own name; in the bar it is left bare. */
   const wrap = (field: string, node: ReactNode) =>
     panel ? (
@@ -173,6 +175,13 @@ export function I13UrlFilters({
             value={searchParams.get("reservation") ?? ""}
             onCommit={(value) => push({ reservation: value })}
             className="sm:w-44"
+          />)}
+
+        {fields.includes("document") && wrap("document", <DebouncedInput
+            placeholder="Search PR / PO number"
+            value={searchParams.get("document") ?? ""}
+            onCommit={(value) => push({ document: value })}
+            className="sm:w-52"
           />)}
 
         {fields.includes("agingBand") && wrap("agingBand", <UrlSelect
@@ -267,6 +276,17 @@ export function I13UrlFilters({
             value={searchParams.get("deliveryStatus") ?? ""}
             options={Object.entries(DELIVERY_STATE_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(value) => push({ deliveryStatus: value })}
+          />)}
+
+        {fields.includes("reservationCreated") && wrap("reservationCreated", <UrlSelect
+            label="All lines"
+            width="sm:w-56"
+            value={searchParams.get("reservationCreated") ?? ""}
+            options={[
+              { value: "yes", label: "Reservation created" },
+              { value: "no", label: "No reservation (stock refill)" },
+            ]}
+            onChange={(value) => push({ reservationCreated: value })}
           />)}
 
         {fields.includes("reservationStatus") && wrap("reservationStatus", <UrlSelect
