@@ -7,7 +7,8 @@
 //   movement bands   days since the last goods issue: <= 365 fast, <= 730 slow, else or never: non-moving
 //                    (app/initiatives/i13/aging.py, I13_AGING_FAST_MAX_DAYS / I13_AGING_SLOW_MAX_DAYS)
 //   GR not issued    oldest receipt still not issued >= 30 days, per material and plant (watch.py)
-//   plan overdue     planned usage window end + 14 days passed, nothing issued (act/detection.py)
+//   plan overdue     day after the planned usage window ends, the plan has a reservation and nothing
+//                    was issued on it; no reservation = not overdue (act/detection.py); 24 Nov 2026
 //   non-AI           OAR reservation line, not deleted, no consumption plan matched (act/service.py)
 //                    both cards count the exception queue, unresolved only -- the Exceptions screen's
 //                    rows (summary.with_queue_exception_counts); 4 Nov 2026
@@ -216,7 +217,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     ],
     steps: [
       "Only open plans count: a closed plan cannot be overdue.",
-      "A plan counts only the reservations whose item text carries its request or session ID. With none linked, nothing is issued against it, so it goes overdue.",
+      "A plan counts only the reservations whose item text carries its request or session ID. With none linked there is nothing to check, so it is not overdue: it stays Awaiting reservation.",
       "Each plan counts once.",
       "The same plans as Planned overdue on the Exceptions screen, until each one is closed. A plan appears once detection has checked it, which the nightly run does.",
     ],
@@ -319,7 +320,7 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       "Issued = what was used: goods issued against the reservation(s), reversals taken off",
       "Awaiting reservation: a plan from the assistant that no reservation stands for yet",
       "Not issued: nothing issued · Partially issued: less than required · Fully issued: required or more",
-      "Overdue (assistant plans only): the planned usage window has ended and nothing was issued — Planned Consumption Overdue",
+      "Overdue (assistant plans only): the planned usage window has ended and nothing was issued on the plan's reservation — Planned Consumption Overdue. A plan Awaiting reservation is never overdue",
       "Via assistant: the plan's reservations are the ones whose item text carries its session or request ID",
       "Direct from SAP: an OAR reservation no plan owns; a reservation a plan owns is on the plan's row only",
     ],
