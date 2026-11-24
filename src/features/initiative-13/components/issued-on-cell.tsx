@@ -5,7 +5,7 @@ import { TableCell } from "@/components/ui/table"
 import { formatApiDate } from "@/lib/api/format"
 import type { IssueMatch } from "@/lib/api/i13"
 import { ISSUE_MATCH_EXPLANATIONS, NEXT_PLANNED_ISSUE_TITLE } from "@/features/initiative-13/utils/issue-match"
-import { formatCount } from "@/lib/utils"
+import { formatQuantity } from "@/lib/utils"
 
 /**
  * The "Issued on" cell: the latest goods-issue date counted against the line,
@@ -84,7 +84,7 @@ export function NextPlannedIssueCell({
       <div className="flex flex-col items-start gap-0.5">
         <span className="whitespace-nowrap text-foreground">{formatApiDate(date)}</span>
         {quantity !== null && (
-          <span className="whitespace-nowrap text-xs text-muted-foreground">{formatCount(quantity)} planned</span>
+          <span className="whitespace-nowrap text-xs text-muted-foreground">{formatQuantity(quantity)} planned</span>
         )}
       </div>
     </TableCell>

@@ -24,6 +24,7 @@ export type DashboardInfoId =
   | "slowMoving"
   | "nonMoving"
   | "grNotIssued"
+  | "grniTab"
   | "planOverdue"
   | "nonAi"
   | "exceptionPipeline"
@@ -178,14 +179,40 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       result: "56 ≥ 30, so the material counts once.",
     },
   },
+  grniTab: {
+    title: "30-Day GR-Not-Issued",
+    tone: "danger",
+    summary:
+      "OAR PO lines received 30 or more days ago whose stock has not been issued, or only partly issued.",
+    rule: [
+      "One row per PO line with a goods receipt",
+      "Days since GR = data date − the line's latest goods receipt",
+      "Listed when that is 30 days or more and the line is not fully issued",
+    ],
+    steps: [
+      "SAP records the goods receipt against the PO, but a goods issue against the material and its reservation — never against the PO.",
+      "Where a reservation raised the PO, that reservation's own goods issues decide whether the line was issued.",
+      "Otherwise this material's goods issues at the plant are counted against the oldest delivery first.",
+      "That is how a line is put on this list. The issued quantity itself is not shown, because SAP cannot confirm it per PO line.",
+    ],
+    example: {
+      subject: "One material at Black Mountain (1300), two PO lines",
+      inputs: [
+        { label: "PO line A: received 10 on 1 Aug", value: "fully used" },
+        { label: "PO line B: received 10 on 1 Sep", value: "not fully used" },
+        { label: "Issued at the plant since 1 Aug", value: "12" },
+      ],
+      result: "Oldest delivery first: A's 10 are used, then 2 of B's. B is listed, with its GR date and 10 received; A is not.",
+    },
+  },
   planOverdue: {
     title: "Planned Consumption Overdue",
     tone: "warning",
-    summary: "Open consumption plans whose planned use has passed with nothing issued.",
+    summary: "Open consumption plans whose planned usage window has ended with nothing issued.",
     rule: [
-      "Due date = end of the planned usage window + 14 days",
-      "Overdue when the as-of date is after the due date",
-      "and no goods issue is recorded for the plan's reservation",
+      "Overdue from the day after the planned usage window ends",
+      "when no goods issue is recorded for the plan's reservation",
+      "The requester is reminded every 3 days; with no answer after 14 days it goes to the HOD",
     ],
     steps: [
       "Only open plans count: a closed plan cannot be overdue.",
@@ -197,11 +224,12 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
       subject: "One plan captured in the assistant",
       inputs: [
         { label: "Usage window ends", value: "30 Sep 2026" },
-        { label: "Due date (+14 days)", value: "14 Oct 2026" },
+        { label: "Overdue from", value: "1 Oct 2026" },
         { label: "Issued against the reservation", value: "0" },
         { label: "Data as of", value: EXAMPLE_AS_OF },
       ],
-      result: "Past its due date with nothing issued, so it counts — 13 days overdue.",
+      result:
+        "Its window has ended with nothing issued, so it counts. The requester is reminded on days 3, 6, 9 and 12; unanswered on day 14, it goes to the HOD.",
     },
   },
   nonAi: {
@@ -283,34 +311,33 @@ export const DASHBOARD_INFO: Record<DashboardInfoId, DashboardInfoSpec> = {
     },
   },
   acquiredVsPlanTab: {
-    title: "Acquired vs plan",
+    title: "Acquired vs required",
     tone: "warning",
-    summary: "What was used against what was asked for, for each plan captured in the assistant and each OAR reservation raised directly in SAP.",
+    summary: "What was issued against what was required, in two views: OAR reservations raised directly in SAP, and plans captured in the assistant.",
     rule: [
-      "Planned = what was asked for: the plan's quantity in the assistant, or the reserved quantity in SAP",
+      "Required = what was asked for: the plan's quantity in the assistant, or the reserved quantity in SAP",
       "Issued = what was used: goods issued against the reservation(s), reversals taken off",
       "Awaiting reservation: a plan from the assistant that no reservation stands for yet",
-      "Not due yet: nothing issued, and the Required by date is still ahead",
-      "Otherwise On plan: issued = planned · Below plan: issued < planned · Above plan: issued > planned",
-      "Overdue: below plan, and the Required by date has passed",
+      "Not issued: nothing issued · Partially issued: less than required · Fully issued: required or more",
+      "Overdue (assistant plans only): the planned usage window has ended and nothing was issued — Planned Consumption Overdue",
       "Via assistant: the plan's reservations are the ones whose item text carries its session or request ID",
       "Direct from SAP: an OAR reservation no plan owns; a reservation a plan owns is on the plan's row only",
     ],
     steps: [
       "Issued, not received: OAR is issued from stock on the shelf, so no goods receipt is linked to the reservation.",
-      "The comparison is exact: no tolerance band is configured, so 9 against 10 is Below plan.",
-      "Something partly issued is Below plan even before its date: only nothing issued at all waits as Not due yet.",
+      "The comparison is exact: 9 issued against 10 required is Partially issued.",
+      "A reservation raised directly in SAP has no consumption plan, so it is never overdue: the Non-AI and 30-day checks cover it.",
       "Hover a status to see its Required by date: the plan's window end or the reservation's requirement date.",
-      "Filter by Source (via assistant or direct from SAP), Status and Overdue; each row links to its reservation in the Utilization Ledger.",
+      "Switch between Direct from SAP and Via assistant; each view has its own filters, count, pages and export, and switching starts the view with no filters. Each row links to its reservation in the Utilization Ledger.",
     ],
     example: {
       subject: "One material at Gamsberg (1500)",
       inputs: [
-        { label: "Plan in the assistant: planned / issued", value: "10 / 12" },
-        { label: "Reservation raised in SAP: planned / issued", value: "5 / 3" },
-        { label: "That reservation's Required by date", value: "15 Oct 2026" },
+        { label: "Plan in the assistant: required / issued", value: "10 / 0" },
+        { label: "Its usage window ended", value: "15 Oct 2026" },
+        { label: "Reservation raised in SAP: required / issued", value: "5 / 3" },
       ],
-      result: "The plan is Above plan (+2). The SAP reservation is Below plan (−2) and Overdue, since 15 Oct has passed.",
+      result: "The plan is Not issued and Overdue. The SAP reservation is Partially issued, and never overdue.",
     },
   },
   capturedPlansTab: {

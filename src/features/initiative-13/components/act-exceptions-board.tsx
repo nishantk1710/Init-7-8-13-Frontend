@@ -141,16 +141,16 @@ export function ActExceptionsBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      <DataTable className={FITTED_TABLE} widths={[4, 18, 11, 8, 12, 12, 10, 10, 8, 7]} minWidth={1000}>
+      <DataTable className={FITTED_TABLE} widths={[4, 18, 12, 11, 8, 12, 10, 10, 8, 7]} minWidth={1000}>
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
               <span className="sr-only">Details</span>
             </TableHead>
             <ColumnHead source="material">Material</ColumnHead>
+            <ColumnHead source="reservation">Reservation</ColumnHead>
             <ColumnHead source="exceptionType">Type</ColumnHead>
             <ColumnHead source="plant">Plant</ColumnHead>
-            <ColumnHead source="reservation">Reservation</ColumnHead>
             <ColumnHead source="exceptionOwner">Owner</ColumnHead>
             <ColumnHead source="exceptionStatus">Status</ColumnHead>
             <ColumnHead source="exceptionDetected">Detected</ColumnHead>
@@ -208,6 +208,13 @@ export function ActExceptionsBoard({
                     </div>
                   </TableCell>
                   <TableCell>
+                    {exception.reservationNumber ? (
+                      <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
+                    ) : (
+                      <EmptyValue kind="noReservationLinked" />
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <StatusPill
                       tone={TYPE_TONE[exception.exceptionType]}
                       title={EXCEPTION_TYPE_HINT[exception.exceptionType]}
@@ -218,13 +225,6 @@ export function ActExceptionsBoard({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
                     {sapPlantLabel(exception.plant)}
-                  </TableCell>
-                  <TableCell>
-                    {exception.reservationNumber ? (
-                      <ReservationChip number={exception.reservationNumber} item={exception.reservationItem} />
-                    ) : (
-                      <EmptyValue kind="noReservationLinked" />
-                    )}
                   </TableCell>
                   <TableCell className="font-semibold text-foreground">
                     {exception.ownerRequesterId ?? (

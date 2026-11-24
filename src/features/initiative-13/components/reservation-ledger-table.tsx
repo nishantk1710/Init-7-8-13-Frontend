@@ -20,10 +20,10 @@ import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
 import { formatApiDate } from "@/lib/api/format"
 import type { ReservationLedgerRow } from "@/lib/api/i13"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
-import { cn, formatCount } from "@/lib/utils"
+import { cn, formatCount, formatQuantity } from "@/lib/utils"
 
 function qty(value: number | null) {
-  return value === null ? <EmptyValue kind="notRecorded" /> : formatCount(value)
+  return value === null ? <EmptyValue kind="notRecorded" /> : <span className="whitespace-nowrap tabular-nums">{formatQuantity(value)}</span>
 }
 
 /** The lifecycle view's own tones, in the pills' vocabulary. */
@@ -68,13 +68,13 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[27, 11, 11, 7, 11, 15, 18]} minWidth={880}>
+    <DataTable className={FITTED_TABLE} widths={[20, 11, 11, 9, 11, 15, 13, 10]} minWidth={1000}>
       <TableHeader>
         <TableRow>
-          <ColumnHead source="material" className="w-[27%]">Material</ColumnHead>
+          <ColumnHead source="material" className="w-[20%]">Material</ColumnHead>
           <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
           <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
-          <ColumnHead source="reservedQty" className="w-[7%] text-right">Qty</ColumnHead>
+          <ColumnHead source="reservedQty" className="w-[9%] text-right">Qty</ColumnHead>
           <ColumnHead
             source="issuedOnReservation"
             className="w-[11%] text-right"
@@ -84,6 +84,12 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           </ColumnHead>
           <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
           <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
+          <ColumnHead
+            source="requester"
+            note="Who the part was for, as typed in the assistant's Requester box. SAP holds no requester for a reservation."
+          >
+            Requester
+          </ColumnHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -136,10 +142,40 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
                 <span className="text-[11px] text-muted-foreground">No session</span>
               )}
             </TableCell>
+            <TableCell className="whitespace-normal">
+              <RequesterCell row={row} />
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </DataTable>
+  )
+}
+
+/**
+ * The requester: the name typed in the assistant for a reservation made through
+ * it. A reservation raised directly in SAP (Non-AI) has none to show -- SAP
+ * keeps no requester on a reservation, and RESB-WEMPF is the goods recipient
+ * (often a system user or a role), not who asked -- so it reads as a placeholder.
+ */
+function RequesterCell({ row }: { row: ReservationLedgerRow }) {
+  if (row.requesterName) {
+    return <span className="text-[11px] text-foreground [overflow-wrap:anywhere]">{row.requesterName}</span>
+  }
+  if (row.sessionId) {
+    return (
+      <span className="text-[11px] text-muted-foreground" title="Made through the assistant, but no name was typed in its Requester box.">
+        Not given
+      </span>
+    )
+  }
+  return (
+    <span
+      className="text-[11px] text-muted-foreground"
+      title="Raised directly in SAP, without the assistant (Non-AI). SAP holds no requester for a reservation: RESB-WEMPF is the goods recipient, not who asked."
+    >
+      Non-AI: not recorded
+    </span>
   )
 }
 

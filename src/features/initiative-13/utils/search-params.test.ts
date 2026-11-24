@@ -22,6 +22,25 @@ describe("parseSearchParams", () => {
     })
   })
 
+  it("reads the Acquired vs required tab's own material, apart from the page's", () => {
+    expect(parseSearchParams({ material: "5000014659", planMaterial: " 8000004298 " })).toMatchObject({
+      material: "5000014659",
+      planMaterial: "8000004298",
+    })
+  })
+
+  it("reads which Acquired vs required view is open; none means Direct from SAP", () => {
+    expect(parseSearchParams({ planView: "assistant" }).planView).toBe("assistant")
+    expect(parseSearchParams({}).planView).toBeUndefined()
+  })
+
+  it("reads the procurement lines' PR / PO search and Reservation created filter", () => {
+    expect(parseSearchParams({ document: " 4500012345 ", reservationCreated: "yes" })).toMatchObject({
+      document: "4500012345",
+      reservationCreated: "yes",
+    })
+  })
+
   it("treats a repeated parameter as malformed rather than guessing", () => {
     // `?plant=1300&plant=1500` has no defensible single answer, so it gets
     // none -- the same rule the assistant's deep-link route applies.

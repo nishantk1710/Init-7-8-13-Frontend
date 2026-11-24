@@ -511,6 +511,10 @@ export type LedgerListFilters = {
   utilisationStatus?: string
   /** `DELIVERED`, `PARTIAL`, `NOT_DELIVERED` or `NO_PO` — see `utils/delivery-status.ts`. */
   deliveryStatus?: string
+  /** A PR or PO number: that PR's or PO's lines (exact number, leading zeros optional). */
+  document?: string
+  /** `true`: lines a reservation raised (RESB-BANFN); `false`: stock refills. */
+  hasReservation?: boolean
 }
 
 function ledgerFilterQuery(params?: LedgerListFilters) {
@@ -520,6 +524,8 @@ function ledgerFilterQuery(params?: LedgerListFilters) {
     procurement_status: params?.procurementStatus,
     utilisation_status: params?.utilisationStatus,
     delivery_status: params?.deliveryStatus,
+    document: params?.document,
+    has_reservation: params?.hasReservation === undefined ? undefined : String(params.hasReservation),
   }
 }
 
@@ -864,7 +870,7 @@ function toPlanVsIssuedRow(raw: RawRecord): PlanVsIssuedRow {
     // Quantities stay the strings the backend sent, as on the plans table.
     plannedQuantity: String(raw.planned_quantity ?? "0"),
     issuedQuantity: String(raw.issued_quantity ?? "0"),
-    status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "BELOW_PLAN"),
+    status: oneOf(raw.status as string, PLAN_VS_ISSUED_STATUSES, "NOT_ISSUED"),
     varianceQuantity: str(raw.variance_quantity),
     variancePercentage: toNumber(raw.variance_percentage as string) ?? null,
     dueDate: str(raw.due_date),
@@ -1230,6 +1236,8 @@ function toUsagePattern(raw: RawRecord): UsagePattern {
     stockOnHand: toNumber(raw.stock_on_hand as string) ?? null,
     averageMonthlyConsumption: toNumber(raw.average_monthly_consumption as string) ?? null,
     monthsOfCover: toNumber(raw.months_of_cover as string) ?? null,
+    inventoryTurns: toNumber(raw.inventory_turns as string) ?? null,
+    daysSinceLastMovement: typeof raw.days_since_last_movement === "number" ? raw.days_since_last_movement : null,
     issuedQuantityTotal: toNumber(raw.issued_quantity_total as string) ?? 0,
     issueCountTotal: toCount(raw.issue_count_total as number),
     activeMonths: toCount(raw.active_months as number),
@@ -1308,6 +1316,7 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     sessionId: str(raw.session_id),
     // Older backends send no reference; the session ID is still a correct name for it.
     sessionReference: str(raw.session_reference) ?? str(raw.session_id),
+    requesterName: str(raw.requester_name),
     sgtxt: str(raw.sgtxt),
     uatSimulated: Boolean(raw.uat_simulated),
     issuedBeforeHistory: Boolean(raw.issued_before_history),

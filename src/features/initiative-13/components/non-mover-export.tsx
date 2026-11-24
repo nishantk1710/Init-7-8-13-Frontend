@@ -28,7 +28,7 @@ export function NonMoverExport({ filters }: { filters: WatchFilters }) {
             "Months of cover",
             "Days since movement",
             "Consumption (12m)",
-            "Acquired vs plan",
+            "Acquired vs required",
           ],
           rows.map((row) => [
             row.material,
