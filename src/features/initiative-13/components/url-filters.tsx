@@ -250,8 +250,9 @@ export function I13UrlFilters({
             onChange={(value) => push({ type: value })}
           />)}
 
+        {/* No status = the open queue; Closed is one of the choices. */}
         {fields.includes("status") && wrap("status", <UrlSelect
-            label="All statuses"
+            label="All open"
             width="sm:w-48"
             value={searchParams.get("status") ?? ""}
             options={filterOptions(
