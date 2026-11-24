@@ -14,6 +14,7 @@ import {
   fetchSimilarMaterialsView,
   restoreSimilarMaterial,
   fetchForecastVsActual,
+  fetchLastRebuilt,
   fetchRecommendations,
   mapDemandType,
   fetchQuarterlyReport,
@@ -1316,5 +1317,27 @@ describe("how the recommended levels were worked out reaches the screen", () => 
 
   it("keeps a missing method as null rather than guessing one", () => {
     expect(mapDetailToRecommendation(detailFixture({ safety_stock_method: null })).safetyStockMethod).toBeNull()
+  })
+})
+
+describe("fetchLastRebuilt (the Inventory Planning header's date and time)", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("returns the backend's UTC timestamp, from the read-only endpoint", async () => {
+    const calls: string[] = []
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify({ rebuilt_at: "2026-11-23T18:04:13Z" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    })
+    expect(await fetchLastRebuilt()).toBe("2026-11-23T18:04:13Z")
+    expect(calls[0]).toContain("/v1/i7/last-rebuilt")
+  })
+
+  it("is null when nothing has been built, never a made-up time", async () => {
+    stubFetchJson({ rebuilt_at: null })
+    expect(await fetchLastRebuilt()).toBeNull()
   })
 })

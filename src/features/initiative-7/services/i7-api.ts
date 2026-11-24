@@ -37,6 +37,7 @@ import type {
   ApiRecommendationDetail,
   ApiRecommendationListResponse,
   ApiRecommendationSummary,
+  ApiLastRebuilt,
   ApiRecommendationSummaryStats,
   ApiRecommendationTrace,
   ApiWorkflowStateResponse,
@@ -615,6 +616,13 @@ export interface RecommendationSummaryStats {
  * dashboards and KPI cards. Accepts the same filter params as the list
  * endpoint (a subset of RecommendationListParams; page/pageSize/sort do not
  * apply here and are ignored if passed). */
+/** When the results the page shows were last rebuilt (an ISO timestamp, UTC), or null when nothing has been
+ * built. One small read-only call for the Inventory Planning header. */
+export async function fetchLastRebuilt(): Promise<string | null> {
+  const response = await apiFetch<ApiLastRebuilt>(`${I7_BASE}/last-rebuilt`)
+  return response.rebuilt_at ?? null
+}
+
 export async function fetchRecommendationSummary(
   params: Omit<RecommendationListParams, "page" | "pageSize" | "sort"> = {},
 ): Promise<RecommendationSummaryStats> {
