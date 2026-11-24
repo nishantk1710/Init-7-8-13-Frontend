@@ -127,7 +127,7 @@ export const EXCEPTION_TYPE_LABEL: Record<ActExceptionType, string> = {
 /** One-line explanation of each exception type, for tooltips. */
 export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
   PLAN_BREACH:
-    "A plan exists but nothing was issued by the end of the planned usage window. The requester is reminded every 3 days; after 14 days it goes to the HOD",
+    "A plan's reservation exists but nothing was issued on it by the end of the planned usage window. The requester is reminded every 3 days; after 14 days it goes to the HOD",
   NO_PLAN: "No consumption plan from the assistant is linked to this reservation",
   NO_PLAN_GRNI:
     "Retired on 5 Nov 2026: a Non-AI reservation whose material had stock received 30+ days ago and not issued",
