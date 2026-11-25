@@ -11,6 +11,7 @@ import {
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
 import type { DemandPattern } from "@/features/initiative-7/types/inventory"
+import { MIN_MAX_TO_OAR_TYPE } from "@/features/initiative-7/types/reverse-conversion"
 import type { ValueChangeSort } from "@/features/initiative-7/utils/value-change"
 
 /** The backend's Value change filter for a header arrow: down = released, up = tied up, none = no filter. */
@@ -38,6 +39,17 @@ export const RECOMMENDATIONS_PAGE_FILTERS: DashboardFilterState = {
   conversion: "ELIGIBLE",
 }
 
+/** What "Clear filters" puts back for the view the page's toggle is on: that view's own starting point. The view
+ * itself is chosen with the toggle, not in the filter bar, so clearing the filters never moves to another view. OAR
+ * to Min-Max opens on the Eligible conversions; Stock item has no conversion filter. */
+export function resetFiltersForView(type: string): DashboardFilterState {
+  return {
+    ...RECOMMENDATIONS_PAGE_FILTERS,
+    type,
+    conversion: type === "oar" ? RECOMMENDATIONS_PAGE_FILTERS.conversion : ALL_FILTER,
+  }
+}
+
 /** The filter bar's new state, kept valid for this page: the Recommendation group is always OAR or
  * Stock item (never "All"), and a confidence and a Min-Max conversion only go with OAR -- leaving OAR drops them
  * rather than leaving a hidden filter the table cannot satisfy. Coming back to OAR from Stock item (``previous``
@@ -46,7 +58,12 @@ export function normaliseRecommendationFilters(
   next: DashboardFilterState,
   previous?: DashboardFilterState,
 ): DashboardFilterState {
-  const type = next.type === "oar" || next.type === "stock_item" ? next.type : RECOMMENDATIONS_PAGE_FILTERS.type
+  // Min-Max to OAR is a third value of the dropdown, handled by its own workspace (it never reaches this
+  // module's list or export requests); it is let through so choosing it does not snap back to OAR.
+  const type =
+    next.type === "oar" || next.type === "stock_item" || next.type === MIN_MAX_TO_OAR_TYPE
+      ? next.type
+      : RECOMMENDATIONS_PAGE_FILTERS.type
   const enteringOar = type === "oar" && previous !== undefined && previous.type !== "oar"
   const confidence = type === "oar" ? next.confidence : ALL_FILTER
   const conversion =

@@ -15,6 +15,9 @@ import {
   DashboardFilters,
   type DashboardFilterState,
 } from "@/features/initiative-7/components/dashboard-filters"
+import { MinMaxToOarWorkspace } from "@/features/initiative-7/components/min-max-to-oar-workspace"
+import { RecommendationTypeToggle } from "@/features/initiative-7/components/recommendation-type-toggle"
+import { isMinMaxToOarView, RECOMMENDATION_TOGGLE_OPTIONS } from "@/features/initiative-7/utils/reverse-conversion-query"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { fetchRecommendationsExcelBlob } from "@/features/initiative-7/services/i7-api"
@@ -26,6 +29,7 @@ import {
   normaliseRecommendationFilters,
   RECOMMENDATIONS_PAGE_FILTERS,
   RECOMMENDATIONS_PAGE_SIZE,
+  resetFiltersForView,
 } from "@/features/initiative-7/utils/recommendation-list-query"
 import { hasRealCircuit } from "@/features/initiative-7/utils/circuit"
 import type { ValueChangeSort } from "@/features/initiative-7/utils/value-change"
@@ -67,9 +71,12 @@ function applyCircuitFilter(recommendations: Recommendation[], circuit: string):
 function LiveRecommendationsWorkspace({
   filters,
   setFilters,
+  viewToggle,
 }: {
   filters: DashboardFilterState
   setFilters: (filters: DashboardFilterState) => void
+  /** The page's view toggle, drawn right under the filter bar and above the results. */
+  viewToggle?: React.ReactNode
 }) {
   // The Material box asks the backend once typing pauses, not on every keystroke; every other
   // filter applies at once. The inputs themselves keep updating as the person types.
@@ -171,19 +178,21 @@ function LiveRecommendationsWorkspace({
     setFilters({ ...filters, plant: ALL_FILTER })
   }
 
+  // The view (OAR to Min-Max or Stock item) is chosen with the toggle above, not in this bar, so the bar never changes
+  // it, and "Clear filters" puts back this view's own starting point instead of jumping to OAR.
+  const resetFilters = resetFiltersForView(filters.type)
+
   return (
     <div className="flex flex-col gap-4">
       <DashboardFilters
         value={filters}
-        onChange={(next) => setFilters(normaliseRecommendationFilters(next, filters))}
-        resetFilters={RECOMMENDATIONS_PAGE_FILTERS}
+        onChange={(next) => setFilters(normaliseRecommendationFilters({ ...next, type: filters.type }, filters))}
+        resetFilters={resetFilters}
         hiddenDemandPatterns={SMOOTH_ONLY}
         showDemandPatternInfo
         showConfidenceInfo
         layout="bar"
         plantOptions={plantOptions}
-        showTypeFilter
-        typeFilterLabel="Recommendation"
         showStatusFilter={false}
         showConfidenceFilter={filters.type === "oar"}
         showConversionFilter={filters.type === "oar"}
@@ -209,6 +218,7 @@ function LiveRecommendationsWorkspace({
           {exportError}
         </p>
       )}
+      {viewToggle}
       {loading ? (
         <PageLoader label="Loading recommendations" className="h-72 w-full" />
       ) : error ? (
@@ -284,10 +294,26 @@ export function RecommendationsWorkspace() {
     </AlertBanner>
   )
 
+  // Which recommendation to show: OAR to Min-Max, Min-Max to OAR, or Stock item. Each view draws it right under its
+  // own filter bar (filters first, then this toggle, then the results); the filters change with the view.
+  const viewToggle = (
+    <RecommendationTypeToggle
+      value={filters.type}
+      options={RECOMMENDATION_TOGGLE_OPTIONS}
+      onChange={(type) => setFilters(normaliseRecommendationFilters({ ...filters, type }, filters))}
+    />
+  )
+
   return (
     <div className="flex flex-col gap-4">
       {banner}
-      <LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} />
+      {isMinMaxToOarView(filters) ? (
+        // Min-Max to OAR: its own workspace, mounted instead of -- never alongside -- the OAR / Stock item one,
+        // so neither fires the other's requests.
+        <MinMaxToOarWorkspace viewToggle={viewToggle} />
+      ) : (
+        <LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} viewToggle={viewToggle} />
+      )}
     </div>
   )
 }
