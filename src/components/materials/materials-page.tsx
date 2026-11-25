@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { connection } from "next/server"
 
 import { MaterialsFilterBar } from "@/components/materials/materials-filters"
+import { MaterialsLoadingBanner } from "@/components/materials/materials-loading"
 import { materialsHref, type MaterialsFilters } from "@/components/materials/materials-params"
 import { MaterialsTable } from "@/components/materials/materials-table"
 import { AlertBanner } from "@/components/shared/alert-banner"
@@ -9,6 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { ProfileMenu } from "@/components/shared/profile-menu"
 import { TablePagination } from "@/components/shared/table-pagination"
+import { ApiError } from "@/lib/api/client"
 import { formatWhen } from "@/lib/api/format"
 import { getMaterialCounts, getMaterials, type MaterialCounts, type MaterialStock } from "@/lib/api/materials"
 import { DEFAULT_PAGE_SIZE, pageCountOf } from "@/lib/pagination"
@@ -28,6 +30,9 @@ export async function MaterialsPage({ filters }: { filters: MaterialsFilters }) 
   let total: number | null = null
   let counts: MaterialCounts | null = null
   let loadError: string | null = null
+  // 503: the backend is still reading the list from SAP (first read after a
+  // deploy); not an error, so it gets its own banner that retries by itself.
+  let stillLoading: string | null = null
   try {
     const [list, totals] = await Promise.all([
       getMaterials({
@@ -43,7 +48,11 @@ export async function MaterialsPage({ filters }: { filters: MaterialsFilters }) 
     total = list.total
     counts = totals
   } catch (error) {
-    loadError = error instanceof Error ? error.message : String(error)
+    if (error instanceof ApiError && error.status === 503) {
+      stillLoading = typeof error.detail === "string" ? error.detail : "The materials list is still loading from SAP."
+    } else {
+      loadError = error instanceof Error ? error.message : String(error)
+    }
   }
 
   // Past the end (a stale link): go to the last page rather than show an empty
@@ -65,8 +74,10 @@ export async function MaterialsPage({ filters }: { filters: MaterialsFilters }) 
 
         <MaterialsFilterBar filters={filters} counts={counts} />
 
-        {rows === null ? (
-          <AlertBanner tone="critical"title="The materials list could not be loaded">
+        {stillLoading !== null ? (
+          <MaterialsLoadingBanner message={stillLoading} />
+        ) : rows === null ? (
+          <AlertBanner tone="critical" title="The materials list could not be loaded">
             {loadError}
           </AlertBanner>
         ) : rows.length === 0 ? (
