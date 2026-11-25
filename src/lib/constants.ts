@@ -118,6 +118,8 @@ export const QUICK_ACTIONS: {
   // links straight into each module's own action surface.
   { label: "Action Center", icon: "inbox", href: "/actions" },
   { label: "Audit trail", icon: "history", href: "/audit" },
+  // Every active material and plant with its stock on hand, OAR and Non-OAR.
+  { label: "Materials", icon: "package", href: "/materials" },
   // One inbox for every module: approvals waiting on me, exceptions and
   // escalations. The unread count is added by the sidebar, which fetches it.
   { label: "Notifications", icon: "bell", href: "/notifications" },
