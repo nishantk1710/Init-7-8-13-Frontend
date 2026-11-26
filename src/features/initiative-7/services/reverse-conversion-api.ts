@@ -51,11 +51,11 @@ export function fetchReverseRecommendations(
   return apiFetch<ApiReverseRecommendationsResponse>(`${REVERSE_BASE}/recommendations${toReverseQueryString(params)}`)
 }
 
-/** GET .../recommendations/{material}/{plant}/consumption -- the last 24 months of one listed material-plant. */
-export function fetchReverseConsumption(material: string, plant: string, anchor?: string): Promise<ApiReverseConsumption> {
-  const query = anchor ? `?anchor=${encodeURIComponent(anchor)}` : ""
+/** GET .../recommendations/{material}/{plant}/consumption -- the last 24 months of one listed material-plant, measured
+ * to the stored run's month. */
+export function fetchReverseConsumption(material: string, plant: string): Promise<ApiReverseConsumption> {
   return apiFetch<ApiReverseConsumption>(
-    `${REVERSE_BASE}/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption${query}`,
+    `${REVERSE_BASE}/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption`,
   )
 }
 

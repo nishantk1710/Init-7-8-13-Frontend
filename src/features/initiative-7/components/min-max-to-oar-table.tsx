@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils"
 import { parseDecimal } from "@/features/initiative-7/services/reverse-conversion-api"
 import { MinMaxToOarDetail } from "@/features/initiative-7/components/min-max-to-oar-detail"
 import type { ApiReverseRecommendation, ReverseConfidenceCode } from "@/features/initiative-7/types/reverse-conversion"
-import { formatFigure, formatMonthsAgo, formatYearMonth, reverseConfidenceLabel } from "@/features/initiative-7/utils/reverse-conversion-query"
+import { formatFigure, reverseConfidenceLabel } from "@/features/initiative-7/utils/reverse-conversion-query"
+import { requestSummary } from "@/features/initiative-7/utils/reverse-request-state"
 
 const CONFIDENCE_TONE: Record<ReverseConfidenceCode, "success" | "warning" | "danger"> = {
   high: "success",
@@ -19,35 +20,30 @@ const CONFIDENCE_TONE: Record<ReverseConfidenceCode, "success" | "warning" | "da
   low: "danger",
 }
 
-// Relative column weights: chevron, Material, Plant, MRP type, Criticality, OAR conversion, Confidence, Reason, Issues, Months, First, Last,
-// History span, Lead time, Stock, MINBE / MABST, Unit price, Stock value.
-const WIDTHS = [3, 16, 8, 6, 9, 9, 7, 20, 6, 7, 8, 9, 7, 7, 7, 8, 7, 9]
+// Relative column weights: chevron, Material, Plant, Criticality, Stock value, OAR conversion, Confidence. Everything
+// else about a material (issues, months active, movements, history, lead time, stock, ROP / max stock, unit price)
+// is in the row that opens when it is clicked.
+const WIDTHS = [3, 24, 14, 14, 17, 16, 12]
 const COLUMN_COUNT = WIDTHS.length
 
 const MUTED = <span className="text-muted-foreground">—</span>
 
-function Figure({ value, digits = 2 }: { value: number | null; digits?: number }) {
-  return value === null ? MUTED : <span className="tabular-nums">{formatFigure(value, digits)}</span>
-}
-
-/** Stock x unit price. Stock with no price says so; zero stock shows 0. The source gives no currency, so no symbol. */
+/** Stock x unit price, in ZAR (a ZAR price as it is, a NAD price at 1:1 -- the rule the OAR and Stock item figures use).
+ * Stock with no price says so; a price in another currency says it is not counted; zero stock shows 0. */
 function StockValueCell({ row }: { row: ApiReverseRecommendation }) {
   const value = parseDecimal(row.stock_value)
   if (value !== null) return <span className="tabular-nums font-medium">{formatFigure(value, 0)}</span>
   const stock = parseDecimal(row.current_stock)
-  if (stock !== null && stock > 0) return <span className="text-muted-foreground" title="Stock on hand but no unit price, so no value">No price</span>
+  if (stock !== null && stock > 0) {
+    if (parseDecimal(row.unit_price) !== null)
+      return (
+        <span className="text-muted-foreground" title="The unit price is not in ZAR or NAD, or is only a placeholder, so no value is stated">
+          Not counted
+        </span>
+      )
+    return <span className="text-muted-foreground" title="Stock on hand but no unit price, so no value">No price</span>
+  }
   return MUTED
-}
-
-function MinMaxCell({ row }: { row: ApiReverseRecommendation }) {
-  const minbe = parseDecimal(row.minbe)
-  const mabst = parseDecimal(row.mabst)
-  if (minbe === null && mabst === null) return MUTED
-  return (
-    <span className="tabular-nums" title="Reorder point (MINBE) / maximum stock (MABST) set in SAP">
-      {minbe === null ? "—" : formatFigure(minbe, 0)} / {mabst === null ? "—" : formatFigure(mabst, 0)}
-    </span>
-  )
 }
 
 /**
@@ -59,11 +55,11 @@ export function MinMaxToOarTable({
   rows,
   loading = false,
   emptyMessage,
-  anchorMonth,
+  onChanged,
 }: {
   rows: ApiReverseRecommendation[]
-  /** The calculation anchor (YYYY-MM): the opened row's chart is drawn to the same month as the list. */
-  anchorMonth: string
+  /** Called after a conversion request is raised or decided, so the list shows the new status. */
+  onChanged?: () => void
   /** The next page is being fetched while these rows are still shown. */
   loading?: boolean
   emptyMessage: string
@@ -72,40 +68,19 @@ export function MinMaxToOarTable({
   const [openKey, setOpenKey] = useState<string | null>(null)
   return (
     <div className={cn("rounded-xl border border-border transition-opacity", loading && "opacity-60")} aria-busy={loading}>
-      <StickyScrollTable widths={WIDTHS} minWidth={COLUMN_COUNT * 118} wrapCells>
+      <StickyScrollTable widths={WIDTHS} minWidth={COLUMN_COUNT * 130} wrapCells>
         <TableHeader>
           <TableRow>
             <TableHead className="w-8" />
             <TableHead>Material</TableHead>
             <TableHead>Plant</TableHead>
-            <TableHead>MRP type</TableHead>
             <TableHead>Criticality</TableHead>
+            <TableHead className="text-right" title="Stock on hand x unit price, in ZAR. A NAD price counts at 1:1; any other currency is not counted.">
+              Stock value
+            </TableHead>
             <TableHead title="Whether this Min-Max material could move to OAR ordering">OAR conversion</TableHead>
             <TableHead title="How sure the rule is that this material should be ordered only when needed (Convert to OAR rows only)">
               Confidence
-            </TableHead>
-            <TableHead>Reason</TableHead>
-            <TableHead className="text-right" title="Net issue transactions in the latest 12 complete months">
-              Issues (last 12 months)
-            </TableHead>
-            <TableHead className="text-right" title="Months in the latest 12 with consumption (net issued quantity above zero)">
-              Months with use (of 12)
-            </TableHead>
-            <TableHead>First movement (month)</TableHead>
-            <TableHead>Last movement (month)</TableHead>
-            <TableHead className="text-right" title="Months from the first to the latest consumption, both counted">
-              History (months)
-            </TableHead>
-            <TableHead className="text-right">Lead time (days)</TableHead>
-            <TableHead className="text-right" title="Quantity currently on hand, not the quantity used. Usage is shown in Issues (last 12 months).">
-              Stock on hand (base unit)
-            </TableHead>
-            <TableHead className="text-right" title="Current reorder point (MINBE) / maximum stock (MABST) set in SAP">
-              Current ROP / Max stock (base unit)
-            </TableHead>
-            <TableHead className="text-right">Unit price (no currency)</TableHead>
-            <TableHead className="text-right" title="Stock x unit price. The source gives no currency.">
-              Stock value (no currency)
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -141,7 +116,6 @@ export function MinMaxToOarTable({
                 )}
               </TableCell>
               <TableCell className="text-muted-foreground">{sapPlantName(row.plant)}</TableCell>
-              <TableCell>{row.mrp_type ?? MUTED}</TableCell>
               <TableCell>
                 {row.criticality ? (
                   row.criticality
@@ -151,11 +125,19 @@ export function MinMaxToOarTable({
                   </span>
                 )}
               </TableCell>
+              <TableCell className="text-right">
+                <StockValueCell row={row} />
+              </TableCell>
               <TableCell>
                 <StatusBadge tone={row.conversion_eligibility === "eligible" ? "success" : "default"}>
                   <ArrowRightLeft className="size-3" />
                   {row.conversion_eligibility === "eligible" ? "Eligible" : "Not eligible"}
                 </StatusBadge>
+                {row.conversion_request && (
+                  <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+                    {requestSummary(row.conversion_request.status, row.conversion_request.pending_role)}
+                  </span>
+                )}
               </TableCell>
               <TableCell>
                 {row.confidence ? (
@@ -163,43 +145,6 @@ export function MinMaxToOarTable({
                 ) : (
                   MUTED
                 )}
-              </TableCell>
-              <TableCell>
-                <span className="block font-medium text-foreground">{row.reason_label}</span>
-                <span className="block text-[11px] leading-snug text-muted-foreground" title={row.explanation}>
-                  {row.explanation}
-                </span>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{row.issues_latest_12m}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.months_with_consumption_12m}</TableCell>
-              <TableCell>{formatYearMonth(row.first_valid_movement)}</TableCell>
-              <TableCell>
-                <span className="block">{formatYearMonth(row.last_valid_movement)}</span>
-                {row.last_valid_movement && (
-                  <span className="block text-[11px] text-muted-foreground">{formatMonthsAgo(row.months_since_last_movement)}</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{row.history_span_months ?? MUTED}</TableCell>
-              <TableCell className="text-right">
-                {parseDecimal(row.lead_time_days) === null ? (
-                  <span className="text-muted-foreground" title="Lead time is not known">
-                    Unknown
-                  </span>
-                ) : (
-                  <span className="tabular-nums">{formatFigure(parseDecimal(row.lead_time_days), 0)}</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <Figure value={parseDecimal(row.current_stock)} digits={3} />
-              </TableCell>
-              <TableCell className="text-right">
-                <MinMaxCell row={row} />
-              </TableCell>
-              <TableCell className="text-right">
-                <Figure value={parseDecimal(row.unit_price)} />
-              </TableCell>
-              <TableCell className="text-right">
-                <StockValueCell row={row} />
               </TableCell>
             </TableRow>
             {isOpen && (
@@ -211,7 +156,7 @@ export function MinMaxToOarTable({
                     <span className="text-sm font-medium break-words text-foreground">{row.description ?? row.material}</span>
                     {row.description && <span className="text-xs text-muted-foreground">{row.material}</span>}
                   </div>
-                  <MinMaxToOarDetail row={row} anchorMonth={anchorMonth} />
+                  <MinMaxToOarDetail row={row} onChanged={onChanged} />
                 </TableCell>
               </TableRow>
             )}

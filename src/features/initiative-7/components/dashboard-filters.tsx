@@ -118,11 +118,26 @@ export function matchesRiskFilter(filter: string, risk: RiskLevel, mergeCritical
 
 export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopted", "Unknown"] as const
 
-/** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values. */
+/** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values.
+ *
+ * "released" and "tied_up" are the existing views, unchanged. The two between them read Stock item to OAR:
+ *  - "released_stock_oar": each stock item once -- an eligible-to-convert one at the release it would give if converted to
+ *    OAR, every other at its own Stock item release;
+ *  - "released_overlap": the Stock item release PLUS the OAR release of the eligible ones, so a material in both is
+ *    counted twice (the Working Capital card says how many). */
 export const VALUE_CHANGE_OPTIONS = [
   { value: "released", label: "Releases value" },
+  { value: "released_stock_oar", label: "Release Value (Stock + Stock Item to OAR)" },
+  { value: "released_overlap", label: "Release Up (Overlap)" },
   { value: "tied_up", label: "Ties up value" },
 ] as const
+
+/** One value of the Value Change filter, as the backend takes it. */
+export type ValueChangeFilter = (typeof VALUE_CHANGE_OPTIONS)[number]["value"]
+
+export function isValueChangeFilter(value: string): value is ValueChangeFilter {
+  return VALUE_CHANGE_OPTIONS.some((option) => option.value === value)
+}
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   plant: ALL_FILTER,
@@ -527,7 +542,7 @@ export function DashboardFilters({
                 }
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="min-w-[320px]">
               <SelectItem value={ALL_FILTER}>All</SelectItem>
               {VALUE_CHANGE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>

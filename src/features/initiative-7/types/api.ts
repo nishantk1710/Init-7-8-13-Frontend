@@ -201,6 +201,8 @@ export interface ApiRecommendationSummaryStats {
   /** Material-plants the working-capital figure is over, and the ones of the same population left out. */
   working_capital_included_count?: number
   working_capital_excluded_count?: number
+  /** Release Up (Overlap) only: material-plants counted twice in the amount. */
+  working_capital_overlap_count?: number
   critical_stockout_risk_count: number
   /** Fast / Slow material-plants that could be judged -- the denominator of the stockout share. */
   stockout_risk_evaluated_count?: number
