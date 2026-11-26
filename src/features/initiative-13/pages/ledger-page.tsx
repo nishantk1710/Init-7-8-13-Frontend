@@ -11,6 +11,7 @@ import { SegmentedBar, type BarSegment } from "@/features/initiative-13/componen
 import { TONE_FILL } from "@/features/initiative-13/components/ui/tones"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
+import { SheetExport } from "@/features/initiative-13/components/sheet-export"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { ReservationLedgerTable } from "@/features/initiative-13/components/reservation-ledger-table"
 import { loadLiveLedger, loadLiveReservationLedger } from "@/features/initiative-13/data/live-loaders"
@@ -177,6 +178,19 @@ async function ReservationsView({ searchParams }: { searchParams: I13SearchParam
             sessionLabel ??
             "Every OAR reservation item, newest requirement date first, with the assistant session its item text (SGTXT) names — the link from a reservation back to the advice given for it."
           }
+          actions={
+            <SheetExport
+              kind="reservations"
+              filters={{
+                plant: searchParams.plant,
+                material: searchParams.material,
+                session: searchParams.session,
+                reservation: searchParams.reservation,
+                reservationStatus: searchParams.reservationStatus,
+                issued: searchParams.issued,
+              }}
+            />
+          }
         />
         {live && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -268,6 +282,19 @@ async function ProcurementView({ searchParams }: { searchParams: I13SearchParams
           title="Utilization Ledger"
           meta={<DataUpdatedNote />}
           subtitle="Every OAR procurement line, newest first, followed from PR through goods receipt."
+          actions={
+            <SheetExport
+              kind="procurementLines"
+              filters={{
+                plant: searchParams.plant,
+                material: searchParams.material,
+                procurementStatus: searchParams.procurementStatus,
+                deliveryStatus: searchParams.deliveryStatus,
+                document: searchParams.document,
+                reservationCreated: searchParams.reservationCreated,
+              }}
+            />
+          }
         />
 
         {live && (

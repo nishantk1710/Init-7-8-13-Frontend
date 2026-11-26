@@ -770,6 +770,13 @@ export interface ReservationLedgerRow {
   issuedBeforeHistory: boolean
   /** The earliest goods movement the platform holds; null when not recorded. */
   movementHistoryStart: string | null
+  /** The day SAP made the reservation (RESB-CRDAT); null where SAP sends none. */
+  createdDate: string | null
+  /** A reservation linked to the assistant whose session recorded a consumption plan. */
+  planRecorded: boolean
+  /** That plan's window: when the part is needed, as the requester said. */
+  plannedStart: string | null
+  plannedEnd: string | null
 }
 
 /**

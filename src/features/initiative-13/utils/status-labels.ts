@@ -131,9 +131,10 @@ export const EXCEPTION_TYPE_HINT: Record<ActExceptionType, string> = {
   NO_PLAN: "No consumption plan from the assistant is linked to this reservation",
   NO_PLAN_GRNI:
     "Retired on 5 Nov 2026: a Non-AI reservation whose material had stock received 30+ days ago and not issued",
-  QUANTITY_OVERRIDE: "The requester asked for a different quantity than the assistant suggested",
+  QUANTITY_OVERRIDE:
+    "The requester kept a quantity above the assistant's suggestion, and the reservation carrying the request ID is in SAP. Not raised before the reservation exists",
   NOT_ISSUED_30_DAYS:
-    "An assistant request line's reservation with nothing issued 30 days after its goods were received for it, or after its required-by date",
+    "An assistant request line's reservation with nothing issued 30 days after its goods were received for it, or after its planned use started (never counted from before the reservation was made)",
 }
 
 /** `StatusBadge` has no neutral/info tone of its own. */
@@ -157,4 +158,22 @@ export function orderedCounts<T>(
   }
   const extra = [...counts.keys()].filter((k) => !order.includes(k))
   return [...order, ...extra].map((key) => ({ key, count: counts.get(key) ?? 0 }))
+}
+
+/**
+ * A captured plan's status in the Acquired vs required words: not, partially or
+ * fully issued against the required quantity (the backend's on / below / above
+ * plan, read with what was issued), or its own words when there is nothing to
+ * issue against yet. Shared by the Captured plans table and its export.
+ */
+export function planIssuedStatus(
+  status: AcquiredVsPlanStatus,
+  issuedQuantity: string | number | null | undefined
+): { label: string; tone: Tone } {
+  if (status === "NO_RESERVATION" || status === "NO_PLAN") {
+    return { label: PLAN_STATUS_LABEL[status], tone: PLAN_STATUS_TONE[status] }
+  }
+  const key: PlanVsIssuedStatus =
+    Number(issuedQuantity ?? 0) <= 0 ? "NOT_ISSUED" : status === "BELOW_PLAN" ? "PARTIALLY_ISSUED" : "FULLY_ISSUED"
+  return { label: PLAN_VS_ISSUED_STATUS_LABEL[key], tone: PLAN_VS_ISSUED_STATUS_TONE[key] }
 }

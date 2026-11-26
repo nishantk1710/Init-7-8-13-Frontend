@@ -1324,6 +1324,10 @@ function toReservationLedgerRow(raw: RawRecord): ReservationLedgerRow {
     uatSimulated: Boolean(raw.uat_simulated),
     issuedBeforeHistory: Boolean(raw.issued_before_history),
     movementHistoryStart: str(raw.movement_history_start),
+    createdDate: str(raw.created_date),
+    planRecorded: Boolean(raw.plan_recorded),
+    plannedStart: str(raw.planned_start),
+    plannedEnd: str(raw.planned_end),
   }
 }
 

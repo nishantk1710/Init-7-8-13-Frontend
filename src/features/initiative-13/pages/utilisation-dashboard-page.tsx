@@ -22,6 +22,7 @@ import {
 import { NonMoverExport } from "@/features/initiative-13/components/non-mover-export"
 import { NonMoverTable } from "@/features/initiative-13/components/non-mover-table"
 import { PlansTable } from "@/features/initiative-13/components/plans-table"
+import { SheetExport } from "@/features/initiative-13/components/sheet-export"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import type { DashboardInfoId } from "@/features/initiative-13/data/dashboard-info"
 import { loadLiveDashboard, type Section } from "@/features/initiative-13/data/live-dashboard"
@@ -384,10 +385,13 @@ export async function UtilisationDashboardPage({
               <TabsContent value="plans">
                 {dashboard.plans.status === "ready" ? (
                   <div className="flex flex-col gap-2">
-                    <TabIntro info="capturedPlansTab">
-                      Plans stated by requesters in the assistant, kept apart from generated
-                      reference plans.
-                    </TabIntro>
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <TabIntro info="capturedPlansTab">
+                        Plans stated by requesters in the assistant, kept apart from generated
+                        reference plans.
+                      </TabIntro>
+                      <SheetExport kind="capturedPlans" filters={{ plant: filters.plant, material: filters.material }} />
+                    </div>
                     <PlansTable plans={dashboard.plans.data.rows} />
                     <TablePagination
                       page={pageOf("plans")}
