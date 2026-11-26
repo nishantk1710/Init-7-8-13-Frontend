@@ -28,7 +28,8 @@ export function HowGeneratedPanel({ anchor, policy }: { anchor: ApiReverseAnchor
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 font-medium text-foreground">
         <span>How these were generated</span>
         <span className="text-xs font-normal text-muted-foreground">
-          Calculated to {formatYearMonth(anchor.month)} · Policy {policy.version} · open to see every threshold applied
+          Calculated to {formatYearMonth(anchor.month)}
+          {anchor.generated_at ? ` · Last rebuilt ${formatLoadedAt(anchor.generated_at)}` : ""} · Policy {policy.version} · open to see every threshold applied
         </span>
       </summary>
       <div className="mt-3 flex flex-col gap-2 text-muted-foreground">
@@ -84,7 +85,7 @@ export function ReconciliationLine({
         {" + "}
         {formatCount(others.reduce((sum, totals) => sum + totals.count, 0))} not eligible (
         {others.map((totals) => `${formatCount(totals.count)} ${reverseCategoryLabel(totals.category)}`).join(" + ")})
-        {reconciliation.excluded > 0 ? ` + ${formatCount(reconciliation.excluded)} excluded` : ""}
+        {reconciliation.excluded > 0 ? ` + ${formatCount(reconciliation.excluded)} left out (flagged for deletion, or a price not in ZAR or NAD)` : ""}
         {" · "}
         {reconciliation.reconciled ? "reconciled" : "DOES NOT RECONCILE"}
         {reconciliation.duplicate_keys > 0 ? ` (${reconciliation.duplicate_keys} duplicate material-plants)` : ""}

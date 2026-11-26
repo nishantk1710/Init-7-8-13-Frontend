@@ -15,8 +15,8 @@ export interface ReverseConsumptionState {
   error: Error | null
 }
 
-export function useReverseConsumption(material: string, plant: string, anchor: string | undefined): ReverseConsumptionState {
-  const key = `${material}|${plant}|${anchor ?? ""}`
+export function useReverseConsumption(material: string, plant: string): ReverseConsumptionState {
+  const key = `${material}|${plant}`
   const [state, setState] = useState<ReverseConsumptionState & { key: string }>({ key, data: null, loading: true, error: null })
 
   // A different row or anchor starts a new request: show "loading" straight away, during render.
@@ -24,7 +24,7 @@ export function useReverseConsumption(material: string, plant: string, anchor: s
 
   useEffect(() => {
     let cancelled = false
-    fetchReverseConsumption(material, plant, anchor)
+    fetchReverseConsumption(material, plant)
       .then((data) => {
         if (!cancelled) setState({ key, data, loading: false, error: null })
       })
@@ -35,7 +35,7 @@ export function useReverseConsumption(material: string, plant: string, anchor: s
     return () => {
       cancelled = true
     }
-  }, [key, material, plant, anchor])
+  }, [key, material, plant])
 
   return { data: state.data, loading: state.loading, error: state.error }
 }

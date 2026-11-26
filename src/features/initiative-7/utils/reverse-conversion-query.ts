@@ -139,6 +139,13 @@ export function formatMonthsAgo(months: number | null | undefined): string {
   return months === 1 ? "1 month ago" : `${months} months ago`
 }
 
+/** A lead time with its unit: "70 days" ("1 day" for one); null -> an em dash. */
+export function formatLeadTime(days: number | null): string {
+  if (days === null) return "—"
+  const shown = days.toLocaleString("en-US", { maximumFractionDigits: 0 })
+  return shown === "1" ? "1 day" : `${shown} days`
+}
+
 /** A quantity or money figure with thousands separators; null -> an em dash. Never a currency symbol: the
  * source gives no currency. */
 export function formatFigure(value: number | null, maximumFractionDigits = 2): string {
@@ -240,4 +247,13 @@ export function describePolicy(parameters: Record<string, unknown>): string[] {
     "Stock value only ranks materials inside a category; zero stock and a missing price never remove a material. The source gives no currency. Nothing is written to SAP.",
   )
   return lines
+}
+
+
+// --- ROP and max stock: what staying on Min-Max would do (the Stock item alternative) --------------------
+
+/** "12 → 0": a figure and where it goes. A missing current figure shows an em dash, never a 0 nothing set. */
+export function formatChange(current: number | null, next: number | null): string {
+  const show = (value: number | null) => (value === null ? "—" : formatFigure(value, 0))
+  return `${show(current)} → ${show(next)}`
 }

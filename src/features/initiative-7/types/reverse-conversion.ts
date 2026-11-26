@@ -73,6 +73,22 @@ export const REVERSE_CRITICALITY_OPTIONS: readonly { code: string; label: string
 /** A Decimal as the backend sends it: a string, a number, or nothing. */
 export type ApiDecimalValue = string | number | null
 
+/** The Stock item recommendation for the same material-plant: its ROP and max stock if it stays on Min-Max. */
+export interface ApiReverseMinMaxAlternative {
+  current_rop: ApiDecimalValue
+  recommended_rop: ApiDecimalValue
+  current_max_stock: ApiDecimalValue
+  recommended_max_stock: ApiDecimalValue
+}
+
+/** The newest request to convert a material-plant to OAR, as a list row shows it. */
+export interface ApiReverseRequestBrief {
+  id: number
+  /** PENDING_APPROVAL, SENT_BACK, HELD, REJECTED or SAP_EXECUTION_PENDING. */
+  status: string
+  pending_role: string | null
+}
+
 export interface ApiReverseAnchor {
   /** The latest complete month every consumption window is measured to, YYYY-MM. */
   month: string
@@ -81,6 +97,9 @@ export interface ApiReverseAnchor {
   latest_staged_month: string | null
   data_loaded_at: string | null
   warnings: string[]
+  /** When the pipeline stage that stored this run finished: the page's "last rebuilt". */
+  generated_at?: string | null
+  run_id?: number | null
 }
 
 export interface ApiReversePolicy {
@@ -135,6 +154,11 @@ export interface ApiReverseReconciliation {
   by_plant: { plant: string; source_population: number; categorised: number }[]
 }
 
+export interface ApiReverseExplanationPoint {
+  label: string
+  text: string
+}
+
 export interface ApiReverseRecommendation {
   material: string
   description: string | null
@@ -151,6 +175,9 @@ export interface ApiReverseRecommendation {
   confidence: ReverseConfidenceCode | null
   confidence_label: string | null
   explanation: string
+  /** The same reason as three short labelled lines (What we saw / What it means / What to do), for a person to scan.
+   * Absent from an older backend, which sends only ``explanation``. */
+  explanation_points?: ApiReverseExplanationPoint[]
   decision_rule: number
 
   issues_latest_12m: number
@@ -168,8 +195,52 @@ export interface ApiReverseRecommendation {
   minbe: ApiDecimalValue
   mabst: ApiDecimalValue
   unit_price: ApiDecimalValue
+  /** In ZAR; null when the stock or a countable price is missing. */
   stock_value: ApiDecimalValue
+  /** "ZAR" when the price is counted in rand (ZAR, or NAD at 1:1, as the OAR and Stock item figures count it); null when it is left out. */
   currency: string | null
+  /** The currency SAP stated for the price, as it is; null when none was stated. */
+  price_currency?: string | null
+  /** The newest request to convert this material-plant to OAR, when there is one. */
+  conversion_request?: ApiReverseRequestBrief | null
+  /** Medium and Low confidence only: the Stock item recommendation if it stays on Min-Max, for comparison. Convert to
+   * OAR is still the recommended action. Null for High confidence, for Not eligible, and when there is none. */
+  min_max_alternative?: ApiReverseMinMaxAlternative | null
+}
+
+export interface ApiReverseRequest {
+  id: number
+  material: string
+  plant: string
+  status: string
+  pending_role: string | null
+  /** The approval chain, first role first. */
+  route: string[]
+  chain_index: number
+  confidence: string | null
+  reason: string
+  detail: string
+  anchor_month: string | null
+  submitted_by: string
+  submit_comment: string | null
+  submitted_at: string
+  updated_at: string
+}
+
+export interface ApiReverseLedgerEntry {
+  id: number
+  actor_id: string
+  actor_role: string
+  action: string
+  previous_status: string
+  new_status: string
+  comment: string | null
+  timestamp: string
+}
+
+export interface ApiReverseRequestDetail {
+  current: ApiReverseRequest | null
+  history: ApiReverseLedgerEntry[]
 }
 
 /** One month of a material-plant's consumption (GET .../recommendations/{material}/{plant}/consumption). */

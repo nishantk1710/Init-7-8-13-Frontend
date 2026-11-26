@@ -8,6 +8,7 @@
 
 "use client"
 
+import type { ValueChangeFilter } from "@/features/initiative-7/components/dashboard-filters"
 import { useEffect, useState } from "react"
 
 import { fetchRecommendationSummary } from "@/features/initiative-7/services/i7-api"
@@ -30,7 +31,7 @@ export interface PlantPositionFilters {
   /** The display level, for the one level that has no single raw tier (Low: NORMAL, OBSOLETE or no tier). */
   criticalityLevel?: string
   /** released | tied_up: only recommendations whose Value change releases or ties up working capital. */
-  valueChange?: "released" | "tied_up"
+  valueChange?: ValueChangeFilter
   /** False: ask for nothing (the caller already knows the filters cannot be applied). */
   enabled?: boolean
 }

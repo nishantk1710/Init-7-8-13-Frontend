@@ -20,7 +20,9 @@ import {
   ALL_FILTER,
   DashboardFilters,
   EMPTY_DASHBOARD_FILTERS,
+  isValueChangeFilter,
   type DashboardFilterState,
+  type ValueChangeFilter,
 } from "@/features/initiative-7/components/dashboard-filters"
 import { OverviewFormulasProvider } from "@/features/initiative-7/components/overview-formulas-context"
 import { OverviewInfo } from "@/features/initiative-7/components/overview-info-popup"
@@ -60,6 +62,16 @@ const PLANT_OPTIONS = ADOPTION_PLANTS.map((p) => ({ value: p.code, label: sapPla
 
 const TYPE_LABEL: Record<"oar" | "stock_item", string> = { oar: "OAR", stock_item: "stock item" }
 
+/** What each Value Change view counts, said once under the cards so every figure on the page reads the same way. */
+const VALUE_CHANGE_NOTE: Record<ValueChangeFilter, string> = {
+  released: "Only materials that release value (reorder point goes down).",
+  tied_up: "Only materials that tie up value (reorder point goes up).",
+  released_stock_oar:
+    "Stock items, each counted once: one eligible to convert to OAR at the value its conversion would release, every other at its own release.",
+  released_overlap:
+    "Stock items at their own release, plus those eligible to convert to OAR at the value their conversion would release. A material in both counts twice.",
+}
+
 export function LiveInventoryOptimizationOverviewWorkspace() {
   const [filters, setFilters] = useState<DashboardFilterState>(EMPTY_DASHBOARD_FILTERS)
   // The formulas in force, for the (i) popups. Not awaited: until they arrive (or if they cannot be read) the
@@ -80,9 +92,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // value (it goes up). It narrows the same backend figures as the other filters -- working capital, excess, stockout,
   // the plant cards and the SAP adoption counts -- so every card on the page speaks about the same materials.
   const valueChangeParam =
-    typeParam === "stock_item" && (filters.valueChange === "released" || filters.valueChange === "tied_up")
-      ? filters.valueChange
-      : undefined
+    typeParam === "stock_item" && isValueChangeFilter(filters.valueChange) ? filters.valueChange : undefined
   const {
     summary,
     loading: summaryLoading,
@@ -143,9 +153,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // narrowed: the All figures also count Fast / Slow movers that have no recommendation at all.
   const typeNote =
     (typeParam ? ` Counted over ${TYPE_LABEL[typeParam]} recommendations only.` : "") +
-    (valueChangeParam
-      ? ` Only materials that ${valueChangeParam === "released" ? "release value (reorder point goes down)" : "tie up value (reorder point goes up)"}.`
-      : "")
+    (valueChangeParam ? ` ${VALUE_CHANGE_NOTE[valueChangeParam]}` : "")
 
   return (
     <OverviewFormulasProvider value={activeFormulas}>
@@ -217,6 +225,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
                 currency: summary.workingCapitalCurrency ?? summary.currency,
                 includedCount: summary.workingCapitalIncludedCount,
                 excludedCount: summary.workingCapitalExcludedCount,
+                overlapCount: summary.workingCapitalOverlapCount,
               }
             : undefined
         }

@@ -64,7 +64,7 @@ describe("the table", () => {
   it("opens a row's detail when it is clicked, and closes it when it is clicked again", () => {
     expect(table).toContain("onClick={() => setOpenKey(isOpen ? null : key)}")
     expect(table).toContain("aria-expanded={isOpen}")
-    expect(table).toContain("<MinMaxToOarDetail row={row} anchorMonth={anchorMonth} />")
+    expect(table).toContain("<MinMaxToOarDetail row={row} onChanged={onChanged} />")
   })
 
   it("opens like the OAR and Stock item table: a chevron column, then a full-width open row", () => {
@@ -87,9 +87,10 @@ describe("the table", () => {
     expect(table.indexOf("OAR conversion</TableHead>")).toBeLessThan(table.indexOf('title="How sure the rule'))
   })
 
-  it("the Reason column states the reason in the planner's words", () => {
-    expect(table).toContain("{row.reason_label}")
-    expect(table).toContain("{row.explanation}")
+  it("has no Reason column: the reason is in the open row", () => {
+    expect(table).not.toContain("<TableHead>Reason</TableHead>")
+    expect(table).not.toContain("{row.reason_label}")
+    expect(table).not.toContain("{row.explanation}")
   })
 })
 
@@ -118,8 +119,8 @@ describe("the panel", () => {
     expect(detail).toContain("border-t border-border pt-3")
   })
 
-  it("asks for the consumption only for the row that is open, to the list's own anchor", () => {
-    expect(detail).toContain("useReverseConsumption(row.material, row.plant, anchorMonth)")
+  it("asks for the consumption only for the row that is open, measured to the stored run's month", () => {
+    expect(detail).toContain("useReverseConsumption(row.material, row.plant)")
   })
 
   it("says whether the material can move to OAR or stays on Min-Max", () => {
@@ -170,5 +171,170 @@ describe("the reasons on screen", () => {
       "zero_use_24m",
       "obsolete_criticality",
     ])
+  })
+})
+
+describe("the table keeps only the columns that identify and sort a row", () => {
+  const table = read(`${I7}/components/min-max-to-oar-table.tsx`)
+  const detail = read(`${I7}/components/min-max-to-oar-detail.tsx`)
+
+  it("shows Material, Plant, Criticality, Stock value, OAR conversion and Confidence, behind a chevron column", () => {
+    for (const heading of ["Material", "Plant", "Criticality", "OAR conversion", "Stock value"])
+      expect(table, heading).toMatch(new RegExp(`${heading}\\s*</TableHead>`))
+    expect(table).toContain("Confidence")
+    expect(table).toContain("const WIDTHS = [3, 24, 14, 14, 17, 16, 12]")
+  })
+
+  it.each([
+    "MRP type",
+    "Issues (last 12 months)",
+    "Months Active (out of 12)",
+    "First movement",
+    "Last movement",
+    "History (months)",
+    "Lead time",
+    "Stock on hand (base unit)",
+    "Current ROP / Max stock (base unit)",
+    "Unit price",
+  ])("has no %s column: it is in the open row", (heading) => {
+    expect(table).not.toContain(`<TableHead>${heading}</TableHead>`)
+    const escaped = heading.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")
+    expect(table).not.toMatch(new RegExp(`${escaped}\\s*</TableHead>`))
+  })
+
+  it("shows every one of those figures in the open row instead", () => {
+    for (const label of [
+      "Issues, last 12 months",
+      "Months Active (out of 12)",
+      "First movement",
+      "Last movement",
+      "History",
+      "Lead time",
+      "Stock on hand (base unit)",
+      "Current ROP / Max stock (base unit)",
+      "Unit price (ZAR)",
+    ])
+      expect(detail, label).toContain(`label="${label}"`)
+  })
+
+  it("has no (no currency) or (month) wording, and never states a currency the source did not give", () => {
+    expect(table + detail).not.toContain("(no currency)")
+    expect(table + detail).not.toContain("movement (month)")
+    expect(table).not.toMatch(/ZAR|NAD/)
+  })
+})
+
+describe("lead time wording", () => {
+  it("is the figure with its unit: 70 days, 30 days, 1 day", async () => {
+    const { formatLeadTime } = await import("@/features/initiative-7/utils/reverse-conversion-query")
+    expect(formatLeadTime(70)).toBe("70 days")
+    expect(formatLeadTime(30)).toBe("30 days")
+    expect(formatLeadTime(1)).toBe("1 day")
+    expect(formatLeadTime(120)).toBe("120 days")
+    expect(formatLeadTime(null)).toBe("—")
+    expect(read(`${I7}/components/min-max-to-oar-detail.tsx`)).toContain("formatLeadTime(lead)")
+  })
+})
+
+describe("Stock value sits right after Criticality, in ZAR", () => {
+  const table = read(`${I7}/components/min-max-to-oar-table.tsx`)
+
+  it("comes straight after the Criticality column and before OAR conversion", () => {
+    const criticality = table.indexOf("<TableHead>Criticality</TableHead>")
+    const value = table.search(/Stock value\s*<\/TableHead>/)
+    const conversion = table.indexOf(">OAR conversion</TableHead>")
+    expect(criticality).toBeGreaterThan(-1)
+    expect(value).toBeGreaterThan(criticality)
+    expect(conversion).toBeGreaterThan(value)
+    // The cells follow the same order.
+    expect(table.indexOf("<StockValueCell row={row} />")).toBeGreaterThan(table.indexOf("No criticality recorded"))
+    expect(table.indexOf("<StockValueCell row={row} />")).toBeLessThan(table.indexOf('row.conversion_eligibility === "eligible" ? "success"'))
+  })
+
+  it("says why a value is not stated: no price, or a price that is not counted (not ZAR or NAD)", () => {
+    expect(table).toContain("No price")
+    expect(table).toContain("Not counted")
+    expect(table).toContain("not in ZAR or NAD")
+  })
+
+  it("never works a currency out itself: it shows what the API stated", () => {
+    expect(table).not.toMatch(/\bUSD\b|\bEUR\b/)
+    expect(table).not.toContain("TO_ZAR")
+  })
+})
+
+describe("the Stock value heading carries no bracket", () => {
+  it("reads just Stock value, with no (ZAR) after it", () => {
+    const table = read(`${I7}/components/min-max-to-oar-table.tsx`)
+    expect(table).toMatch(/Stock value\s*<\/TableHead>/)
+    expect(table).not.toContain("Stock value (ZAR)")
+  })
+})
+
+describe("materials left out of the recommendation are explained", () => {
+  it("the reconciliation line says a material can be left out for a price not in ZAR or NAD", () => {
+    const panels = read(`${I7}/components/min-max-to-oar-panels.tsx`)
+    expect(panels).toContain("left out (flagged for deletion, or a price not in ZAR or NAD)")
+  })
+})
+
+describe("Convert to OAR is the recommendation; the Min-Max alternative sits beside it for Medium and Low", () => {
+  const detail = read(`${I7}/components/min-max-to-oar-detail.tsx`)
+  const table = read(`${I7}/components/min-max-to-oar-table.tsx`)
+
+  it("labels the Convert to OAR card Recommended, and does not spell out ROP and max stock going to 0", async () => {
+    const { formatChange } = await import("@/features/initiative-7/utils/reverse-conversion-query")
+    expect(detail).toContain("Recommended</span>")
+    expect(detail).not.toContain("ROP (current → new)")
+    expect(detail).not.toContain("Max stock (current → new)")
+    expect(detail).not.toContain("convertToOarChange")
+    expect(formatChange(12, 8)).toBe("12 → 8")
+    expect(formatChange(null, 8)).toBe("— → 8") // a missing current figure is not shown as 0
+    expect(formatChange(1500, 800)).toBe("1,500 → 800")
+  })
+
+  it("shows the Stock item alternative in its own dashed card, worded as comparison only", () => {
+    expect(detail).toContain("If you keep it on Min-Max")
+    expect(detail).toContain("it is not the recommended action")
+    expect(detail).toContain("border-dashed")
+    expect(detail).toContain("ROP (current → recommended)")
+    expect(detail).toContain("Max stock (current → recommended)")
+  })
+
+  it("draws the alternative only when the backend sent one (never for High confidence)", () => {
+    expect(detail).toContain("const alternative = row.min_max_alternative ?? null")
+    expect(detail).toContain("{alternative && (")
+  })
+
+  it("has no Min-Max alternative column: the alternative is in the open row only", () => {
+    expect(table).not.toMatch(/Min-Max alternative\s*<\/TableHead>/)
+    expect(table).not.toContain("AlternativeCell")
+    expect(table).not.toContain("min_max_alternative")
+  })
+
+  it("never writes a recommendation of its own: the alternative is read, as the backend sent it", () => {
+    expect(detail + table).not.toMatch(/apiPost|apiFetch/)
+  })
+})
+
+describe("the reason in the open row is three short labelled lines", () => {
+  const detail = read(`${I7}/components/min-max-to-oar-detail.tsx`)
+  const types = read(`${I7}/types/reverse-conversion.ts`)
+
+  it("shows each line under its own label (What we saw, What it means, What to do), as the backend sent them", () => {
+    expect(types).toContain("explanation_points?: ApiReverseExplanationPoint[]")
+    expect(detail).toContain("const points = row.explanation_points ?? []")
+    expect(detail).toContain("{points.map((point) => (")
+    expect(detail).toContain("{point.label}")
+    expect(detail).toContain("{point.text}")
+  })
+
+  it("falls back to the one-paragraph reason when the backend sent no lines", () => {
+    expect(detail).toContain("points.length > 0 ? (")
+    expect(detail).toContain("<p className=\"mt-1\">{row.explanation}</p>")
+  })
+
+  it("writes no reason text of its own: the words come from the backend", () => {
+    expect(detail).not.toMatch(/What we saw|What it means|What to do/)
   })
 })
