@@ -1,3 +1,4 @@
+import { Bone, SkeletonLateNote } from "@/components/shared/page-skeleton"
 import { cn } from "@/lib/utils"
 
 /**
@@ -10,16 +11,13 @@ import { cn } from "@/lib/utils"
  * link that did nothing. Each skeleton has the shape of the page it stands in
  * for, so the page lands where the eye already is.
  *
- * Drawn as white cards with grey lines in them: the shared Skeleton's grey
- * would vanish against the I08 page's grey.
+ * Drawn as white cards with grey bones in them, on the I08 page's grey. The
+ * bones, the sweep of light over them, the moment's delay before the frame
+ * shows and the "still loading" line are the app's shared ones
+ * (components/shared/page-skeleton.tsx).
  */
 function Line({ className, width }: { className?: string; width?: number }) {
-  return (
-    <div
-      style={width ? { width: `${width}%` } : undefined}
-      className={cn("h-3 animate-pulse rounded-full bg-foreground/[0.07]", className)}
-    />
-  )
+  return <Bone style={width ? { width: `${width}%` } : undefined} className={cn("h-3 rounded-full", className)} />
 }
 
 function Block({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -31,16 +29,21 @@ function Block({ className, children }: { className?: string; children?: React.R
 function Frame({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div
+      role="status"
       aria-busy="true"
       aria-label={label}
-      className="min-h-0 flex-1 overflow-y-auto bg-i08-canvas px-6 pt-5 pb-6 lg:px-8"
+      className="skeleton-frame min-h-0 flex-1 overflow-y-auto bg-i08-canvas px-6 pt-5 pb-6 lg:px-8"
     >
       <div className="mx-auto flex w-full max-w-[1480px] flex-col">
         <Line className="w-40" />
-        <div className="mt-3 h-6 w-64 animate-pulse rounded-md bg-foreground/[0.08]" />
+        <Bone className="mt-3 h-6 w-64" />
         <Line className="mt-3 w-[28rem] max-w-full" />
         {children}
+        <div className="mt-6">
+          <SkeletonLateNote />
+        </div>
       </div>
+      <span className="sr-only">{label}</span>
     </div>
   )
 }
@@ -72,14 +75,14 @@ export function ListSkeleton({ label, tabs = false }: { label: string; tabs?: bo
         </div>
       ) : (
         <div className="mt-5 flex flex-wrap gap-2">
-          {[72, 96, 112, 96, 124].map((width) => (
-            <div key={width} style={{ width }} className="h-[34px] animate-pulse rounded-full bg-foreground/[0.07]" />
+          {[72, 96, 112, 96, 124].map((width, i) => (
+            <Bone key={i} style={{ width }} className="h-[34px] rounded-full" />
           ))}
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        {[300, 170, 210, 150].map((width) => (
-          <div key={width} style={{ width }} className="h-9 animate-pulse rounded-lg bg-foreground/[0.07]" />
+        {[300, 170, 210, 150].map((width, i) => (
+          <Bone key={i} style={{ width }} className="h-9 rounded-lg" />
         ))}
       </div>
       <div className="mt-3.5 overflow-hidden rounded-xl border border-border bg-card shadow-xs">
@@ -94,8 +97,8 @@ export function OverviewSkeleton() {
   return (
     <Frame label="Loading the Repairable Spares overview">
       <div className="mt-5 flex flex-wrap gap-2">
-        {[180, 250, 180].map((width) => (
-          <div key={width} style={{ width }} className="h-9 animate-pulse rounded-lg bg-foreground/[0.07]" />
+        {[180, 250, 180].map((width, i) => (
+          <Bone key={i} style={{ width }} className="h-9 rounded-lg" />
         ))}
       </div>
       <Line className="mt-8 w-24" />
@@ -103,7 +106,7 @@ export function OverviewSkeleton() {
         {[0, 1, 2].map((key) => (
           <Block key={key} className="h-[156px]">
             <Line className="w-32" />
-            <div className="mt-5 h-8 w-20 animate-pulse rounded-md bg-foreground/[0.08]" />
+            <Bone className="mt-5 h-8 w-20" />
             <Line className="mt-4 w-3/4" />
           </Block>
         ))}
@@ -131,13 +134,13 @@ export function OverviewSkeleton() {
 export function DetailSkeleton() {
   return (
     <Frame label="Loading the repair">
-      <div className="mt-5 h-12 animate-pulse rounded-xl bg-foreground/[0.06]" />
+      <Bone className="mt-5 h-12 rounded-xl" />
       <div className="mt-5 grid items-start gap-4 xl:grid-cols-[1.15fr_1fr]">
         <Block className="h-[380px]">
           <Line className="w-36" />
           {[0, 1, 2, 3, 4, 5].map((key) => (
             <div key={key} className="mt-7 flex items-center gap-3">
-              <div className="size-6 animate-pulse rounded-full bg-foreground/[0.08]" />
+              <Bone className="size-6 rounded-full" />
               <Line className="w-1/2" />
             </div>
           ))}

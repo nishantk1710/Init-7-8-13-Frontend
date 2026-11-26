@@ -1,10 +1,14 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { SkeletonFilters, SkeletonPage, SkeletonTable } from "@/components/shared/page-skeleton"
 
-/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
+/**
+ * The Audit trail while it is read (global-audit-log.tsx): the header, the date filters and the events table, in
+ * bones (components/shared/page-skeleton.tsx).
+ */
 export default function Loading() {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading the Audit Trail" className="h-64 w-full" />
-    </div>
+    <SkeletonPage label="Loading the Audit Trail" header={{ actions: true }}>
+      <SkeletonFilters fields={[160, 160]} />
+      <SkeletonTable rows={10} columns={7} />
+    </SkeletonPage>
   )
 }

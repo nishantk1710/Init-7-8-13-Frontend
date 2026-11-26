@@ -10,7 +10,7 @@ import { Chip } from "@/components/assistant/request/request-parts"
 import { useRequestList } from "@/components/assistant/request/use-requests"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PageLoader } from "@/components/shared/page-loader"
+import { RequestsSkeletonBody } from "@/components/assistant/skeletons"
 import { StatCard } from "@/components/shared/stat-card"
 import { isNotEnabled, type ApiRequestSummary } from "@/lib/api/assistant-requests"
 import { ApiError } from "@/lib/api/client"
@@ -61,7 +61,7 @@ export function RequestList() {
       <DraftList />
 
       {loading ? (
-        <PageLoader label="Loading requests" className="h-48 w-full" />
+        <RequestsSkeletonBody />
       ) : error ? (
         <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
           {error instanceof ApiError ? error.detailText() : "Requests could not be loaded."}

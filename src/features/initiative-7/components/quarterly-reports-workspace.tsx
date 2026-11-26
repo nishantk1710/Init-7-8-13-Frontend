@@ -35,7 +35,7 @@ import { ChartCard } from "@/components/shared/chart-card"
 import { MaterialIdentity } from "@/components/shared/material-identity"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
-import { PageLoader } from "@/components/shared/page-loader"
+import { ReportSkeletonBody } from "@/features/initiative-7/components/skeletons"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
@@ -558,7 +558,7 @@ export function QuarterlyReportsWorkspace() {
           )}
 
           {loading && !report && (
-            <PageLoader label="Loading the report" className="h-72 w-full" />
+            <ReportSkeletonBody />
           )}
 
           {error && !report && (

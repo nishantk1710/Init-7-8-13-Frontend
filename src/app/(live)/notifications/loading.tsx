@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { NotificationsSkeleton } from "@/components/notifications/notifications-skeleton"
 
-/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
+/** Notifications while it opens: the header, the filter bar and the two panes, in bones. notifications-page.tsx shows the same panes under the real header while the inbox is fetched. */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading your notifications" className="h-64 w-full" />
-    </div>
-  )
+  return <NotificationsSkeleton />
 }

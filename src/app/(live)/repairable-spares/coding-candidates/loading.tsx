@@ -1,13 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { ListSkeleton } from "@/features/initiative-8/components/kit/skeletons"
 
-/**
- * Shown the moment Repair Candidates is clicked. This screen reads a lot of
- * purchase text and takes several seconds; without this the click looked dead.
- */
+/** Repair Candidates while it is read: the quick views, the filter bar and the table, in bones (kit/skeletons.tsx). */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading Repair Candidates" className="h-64 w-full" />
-    </div>
-  )
+  return <ListSkeleton label="Loading Repair Candidates" />
 }
