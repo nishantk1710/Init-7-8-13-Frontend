@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { ListSkeleton } from "@/features/initiative-8/components/kit/skeletons"
 
-/** Shown the moment Justifications is clicked, while the log loads. */
+/** Justifications while it is read: the quick views, the filter bar and the table, in bones (kit/skeletons.tsx). */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading Justifications" className="h-64 w-full" />
-    </div>
-  )
+  return <ListSkeleton label="Loading Justifications" />
 }

@@ -8,7 +8,7 @@ import { AlertBanner } from "@/components/shared/alert-banner"
 import { ChartCard } from "@/components/shared/chart-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
-import { PageLoader } from "@/components/shared/page-loader"
+import { CalculationSkeletonBody } from "@/features/initiative-7/components/skeletons"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
@@ -69,7 +69,7 @@ export function KpiFormulasPage() {
           description="Change how the Overview's cards and charts are calculated. The information cards update to match."
         />
         {loading && !data ? (
-          <PageLoader label="Loading the calculation" className="h-72 w-full" />
+          <CalculationSkeletonBody />
         ) : error && !data ? (
           <EmptyState
             title="Could not load the calculation"

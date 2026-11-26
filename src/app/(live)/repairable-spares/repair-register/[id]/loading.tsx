@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { DetailSkeleton } from "@/features/initiative-8/components/kit/skeletons"
 
-/** Shown the moment a repair line is opened, while it loads. */
+/** One repair line while it is read: the banner, the progress timeline and the facts, in bones (kit/skeletons.tsx). */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading the repair line" className="h-64 w-full" />
-    </div>
-  )
+  return <DetailSkeleton />
 }

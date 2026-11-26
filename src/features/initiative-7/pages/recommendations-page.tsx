@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { PageLoader } from "@/components/shared/page-loader"
+import { RecommendationsSkeletonBody } from "@/features/initiative-7/components/skeletons"
 import { RecommendationsWorkspace } from "@/features/initiative-7/components/recommendations-workspace"
 
 export function RecommendationsPage() {
@@ -12,7 +12,7 @@ export function RecommendationsPage() {
           title="Recommendations"
           description="ROP, safety-stock and max-stock recommendations across the spares catalog."
         />
-        <Suspense fallback={<PageLoader label="Loading recommendations" className="h-72 w-full" />}>
+        <Suspense fallback={<RecommendationsSkeletonBody />}>
           <RecommendationsWorkspace />
         </Suspense>
       </div>
