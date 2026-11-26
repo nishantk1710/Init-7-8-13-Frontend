@@ -329,6 +329,11 @@ describe("the reason in the open row is three short labelled lines", () => {
     expect(detail).toContain("{point.text}")
   })
 
+  it("says who wrote the reason, as the OAR panel does: a model, or the standard wording built from the figures", () => {
+    expect(types).toContain('explanation_source?: "AI_GENERATED" | "DETERMINISTIC_FALLBACK"')
+    expect(detail).toContain('row.explanation_source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"')
+  })
+
   it("falls back to the one-paragraph reason when the backend sent no lines", () => {
     expect(detail).toContain("points.length > 0 ? (")
     expect(detail).toContain("<p className=\"mt-1\">{row.explanation}</p>")

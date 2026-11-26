@@ -66,6 +66,8 @@ const TYPE_LABEL: Record<"oar" | "stock_item", string> = { oar: "OAR", stock_ite
 const VALUE_CHANGE_NOTE: Record<ValueChangeFilter, string> = {
   released: "Only materials that release value (reorder point goes down).",
   tied_up: "Only materials that tie up value (reorder point goes up).",
+  released_oar_only:
+    "Only stock items eligible to convert to OAR, each at the value its conversion would release (reorder point goes to 0).",
   released_stock_oar:
     "Stock items, each counted once: one eligible to convert to OAR at the value its conversion would release, every other at its own release.",
   released_overlap:

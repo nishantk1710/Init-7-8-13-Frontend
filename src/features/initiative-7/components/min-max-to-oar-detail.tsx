@@ -111,6 +111,9 @@ export function MinMaxToOarDetail({ row, onChanged }: { row: ApiReverseRecommend
               ) : (
                 <p className="mt-1">{row.explanation}</p>
               )}
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {row.explanation_source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"}
+              </p>
             </dd>
           </div>
         </div>
