@@ -4,7 +4,6 @@ import Link from "next/link"
 import { MessagesSquare } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { SAPDocumentChip } from "@/components/shared/sap-document-chip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
@@ -14,18 +13,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ColumnHead } from "@/features/initiative-13/components/ui/column-head"
+import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { formatApiDate, formatApiDateTime } from "@/lib/api/format"
-import type { AcquiredVsPlanStatus, ConsumptionPlan, PlanVsIssuedStatus } from "@/lib/api/i13"
+import type { ConsumptionPlan } from "@/lib/api/i13"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
-import {
-  badgeTone,
-  PLAN_STATUS_LABEL,
-  PLAN_STATUS_TONE,
-  PLAN_VS_ISSUED_STATUS_LABEL,
-  PLAN_VS_ISSUED_STATUS_TONE,
-} from "@/features/initiative-13/utils/status-labels"
+import { badgeTone, planIssuedStatus } from "@/features/initiative-13/utils/status-labels"
 import { MaterialName } from "@/components/shared/material-name"
 import { PersonName } from "@/components/shared/person-name"
+import { ownerLabel } from "@/features/initiative-13/utils/owner-label"
 import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { formatQuantity } from "@/lib/utils"
 
@@ -58,7 +53,9 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
 
   return (
     <div className="rounded-xl border border-border">
-      <StickyScrollTable widths={[13, 7, 9, 9, 10, 9, 15, 11, 10, 7]} minWidth={1000} wrapCells>
+      {/* Captured was 7%: its date and the capturer's id broke over five lines,
+          and the reservation chip ran into Trace (UAT, 25 Nov 2026). */}
+      <StickyScrollTable widths={[13, 7, 10, 7, 11, 9, 11, 12, 7, 13]} minWidth={1100} wrapCells>
         <TableHeader>
           <TableRow>
             <ColumnHead source="material">Material</ColumnHead>
@@ -109,13 +106,9 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
               <PlanOutcomeCells plan={plan} />
               <TableCell>
                 {plan.reservationNumber ? (
-                  <SAPDocumentChip
-                    doc={{
-                      type: "RESERVATION",
-                      documentNumber: plan.reservationNumber,
-                      line: plan.reservationItem ?? undefined,
-                    }}
-                  />
+                  // The number alone, as on the Ledger: the heading already says
+                  // Reservation, and "Reservation 2071329/1" ran into Session (UAT, 25 Nov 2026).
+                  <DocNo number={plan.reservationNumber} item={plan.reservationItem} />
                 ) : (
                   <span
                     className="text-muted-foreground"
@@ -135,10 +128,12 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
                 </Link>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                <div className="flex flex-col gap-0.5">
-                  <span>{formatApiDateTime(plan.capturedAt)}</span>
-                  <span className="text-[11px]">
-                    <PersonName id={plan.capturedBy} />
+                {/* The date on one line, the time with who captured it on the next:
+                    "16 Nov 2026, 22:53" whole did not fit the column. */}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="whitespace-nowrap">{capturedParts(plan.capturedAt).day}</span>
+                  <span className="truncate text-[11px]">
+                    {capturedParts(plan.capturedAt).time} · <CapturedBy id={plan.capturedBy} />
                   </span>
                 </div>
               </TableCell>
@@ -147,6 +142,32 @@ export function PlansTable({ plans }: { plans: ConsumptionPlan[] }) {
         </TableBody>
       </StickyScrollTable>
     </div>
+  )
+}
+
+/** When a plan was captured, as a day and a time, in South African time like the rest of the screen. */
+export function capturedParts(iso: string | null | undefined): { day: string; time: string } {
+  const full = formatApiDateTime(iso)
+  const cut = full.lastIndexOf(", ")
+  return cut < 0 ? { day: full, time: "" } : { day: full.slice(0, cut), time: full.slice(cut + 2) }
+}
+
+/** A user id the directory has no name for: an Entra object id (a GUID) or a placeholder. */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Who captured the plan: their name from the user directory. An id it does not
+ * know is never printed whole -- a GUID read as a five-line column (UAT,
+ * 25 Nov 2026) -- but named as unknown, with the id on hover.
+ */
+function CapturedBy({ id }: { id: string | null | undefined }) {
+  const label = ownerLabel(id)
+  if (!label) return null
+  if (label !== id) return <span title={id ?? undefined}>{label}</span>
+  return (
+    <PersonName id={label}>
+      <span title={label}>{GUID.test(label) ? "User not in directory" : label}</span>
+    </PersonName>
   )
 }
 
@@ -171,7 +192,7 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
   }
   const reservations = plan.matchedReservations ?? []
   const variance = plan.acquiredVsPlanVarianceQuantity
-  const issued = issuedStatus(status, plan.issuedQuantity)
+  const issued = planIssuedStatus(status, plan.issuedQuantity)
   return (
     <>
       <TableCell className="text-right text-foreground">
@@ -202,21 +223,6 @@ function PlanOutcomeCells({ plan }: { plan: ConsumptionPlan }) {
       </TableCell>
     </>
   )
-}
-
-/**
- * The plan's status in the Acquired vs required words: not, partially or fully
- * issued against the required quantity (the backend's on / below / above plan,
- * read with what was issued), or its own words when there is nothing to issue
- * against yet.
- */
-function issuedStatus(status: AcquiredVsPlanStatus, issuedQuantity: string | null | undefined) {
-  if (status === "NO_RESERVATION" || status === "NO_PLAN") {
-    return { label: PLAN_STATUS_LABEL[status], tone: PLAN_STATUS_TONE[status] }
-  }
-  const key: PlanVsIssuedStatus =
-    Number(issuedQuantity ?? 0) <= 0 ? "NOT_ISSUED" : status === "BELOW_PLAN" ? "PARTIALLY_ISSUED" : "FULLY_ISSUED"
-  return { label: PLAN_VS_ISSUED_STATUS_LABEL[key], tone: PLAN_VS_ISSUED_STATUS_TONE[key] }
 }
 
 /** A small count badge for the dashboard section header. */

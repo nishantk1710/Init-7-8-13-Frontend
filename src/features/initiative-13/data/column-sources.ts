@@ -16,6 +16,8 @@ export const COLUMN_SOURCES = {
 
   // --- reservations
   required: "SAP: RESB-BDTER (requirement date)",
+  requiredBy:
+    "SAP: RESB-BDTER (requirement date) when typed in, i.e. different from RESB-CRDAT (the base date it is pre-filled from) · otherwise Spares AI: the planned consumption window captured in the assistant",
   reservedQty: "SAP: RESB-BDMNG (requirement quantity)",
   issuedOnReservation:
     "SAP: MSEG-MENGE, movements 201/261 less reversals 202/262, matched on MSEG-RSNUM/RSPOS · date MKPF-BUDAT",

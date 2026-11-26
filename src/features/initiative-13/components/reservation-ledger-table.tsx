@@ -6,6 +6,7 @@ import { MessagesSquare } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { EmptyValue } from "@/features/initiative-13/components/empty-value"
 import { DataTable, FITTED_TABLE } from "@/features/initiative-13/components/ui/data-table"
+import { requiredBy } from "@/features/initiative-13/utils/required-by"
 import { DocNo } from "@/features/initiative-13/components/ui/doc-no"
 import { StatusPill } from "@/features/initiative-13/components/ui/status-pill"
 import type { DisplayTone } from "@/features/initiative-13/utils/oar-display"
@@ -68,13 +69,19 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
   }
 
   return (
-    <DataTable className={FITTED_TABLE} widths={[20, 11, 11, 9, 11, 15, 13, 10]} minWidth={1000}>
+    <DataTable className={FITTED_TABLE} widths={[19, 10, 12, 8, 11, 14, 14, 12]} minWidth={1000}>
       <TableHeader>
         <TableRow>
-          <ColumnHead source="material" className="w-[20%]">Material</ColumnHead>
-          <ColumnHead source="reservation" className="w-[11%]">Reservation</ColumnHead>
-          <ColumnHead source="required" note="Requirement date (RESB-BDTER)" className="w-[11%]">Required</ColumnHead>
-          <ColumnHead source="reservedQty" className="w-[9%] text-right">Qty</ColumnHead>
+          <ColumnHead source="material" className="w-[19%]">Material</ColumnHead>
+          <ColumnHead source="reservation" className="w-[10%]">Reservation</ColumnHead>
+          <ColumnHead
+            source="requiredBy"
+            note="When the part is needed: the requirement date typed in SAP if somebody typed one; otherwise the planned consumption window given in the assistant; otherwise Not recorded (raised directly in SAP, with SAP's pre-filled date left as it was)."
+            className="w-[12%]"
+          >
+            Required by
+          </ColumnHead>
+          <ColumnHead source="reservedQty" className="w-[8%] text-right">Qty</ColumnHead>
           <ColumnHead
             source="issuedOnReservation"
             className="w-[11%] text-right"
@@ -82,7 +89,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
           >
             Issued
           </ColumnHead>
-          <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[15%] !pl-5">Stage</ColumnHead>
+          <ColumnHead source="stage" note="How far the reservation has got: Reserved → PR raised → PO raised → Received → Issued" className="w-[14%] !pl-5">Stage</ColumnHead>
           <ColumnHead source="sessionItemText">Session (item text)</ColumnHead>
           <ColumnHead
             source="requester"
@@ -113,7 +120,7 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
             <TableCell>
               <DocNo number={row.reservationNumber} item={row.reservationItem} />
             </TableCell>
-            <TableCell className="whitespace-nowrap text-muted-foreground">{formatApiDate(row.requirementDate)}</TableCell>
+            <RequiredByCell row={row} />
             <TableCell className="text-right font-semibold text-foreground">{qty(row.reservationQuantity)}</TableCell>
             <IssuedCell row={row} />
             <TableCell className="!pl-5">
@@ -149,6 +156,44 @@ export function ReservationLedgerTable({ rows }: { rows: ReservationLedgerRow[] 
         ))}
       </TableBody>
     </DataTable>
+  )
+}
+
+/**
+ * Required by -- when the part is needed (agreed with the user, 26 Nov 2026):
+ *
+ *   1. a requirement date somebody typed in SAP (RESB-BDTER different from the
+ *      reservation's created date, RESB-CRDAT), for any reservation. SAP fills
+ *      BDTER from the created date, so one equal to it was never typed -- on
+ *      every assistant reservation on prod (25 Nov 2026), and about half of
+ *      the rest. With no created date to compare (a reservation SAP made
+ *      itself), it does not count;
+ *   2. otherwise, made through the assistant: the planned consumption window
+ *      the requester gave, or No plan recorded (a line marked not needed);
+ *   3. otherwise, raised directly in SAP: Not recorded.
+ */
+function RequiredByCell({ row }: { row: ReservationLedgerRow }) {
+  const shown = requiredBy(row)
+  if (shown.kind === "sap") {
+    return (
+      <TableCell className="whitespace-nowrap text-muted-foreground" title="The requirement date in SAP (RESB-BDTER)">
+        {shown.text}
+      </TableCell>
+    )
+  }
+  if (shown.kind === "plan") {
+    return (
+      <TableCell className="text-foreground" title="The planned consumption window given in the assistant">
+        {shown.text}
+      </TableCell>
+    )
+  }
+  return (
+    <TableCell>
+      <span className="text-[11px] text-muted-foreground" title={shown.hint}>
+        {shown.text}
+      </span>
+    </TableCell>
   )
 }
 

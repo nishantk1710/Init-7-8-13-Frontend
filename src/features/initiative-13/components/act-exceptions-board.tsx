@@ -414,7 +414,7 @@ const EXCEPTION_HEADING: Record<ActException["exceptionType"], string> = {
   PLAN_BREACH: "The planned use has passed and nothing was issued",
   NO_PLAN: "OAR reservation with no consumption plan from the assistant",
   NO_PLAN_GRNI: "OAR reservation with no plan, and stock received 30+ days ago is not issued (retired type)",
-  QUANTITY_OVERRIDE: "The requester kept a quantity above the assistant's suggestion",
+  QUANTITY_OVERRIDE: "The requester kept a quantity above the assistant's suggestion, and it was reserved in SAP",
   NOT_ISSUED_30_DAYS: "The request line's reservation has not been issued 30 days on",
 }
 
@@ -446,7 +446,8 @@ const CLEARS_WHEN: Record<ActException["exceptionType"], string> = {
   NO_PLAN_GRNI: "This type was retired on 5 Nov 2026; every one still open was closed by the next detection run.",
   NOT_ISSUED_30_DAYS:
     "It closes when anything is issued against the reservation, or the reservation is deleted or closed for further issues (final issue) in SAP.",
-  QUANTITY_OVERRIDE: "It does not close by itself: the requester records why they kept a quantity above the suggestion.",
+  QUANTITY_OVERRIDE:
+    "It does not close by itself: the requester records why they kept a quantity above the suggestion. It is raised only once SAP has the reservation carrying the request ID (item text), not when the request is submitted.",
 }
 
 /** A NOT_ISSUED_30_DAYS exception's finding, in words (backend `detection.detect_not_issued`). */
@@ -455,9 +456,10 @@ function notIssuedText(exception: ActException): string | null {
   const { basis, since, days } = exception.evidence
   if (!since) return null
   const after = days ? ` and nothing has been issued against it in the ${days} days since` : " and nothing has been issued since"
-  return basis === "RECEIVED"
-    ? `The goods bought for this reservation were received on ${since}${after}.`
-    : `This reservation was required by ${since}${after}.`
+  if (basis === "RECEIVED") return `The goods bought for this reservation were received on ${since}${after}.`
+  if (basis === "PLANNED")
+    return `The planned use given in the assistant started on ${since} (or the reservation was made then, if later)${after}.`
+  return `This reservation was required by ${since}${after}.`
 }
 
 /** What is holding the exception open, from the text the board already carried. */

@@ -10,6 +10,7 @@ import { LoadFailure } from "@/features/initiative-13/components/load-states"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
 import { OarPageHeader, OarScope, ToolbarRow } from "@/features/initiative-13/components/ui/oar-scope"
 import { SegmentedTabs } from "@/features/initiative-13/components/ui/segmented-tabs"
+import { SheetExport } from "@/features/initiative-13/components/sheet-export"
 import { UsagePatternView } from "@/features/initiative-13/components/usage-pattern-view"
 import { loadLiveGrni, loadLiveUsagePatterns } from "@/features/initiative-13/data/live-loaders"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
@@ -150,6 +151,7 @@ async function GrniView({ searchParams }: { searchParams: I13SearchParams }) {
             <DashboardInfo id="grniTab" />
           </span>
         }
+        actions={<SheetExport kind="grni" filters={{ plant: searchParams.plant, material: searchParams.material }} />}
       />
       <ToolbarRow>
         <WatchTabs active="grni" />
@@ -203,6 +205,12 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
         title="Live Consumption Tracking"
         meta={<DataUpdatedNote />}
         subtitle="How each OAR spare has actually been issued, month by month — steady, in bursts, or not lately."
+        actions={
+          <SheetExport
+            kind="usage"
+            filters={{ plant: searchParams.plant, material: searchParams.material, agingBand: searchParams.agingBand }}
+          />
+        }
       />
       <ToolbarRow>
         <WatchTabs active="usage" />
@@ -212,10 +220,10 @@ async function UsageView({ searchParams }: { searchParams: I13SearchParams }) {
       {from && to && (
         <AlertBanner tone="info" title={`History covers ${from} to ${to}`}>
           That is the whole of the delivered movement extract. Enough to see a
-          material&rsquo;s shape; too short to call a trend. A material with no
-          goods movement in that time has nothing to show here, so it is not
-          listed: it is on the Consumption tab and the dashboard&rsquo;s
-          Non-movers tab.
+          material&rsquo;s shape; too short to call a trend. Every OAR material
+          is listed, so the count matches the dashboard&rsquo;s OAR count: one
+          never issued in that time shows zero in every month, after the ones
+          that were.
         </AlertBanner>
       )}
 
