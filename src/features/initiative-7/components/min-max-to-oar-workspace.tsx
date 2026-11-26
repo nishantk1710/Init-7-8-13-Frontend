@@ -244,7 +244,7 @@ export function MinMaxToOarWorkspace({ viewToggle }: { viewToggle?: React.ReactN
           )}
           <HowGeneratedPanel anchor={data.anchor} policy={data.policy} />
           <ReconciliationLine summary={data.summary} reconciliation={data.reconciliation} />
-          <MinMaxToOarTable rows={data.items} loading={loading} emptyMessage={emptyMessage} anchorMonth={data.anchor.month} />
+          <MinMaxToOarTable rows={data.items} loading={loading} emptyMessage={emptyMessage} onChanged={refetch} />
           <TablePagination
             page={page}
             pageSize={REVERSE_PAGE_SIZE}

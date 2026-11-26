@@ -257,6 +257,9 @@ export function InventoryPortfolioKpis({
     /** Material-plants the amount is over, and the ones left out (another currency, no valid price, no reorder point). */
     includedCount?: number | null
     excludedCount?: number | null
+    /** Release Up (Overlap) only: material-plants counted twice in the amount (their Stock item release and their release if
+     * converted to OAR). Said on the card, so the figure is read as an upper bound and not as a sum of different materials. */
+    overlapCount?: number | null
   }
   /** Which cards are waiting for their figure. A card that is loading shows a loader, whatever else it was given. */
   loading?: Partial<Record<"stockout" | "excess" | "workingCapital" | "adopted", boolean>>
@@ -295,10 +298,12 @@ export function InventoryPortfolioKpis({
   // How much of the portfolio the amount covers: included and left-out material-plants (only when the backend says).
   const wcIncluded = workingCapitalOverride?.includedCount
   const wcExcluded = workingCapitalOverride?.excludedCount
+  const wcOverlap = workingCapitalOverride?.overlapCount
   const workingCapitalCoverage =
     wcIncluded == null || wcExcluded == null
       ? undefined
-      : `${formatCount(wcIncluded)} included · ${formatCount(wcExcluded)} excluded`
+      : `${formatCount(wcIncluded)} included · ${formatCount(wcExcluded)} excluded` +
+        (wcOverlap ? ` · ${formatCount(wcOverlap)} counted in both` : "")
 
   return (
     <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">

@@ -128,11 +128,11 @@ describe("parseDecimal", () => {
 })
 
 describe("the consumption request", () => {
-  it("asks for one material-plant's series, to the list's anchor", async () => {
+  it("asks for one material-plant's series; the month is the stored run's, never sent", async () => {
     const { fetchReverseConsumption } = await import("@/features/initiative-7/services/reverse-conversion-api")
     const source = readFileSync(join(__dirname, "reverse-conversion-api.ts"), "utf8")
     expect(typeof fetchReverseConsumption).toBe("function")
-    expect(source).toContain("/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption${query}")
-    expect(source).toContain("encodeURIComponent(anchor)")
+    expect(source).toContain("/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption`")
+    expect(source).not.toContain("?anchor=")
   })
 })
