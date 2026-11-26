@@ -178,6 +178,9 @@ export interface ApiReverseRecommendation {
   /** The same reason as three short labelled lines (What we saw / What it means / What to do), for a person to scan.
    * Absent from an older backend, which sends only ``explanation``. */
   explanation_points?: ApiReverseExplanationPoint[]
+  /** Who wrote the reason: "AI_GENERATED" (a model, from the figures) or "DETERMINISTIC_FALLBACK" (standard wording built
+   * from the figures). Absent from an older backend, which is read as the standard wording. */
+  explanation_source?: "AI_GENERATED" | "DETERMINISTIC_FALLBACK"
   decision_rule: number
 
   issues_latest_12m: number
