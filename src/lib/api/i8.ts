@@ -980,6 +980,46 @@ export const CODING_SCREEN_BATCH = 10
 /** Headroom for one batch. Well under Azure's ~230s, well over 10 x 5.5s. */
 export const CODING_SCREEN_TIMEOUT_MS = 150_000
 
+// --- How current the data is ----------------------------------------------
+
+/** One source table and when it last loaded. */
+export interface ApiI8SourceTable {
+  table: string
+  /** Null for a table that has never loaded, which is not the same as one
+   *  that loaded long ago. */
+  loadedAt?: string | null
+}
+
+/**
+ * What `GET /i8/status` says about how current the I08 screens are.
+ *
+ * A separate route from `/i8/snapshot` on purpose: that one takes the snapshot
+ * as a dependency and answers 503 until a build finishes, so it cannot tell a
+ * screen anything during the ~90s it takes — the one moment the question is
+ * worth asking.
+ */
+export interface ApiI8Freshness {
+  referenceDate: string
+  /** The OLDEST source load behind the data: everything is at least this
+   *  fresh. Deliberately not the newest, which would read "updated today"
+   *  while one table had been stuck for weeks. */
+  loadedAt?: string | null
+  /** The newest source load. Equal to `loadedAt` when everything loaded
+   *  together; the gap between them is the finding. */
+  newestLoadedAt?: string | null
+  tables?: ApiI8SourceTable[]
+  /** The newest activity the data holds — creations and postings only. Null
+   *  until a snapshot has been built, because it is measured there. */
+  coverageTo?: string | null
+  builtAt?: string | null
+  buildingSince?: string | null
+}
+
+/** How current the I08 screens are. Answers during a build too. */
+export function getI8Freshness(): Promise<ApiI8Freshness> {
+  return apiFetch<ApiI8Freshness>("/i8/status")
+}
+
 // --- Helpers --------------------------------------------------------------
 
 /**
