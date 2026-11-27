@@ -336,7 +336,12 @@ describe("the reason in the open row is three short labelled lines", () => {
 
   it("falls back to the one-paragraph reason when the backend sent no lines", () => {
     expect(detail).toContain("points.length > 0 ? (")
-    expect(detail).toContain("<p className=\"mt-1\">{row.explanation}</p>")
+    expect(detail).toContain('<span className="font-semibold">{row.reason_label}:</span> {row.explanation}')
+  })
+
+  it("shows a one-paragraph reason as the reason's name, a colon, then the explanation", () => {
+    expect(detail).toContain("points.length > 0 ? (")
+    expect(detail).toContain("{row.reason_label}:")
   })
 
   it("writes no reason text of its own: the words come from the backend", () => {
