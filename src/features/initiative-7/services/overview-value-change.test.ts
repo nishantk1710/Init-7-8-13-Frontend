@@ -33,25 +33,17 @@ const ADOPTION_BODY = {
 }
 
 describe("Value Change on the Overview", () => {
-  it("offers the two existing views unchanged, and two Stock item to OAR views between them", () => {
+  it("offers exactly three views: Release Value, Tie Up Value and Stock Item to OAR", () => {
     expect(VALUE_CHANGE_OPTIONS.map((o) => [o.value, o.label])).toEqual([
-      ["released", "Releases value"],
-      ["released_oar_only", "Release Value (Stock Item to OAR only)"],
-      ["released_stock_oar", "Release Value (Stock + Stock Item to OAR)"],
-      ["released_overlap", "Release Up (Overlap)"],
-      ["tied_up", "Ties up value"],
+      ["released", "Release Value"],
+      ["tied_up", "Tie Up Value"],
+      ["released_oar_only", "Stock Item to OAR"],
     ])
   })
 
-  it("the existing Release and Tie-up options keep their value and their words", () => {
-    const byValue = Object.fromEntries(VALUE_CHANGE_OPTIONS.map((o) => [o.value, o.label]))
-    expect(byValue.released).toBe("Releases value")
-    expect(byValue.tied_up).toBe("Ties up value")
-  })
-
   it("knows its own values and nothing else", () => {
-    for (const value of ["released", "tied_up", "released_oar_only", "released_stock_oar", "released_overlap"]) expect(isValueChangeFilter(value)).toBe(true)
-    for (const value of ["all", "", "release", "oar"]) expect(isValueChangeFilter(value)).toBe(false)
+    for (const value of ["released", "tied_up", "released_oar_only"]) expect(isValueChangeFilter(value)).toBe(true)
+    for (const value of ["all", "", "release", "oar", "released_stock_oar", "released_overlap"]) expect(isValueChangeFilter(value)).toBe(false)
   })
 
   it("starts on All, and counts as an active filter only when changed", () => {
@@ -85,8 +77,8 @@ describe("Value Change on the Overview", () => {
   })
 })
 
-describe("the two Stock item to OAR views reach every figure on the page", () => {
-  it.each(["released_oar_only", "released_stock_oar", "released_overlap"] as const)("sends value_change=%s on the summary call", async (view) => {
+describe("the Stock Item to OAR view reaches every figure on the page", () => {
+  it.each(["released_oar_only"] as const)("sends value_change=%s on the summary call", async (view) => {
     const fetchMock = stubFetch({ total: 0, by_status: [], by_criticality: [], by_circuit: [], by_risk: [], by_plant: [] })
     await fetchRecommendationSummary({ isOar: false, valueChange: view }).catch(() => undefined)
     const url = String(fetchMock.mock.calls[0][0])
@@ -94,15 +86,15 @@ describe("the two Stock item to OAR views reach every figure on the page", () =>
     expect(url).toContain("is_oar=false")
   })
 
-  it.each(["released_oar_only", "released_stock_oar", "released_overlap"] as const)("sends value_change=%s on the adoption summary call", async (view) => {
+  it.each(["released_oar_only"] as const)("sends value_change=%s on the adoption summary call", async (view) => {
     const fetchMock = stubFetch(ADOPTION_BODY)
     await fetchAdoptionSummary({ type: "stock_item", valueChange: view })
     expect(String(fetchMock.mock.calls[0][0])).toContain(`value_change=${view}`)
   })
 
-  it("reads how many materials the overlap view counts twice", async () => {
+  it("still reads the overlap count an older backend view sends", async () => {
     stubFetch({ total: 0, by_status: [], by_criticality: [], by_circuit: [], by_risk: [], by_plant: [], working_capital_overlap_count: 7 })
-    const summary = await fetchRecommendationSummary({ isOar: false, valueChange: "released_overlap" })
+    const summary = await fetchRecommendationSummary({ isOar: false, valueChange: "released_oar_only" })
     expect(summary.workingCapitalOverlapCount).toBe(7)
   })
 
@@ -117,7 +109,7 @@ describe("the Overview page and the Working Capital card", () => {
   const workspace = read("features/initiative-7/components/live-overview-workspace.tsx")
   const cards = read("features/initiative-7/components/inventory-portfolio-kpis.tsx")
 
-  it("sends a Value Change view only for Stock item, and any of the four values", () => {
+  it("sends a Value Change view only for Stock item, and any of the three values", () => {
     expect(workspace).toContain('typeParam === "stock_item" && isValueChangeFilter(filters.valueChange)')
   })
 
@@ -125,10 +117,9 @@ describe("the Overview page and the Working Capital card", () => {
     expect(workspace.match(/valueChange: valueChangeParam/g)).toHaveLength(3)
   })
 
-  it("says under the cards what each view counts, in words for all four", () => {
-    for (const view of ["released:", "tied_up:", "released_oar_only:", "released_stock_oar:", "released_overlap:"]) expect(workspace).toContain(view)
-    expect(workspace).toContain("A material in both counts twice.")
-    expect(workspace).toContain("each counted once")
+  it("says under the cards what each view counts, in words for all three", () => {
+    for (const view of ["released:", "tied_up:", "released_oar_only:"]) expect(workspace).toContain(view)
+    expect(workspace).toContain("They are not counted in the other views.")
   })
 
   it("shows how many materials the overlap view counts in both, next to the coverage", () => {
