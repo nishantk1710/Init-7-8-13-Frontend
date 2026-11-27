@@ -7,7 +7,7 @@ import {
   vendorLabel,
 } from "@/features/initiative-8/utils/status"
 import { NO_PO_YET, REPAIR_REQUESTED, requesterText } from "@/features/initiative-8/utils/repair-request"
-import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
+import { repairPrLabel } from "@/features/initiative-8/utils/repair-line"
 import type { SAPDocumentReference } from "@/lib/domain/contracts"
 
 /**
@@ -33,7 +33,8 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
  * The export's columns, in the order the screen shows them: what a repair is
  * doing first, the declaration next, then the reference columns (criticality,
  * stock, SAP documents) the screen keeps at the end. "Repair line" and
- * "Department" arrived with the screen's own columns on 28-Oct-2026.
+ * "Department" arrived with the screen's own columns on 28-Oct-2026;
+ * "Repair line" became "Repair PR" on 27-Nov-2026, with the screen.
  *
  * No turnaround, partial-receipt or blocked columns since 19-Oct-2026: every
  * line is open in SAP, and goods receipts are not read. No Justification or
@@ -42,7 +43,7 @@ function documentLabel(doc: SAPDocumentReference | undefined): string {
  */
 export const REGISTER_CSV_HEADERS = [
   "Line",
-  "Repair line",
+  "Repair PR",
   "Material",
   "Description",
   "Plant",
@@ -65,7 +66,9 @@ export const REGISTER_CSV_HEADERS = [
   "Criticality",
   "Stock on hand",
   "Reorder point",
-  "Repair PR",
+  // Not "Repair PR" again: that is the second column now, the one naming the
+  // row, and two columns of the same name make `indexOf` a coin toss for
+  // anyone reading the file by its headers. The PO keeps its place here.
   "Repair PO",
   "Raised",
 ]
@@ -88,8 +91,8 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
     const requested = isPrOnly(c)
     return [
       c.id,
-      // As the screen shows it: 4500001719/10, or PR 2000028756/10.
-      repairLineLabel(c),
+      // As the screen shows it: the PR, 2000028756/10.
+      repairPrLabel(c),
       c.material.materialCode,
       c.material.description,
       `${c.plant.plantId} ${c.plant.name}`,
@@ -120,7 +123,6 @@ export function registerRowsToCsv(chains: RepairChain[]): (string | number)[][] 
       c.criticality ?? "",
       c.stockOnHand ?? "",
       c.reorderPoint ?? "",
-      documentLabel(c.repairPR),
       documentLabel(c.repairPO),
       c.raisedAt,
     ]
