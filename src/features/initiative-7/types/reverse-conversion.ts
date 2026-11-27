@@ -226,8 +226,45 @@ export interface ApiReverseRequest {
   anchor_month: string | null
   submitted_by: string
   submit_comment: string | null
+  /** Stock x unit price in ZAR when the recommendation was made; null when it could not be valued. */
+  stock_value?: ApiDecimalValue
   submitted_at: string
   updated_at: string
+}
+
+/** One material-plant's newest conversion request, as GET .../requests/list returns it (the Action Center and the
+ * Pipeline list these). */
+export interface ApiReverseRequestListItem {
+  id: number
+  material: string
+  plant: string
+  description: string | null
+  /** PENDING_APPROVAL, SENT_BACK, HELD, SAP_EXECUTION_PENDING or REJECTED. */
+  status: string
+  pending_role: string | null
+  /** The approval chain, first role first. */
+  route: string[]
+  chain_index: number
+  confidence: string | null
+  stock_value: ApiDecimalValue
+  submitted_by: string
+  submitted_at: string
+  updated_at: string
+}
+
+export interface ApiReverseRequestStatusCount {
+  status: string
+  count: number
+}
+
+export interface ApiReverseRequestList {
+  items: ApiReverseRequestListItem[]
+  /** Requests matching the status filter, across every page. */
+  total: number
+  page: number
+  page_size: number
+  /** Newest requests per status over every status, not narrowed by the filter. */
+  counts: ApiReverseRequestStatusCount[]
 }
 
 export interface ApiReverseLedgerEntry {

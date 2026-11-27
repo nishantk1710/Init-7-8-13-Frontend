@@ -10,6 +10,7 @@ import {
   availableActions,
   chainSteps,
   isRequestOpen,
+  requestProgress,
   requestStatusLabel,
   requestStatusTone,
   requestSummary,
@@ -141,20 +142,65 @@ describe("the Convert to OAR section", () => {
     expect(section).not.toContain("Why you are asking (optional)")
   })
 
+  it("shows the history and that nothing is written to SAP, and not the list of every role in the chain (as the OAR panel does not)", () => {
+    expect(section).not.toContain("chainSteps(")
+    expect(section).toContain("<SentForApprovalNotice")
+    expect(section).toContain("<ReverseRequestHistory entries={detail?.history ?? []} />")
+    expect(section).toContain("nothing is written to SAP from this page")
+  })
+
+  it("only says a sent request was sent, to everyone: the approvers decide on the decision page, not on the card", () => {
+    expect(section).toContain('{open && current?.status !== "SAP_EXECUTION_PENDING" && (')
+    expect(section).not.toContain("availableActions")
+    expect(section).not.toContain("actionNeedsComment")
+    expect(section).not.toContain("resolveActingRole")
+    expect(section).not.toContain("act(")
+    expect(section).not.toContain("Your comment (needed to send back, hold or reject)")
+  })
+})
+
+describe("the Convert to OAR decision panel and page (where approvers decide)", () => {
+  const panel = read(`${I7}/components/convert-to-oar-decision-panel.tsx`)
+  const page = read(`${I7}/pages/convert-to-oar-decision-page.tsx`)
+  const route = read("app/(live)/inventory-planning/convert-to-oar/page.tsx")
+
   it("acts as the approval role the token holds, like the OAR decision panel", () => {
-    expect(section).toContain("resolveActingRole")
-    expect(section).toContain("useRoles()")
-    expect(section).toContain("availableActions(current.status, current.pending_role, actingRole)")
+    expect(panel).toContain("resolveActingRole")
+    expect(panel).toContain("useRoles()")
+    expect(panel).toContain("availableActions(request.status, request.pending_role, actingRole)")
   })
 
   it("will not send a reject, send back or hold without a comment", () => {
-    expect(section).toContain("actionNeedsComment(action) && comment.trim() === \"\"")
+    expect(panel).toContain("actionNeedsComment(action) && comment.trim() === \"\"")
   })
 
-  it("shows the chain, the history, and that nothing is written to SAP", () => {
-    expect(section).toContain("chainSteps(current.route, current.chain_index, current.status)")
-    expect(section).toContain("<History entries={detail?.history ?? []} />")
-    expect(section).toContain("nothing is written to SAP from this page")
+  it("says who the step is waiting for, and that only that role can decide it, to anyone who cannot", () => {
+    expect(panel).toContain("Step {request.chain_index + 1} of {request.route.length} — awaiting")
+    expect(panel).toContain("Acting as {actingRole} — this step is awaiting")
+    expect(panel).toContain("Every approver has approved. SAP is changed by hand.")
+  })
+
+  it("is a recorded decision only, with the history beside it", () => {
+    expect(panel).toContain("nothing is written to SAP from this page")
+    expect(page).toContain("<ReverseRequestHistory entries={detail.history} />")
+  })
+
+  it("loads the request for the material and plant in the link, and links back to the Action Center", () => {
+    expect(page).toContain('params.get("material")')
+    expect(page).toContain('params.get("plant")')
+    expect(page).toContain("useReverseRequest(material, plant)")
+    expect(page).toContain('href="/actions"')
+    expect(page).toContain("Back to Action Center")
+  })
+
+  it("is a route under Inventory Planning", () => {
+    expect(route).toContain("ConvertToOarDecisionPage")
+    expect(route).toContain("Convert to OAR — Inventory Planning — Spares AI")
+  })
+
+  it("the Action Center and the Pipeline both open it", () => {
+    expect(read(`${I7}/selectors/live.ts`)).toContain("convertToOarDecisionHref(request.material, request.plant)")
+    expect(read(`${I7}/components/live-pipeline-convert-to-oar.tsx`)).toContain("convertToOarDecisionHref(request.material, request.plant)")
   })
 })
 
@@ -206,5 +252,22 @@ describe("where the Convert to OAR block sits, and when it cannot be used", () =
     expect(section).toContain("The conversion request could not be loaded")
     // The buttons are only in the branch where the request loaded.
     expect(section.indexOf("unavailable ? (")).toBeLessThan(section.indexOf("Convert to OAR\n                </Button>"))
+  })
+})
+
+
+describe("requestProgress (the Pipeline's progress bar)", () => {
+  it("counts the approvals so far out of the route", () => {
+    expect(requestProgress({ status: "PENDING_APPROVAL", chain_index: 0, route: ROUTE })).toEqual({ done: 0, of: 4 })
+    expect(requestProgress({ status: "PENDING_APPROVAL", chain_index: 2, route: ROUTE })).toEqual({ done: 2, of: 4 })
+  })
+
+  it("shows every step done once fully approved, and never more than the route", () => {
+    expect(requestProgress({ status: "SAP_EXECUTION_PENDING", chain_index: 3, route: ROUTE })).toEqual({ done: 4, of: 4 })
+    expect(requestProgress({ status: "HELD", chain_index: 9, route: ROUTE })).toEqual({ done: 4, of: 4 })
+  })
+
+  it("is empty for a route with no steps", () => {
+    expect(requestProgress({ status: "REJECTED", chain_index: 0, route: [] })).toEqual({ done: 0, of: 0 })
   })
 })

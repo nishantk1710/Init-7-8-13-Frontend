@@ -128,7 +128,8 @@ describe("the page order is filters, then the toggle, then the results", () => {
 
   it("the page hands the one toggle to whichever view is showing, and draws none of its own above the bars", () => {
     expect(workspace.match(/<RecommendationTypeToggle/g)).toHaveLength(1)
-    expect(workspace).toContain("<MinMaxToOarWorkspace viewToggle={viewToggle} />")
+    // (a link can also say where the view opens -- `initialFilters` -- but the toggle is always the page's one.)
+    expect(workspace).toContain("<MinMaxToOarWorkspace viewToggle={viewToggle} initialFilters={reverseStart} />")
     expect(workspace).toContain("<LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} viewToggle={viewToggle} />")
   })
 

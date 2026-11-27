@@ -46,6 +46,8 @@ import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-r
 import { mapStatus } from "@/features/initiative-7/services/i7-api"
 import type { RecommendationStatus } from "@/features/initiative-7/types/inventory"
 import { pagedTableView } from "@/features/initiative-7/utils/paged-table-state"
+import { HEALTH_TONE, liveHealth, liveWaitingDays } from "@/features/initiative-7/utils/pipeline-waiting"
+import { LivePipelineConvertToOar } from "@/features/initiative-7/components/live-pipeline-convert-to-oar"
 
 const ALL = "all"
 /** How many rows of each status a tab that spans several statuses loads. */
@@ -84,33 +86,6 @@ function tabForStatus(status: RecommendationStatus): StatusTab {
   if (status === "Pending Review") return "not-submitted"
   if (status === "Approved" || status === "Implemented" || status === "Rejected") return "completed"
   return "in-flight"
-}
-
-/** Days since `updatedAt` (submit/hold/approve/reject all update the row in
- * place -- see the schema's own updated_at docstring), against wall-clock
- * "now" -- unlike the scenario version's waitingDays(), live data has no
- * fixed dataset reference date to measure against. */
-function liveWaitingDays(updatedAt: string | undefined): number | null {
-  if (!updatedAt) return null
-  const parsed = new Date(updatedAt).getTime()
-  if (Number.isNaN(parsed)) return null
-  return Math.max(0, Math.round((Date.now() - parsed) / 86_400_000))
-}
-
-/** Same thresholds as the scenario version's pipelineHealth() -- illustrative,
- * not an agreed SLA -- applied only to rows still actually in motion
- * (in-flight); a completed or not-yet-submitted row is never "stuck". */
-function liveHealth(days: number | null): "On track" | "Slow" | "Stuck" | null {
-  if (days === null) return null
-  if (days > 14) return "Stuck"
-  if (days > 7) return "Slow"
-  return "On track"
-}
-
-const HEALTH_TONE: Record<"On track" | "Slow" | "Stuck", "success" | "warning" | "danger"> = {
-  "On track": "success",
-  Slow: "warning",
-  Stuck: "danger",
 }
 
 /** Every raw backend LifecycleStatus this page recognises, each fetched
@@ -493,6 +468,10 @@ export function LivePipelineWorkspace() {
         stuck. &quot;Waiting on&quot; and &quot;Progress&quot; reflect the real approval role and chain position the
         backend resolved for this recommendation, not a fixed 4-step assumption.
       </p>
+
+      {/* Requests to convert a Min-Max material to OAR: their own list, read from their own endpoint. The numbers and
+          tables above are the OAR and Stock item recommendations and do not include them. */}
+      <LivePipelineConvertToOar />
     </div>
   )
 }

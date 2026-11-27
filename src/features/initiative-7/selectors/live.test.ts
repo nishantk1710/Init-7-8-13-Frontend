@@ -7,6 +7,9 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock("@/features/initiative-7/services/i7-api", () => api)
 
+const requestsApi = vi.hoisted(() => ({ fetchReverseRequestList: vi.fn() }))
+vi.mock("@/features/initiative-7/services/reverse-conversion-requests-api", () => requestsApi)
+
 import {
   getInitiative7LiveActions,
   getInitiative7LiveAuditEvents,
@@ -47,7 +50,26 @@ function serve(buckets: Record<string, { rows: ReturnType<typeof rec>[]; total?:
   })
 }
 
+function request(id: number, material: string, plant: string, status = "PENDING_APPROVAL", description: string | null = `Part ${material}`) {
+  return {
+    id, material, plant, description, status, pending_role: "Inventory Controller",
+    route: ["Inventory Controller", "Engineering Head", "Plant Head", "Commercial Head"],
+    chain_index: 0, confidence: "high", stock_value: "1000", submitted_by: "u", submitted_at: "2026-11-20T08:00:00Z",
+    updated_at: "2026-11-27T09:30:00Z",
+  }
+}
+
+/** Serve the Convert to OAR requests by status; an unlisted status is an empty bucket. */
+function serveRequests(buckets: Record<string, { items: ReturnType<typeof request>[]; total?: number }>) {
+  requestsApi.fetchReverseRequestList.mockImplementation(async ({ status }: { status: string }) => {
+    const bucket = buckets[status] ?? { items: [] }
+    return { items: bucket.items, total: bucket.total ?? bucket.items.length, page: 1, page_size: 50, counts: [] }
+  })
+}
+
 beforeEach(() => {
+  requestsApi.fetchReverseRequestList.mockReset()
+  serveRequests({})
   api.fetchRecommendationSummary.mockReset()
   api.fetchRecommendations.mockReset()
   api.fetchApprovalEvents.mockReset()
@@ -196,6 +218,76 @@ describe("getInitiative7LiveActions", () => {
   it("throws if any bucket fails rather than returning a partial list as complete", async () => {
     api.fetchRecommendations.mockRejectedValue(new Error("timeout"))
     await expect(getInitiative7LiveActions()).rejects.toThrow("timeout")
+  })
+
+  describe("Convert to OAR requests", () => {
+    it("asks for the newest requests of each waiting status, capped", async () => {
+      serve({})
+      await getInitiative7LiveActions()
+      const calls = requestsApi.fetchReverseRequestList.mock.calls.map(([p]) => p)
+      expect(calls).toEqual([
+        { status: "PENDING_APPROVAL", pageSize: 50 },
+        { status: "SENT_BACK", pageSize: 50 },
+        { status: "HELD", pageSize: 50 },
+      ])
+    })
+
+    it("lists a pending request as a decision that opens the Convert to OAR decision page on the material", async () => {
+      serve({})
+      serveRequests({ PENDING_APPROVAL: { items: [request(7, "REC1", "1300")] } })
+      const { actions, decisions, total, decisionTotal } = await getInitiative7LiveActions()
+      expect(actions).toEqual([
+        {
+          id: "i7-reverse-7",
+          initiative: "initiative-7",
+          title: "Convert to OAR awaiting approval — Part REC1",
+          severity: "info",
+          entityId: "7",
+          materialId: "REC1",
+          plantId: "1300",
+          href: "/inventory-planning/convert-to-oar?material=REC1&plant=1300",
+          createdAt: "2026-11-27T09:30:00Z",
+        },
+      ])
+      expect(decisions).toHaveLength(1)
+      expect([total, decisionTotal]).toEqual([1, 1])
+    })
+
+    it("decides what is a decision from the status: returned is, on hold is not", async () => {
+      serve({})
+      serveRequests({
+        PENDING_APPROVAL: { items: [request(1, "A", "1300")] },
+        SENT_BACK: { items: [request(2, "B", "1300", "SENT_BACK")] },
+        HELD: { items: [request(3, "C", "1500", "HELD")], total: 4 },
+      })
+      const result = await getInitiative7LiveActions()
+      expect(result.actions.map((a) => a.entityId)).toEqual(["1", "2", "3"])
+      expect(result.decisions.map((a) => a.entityId)).toEqual(["1", "2"])
+      expect(result.total).toBe(6)
+      expect(result.decisionTotal).toBe(2)
+      expect(result.capped).toBe(true) // HELD has 4 requests and 1 listed
+    })
+
+    it("uses the material number when the request has no description", async () => {
+      serve({})
+      serveRequests({ PENDING_APPROVAL: { items: [request(1, "REC9", "1300", "PENDING_APPROVAL", null)] } })
+      expect((await getInitiative7LiveActions()).actions[0].title).toBe("Convert to OAR awaiting approval — REC9")
+    })
+
+    it("keeps a request beside the recommendation of the same material-plant, not in place of it", async () => {
+      serve({ PENDING_APPROVAL: { rows: [rec("R1", "M1", "1300")] } })
+      serveRequests({ PENDING_APPROVAL: { items: [request(5, "M1", "1300")] } })
+      const { actions } = await getInitiative7LiveActions()
+      expect(actions.map((a) => a.id)).toEqual(["i7-R1", "i7-reverse-5"])
+    })
+
+    it("leaves the recommendations' actions untouched when the requests cannot be read", async () => {
+      serve({ PENDING_APPROVAL: { rows: [rec("R1", "M1", "1300")] } })
+      requestsApi.fetchReverseRequestList.mockRejectedValue(new Error("not available on this server"))
+      const result = await getInitiative7LiveActions()
+      expect(result.actions.map((a) => a.entityId)).toEqual(["R1"])
+      expect(result.total).toBe(1)
+    })
   })
 })
 

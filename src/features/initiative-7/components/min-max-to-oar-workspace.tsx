@@ -102,8 +102,20 @@ function OptionSelect({
  * page's toggle is on Min-Max to OAR, so selecting it fires none of their requests and selecting them fires none
  * of these. Read-only: it suggests, and nothing is written to SAP.
  */
-export function MinMaxToOarWorkspace({ viewToggle }: { viewToggle?: React.ReactNode }) {
-  const [filters, setFilters] = useState<ReverseFilterState>(REVERSE_DEFAULT_FILTERS)
+export function MinMaxToOarWorkspace({
+  viewToggle,
+  initialFilters,
+}: {
+  viewToggle?: React.ReactNode
+  /** Where a link opened the view: a material and plant (empty for none). Only the starting point; "Clear filters"
+   * still returns to the view's own defaults. */
+  initialFilters?: { material: string; plant: string }
+}) {
+  const [filters, setFilters] = useState<ReverseFilterState>(() => ({
+    ...REVERSE_DEFAULT_FILTERS,
+    material: initialFilters?.material ?? REVERSE_DEFAULT_FILTERS.material,
+    plant: initialFilters?.plant ? initialFilters.plant : REVERSE_DEFAULT_FILTERS.plant,
+  }))
   // Typing in the search box asks the backend once the person pauses, not on every keystroke.
   const searchText = useDebouncedValue(filters.material)
   const queryFilters = { ...filters, material: searchText }
