@@ -98,7 +98,9 @@ export function MinMaxToOarDetail({ row, onChanged }: { row: ApiReverseRecommend
           <div className="mt-2.5 border-t border-border pt-2.5">
             <dt className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">Reason</dt>
             <dd className="mt-0.5 text-[13px] leading-relaxed text-foreground">
-              <p className="font-semibold">{row.reason_label}</p>
+              {points.length > 0 ? (
+                <p className="font-semibold">{row.reason_label}</p>
+              ) : null}
               {points.length > 0 ? (
                 <dl className="mt-1.5 flex flex-col gap-1.5">
                   {points.map((point) => (
@@ -109,7 +111,10 @@ export function MinMaxToOarDetail({ row, onChanged }: { row: ApiReverseRecommend
                   ))}
                 </dl>
               ) : (
-                <p className="mt-1">{row.explanation}</p>
+                // One paragraph (a reason written by the model, or an older row): the reason's name, then its explanation.
+                <p>
+                  <span className="font-semibold">{row.reason_label}:</span> {row.explanation}
+                </p>
               )}
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 {row.explanation_source === "AI_GENERATED" ? "Written by AI" : "Standard wording, built from the figures"}
