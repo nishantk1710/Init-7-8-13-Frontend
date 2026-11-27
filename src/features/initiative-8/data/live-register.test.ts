@@ -643,7 +643,7 @@ describe("registerRowsToCsv", () => {
     expect(cell("Repair PO")).toBe("4500001052/1310")
   })
 
-  it("carries the repair line and the department, as the screen shows them", () => {
+  it("carries the repair PR and the department, as the screen shows them", () => {
     const [po, pr] = registerRowsToCsv([
       toRepairChain(apiRow({ requester: "10303", requesterName: "ENGG-PLANT MAINT" })),
       toRepairChain(
@@ -658,9 +658,11 @@ describe("registerRowsToCsv", () => {
       ),
     ])
     const cell = (row: (string | number)[], header: string) => row[REGISTER_CSV_HEADERS.indexOf(header)]
-    expect(cell(po, "Repair line")).toBe("4500001052/1310")
+    // A PO line is named by the PR it was raised from, not by its PO -- the
+    // same column, read the same way, on both rows (27-Nov-2026).
+    expect(cell(po, "Repair PR")).toBe("2000028388/10")
     expect(cell(po, "Department")).toBe("10303 · ENGG-PLANT MAINT")
-    expect(cell(pr, "Repair line")).toBe("PR 2000028756/10")
+    expect(cell(pr, "Repair PR")).toBe("2000028756/10")
     expect(cell(pr, "Department")).toBe("40200")
   })
 
@@ -676,7 +678,9 @@ describe("registerRowsToCsv", () => {
   it("follows the screen: status first, declaration next, reference columns last", () => {
     const at = (header: string) => REGISTER_CSV_HEADERS.indexOf(header)
     expect(at("Repair status")).toBeLessThan(at("Declaration status"))
-    for (const reference of ["Criticality", "Stock on hand", "Reorder point", "Repair PR", "Repair PO"]) {
+    // Not "Repair PR": it names the row, so it sits second, beside the
+    // material -- not among the reference columns at the end.
+    for (const reference of ["Criticality", "Stock on hand", "Reorder point", "Repair PO"]) {
       expect(at(reference)).toBeGreaterThan(at("Declared at"))
     }
   })
