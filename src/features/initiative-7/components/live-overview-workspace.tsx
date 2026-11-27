@@ -67,11 +67,7 @@ const VALUE_CHANGE_NOTE: Record<ValueChangeFilter, string> = {
   released: "Only materials that release value (reorder point goes down).",
   tied_up: "Only materials that tie up value (reorder point goes up).",
   released_oar_only:
-    "Only stock items eligible to convert to OAR, each at the value its conversion would release (reorder point goes to 0).",
-  released_stock_oar:
-    "Stock items, each counted once: one eligible to convert to OAR at the value its conversion would release, every other at its own release.",
-  released_overlap:
-    "Stock items at their own release, plus those eligible to convert to OAR at the value their conversion would release. A material in both counts twice.",
+    "Only materials eligible to convert to OAR, each at the value its conversion would release (reorder point goes to 0). They are not counted in the other views.",
 }
 
 export function LiveInventoryOptimizationOverviewWorkspace() {
