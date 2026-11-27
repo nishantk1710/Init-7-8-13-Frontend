@@ -418,20 +418,24 @@ export function RepairRegisterTable({
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <Head frozen>Material</Head>
-                  <Head>Repair PR</Head>
-                  <Head>Plant</Head>
-                  <Head>Vendor</Head>
-                  <Head>Department</Head>
-                  <Head>Stage</Head>
-                  <Head>Expected back</Head>
-                  <Head right wrap>
+                  <Head frozen source="material">Material</Head>
+                  <Head source="repairPr">Repair PR</Head>
+                  <Head source="plant">Plant</Head>
+                  <Head source="vendor">Vendor</Head>
+                  <Head source="department">Department</Head>
+                  <Head source="stage">Stage</Head>
+                  <Head source="expectedBack">Expected back</Head>
+                  <Head right wrap source="daysOpen">
                     Days open
                   </Head>
-                  <Head>Declaration</Head>
-                  {columns.includes("qty") && <Head right>Qty</Head>}
-                  {columns.includes("crit") && <Head>Criticality</Head>}
-                  {columns.includes("po") && <Head>Repair PO</Head>}
+                  <Head source="declaration">Declaration</Head>
+                  {columns.includes("qty") && (
+                    <Head right source="qtyUnderRepair">
+                      Qty
+                    </Head>
+                  )}
+                  {columns.includes("crit") && <Head source="criticality">Criticality</Head>}
+                  {columns.includes("po") && <Head source="repairPo">Repair PO</Head>}
                   <th className="sticky right-0 z-[2] h-[42px] bg-(--i08-head) px-1 text-center align-middle">
                     <ColumnPicker columns={columns} onToggle={toggleColumn} />
                   </th>

@@ -12,7 +12,7 @@ import { InfoPopover } from "@/features/initiative-8/components/kit/info-popover
 import { FilterChips, MaterialCell, QuickViews, ResultsCard } from "@/features/initiative-8/components/kit/list"
 import { Dot, I08Page } from "@/features/initiative-8/components/kit/page"
 import { StatusDot } from "@/features/initiative-8/components/kit/status"
-import { I08Cell as Cell, I08Head as Head } from "@/features/initiative-8/components/kit/table"
+import { I08Cell as Cell, I08Head as Head, columnTitle } from "@/features/initiative-8/components/kit/table"
 import { UrlSelect } from "@/features/initiative-8/components/url-filters"
 import { toCodingCandidate } from "@/features/initiative-8/data/live-coding-candidates"
 import type { CodingCandidate, CodingCandidateSource } from "@/features/initiative-8/types/repair"
@@ -552,8 +552,8 @@ export function CodingCandidatesTable({
                       </InfoPopover>
                     </span>
                   </Head>
-                  <Head frozen>Material</Head>
-                  <Head>Verdict</Head>
+                  <Head frozen source="material">Material</Head>
+                  <Head source="candidateVerdict">Verdict</Head>
                   <Head>
                     {/* The two marks a row can carry, explained once. */}
                     <span className="sr-only">Signals</span>
@@ -574,9 +574,9 @@ export function CodingCandidatesTable({
                       </p>
                     </InfoPopover>
                   </Head>
-                  <Head>Reason</Head>
-                  <Head>Plants</Head>
-                  <Head>Found in</Head>
+                  <Head source="candidateReason">Reason</Head>
+                  <Head source="candidatePlants">Plants</Head>
+                  <Head source="candidateFoundIn">Found in</Head>
                   <Head right sort={priceSort === "desc" ? "descending" : priceSort === "asc" ? "ascending" : "none"}>
                     {/* The one sortable column: highest first, lowest first,
                         then back to the ranking. */}
@@ -584,13 +584,20 @@ export function CodingCandidatesTable({
                       type="button"
                       onClick={() => setPriceSort(nextPriceSort)}
                       className="inline-flex items-center gap-1 rounded-sm hover:text-foreground"
-                      title={
+                      /*
+                       * The source goes on the button, not on the heading
+                       * cell: a `title` on both would offer two different
+                       * tooltips inside one cell, depending on which pixel
+                       * the pointer rested over.
+                       */
+                      title={columnTitle(
+                        "newItemPrice",
                         priceSort === "none"
                           ? "Sort by new item price, highest first"
                           : priceSort === "desc"
                             ? "Sort by new item price, lowest first"
-                            : "Back to the ranking"
-                      }
+                            : "Back to the ranking",
+                      )}
                     >
                       New item price
                       {priceSort === "desc" ? (
