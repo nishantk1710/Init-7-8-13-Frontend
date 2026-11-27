@@ -62,6 +62,19 @@ async function fetchAll<T>(page: (limit: number, offset: number) => Promise<ApiL
   return rows
 }
 
+/**
+ * The Ledger tabs export their first rows only (agreed with the user,
+ * 27 Nov 2026): unfiltered they hold about 250,000 rows each, which no request
+ * can fetch inside Azure's 230-second limit and no workbook is read whole.
+ * Newest first, with the screen's filters -- filter to narrow what is exported.
+ */
+const LEDGER_EXPORT_ROWS = 1000
+
+/** The first `size` rows, in the screen's order: one request. */
+async function firstRows<T>(page: (limit: number, offset: number) => Promise<ApiList<T>>, size: number): Promise<T[]> {
+  return (await page(size, 0)).items
+}
+
 const scope = (filters: LedgerFilters) => ({
   plant: filters.plant || undefined,
   material: filters.material || undefined,
@@ -142,12 +155,12 @@ export async function exportGrniSheet(filters: LedgerFilters = {}): Promise<Shee
   }
 }
 
-/** Ledger, Reservations tab: one row per reservation item, newest first. */
+/** Ledger, Reservations tab: the first `LEDGER_EXPORT_ROWS` reservation items, newest first. */
 export async function exportReservationLedgerSheet(
   filters: LedgerFilters & { session?: string; reservation?: string; reservationStatus?: string; issued?: string } = {}
 ): Promise<Sheet> {
   const number = filters.reservation?.trim()
-  const rows = await fetchAll(
+  const rows = await firstRows(
     (limit, offset) =>
       getI13ReservationLedgerList({
         ...scope(filters),
@@ -157,7 +170,7 @@ export async function exportReservationLedgerSheet(
         limit,
         offset,
       }),
-    1000
+    LEDGER_EXPORT_ROWS
   )
   return {
     headers: [
@@ -193,9 +206,9 @@ export async function exportReservationLedgerSheet(
   }
 }
 
-/** Ledger, Procurement lines tab: one row per PO / PR line, newest first. */
+/** Ledger, Procurement lines tab: the first `LEDGER_EXPORT_ROWS` PO / PR lines, newest first. */
 export async function exportProcurementLinesSheet(filters: ProcurementLedgerFilters = {}): Promise<Sheet> {
-  const rows = await fetchAll(
+  const rows = await firstRows(
     (limit, offset) =>
       getI13LedgerList({
         ...scope(filters),
@@ -208,7 +221,7 @@ export async function exportProcurementLinesSheet(filters: ProcurementLedgerFilt
         limit,
         offset,
       }),
-    1000
+    LEDGER_EXPORT_ROWS
   )
   return {
     headers: [
