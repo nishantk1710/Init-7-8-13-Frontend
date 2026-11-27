@@ -120,18 +120,16 @@ export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopt
 
 /** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values.
  *
- * "released" and "tied_up" are the existing views, unchanged. The two between them read Stock item to OAR:
- *  - "released_oar_only": only the stock items eligible to convert to OAR, each at the release its conversion would give;
- *  - "released_stock_oar": each stock item once -- an eligible-to-convert one at the release it would give if converted to
- *    OAR, every other at its own Stock item release;
- *  - "released_overlap": the Stock item release PLUS the OAR release of the eligible ones, so a material in both is
- *    counted twice (the Working Capital card says how many). */
+ * A material eligible to convert to OAR is not a Stock item recommendation (the backend leaves it out of the Stock item
+ * population), so its value is never released twice. The three views therefore never share a material:
+ *  - "released": Stock item recommendations whose reorder point goes down;
+ *  - "tied_up": Stock item recommendations whose reorder point goes up;
+ *  - "released_oar_only": Stock Item to OAR -- the materials eligible to convert to OAR, each at the release its
+ *    conversion would give (reorder point to 0). */
 export const VALUE_CHANGE_OPTIONS = [
-  { value: "released", label: "Releases value" },
-  { value: "released_oar_only", label: "Release Value (Stock Item to OAR only)" },
-  { value: "released_stock_oar", label: "Release Value (Stock + Stock Item to OAR)" },
-  { value: "released_overlap", label: "Release Up (Overlap)" },
-  { value: "tied_up", label: "Ties up value" },
+  { value: "released", label: "Release Value" },
+  { value: "tied_up", label: "Tie Up Value" },
+  { value: "released_oar_only", label: "Stock Item to OAR" },
 ] as const
 
 /** One value of the Value Change filter, as the backend takes it. */

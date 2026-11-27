@@ -1232,7 +1232,7 @@ export interface AdoptionSummaryParams {
   demandClass?: string
   /** Critical | High | Medium | Low -- the level the pages show, not the raw tier. */
   criticalityLevel?: string
-  /** released | tied_up | released_stock_oar | released_overlap -- count only the materials of that Value Change view. */
+  /** released | tied_up | released_oar_only -- count only the materials of that Value Change view. */
   valueChange?: ValueChangeFilter
 }
 
