@@ -16,8 +16,19 @@ import { downloadExcel } from "@/lib/utils"
 const EXPORTS = {
   usage: { file: "oar-usage-pattern.xlsx", sheet: "Usage pattern", load: exportUsageSheet },
   grni: { file: "oar-30-day-gr-not-issued.xlsx", sheet: "GR not issued", load: exportGrniSheet },
-  reservations: { file: "oar-ledger-reservations.xlsx", sheet: "Reservations", load: exportReservationLedgerSheet },
-  procurementLines: { file: "oar-ledger-procurement-lines.xlsx", sheet: "Procurement lines", load: exportProcurementLinesSheet },
+  // The Ledger tabs export their first 1,000 rows (LEDGER_EXPORT_ROWS), and say so.
+  reservations: {
+    file: "oar-ledger-reservations.xlsx",
+    sheet: "Reservations",
+    load: exportReservationLedgerSheet,
+    label: "Export first 1,000",
+  },
+  procurementLines: {
+    file: "oar-ledger-procurement-lines.xlsx",
+    sheet: "Procurement lines",
+    load: exportProcurementLinesSheet,
+    label: "Export first 1,000",
+  },
   exceptions: { file: "oar-exceptions.xlsx", sheet: "Exceptions", load: exportExceptionsSheet },
   capturedPlans: { file: "oar-captured-plans.xlsx", sheet: "Captured plans", load: exportCapturedPlansSheet },
 } as const
@@ -34,7 +45,7 @@ export type SheetExportKind = keyof typeof EXPORTS
 export function SheetExport({ kind, filters = {} }: { kind: SheetExportKind; filters?: Record<string, string | undefined> }) {
   return (
     <ExportButton
-      label="Export Excel"
+      label={(EXPORTS[kind] as { label?: string }).label ?? "Export Excel"}
       onExport={async () => {
         const { file, sheet, load } = EXPORTS[kind]
         const { headers, rows }: Sheet = await (load as (f: Record<string, string | undefined>) => Promise<Sheet>)(filters)
