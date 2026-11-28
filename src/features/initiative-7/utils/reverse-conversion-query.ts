@@ -94,7 +94,7 @@ export function reverseParamsFromFilters(filters: ReverseFilterState, page: numb
   }
 }
 
-/** What Export CSV asks for: exactly what the table shows, every page, no paging. */
+/** What Export Excel asks for: exactly what the table shows, every page, no paging. */
 export function reverseExportParams(filters: ReverseFilterState): Omit<ReverseListParams, "page" | "pageSize"> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { page, pageSize, ...rest } = reverseParamsFromFilters(filters, 1)
