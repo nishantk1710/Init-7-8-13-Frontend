@@ -15,7 +15,7 @@
 
 import { useState } from "react"
 import { ChartCard } from "@/components/shared/chart-card"
-import { PageLoader } from "@/components/shared/page-loader"
+import { OverviewSkeletonBody } from "@/features/initiative-7/components/skeletons"
 import {
   ALL_FILTER,
   DashboardFilters,
@@ -143,7 +143,7 @@ export function LiveInventoryOptimizationOverviewWorkspace() {
   // screen, and the previous figures stay until the new ones arrive.
   if (summaryLoading && !summary && !summaryError) {
     return (
-      <PageLoader label="Loading the Inventory Planning overview" className="h-[480px] w-full" />
+      <OverviewSkeletonBody />
     )
   }
 

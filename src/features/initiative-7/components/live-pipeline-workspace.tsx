@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PageLoader } from "@/components/shared/page-loader"
+import { PipelineSkeletonBody, PipelineTableSkeleton } from "@/features/initiative-7/components/skeletons"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import { TablePagination } from "@/components/shared/table-pagination"
 import {
@@ -243,7 +243,7 @@ export function LivePipelineWorkspace() {
   // tabs and the search box stay where they are.
   if (loading && data === null) {
     return (
-      <PageLoader label="Loading the pipeline" className="h-72 w-full" />
+      <PipelineSkeletonBody />
     )
   }
 
@@ -354,7 +354,7 @@ export function LivePipelineWorkspace() {
       </div>
 
       {pagedTableView(loading, rows) === "skeleton" ? (
-        <PageLoader label="Loading the pipeline" className="h-48 w-full" />
+        <PipelineTableSkeleton />
       ) : rows.length === 0 ? (
         <EmptyState title="Nothing matches this view" />
       ) : (

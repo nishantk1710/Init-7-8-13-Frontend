@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { AlertTriangle, ArrowRightLeft } from "lucide-react"
 
-import { PageLoader } from "@/components/shared/page-loader"
+import { ConsumptionChartSkeleton } from "@/features/initiative-7/components/skeletons"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ConsumptionChart } from "@/features/initiative-7/components/min-max-to-oar-chart"
 import { ConvertToOarSection } from "@/features/initiative-7/components/min-max-to-oar-convert"
@@ -61,7 +61,7 @@ export function MinMaxToOarDetail({ row, onChanged }: { row: ApiReverseRecommend
           <h4 className="text-xs font-medium tracking-[0.5px] text-muted-foreground uppercase">Consumption history (last 24 months)</h4>
           <div className="mt-2">
             {loading ? (
-              <PageLoader label="Loading consumption" className="h-52 w-full" />
+              <ConsumptionChartSkeleton />
             ) : error || !data ? (
               <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
                 <AlertTriangle className="size-4" aria-hidden="true" />

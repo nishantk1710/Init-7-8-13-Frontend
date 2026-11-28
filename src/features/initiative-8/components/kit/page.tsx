@@ -2,12 +2,19 @@ import Link from "next/link"
 import { Fragment, type ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 
+import { DataFreshness } from "@/features/initiative-8/components/kit/data-freshness"
+
 /**
  * The frame of every I08 Live screen (I08_Live_UI_Redesign_Plan.md, L0): a
  * breadcrumb, the title, one summary line, the actions, then the screen.
  *
  * One frame so the seven screens cannot drift apart again -- they had three
  * different widths, two different headers and four ways of saying a count.
+ *
+ * It carries the data-freshness chip (27-Nov-2026) rather than each screen
+ * doing so: the question "how old is this?" is the same question on all of
+ * them, and a screen that forgot to ask it would be the one screen a reader
+ * trusted by mistake.
  *
  * The bottom padding stays `p-6` (24px) on purpose: the tables' pinned
  * sideways scrollbar (`StickyScrollTable`) is offset by exactly that much.
@@ -43,7 +50,10 @@ export function I08Page({
               </div>
             )}
           </div>
-          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+            {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>}
+            <DataFreshness />
+          </div>
         </div>
         {children}
       </div>

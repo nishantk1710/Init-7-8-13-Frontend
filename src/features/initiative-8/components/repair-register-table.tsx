@@ -34,7 +34,7 @@ import {
   requestedAgoShort,
   requesterText,
 } from "@/features/initiative-8/utils/repair-request"
-import { repairLineLabel } from "@/features/initiative-8/utils/repair-line"
+import { repairPrLabel } from "@/features/initiative-8/utils/repair-line"
 import {
   OVERDUE_STATUS_LABEL,
   isPrOnly,
@@ -75,21 +75,37 @@ export const REGISTER_RETURN_KEY = "i08.register.lastHref"
 const OPTIONAL_COLUMNS = [
   { value: "qty", label: "Qty under repair" },
   { value: "crit", label: "Criticality" },
-  { value: "pr", label: "Repair PR" },
   { value: "po", label: "Repair PO" },
 ] as const
 type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number]["value"]
 
 /**
- * Widths, in %, of the nine default columns and the "+" that ends the header.
- * They fit the page at 1440px wide; on a narrower screen the table scrolls
- * sideways under its frozen Material column rather than cut the repair line
- * short (`DEFAULT_MIN_WIDTH`). The Exceptions column went on 3-Nov-2026.
+ * Widths, in %, of the nine default columns and the "+" that ends the header,
+ * in header order: Material, Repair PR, Plant, Vendor, Department, Stage,
+ * Expected back, Days open, Declaration, "+". The Exceptions column went on
+ * 3-Nov-2026; the Repair PR column took the repair line's place on
+ * 27-Nov-2026 and needs less room, having dropped the `PR ` prefix.
  */
-const DEFAULT_WIDTHS = [14.5, 13.5, 8.5, 10.5, 12, 8.5, 11.5, 6, 10, 3]
-const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 6, crit: 8, pr: 10, po: 10 }
-const DEFAULT_MIN_WIDTH = "min-w-[1120px]"
-const WIDE_MIN_WIDTH = "min-w-[1440px]"
+const DEFAULT_WIDTHS = [14.5, 12, 9.5, 10.5, 12, 8.5, 11.5, 6, 10, 3]
+const OPTIONAL_WIDTHS: Record<OptionalColumn, number> = { qty: 6, crit: 8, po: 10 }
+
+/**
+ * The floor the table will not shrink below, by how many optional columns are
+ * on. Below it the table scrolls sideways under its frozen Material column
+ * rather than cut a document number short.
+ *
+ * It has to grow per column. One flat width for "any optional column at all"
+ * was the bug this replaces: turning all of them on squeezed the nine default
+ * columns into the same 1440px instead of widening the table, and the frozen
+ * Material column had nothing to scroll against.
+ *
+ * One entry per number of optional columns on, 0 to all of them, each 130px
+ * wider than the last. Written out rather than computed because Tailwind only
+ * compiles the classes it can read in the source; `min-w-[${n}px]` reaches
+ * the browser as nothing. A column added to OPTIONAL_COLUMNS needs an entry
+ * here too, or the last one stands in and the table squeezes again.
+ */
+const MIN_WIDTHS = ["min-w-[1080px]", "min-w-[1210px]", "min-w-[1340px]", "min-w-[1470px]"] as const
 
 /** Shared with the queue and the repair page; Historical reads muted. */
 const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; label: string; hint?: string }> =
@@ -101,11 +117,12 @@ const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; la
  * One row per repair PO line SAP still has open. Nine columns by default: it
  * was fourteen across 2,125px, and the sideways scrollbar sat under the 25th
  * row. The material number comes first and the description once (it was shown
- * twice per row). The repair line (`4500001719/10`, or `PR 2000028756/10`)
- * and the department that asked tell rows of the same part apart (28-Oct-2026:
- * seven lines for one material looked identical). Lateness is said once, as
- * "113 days late" under the expected date. Colour only where it asks for
- * something: "PO issued" is plain text.
+ * twice per row). The repair PR (`2000028756/10`) and the department that
+ * asked tell rows of the same part apart (28-Oct-2026: seven lines for one
+ * material looked identical); it replaced the repair line on 27-Nov-2026,
+ * which held a PO on one row and a PR on the next under one heading.
+ * Lateness is said once, as "113 days late" under the expected date. Colour
+ * only where it asks for something: "PO issued" is plain text.
  *
  * No Exceptions column since 3-Nov-2026: the exception queue was removed, and
  * overdue repairs say so under their expected date.
@@ -117,7 +134,7 @@ const DECLARATION: Record<string, { tone: "warn" | "good" | "crit" | "muted"; la
  * chip -- including the ones the Overview's links and older links set
  * (department, days past the expected return, days open). The "+" at the end of the
  * header (3-Nov-2026; it was a "Columns" button above the table) brings back
- * quantity, criticality, PR and PO, and only then does the table scroll
+ * quantity, criticality and the PO, and only then does the table scroll
  * sideways -- with the pinned scrollbar and the frozen Material column
  * (`StickyScrollTable`). The "+" stays pinned to the right edge. The Excel
  * export stays wide whatever is on screen.
@@ -150,7 +167,15 @@ export function RepairRegisterTable({
   const columns = (searchParams.get("cols") ?? "")
     .split(",")
     .filter((value): value is OptionalColumn => OPTIONAL_COLUMNS.some((c) => c.value === value))
-  const widths = [...DEFAULT_WIDTHS, ...columns.map((c) => OPTIONAL_WIDTHS[c])]
+  // The "+" column is last in DEFAULT_WIDTHS, so an optional column has to go
+  // in before it rather than onto the end: appended, every <col> from the
+  // first optional column rightwards lined up against the wrong cell, and the
+  // "+" took a data column's width.
+  const widths = [
+    ...DEFAULT_WIDTHS.slice(0, -1),
+    ...columns.map((c) => OPTIONAL_WIDTHS[c]),
+    DEFAULT_WIDTHS[DEFAULT_WIDTHS.length - 1],
+  ]
   const widthTotal = widths.reduce((sum, w) => sum + w, 0)
 
   // The repair page's breadcrumb returns here, to the same filters and page.
@@ -385,7 +410,7 @@ export function RepairRegisterTable({
           </div>
         ) : (
           <>
-            <StickyScrollTable tableClassName={cn("table-fixed", columns.length > 0 ? WIDE_MIN_WIDTH : DEFAULT_MIN_WIDTH)}>
+            <StickyScrollTable tableClassName={cn("table-fixed", MIN_WIDTHS[columns.length] ?? MIN_WIDTHS[MIN_WIDTHS.length - 1])}>
               <colgroup>
                 {widths.map((width, index) => (
                   <col key={index} style={{ width: `${((width / widthTotal) * 100).toFixed(2)}%` }} />
@@ -393,21 +418,24 @@ export function RepairRegisterTable({
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <Head frozen>Material</Head>
-                  <Head>Repair line</Head>
-                  <Head>Plant</Head>
-                  <Head>Vendor</Head>
-                  <Head>Department</Head>
-                  <Head>Stage</Head>
-                  <Head>Expected back</Head>
-                  <Head right wrap>
+                  <Head frozen source="material">Material</Head>
+                  <Head source="repairPr">Repair PR</Head>
+                  <Head source="plant">Plant</Head>
+                  <Head source="vendor">Vendor</Head>
+                  <Head source="department">Department</Head>
+                  <Head source="stage">Stage</Head>
+                  <Head source="expectedBack">Expected back</Head>
+                  <Head right wrap source="daysOpen">
                     Days open
                   </Head>
-                  <Head>Declaration</Head>
-                  {columns.includes("qty") && <Head right>Qty</Head>}
-                  {columns.includes("crit") && <Head>Criticality</Head>}
-                  {columns.includes("pr") && <Head>Repair PR</Head>}
-                  {columns.includes("po") && <Head>Repair PO</Head>}
+                  <Head source="declaration">Declaration</Head>
+                  {columns.includes("qty") && (
+                    <Head right source="qtyUnderRepair">
+                      Qty
+                    </Head>
+                  )}
+                  {columns.includes("crit") && <Head source="criticality">Criticality</Head>}
+                  {columns.includes("po") && <Head source="repairPo">Repair PO</Head>}
                   <th className="sticky right-0 z-[2] h-[42px] bg-(--i08-head) px-1 text-center align-middle">
                     <ColumnPicker columns={columns} onToggle={toggleColumn} />
                   </th>
@@ -450,9 +478,13 @@ export function RepairRegisterTable({
                       <Cell>
                         <span
                           className="font-mono text-[12.5px] whitespace-nowrap"
-                          title={requested ? "PR raised for repair, no PO yet" : "Repair PO and item"}
+                          title={
+                            requested
+                              ? "The PR raised for this repair; no PO yet"
+                              : "The PR this repair PO line was raised from"
+                          }
                         >
-                          {repairLineLabel(c)}
+                          {repairPrLabel(c)}
                         </span>
                       </Cell>
                       <Cell wrap>
@@ -543,14 +575,6 @@ export function RepairRegisterTable({
                           )}
                         </Cell>
                       )}
-                      {columns.includes("pr") && (
-                        <Cell>
-                          <span className="font-mono text-[13px]">
-                            {c.repairPR.documentNumber}
-                            {c.repairPR.line ? `/${c.repairPR.line}` : ""}
-                          </span>
-                        </Cell>
-                      )}
                       {columns.includes("po") && (
                         <Cell>
                           {c.repairPO ? (
@@ -602,7 +626,7 @@ function ColumnPicker({
   return (
     <PopoverButton label="Add or remove columns" icon={<Plus />} badge={columns.length || undefined} align="end" iconOnly>
       <p className="mb-2 text-[12.5px] text-muted-foreground">
-        Always shown: material, repair line, plant, vendor, department, stage, expected back, days open and
+        Always shown: material, repair PR, plant, vendor, department, stage, expected back, days open and
         declaration.
       </p>
       {OPTIONAL_COLUMNS.map((column) => (

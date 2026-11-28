@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
  *
  * Give it the height of what it stands in for (`className`) so the layout does not jump when the content arrives. `label` is
  * what a screen reader announces and is not drawn. The turning is in globals.css (`chart-loader-ring`) and slows for reduced
- * motion. A whole page uses the hourglass (`PageLoader`).
+ * motion. A whole page, while it loads, uses a skeleton in its own shape (`page-skeleton.tsx`).
  */
 export function ChartLoader({ label, className }: { label: string; className?: string }) {
   return (

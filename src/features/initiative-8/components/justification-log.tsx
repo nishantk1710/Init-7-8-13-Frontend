@@ -223,14 +223,14 @@ export function I08JustificationLog({
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <Head>Recorded</Head>
-                  <Head frozen>Material</Head>
-                  <Head>Plant</Head>
-                  <Head>Reason</Head>
-                  <Head>Note</Head>
-                  <Head>By</Head>
-                  <Head>Purchase</Head>
-                  <Head>Session</Head>
+                  <Head source="justifiedAt">Recorded</Head>
+                  <Head frozen source="material">Material</Head>
+                  <Head source="declaredPlant">Plant</Head>
+                  <Head source="justificationReason">Reason</Head>
+                  <Head source="justificationNote">Note</Head>
+                  <Head source="justificationBy">By</Head>
+                  <Head source="justifiedPurchase">Purchase</Head>
+                  <Head source="justificationSession">Session</Head>
                 </TableRow>
               </TableHeader>
               <TableBody>

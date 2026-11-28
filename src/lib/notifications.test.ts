@@ -251,7 +251,7 @@ describe("Notifications sit under More", () => {
 
   it("has a route and a loading screen", () => {
     expect(source("src/app/(live)/notifications/page.tsx")).toContain("NotificationsPage")
-    expect(source("src/app/(live)/notifications/loading.tsx")).toContain("<PageLoader")
+    expect(source("src/app/(live)/notifications/loading.tsx")).toContain("<NotificationsSkeleton")
   })
 })
 

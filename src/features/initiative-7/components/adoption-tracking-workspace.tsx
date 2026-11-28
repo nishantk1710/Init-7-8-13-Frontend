@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PageLoader } from "@/components/shared/page-loader"
+import { AdoptionSkeletonBody } from "@/features/initiative-7/components/skeletons"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { StickyScrollTable } from "@/components/shared/sticky-scroll-table"
 import {
@@ -89,7 +89,7 @@ export function AdoptionTrackingWorkspace() {
 
   if (loading) {
     return (
-      <PageLoader label="Loading adoption tracking" className="h-72 w-full" />
+      <AdoptionSkeletonBody />
     )
   }
 

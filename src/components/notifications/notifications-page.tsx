@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { ClearFiltersButton } from "@/components/shared/clear-filters-button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
-import { PageLoader } from "@/components/shared/page-loader"
+import { NotificationsSkeletonBody } from "@/components/notifications/notifications-skeleton"
 import { ProfileMenu } from "@/components/shared/profile-menu"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Badge } from "@/components/ui/badge"
@@ -295,7 +295,7 @@ export function NotificationsPage() {
         )}
 
         {!data && loading ? (
-          <PageLoader label="Loading your notifications" className="h-64 w-full" />
+          <NotificationsSkeletonBody />
         ) : items.length === 0 ? (
           <EmptyState
             icon={<Bell className="size-4" />}

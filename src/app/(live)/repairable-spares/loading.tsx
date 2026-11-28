@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { OverviewSkeleton } from "@/features/initiative-8/components/kit/skeletons"
 
-/** Shown the moment the Overview is clicked -- a refresh or a click in the sidebar -- until its figures are ready. */
+/** The Repairable Spares overview while it is read: the filters, the Needs action cards, the tiles and the stage panel, in bones (kit/skeletons.tsx). */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading Repairable Spares" className="h-64 w-full" />
-    </div>
-  )
+  return <OverviewSkeleton />
 }

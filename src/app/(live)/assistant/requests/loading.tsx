@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { RequestsSkeleton } from "@/components/assistant/skeletons"
 
-/** Shown the moment the requests screens are requested, until their data is ready. */
+/** The request list while it opens: the header, the figures, the search and the day's requests, in bones. request-list.tsx shows the same shape under the real header while it fetches. */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading requests" className="h-64 w-full" />
-    </div>
-  )
+  return <RequestsSkeleton />
 }

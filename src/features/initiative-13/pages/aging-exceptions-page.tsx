@@ -10,6 +10,7 @@ import { AttentionBanner } from "@/features/initiative-13/components/ui/attentio
 import { KpiCard } from "@/features/initiative-13/components/ui/kpi-card"
 import { OarPageHeader, OarScope } from "@/features/initiative-13/components/ui/oar-scope"
 import { I13UrlFilters } from "@/features/initiative-13/components/url-filters"
+import { SheetExport } from "@/features/initiative-13/components/sheet-export"
 import { loadLiveActExceptions } from "@/features/initiative-13/data/live-loaders"
 import { pageHref, type I13SearchParams } from "@/features/initiative-13/utils/search-params"
 import { listJustifications } from "@/lib/api/assistant"
@@ -91,6 +92,17 @@ export async function ExceptionsPage({
           title="Procurement Exceptions"
           meta={<DataUpdatedNote />}
           subtitle="Planned consumption overdue, Non-AI reservations, materials received but not issued for 30+ days, and quantity overridden reservations — with the requester's reason and HOD escalation."
+          actions={
+            <SheetExport
+              kind="exceptions"
+              filters={{
+                plant: searchParams.plant,
+                material: searchParams.material,
+                type: searchParams.type,
+                status: searchParams.status,
+              }}
+            />
+          }
         />
 
         {live !== null && (

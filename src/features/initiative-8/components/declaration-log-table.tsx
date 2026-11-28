@@ -148,12 +148,12 @@ export function DeclarationLogTable({ rows: everyRow }: { rows: DeclarationLogRo
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <Head>Declared</Head>
-                  <Head frozen>Material</Head>
-                  <Head>Plant</Head>
-                  <Head>Condition</Head>
-                  <Head>Fault</Head>
-                  <Head>Declared by</Head>
+                  <Head source="declaredAt">Declared</Head>
+                  <Head frozen source="material">Material</Head>
+                  <Head source="declaredPlant">Plant</Head>
+                  <Head source="condition">Condition</Head>
+                  <Head source="fault">Fault</Head>
+                  <Head source="declaredBy">Declared by</Head>
                 </TableRow>
               </TableHeader>
               <TableBody>

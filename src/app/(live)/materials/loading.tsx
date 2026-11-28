@@ -1,10 +1,15 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { Bone, SkeletonFilters, SkeletonPage, SkeletonTable } from "@/components/shared/page-skeleton"
 
-/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
+/**
+ * Materials while it is read (materials-page.tsx): the header, the search and plant filters with the OAR switch,
+ * the table and its pager, in bones (components/shared/page-skeleton.tsx).
+ */
 export default function Loading() {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading Materials" className="h-64 w-full" />
-    </div>
+    <SkeletonPage label="Loading Materials" header={{ actions: true }}>
+      <SkeletonFilters fields={[288, 224, 180]} />
+      <SkeletonTable rows={10} columns={4} />
+      <Bone className="h-2.5 w-64" />
+    </SkeletonPage>
   )
 }

@@ -42,7 +42,7 @@ export function LoadingSpinner({
   label: string
   className?: string
   tone?: SpinnerTone
-  /** `sm` for a small card, `md` (the default) for a card or a chart. A whole page uses `PageLoader`. */
+  /** `sm` for a small card, `md` (the default) for a card or a chart. A whole page, while it loads, uses a skeleton in its own shape (`page-skeleton.tsx`). */
   size?: SpinnerSize
 }) {
   return (

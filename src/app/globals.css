@@ -525,6 +525,71 @@
   }
 }
 
+/* Skeleton loaders (components/shared/page-skeleton.tsx): a page's shape, drawn in grey bones, while it loads. */
+
+:root {
+  /* A bone, and the light band that sweeps over it. Both mixed from the theme, so a scope that changes the page's
+     foreground (i08-scope, nav-blue-scope) and dark mode get their own. */
+  --skeleton-bone: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --skeleton-sheen: color-mix(in oklab, white 72%, transparent);
+}
+
+.dark {
+  --skeleton-bone: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --skeleton-sheen: color-mix(in oklab, var(--foreground) 9%, transparent);
+}
+
+/* One band crosses the whole screen: the gradient is fixed to the viewport, so every bone on the page shares it instead of
+   each shimmering on its own. */
+@keyframes skeleton-sweep {
+  from {
+    background-position: -45vw 0;
+  }
+  to {
+    background-position: 145vw 0;
+  }
+}
+
+.skeleton-bone {
+  background-color: var(--skeleton-bone);
+  background-image: linear-gradient(100deg, transparent 38%, var(--skeleton-sheen) 50%, transparent 62%);
+  background-size: 45vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: skeleton-sweep 1.8s linear infinite;
+}
+
+@keyframes skeleton-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The frame holds back for a moment before it shows, so a page that arrives in a blink never flashes a skeleton.
+   `backwards` keeps it unseen only while the animation waits: should anything ever stop animations running, the
+   frame's own opacity is 1 and the skeleton still shows. */
+.skeleton-frame {
+  animation: skeleton-appear 180ms ease-out 160ms backwards;
+}
+
+/* After a long wait a line says the page is still on its way (the heaviest screens read SAP for 10 s and more).
+   The other way round: unseen unless the animation brings it in. */
+.skeleton-late {
+  opacity: 0;
+  animation: skeleton-appear 300ms ease-out 8s forwards;
+}
+
+/* For anyone who has asked for less motion: still bones, no band. The two fades stay -- they are not motion. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bone {
+    animation: none;
+    background-image: none;
+  }
+}
+
 /* Wide tables whose sideways scrollbar stays on screen
    (components/shared/sticky-scroll-table.tsx). */
 

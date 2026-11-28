@@ -1,10 +1,6 @@
-import { PageLoader } from "@/components/shared/page-loader"
+import { OarDashboardSkeleton } from "@/features/initiative-13/components/skeletons"
 
-/** Shown the moment this screen is requested -- a refresh or a click in the sidebar -- until its data is ready. */
+/** The OAR Utilization dashboard while it is read: filters, the KPI cards, the follow-up pipeline and the Details card, in bones. Each other OAR screen has a loading.tsx of its own in its shape. */
 export default function Loading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <PageLoader label="Loading OAR Utilization" className="h-64 w-full" />
-    </div>
-  )
+  return <OarDashboardSkeleton />
 }

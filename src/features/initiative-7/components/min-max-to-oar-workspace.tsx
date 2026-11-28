@@ -4,7 +4,7 @@ import { useState } from "react"
 import { AlertTriangle, Download, RefreshCw, RotateCcw } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { PageLoader } from "@/components/shared/page-loader"
+import { RecommendationsTableSkeleton } from "@/features/initiative-7/components/skeletons"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -231,7 +231,7 @@ export function MinMaxToOarWorkspace({
       {viewToggle}
 
       {!data && loading ? (
-        <PageLoader label="Loading Stock item to OAR recommendations" className="h-72 w-full" />
+        <RecommendationsTableSkeleton label="Loading Stock item to OAR recommendations" />
       ) : !data && error ? (
         <EmptyState
           icon={<AlertTriangle className="size-4" />}

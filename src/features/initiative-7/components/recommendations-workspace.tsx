@@ -7,7 +7,7 @@ import { AlertTriangle, Download, RefreshCw } from "lucide-react"
 import { AlertBanner } from "@/components/shared/alert-banner"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
-import { PageLoader } from "@/components/shared/page-loader"
+import { RecommendationsTableSkeleton } from "@/features/initiative-7/components/skeletons"
 import { TablePagination } from "@/components/shared/table-pagination"
 import { RecommendationReviewTable } from "@/features/initiative-7/components/recommendation-review-table"
 import {
@@ -222,7 +222,7 @@ function LiveRecommendationsWorkspace({
       )}
       {viewToggle}
       {loading ? (
-        <PageLoader label="Loading recommendations" className="h-72 w-full" />
+        <RecommendationsTableSkeleton />
       ) : error ? (
         <EmptyState
           icon={<AlertTriangle className="size-4" />}
