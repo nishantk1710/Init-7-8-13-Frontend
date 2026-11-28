@@ -14,7 +14,9 @@ import {
   fetchRecommendationSummary,
   fetchRecommendations,
 } from "@/features/initiative-7/services/i7-api"
+import { fetchReverseRequestList } from "@/features/initiative-7/services/reverse-conversion-requests-api"
 import type { Recommendation } from "@/features/initiative-7/types/inventory"
+import { convertToOarDecisionHref } from "@/features/initiative-7/utils/recommendation-url-state"
 import type {
   ActionSeverity,
   AuditEvent,
@@ -120,18 +122,83 @@ function severityFor(rec: Recommendation): ActionSeverity {
   return "info"
 }
 
+/**
+ * Which Stock item to OAR (Convert to OAR) request states surface as an action. A request is raised by a planner and
+ * walks the same approval chain as an OAR conversion, so what waits for an approver, or came back to the planner,
+ * shows here beside the recommendations. A request on hold is open but is not asking anyone for a decision.
+ */
+const REVERSE_ACTION_BUCKETS: { status: string; decision: boolean; verb: string }[] = [
+  { status: "PENDING_APPROVAL", decision: true, verb: "Convert to OAR awaiting approval" },
+  { status: "SENT_BACK", decision: true, verb: "Convert to OAR returned" },
+  { status: "HELD", decision: false, verb: "Convert to OAR on hold" },
+]
+
+/**
+ * The Convert to OAR requests as Action Center entries. They are read from their own endpoint and kept apart from the
+ * recommendations (a material can have a recommendation and a request; neither hides the other). A failure here
+ * leaves the recommendations' actions as they were: it is reported as nothing waiting, never as a failed page.
+ */
+async function loadReverseRequestActions(): Promise<{
+  actions: GlobalAction[]
+  decisions: GlobalAction[]
+  total: number
+  decisionTotal: number
+  capped: boolean
+}> {
+  const empty = { actions: [], decisions: [], total: 0, decisionTotal: 0, capped: false }
+  try {
+    const buckets = await Promise.all(
+      REVERSE_ACTION_BUCKETS.map(async (bucket) => ({
+        bucket,
+        result: await fetchReverseRequestList({ status: bucket.status, pageSize: PER_BUCKET }),
+      })),
+    )
+    const actions: GlobalAction[] = []
+    const decisions: GlobalAction[] = []
+    for (const { bucket, result } of buckets) {
+      for (const request of result.items) {
+        const action: GlobalAction = {
+          id: `i7-reverse-${request.id}`,
+          initiative: "initiative-7",
+          title: `${bucket.verb} — ${request.description ?? request.material}`,
+          severity: "info",
+          entityId: String(request.id),
+          materialId: request.material,
+          plantId: request.plant,
+          href: convertToOarDecisionHref(request.material, request.plant),
+          createdAt: request.updated_at,
+        }
+        actions.push(action)
+        if (bucket.decision) decisions.push(action)
+      }
+    }
+    return {
+      actions,
+      decisions,
+      total: buckets.reduce((sum, b) => sum + b.result.total, 0),
+      decisionTotal: buckets.filter((b) => b.bucket.decision).reduce((sum, b) => sum + b.result.total, 0),
+      capped: buckets.some((b) => b.result.total > b.result.items.length),
+    }
+  } catch {
+    return empty
+  }
+}
+
 export const getInitiative7LiveActions = cache(async (): Promise<LiveActions> => {
-  const buckets = await Promise.all(
-    ACTION_BUCKETS.map(async (bucket) => ({
-      bucket,
-      result: await fetchRecommendations({
-        status: bucket.status,
-        pageSize: PER_BUCKET,
-        sort: "generated_at",
-        sortDesc: true,
-      }),
-    }))
-  )
+  const [buckets, reverse] = await Promise.all([
+    Promise.all(
+      ACTION_BUCKETS.map(async (bucket) => ({
+        bucket,
+        result: await fetchRecommendations({
+          status: bucket.status,
+          pageSize: PER_BUCKET,
+          sort: "generated_at",
+          sortDesc: true,
+        }),
+      }))
+    ),
+    loadReverseRequestActions(),
+  ])
 
   // Repeated pipeline runs can leave more than one row per material-plant, so
   // the same material would otherwise appear twice. First seen wins, and the
@@ -161,17 +228,16 @@ export const getInitiative7LiveActions = cache(async (): Promise<LiveActions> =>
     }
   }
 
-  const total = buckets.reduce((sum, b) => sum + b.result.total, 0)
-  const decisionTotal = buckets
-    .filter((b) => b.bucket.decision)
-    .reduce((sum, b) => sum + b.result.total, 0)
+  const total = buckets.reduce((sum, b) => sum + b.result.total, 0) + reverse.total
+  const decisionTotal =
+    buckets.filter((b) => b.bucket.decision).reduce((sum, b) => sum + b.result.total, 0) + reverse.decisionTotal
 
   return {
-    actions,
-    decisions,
+    actions: [...actions, ...reverse.actions],
+    decisions: [...decisions, ...reverse.decisions],
     total,
     decisionTotal,
-    capped: buckets.some((b) => b.result.total > b.result.recommendations.length),
+    capped: buckets.some((b) => b.result.total > b.result.recommendations.length) || reverse.capped,
   }
 })
 

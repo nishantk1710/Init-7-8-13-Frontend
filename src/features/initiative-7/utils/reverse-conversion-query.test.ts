@@ -125,7 +125,7 @@ describe("the list request", () => {
   })
 })
 
-describe("Export CSV", () => {
+describe("Export Excel", () => {
   it("asks for exactly what the table shows, with no paging", () => {
     const filters = f({ category: "obsolescence_review", plant: "1300", material: "hose" })
     const exported = reverseExportParams(filters)

@@ -94,7 +94,7 @@ export function reverseParamsFromFilters(filters: ReverseFilterState, page: numb
   }
 }
 
-/** What Export CSV asks for: exactly what the table shows, every page, no paging. */
+/** What Export Excel asks for: exactly what the table shows, every page, no paging. */
 export function reverseExportParams(filters: ReverseFilterState): Omit<ReverseListParams, "page" | "pageSize"> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { page, pageSize, ...rest } = reverseParamsFromFilters(filters, 1)
@@ -137,6 +137,13 @@ export function formatMonthsAgo(months: number | null | undefined): string {
   if (months === null || months === undefined) return "—"
   if (months === 0) return "in anchor month"
   return months === 1 ? "1 month ago" : `${months} months ago`
+}
+
+/** A lead time with its unit: "70 days" ("1 day" for one); null -> an em dash. */
+export function formatLeadTime(days: number | null): string {
+  if (days === null) return "—"
+  const shown = days.toLocaleString("en-US", { maximumFractionDigits: 0 })
+  return shown === "1" ? "1 day" : `${shown} days`
 }
 
 /** A quantity or money figure with thousands separators; null -> an em dash. Never a currency symbol: the
@@ -240,4 +247,13 @@ export function describePolicy(parameters: Record<string, unknown>): string[] {
     "Stock value only ranks materials inside a category; zero stock and a missing price never remove a material. The source gives no currency. Nothing is written to SAP.",
   )
   return lines
+}
+
+
+// --- ROP and max stock: what staying on Min-Max would do (the Stock item alternative) --------------------
+
+/** "12 → 0": a figure and where it goes. A missing current figure shows an em dash, never a 0 nothing set. */
+export function formatChange(current: number | null, next: number | null): string {
+  const show = (value: number | null) => (value === null ? "—" : formatFigure(value, 0))
+  return `${show(current)} → ${show(next)}`
 }

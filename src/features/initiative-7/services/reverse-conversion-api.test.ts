@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  fetchReverseCsvBlob,
+  fetchReverseExcelBlob,
   fetchReverseRecommendations,
   parseDecimal,
   toReverseQueryString,
@@ -87,27 +87,30 @@ describe("the list request", () => {
   })
 })
 
-describe("the CSV export request", () => {
-  it("asks the export path with the same filters and no paging, and returns the server's filename", async () => {
-    const response = new Response("material,plant\r\n", {
+describe("the Excel export request", () => {
+  it("asks the Excel export path with the same filters and no paging, and returns the server's filename", async () => {
+    const response = new Response("xlsx bytes", {
       status: 200,
-      headers: { "Content-Type": "text/csv", "Content-Disposition": 'attachment; filename="i7-min-max-to-oar-2026-10.csv"' },
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": 'attachment; filename="i7-stock-item-to-oar-2026-10.xlsx"',
+      },
     })
     const fetchMock = vi.fn().mockResolvedValue(response)
     vi.stubGlobal("fetch", fetchMock)
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test")
-    const result = await fetchReverseCsvBlob({ category: "not_eligible", plant: "1300" })
+    const result = await fetchReverseExcelBlob({ category: "not_eligible", plant: "1300" })
     const url = String(fetchMock.mock.calls[0][0])
-    expect(url).toContain("/v1/i7/reverse-conversion/recommendations/export?category=not_eligible&plant=1300")
+    expect(url).toContain("/v1/i7/reverse-conversion/recommendations/export-excel?category=not_eligible&plant=1300")
     expect(url).not.toContain("page")
-    expect(result).toEqual({ blobUrl: "blob:test", filename: "i7-min-max-to-oar-2026-10.csv" })
+    expect(result).toEqual({ blobUrl: "blob:test", filename: "i7-stock-item-to-oar-2026-10.xlsx" })
   })
 
-  it("falls back to a dated filename when the server sends none", async () => {
+  it("falls back to a dated .xlsx filename when the server sends none", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x", { status: 200 })))
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test")
-    const { filename } = await fetchReverseCsvBlob({})
-    expect(filename).toMatch(/^i7-min-max-to-oar-\d{4}-\d{2}-\d{2}\.csv$/)
+    const { filename } = await fetchReverseExcelBlob({})
+    expect(filename).toMatch(/^i7-stock-item-to-oar-\d{4}-\d{2}-\d{2}\.xlsx$/)
   })
 })
 
@@ -128,11 +131,11 @@ describe("parseDecimal", () => {
 })
 
 describe("the consumption request", () => {
-  it("asks for one material-plant's series, to the list's anchor", async () => {
+  it("asks for one material-plant's series; the month is the stored run's, never sent", async () => {
     const { fetchReverseConsumption } = await import("@/features/initiative-7/services/reverse-conversion-api")
     const source = readFileSync(join(__dirname, "reverse-conversion-api.ts"), "utf8")
     expect(typeof fetchReverseConsumption).toBe("function")
-    expect(source).toContain("/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption${query}")
-    expect(source).toContain("encodeURIComponent(anchor)")
+    expect(source).toContain("/recommendations/${encodeURIComponent(material)}/${encodeURIComponent(plant)}/consumption`")
+    expect(source).not.toContain("?anchor=")
   })
 })

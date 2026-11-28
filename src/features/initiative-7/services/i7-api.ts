@@ -13,6 +13,7 @@
 // getHealth() does.
 
 import { apiFetch, apiFetchBlob, ApiError } from "@/lib/api/client"
+import type { ValueChangeFilter } from "@/features/initiative-7/components/dashboard-filters"
 import type { MaterialReference } from "@/lib/domain/contracts"
 import type { RiskLevel } from "@/components/shared/risk-badge"
 import { blockingReasonText } from "@/features/initiative-7/utils/blocking-reason"
@@ -486,8 +487,9 @@ export interface RecommendationListParams {
   adoptedInSap?: boolean
   criticality?: string
   /** released | tied_up -- only recommendations whose Value change releases working capital (ROP goes down) or
-   * ties more up (ROP goes up). Applied in SQL, so it covers every page. */
-  valueChange?: "released" | "tied_up"
+   * ties more up (ROP goes up). Applied in SQL, so it covers every page. The Overview's Stock item to OAR views
+   * (released_stock_oar, released_overlap) are also accepted. */
+  valueChange?: ValueChangeFilter
   /** Part of a material number or description, searched across the whole catalogue. */
   search?: string
   /** Critical | High | Medium | Low -- the level the table shows, not the raw tier. */
@@ -599,6 +601,9 @@ export interface RecommendationSummaryStats {
   /** Material-plants the working-capital figure covers, and those left out of it. */
   workingCapitalIncludedCount?: number | null
   workingCapitalExcludedCount?: number | null
+  /** Release Up (Overlap) only: material-plants counted twice in the amount (their Stock item release and their release
+   * if converted to OAR). 0 or null on every other view. */
+  workingCapitalOverlapCount?: number | null
   /** High Stockout Risk: Fast / Slow material-plants whose stock on hand is below average daily
    * consumption x lead time. */
   criticalStockoutRiskCount: number
@@ -651,6 +656,7 @@ export async function fetchRecommendationSummary(
     workingCapitalCurrency: response.working_capital_currency ?? null,
     workingCapitalIncludedCount: response.working_capital_included_count ?? null,
     workingCapitalExcludedCount: response.working_capital_excluded_count ?? null,
+    workingCapitalOverlapCount: response.working_capital_overlap_count ?? null,
     criticalStockoutRiskCount: response.critical_stockout_risk_count,
     stockoutRiskEvaluatedCount: response.stockout_risk_evaluated_count ?? 0,
     stockoutRiskInsufficientDataCount: response.stockout_risk_insufficient_data_count ?? 0,
@@ -1226,8 +1232,8 @@ export interface AdoptionSummaryParams {
   demandClass?: string
   /** Critical | High | Medium | Low -- the level the pages show, not the raw tier. */
   criticalityLevel?: string
-  /** released | tied_up -- count only recommendations whose Value change releases or ties up working capital. */
-  valueChange?: "released" | "tied_up"
+  /** released | tied_up | released_oar_only -- count only the materials of that Value Change view. */
+  valueChange?: ValueChangeFilter
 }
 
 /** GET /api/v1/i7/recommendations/adoption/summary -- real portfolio-wide

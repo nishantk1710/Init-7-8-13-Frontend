@@ -118,17 +118,24 @@ describe("the page order is filters, then the toggle, then the results", () => {
     expect(results).toBeGreaterThan(toggle)
   })
 
-  it("the Min-Max to OAR view draws the toggle under its filter bar and above its summary and table", () => {
-    const filters = minMax.indexOf("Export CSV")
+  it("the Min-Max to OAR view draws the toggle under its filter bar and above its table", () => {
+    const filters = minMax.indexOf("Export Excel")
     const toggle = minMax.indexOf("{viewToggle}")
-    const summary = minMax.indexOf("<HowGeneratedPanel")
+    const table = minMax.indexOf("<MinMaxToOarTable")
     expect(toggle).toBeGreaterThan(filters)
-    expect(summary).toBeGreaterThan(toggle)
+    expect(table).toBeGreaterThan(toggle)
+  })
+
+  it("the Min-Max to OAR view has no 'How these were generated' panel, and its reconciliation line sits below the table", () => {
+    expect(minMax).not.toContain("HowGeneratedPanel")
+    expect(minMax.indexOf("<ReconciliationLine")).toBeGreaterThan(minMax.indexOf("<MinMaxToOarTable"))
+    expect(minMax.indexOf("<ReconciliationLine")).toBeGreaterThan(minMax.indexOf("<TablePagination"))
   })
 
   it("the page hands the one toggle to whichever view is showing, and draws none of its own above the bars", () => {
     expect(workspace.match(/<RecommendationTypeToggle/g)).toHaveLength(1)
-    expect(workspace).toContain("<MinMaxToOarWorkspace viewToggle={viewToggle} />")
+    // (a link can also say where the view opens -- `initialFilters` -- but the toggle is always the page's one.)
+    expect(workspace).toContain("<MinMaxToOarWorkspace viewToggle={viewToggle} initialFilters={reverseStart} />")
     expect(workspace).toContain("<LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} viewToggle={viewToggle} />")
   })
 

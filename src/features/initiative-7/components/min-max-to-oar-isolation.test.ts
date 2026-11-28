@@ -177,6 +177,10 @@ describe("the new files stay apart from the OAR / Stock item feature", () => {
     "components/min-max-to-oar-detail.tsx",
     "components/min-max-to-oar-chart.tsx",
     "hooks/use-reverse-consumption.ts",
+    "hooks/use-reverse-request.ts",
+    "components/min-max-to-oar-convert.tsx",
+    "services/reverse-conversion-requests-api.ts",
+    "utils/reverse-request-state.ts",
     "components/recommendation-type-toggle.tsx",
     "hooks/use-reverse-recommendations.ts",
     "services/reverse-conversion-api.ts",
@@ -203,7 +207,13 @@ describe("the new files stay apart from the OAR / Stock item feature", () => {
     for (const forbidden of FORBIDDEN) expect(imports, `${file} imports ${forbidden}`).not.toContain(forbidden)
   })
 
-  it("the new service only ever reads (no write call)", () => {
+  it("the only write calls are the conversion requests, in their own service", () => {
+    const writes = read(`${I7}/services/reverse-conversion-requests-api.ts`)
+    expect(writes.match(/apiPost</g)).toHaveLength(3) // raise a request, decline one, apply an approval action
+    expect(writes).not.toMatch(/apiPostForm|method:\s*"(PUT|PATCH|DELETE)"/)
+  })
+
+  it("the list, export and consumption service only ever reads (no write call)", () => {
     const source = read(`${I7}/services/reverse-conversion-api.ts`)
     expect(source).not.toMatch(/apiPost|apiPostForm|method:\s*"(POST|PUT|PATCH|DELETE)"/)
   })

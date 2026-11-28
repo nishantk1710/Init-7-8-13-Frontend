@@ -48,7 +48,7 @@ export function ReasonInfo({ parameters }: { parameters?: PolicyParameters }) {
       description="The one thing that put a material in its group. Each card shows the group it belongs to."
       triggerLabel="What do the reasons mean?"
       items={reasonInfoItems(parameters)}
-      footnote="A month counts as used only when more was issued than reversed. Examples are illustrative. The full list of thresholds that were applied is under “How these were generated”."
+      footnote="A month counts as used only when more was issued than reversed. Examples are illustrative."
     />
   )
 }

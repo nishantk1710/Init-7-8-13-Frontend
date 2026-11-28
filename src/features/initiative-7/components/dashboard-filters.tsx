@@ -118,11 +118,26 @@ export function matchesRiskFilter(filter: string, risk: RiskLevel, mergeCritical
 
 export const SAP_ADOPTION_STATUSES = ["Adopted", "Partially adopted", "Not adopted", "Unknown"] as const
 
-/** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values. */
+/** The Value Change filter's options (Overview, Stock item): the backend's `value_change` values.
+ *
+ * A material eligible to convert to OAR is not a Stock item recommendation (the backend leaves it out of the Stock item
+ * population), so its value is never released twice. The three views therefore never share a material:
+ *  - "released": Stock item recommendations whose reorder point goes down;
+ *  - "tied_up": Stock item recommendations whose reorder point goes up;
+ *  - "released_oar_only": Stock Item to OAR -- the materials eligible to convert to OAR, each at the release its
+ *    conversion would give (reorder point to 0). */
 export const VALUE_CHANGE_OPTIONS = [
-  { value: "released", label: "Releases value" },
-  { value: "tied_up", label: "Ties up value" },
+  { value: "released", label: "Release Value" },
+  { value: "tied_up", label: "Tie Up Value" },
+  { value: "released_oar_only", label: "Stock Item to OAR" },
 ] as const
+
+/** One value of the Value Change filter, as the backend takes it. */
+export type ValueChangeFilter = (typeof VALUE_CHANGE_OPTIONS)[number]["value"]
+
+export function isValueChangeFilter(value: string): value is ValueChangeFilter {
+  return VALUE_CHANGE_OPTIONS.some((option) => option.value === value)
+}
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilterState = {
   plant: ALL_FILTER,
@@ -527,7 +542,7 @@ export function DashboardFilters({
                 }
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="min-w-[320px]">
               <SelectItem value={ALL_FILTER}>All</SelectItem>
               {VALUE_CHANGE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
