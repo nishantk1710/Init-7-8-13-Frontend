@@ -17,7 +17,7 @@ import { ReconciliationLine } from "@/features/initiative-7/components/min-max-t
 import { MinMaxToOarTable } from "@/features/initiative-7/components/min-max-to-oar-table"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useReverseRecommendations } from "@/features/initiative-7/hooks/use-reverse-recommendations"
-import { fetchReverseCsvBlob } from "@/features/initiative-7/services/reverse-conversion-api"
+import { fetchReverseExcelBlob } from "@/features/initiative-7/services/reverse-conversion-api"
 import {
   REVERSE_CONFIDENCES,
   REVERSE_CRITICALITY_OPTIONS,
@@ -130,14 +130,14 @@ export function MinMaxToOarWorkspace({
 
   const set = <K extends keyof ReverseFilterState>(key: K, value: ReverseFilterState[K]) => setFilters((prev) => ({ ...prev, [key]: value }))
 
-  // Export CSV: every row the filters select (all pages), built by the backend from the same filters as the list.
+  // Export Excel: every row the filters select (all pages), built by the backend from the same filters as the list.
   const [exportState, setExportState] = useState<"idle" | "preparing">("idle")
   const [exportError, setExportError] = useState<string | null>(null)
-  async function exportCsv() {
+  async function exportExcel() {
     setExportError(null)
     setExportState("preparing")
     try {
-      const { blobUrl, filename } = await fetchReverseCsvBlob(reverseExportParams(queryFilters))
+      const { blobUrl, filename } = await fetchReverseExcelBlob(reverseExportParams(queryFilters))
       const link = document.createElement("a")
       link.href = blobUrl
       link.download = filename
@@ -146,7 +146,7 @@ export function MinMaxToOarWorkspace({
       document.body.removeChild(link)
       URL.revokeObjectURL(blobUrl)
     } catch (failure) {
-      setExportError(failure instanceof Error ? reverseErrorMessage(failure) : "The CSV export failed.")
+      setExportError(failure instanceof Error ? reverseErrorMessage(failure) : "The Excel export failed.")
     } finally {
       setExportState("idle")
     }
@@ -214,12 +214,12 @@ export function MinMaxToOarWorkspace({
             variant="outline"
             size="sm"
             className="shrink-0 grow-0 border-action bg-action/10 font-semibold text-action shadow-sm hover:bg-action/20 hover:text-action"
-            onClick={exportCsv}
+            onClick={exportExcel}
             disabled={exportState === "preparing"}
-            title="Download the recommendations the filters select (every page) as a CSV file"
+            title="Download the recommendations the filters select (every page) as an Excel file, with whether each is counted in working capital"
           >
             <Download className="size-3.5" />
-            {exportState === "preparing" ? "Preparing CSV…" : "Export CSV"}
+            {exportState === "preparing" ? "Preparing Excel…" : "Export Excel"}
           </Button>
         </div>
       </div>
