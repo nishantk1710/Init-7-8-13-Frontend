@@ -119,7 +119,7 @@ describe("the page order is filters, then the toggle, then the results", () => {
   })
 
   it("the Min-Max to OAR view draws the toggle under its filter bar and above its table", () => {
-    const filters = minMax.indexOf("Export CSV")
+    const filters = minMax.indexOf("Export Excel")
     const toggle = minMax.indexOf("{viewToggle}")
     const table = minMax.indexOf("<MinMaxToOarTable")
     expect(toggle).toBeGreaterThan(filters)

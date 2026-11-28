@@ -59,17 +59,19 @@ export function fetchReverseConsumption(material: string, plant: string): Promis
   )
 }
 
-/** GET /api/v1/i7/reverse-conversion/recommendations/export -- every row the filters select, as CSV.
- * Same filters as the list; page and page size are ignored. Returns a blob URL and the server's filename
- * (it carries the anchor month) for the caller to trigger the download. */
-export async function fetchReverseCsvBlob(
+const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+/** GET /api/v1/i7/reverse-conversion/recommendations/export-excel -- every row the filters select, as an Excel
+ * workbook with a "Counted in Working Capital" column. Same filters as the list; page and page size are ignored.
+ * Returns a blob URL and the server's filename (it carries the anchor month) for the caller to trigger the download. */
+export async function fetchReverseExcelBlob(
   params: Omit<ReverseListParams, "page" | "pageSize"> = {},
 ): Promise<{ blobUrl: string; filename: string }> {
   const { blob, filename } = await apiFetchBlob(
-    `${REVERSE_BASE}/recommendations/export${toReverseQueryString(params)}`,
-    `i7-min-max-to-oar-${new Date().toISOString().slice(0, 10)}.csv`,
+    `${REVERSE_BASE}/recommendations/export-excel${toReverseQueryString(params)}`,
+    `i7-stock-item-to-oar-${new Date().toISOString().slice(0, 10)}.xlsx`,
   )
-  return { blobUrl: URL.createObjectURL(new Blob([blob], { type: "text/csv;charset=utf-8" })), filename }
+  return { blobUrl: URL.createObjectURL(new Blob([blob], { type: XLSX_TYPE })), filename }
 }
 
 /** A backend Decimal (a JSON string) as a number; null when absent or unparsable. Never 0 for "nothing". */
