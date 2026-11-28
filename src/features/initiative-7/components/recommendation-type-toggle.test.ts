@@ -118,12 +118,18 @@ describe("the page order is filters, then the toggle, then the results", () => {
     expect(results).toBeGreaterThan(toggle)
   })
 
-  it("the Min-Max to OAR view draws the toggle under its filter bar and above its summary and table", () => {
+  it("the Min-Max to OAR view draws the toggle under its filter bar and above its table", () => {
     const filters = minMax.indexOf("Export CSV")
     const toggle = minMax.indexOf("{viewToggle}")
-    const summary = minMax.indexOf("<HowGeneratedPanel")
+    const table = minMax.indexOf("<MinMaxToOarTable")
     expect(toggle).toBeGreaterThan(filters)
-    expect(summary).toBeGreaterThan(toggle)
+    expect(table).toBeGreaterThan(toggle)
+  })
+
+  it("the Min-Max to OAR view has no 'How these were generated' panel, and its reconciliation line sits below the table", () => {
+    expect(minMax).not.toContain("HowGeneratedPanel")
+    expect(minMax.indexOf("<ReconciliationLine")).toBeGreaterThan(minMax.indexOf("<MinMaxToOarTable"))
+    expect(minMax.indexOf("<ReconciliationLine")).toBeGreaterThan(minMax.indexOf("<TablePagination"))
   })
 
   it("the page hands the one toggle to whichever view is showing, and draws none of its own above the bars", () => {

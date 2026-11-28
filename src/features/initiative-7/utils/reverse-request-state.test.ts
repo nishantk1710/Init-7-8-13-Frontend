@@ -224,12 +224,6 @@ describe("what the page asks the backend", () => {
     const table = read(`${I7}/components/min-max-to-oar-table.tsx`)
     expect(table).toContain("requestSummary(row.conversion_request.status, row.conversion_request.pending_role)")
   })
-
-  it("the page says when the recommendation was last rebuilt", () => {
-    const panels = read(`${I7}/components/min-max-to-oar-panels.tsx`)
-    expect(panels).toContain("Last rebuilt")
-    expect(panels).toContain("anchor.generated_at")
-  })
 })
 
 describe("where the Convert to OAR block sits, and when it cannot be used", () => {

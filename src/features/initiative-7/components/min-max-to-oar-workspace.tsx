@@ -13,7 +13,7 @@ import { sapPlantLabel } from "@/lib/shared-data/sap-plants"
 import { cn } from "@/lib/utils"
 import { ALL_FILTER } from "@/features/initiative-7/components/dashboard-filters"
 import { ConfidenceInfo, LeadTimeInfo } from "@/features/initiative-7/components/min-max-to-oar-info"
-import { HowGeneratedPanel, ReconciliationLine } from "@/features/initiative-7/components/min-max-to-oar-panels"
+import { ReconciliationLine } from "@/features/initiative-7/components/min-max-to-oar-panels"
 import { MinMaxToOarTable } from "@/features/initiative-7/components/min-max-to-oar-table"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useReverseRecommendations } from "@/features/initiative-7/hooks/use-reverse-recommendations"
@@ -254,8 +254,6 @@ export function MinMaxToOarWorkspace({
               </button>
             </p>
           )}
-          <HowGeneratedPanel anchor={data.anchor} policy={data.policy} />
-          <ReconciliationLine summary={data.summary} reconciliation={data.reconciliation} />
           <MinMaxToOarTable rows={data.items} loading={loading} emptyMessage={emptyMessage} onChanged={refetch} />
           <TablePagination
             page={page}
@@ -266,6 +264,7 @@ export function MinMaxToOarWorkspace({
             onPageChange={setPage}
             loading={loading}
           />
+          <ReconciliationLine summary={data.summary} reconciliation={data.reconciliation} />
         </>
       ) : null}
     </div>
