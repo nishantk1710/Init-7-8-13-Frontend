@@ -5,7 +5,11 @@
 // No retry on a write (see apiPost): a repeat after a timeout that succeeded would raise or decide twice.
 
 import { apiFetch, apiPost } from "@/lib/api/client"
-import type { ApiReverseRequest, ApiReverseRequestDetail } from "@/features/initiative-7/types/reverse-conversion"
+import type {
+  ApiReverseRequest,
+  ApiReverseRequestDetail,
+  ApiReverseRequestList,
+} from "@/features/initiative-7/types/reverse-conversion"
 
 const REQUESTS_BASE = "/v1/i7/reverse-conversion/requests"
 
@@ -16,6 +20,23 @@ export function fetchReverseRequest(material: string, plant: string): Promise<Ap
   return apiFetch<ApiReverseRequestDetail>(
     `${REQUESTS_BASE}?material=${encodeURIComponent(material)}&plant=${encodeURIComponent(plant)}`,
   )
+}
+
+export interface ReverseRequestListParams {
+  /** One request status (PENDING_APPROVAL, SENT_BACK, HELD, SAP_EXECUTION_PENDING or REJECTED). Omitted: every status. */
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
+/** GET -- the newest conversion request of every material-plant (read-only), with the count per status. */
+export function fetchReverseRequestList(params: ReverseRequestListParams = {}): Promise<ApiReverseRequestList> {
+  const search = new URLSearchParams()
+  if (params.status) search.set("status", params.status)
+  if (params.page) search.set("page", String(params.page))
+  if (params.pageSize) search.set("page_size", String(params.pageSize))
+  const query = search.toString()
+  return apiFetch<ApiReverseRequestList>(`${REQUESTS_BASE}/list${query ? `?${query}` : ""}`)
 }
 
 /** POST -- ask for the material-plant to be converted to OAR. It enters the approval chain at its first role. */

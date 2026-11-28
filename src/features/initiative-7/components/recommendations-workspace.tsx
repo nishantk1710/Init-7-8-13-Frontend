@@ -18,6 +18,8 @@ import {
 import { MinMaxToOarWorkspace } from "@/features/initiative-7/components/min-max-to-oar-workspace"
 import { RecommendationTypeToggle } from "@/features/initiative-7/components/recommendation-type-toggle"
 import { isMinMaxToOarView, RECOMMENDATION_TOGGLE_OPTIONS } from "@/features/initiative-7/utils/reverse-conversion-query"
+import { parseRecommendationLink } from "@/features/initiative-7/utils/recommendation-url-state"
+import { MIN_MAX_TO_OAR_TYPE } from "@/features/initiative-7/types/reverse-conversion"
 import { useDebouncedValue } from "@/features/initiative-7/hooks/use-debounced-value"
 import { useLiveRecommendations } from "@/features/initiative-7/hooks/use-live-recommendations"
 import { fetchRecommendationsExcelBlob } from "@/features/initiative-7/services/i7-api"
@@ -286,7 +288,16 @@ function LiveRecommendationsWorkspace({
 export function RecommendationsWorkspace() {
   const searchParams = useSearchParams()
   const reviewMaterial = searchParams.get("reviewMaterial")
-  const [filters, setFilters] = useState<DashboardFilterState>(RECOMMENDATIONS_PAGE_FILTERS)
+  // A link (a Convert to OAR notification, an Action Center entry) can open the page on a view, material and plant.
+  // It only sets where the page starts; the first change of view drops it. No link: the page opens as it always did.
+  const [link, setLink] = useState(() => parseRecommendationLink(searchParams))
+  const [filters, setFilters] = useState<DashboardFilterState>(() =>
+    link?.type && link.type !== MIN_MAX_TO_OAR_TYPE
+      ? { ...resetFiltersForView(link.type), material: link.material, plant: link.plant || ALL_FILTER }
+      : link?.type === MIN_MAX_TO_OAR_TYPE
+        ? { ...RECOMMENDATIONS_PAGE_FILTERS, type: MIN_MAX_TO_OAR_TYPE }
+        : RECOMMENDATIONS_PAGE_FILTERS,
+  )
 
   const banner = reviewMaterial && (
     <AlertBanner tone="info" title={`Reviewing material flagged by OAR Utilization for reclassification review — ${reviewMaterial}`}>
@@ -300,9 +311,15 @@ export function RecommendationsWorkspace() {
     <RecommendationTypeToggle
       value={filters.type}
       options={RECOMMENDATION_TOGGLE_OPTIONS}
-      onChange={(type) => setFilters(normaliseRecommendationFilters({ ...filters, type }, filters))}
+      onChange={(type) => {
+        setLink(null)
+        setFilters(normaliseRecommendationFilters({ ...filters, type }, filters))
+      }}
     />
   )
+
+  // Where a link opened the Stock item to OAR view (a material and plant); none when the page was opened plainly.
+  const reverseStart = link?.type === MIN_MAX_TO_OAR_TYPE ? { material: link.material, plant: link.plant } : undefined
 
   return (
     <div className="flex flex-col gap-4">
@@ -310,7 +327,7 @@ export function RecommendationsWorkspace() {
       {isMinMaxToOarView(filters) ? (
         // Min-Max to OAR: its own workspace, mounted instead of -- never alongside -- the OAR / Stock item one,
         // so neither fires the other's requests.
-        <MinMaxToOarWorkspace viewToggle={viewToggle} />
+        <MinMaxToOarWorkspace viewToggle={viewToggle} initialFilters={reverseStart} />
       ) : (
         <LiveRecommendationsWorkspace filters={filters} setFilters={setFilters} viewToggle={viewToggle} />
       )}
