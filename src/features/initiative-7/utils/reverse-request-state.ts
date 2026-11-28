@@ -59,6 +59,13 @@ export function chainSteps(route: readonly string[], chainIndex: number, status:
   }))
 }
 
+/** Approvals so far out of the route's length, for a progress bar: a fully approved request has every step done. */
+export function requestProgress(request: { status: string; chain_index: number; route: readonly string[] }): { done: number; of: number } {
+  const of = request.route.length
+  const done = request.status === "SAP_EXECUTION_PENDING" ? of : Math.min(request.chain_index, of)
+  return { done, of }
+}
+
 export const NEEDS_COMMENT: readonly ReverseRequestAction[] = ["REJECT", "SEND_BACK", "HOLD"]
 
 export function actionNeedsComment(action: ReverseRequestAction): boolean {

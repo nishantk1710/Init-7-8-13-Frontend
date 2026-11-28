@@ -1,81 +1,35 @@
 "use client"
 
 import { useId, useState } from "react"
-import { ArrowRightLeft, Check, Circle, CircleDot, CircleX, Send } from "lucide-react"
+import { ArrowRightLeft, CircleX, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
-import { useRoles } from "@/hooks/use-roles"
-import { testLoginApprovalRole } from "@/lib/api/actor"
-import { cn } from "@/lib/utils"
+import { ReverseRequestHistory } from "@/features/initiative-7/components/reverse-request-history"
+import { SentForApprovalNotice } from "@/features/initiative-7/components/sent-for-approval-notice"
 import { useReverseRequest } from "@/features/initiative-7/hooks/use-reverse-request"
-import type { ReverseRequestAction } from "@/features/initiative-7/services/reverse-conversion-requests-api"
-import type { ApiApprovalRole } from "@/features/initiative-7/types/api"
-import type { ApiReverseLedgerEntry, ApiReverseRecommendation } from "@/features/initiative-7/types/reverse-conversion"
-import { resolveActingRole } from "@/features/initiative-7/utils/acting-role"
-import {
-  ACTION_DONE,
-  ACTION_LABEL,
-  actionNeedsComment,
-  availableActions,
-  chainSteps,
-  isRequestOpen,
-  requestStatusLabel,
-  requestStatusTone,
-} from "@/features/initiative-7/utils/reverse-request-state"
-import { formatLoadedAt } from "@/features/initiative-7/utils/reverse-conversion-query"
-
-const STEP_ICON = { done: Check, current: CircleDot, waiting: Circle } as const
-
-function History({ entries }: { entries: ApiReverseLedgerEntry[] }) {
-  if (entries.length === 0) return null
-  return (
-    <ul className="mt-2 flex flex-col gap-1.5 border-t border-border pt-2">
-      {entries.map((entry) => (
-        <li key={entry.id} className="text-[12px] leading-snug text-muted-foreground">
-          <span className="font-medium text-foreground">{entry.action === "SUBMIT" ? "Requested" : ACTION_DONE[entry.action as ReverseRequestAction] ?? entry.action}</span>
-          {" by "}
-          {entry.actor_role === "Requester" ? entry.actor_id : entry.actor_role}
-          {" · "}
-          {formatLoadedAt(entry.timestamp)}
-          {entry.comment ? <span className="block text-foreground/80">“{entry.comment}”</span> : null}
-        </li>
-      ))}
-    </ul>
-  )
-}
+import type { ApiReverseRecommendation } from "@/features/initiative-7/types/reverse-conversion"
+import { isRequestOpen, requestStatusLabel, requestStatusTone } from "@/features/initiative-7/utils/reverse-request-state"
 
 /**
  * "Convert to OAR" for one Eligible material, inside its open row: the planner asks for the conversion, and it walks
  * the same fixed chain an OAR conversion does (Inventory Controller, Engineering Head, Plant Head, Commercial Head).
- * An approver who holds the pending step decides it here. Approval is a recorded decision only: SAP is changed by
- * hand afterwards, and nothing on this page writes to SAP.
- *
- * Who is acting is the signed-in person (the backend records them); the approval role they act as is the one their
- * token holds, as on the OAR decision panel -- never a free choice.
+ * Once it is sent, the card only says where it is: the approvers review and decide it on the Convert to OAR decision
+ * page, opened from the Action Center, as an OAR conversion is decided on the Action Center. Approval is a recorded
+ * decision only: SAP is changed by hand afterwards, and nothing on this page writes to SAP.
  */
 export function ConvertToOarSection({ row, onChanged }: { row: ApiReverseRecommendation; onChanged?: () => void }) {
-  const { detail, loading, error, unavailable, busy, submit, decline, act } = useReverseRequest(row.material, row.plant, onChanged)
-  const [comment, setComment] = useState("")
-  const commentId = useId()
+  const { detail, loading, error, unavailable, busy, submit, decline } = useReverseRequest(row.material, row.plant, onChanged)
   // Declining from the row: the reason box opens on Reject, and Confirm sends it (as on the OAR decision panel).
   const [rejecting, setRejecting] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const rejectReasonId = useId()
-  const { roles, authEnabled } = useRoles()
 
   if (row.conversion_eligibility !== "eligible") return null
 
   const current = detail?.current ?? null
   const open = isRequestOpen(current?.status)
-  const actingRole = resolveActingRole({
-    roles,
-    authEnabled,
-    pendingRole: current?.pending_role ?? null,
-    testLoginRole: testLoginApprovalRole() as ApiApprovalRole | null,
-  })
-  const actions = current ? availableActions(current.status, current.pending_role, actingRole) : []
   // Why the last request was rejected: the comment on its newest REJECT entry.
   const rejectionReason = [...(detail?.history ?? [])].reverse().find((entry) => entry.action === "REJECT")?.comment ?? null
 
@@ -90,13 +44,6 @@ export function ConvertToOarSection({ row, onChanged }: { row: ApiReverseRecomme
       toast.success("Rejected", { description: "It is not sent for approval. You can ask again later." })
       setRejecting(false)
       setRejectReason("")
-    }
-  }
-
-  async function decide(action: ReverseRequestAction) {
-    if (await act(actingRole, action, comment.trim() || undefined)) {
-      toast.success(ACTION_DONE[action])
-      setComment("")
     }
   }
 
@@ -123,30 +70,10 @@ export function ConvertToOarSection({ row, onChanged }: { row: ApiReverseRecomme
             <div className="mt-2 flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge tone={requestStatusTone(current.status)}>{requestStatusLabel(current.status)}</StatusBadge>
-                {current.pending_role && open && (
-                  <span className="text-[12px] text-muted-foreground">Waiting for {current.pending_role}</span>
-                )}
                 {current.status === "SAP_EXECUTION_PENDING" && (
                   <span className="text-[12px] text-muted-foreground">Every approver has approved. SAP is changed by hand.</span>
                 )}
               </div>
-              <ol className="flex flex-wrap gap-x-4 gap-y-1">
-                {chainSteps(current.route, current.chain_index, current.status).map((step) => {
-                  const Icon = STEP_ICON[step.state]
-                  return (
-                    <li
-                      key={step.role}
-                      className={cn(
-                        "flex items-center gap-1 text-[12px]",
-                        step.state === "waiting" ? "text-muted-foreground" : "font-medium text-foreground",
-                      )}
-                    >
-                      <Icon className={cn("size-3.5", step.state === "done" && "text-success")} aria-hidden="true" />
-                      {step.role}
-                    </li>
-                  )
-                })}
-              </ol>
             </div>
           )}
 
@@ -233,39 +160,14 @@ export function ConvertToOarSection({ row, onChanged }: { row: ApiReverseRecomme
             </div>
           )}
 
-          {open && actions.length > 0 && (
-            <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
-              <label htmlFor={commentId} className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-                Your comment (needed to send back, hold or reject)
-              </label>
-              <textarea
-                id={commentId}
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                rows={2}
-                maxLength={1000}
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-[13px]"
+          {open && current?.status !== "SAP_EXECUTION_PENDING" && (
+            <div className="mt-2">
+              <SentForApprovalNotice
+                pendingRole={current?.pending_role ?? "the next approver"}
+                step={(current?.chain_index ?? 0) + 1}
+                steps={current?.route.length ?? 0}
               />
-              <div className="flex flex-wrap gap-2">
-                {actions.map((action) => (
-                  <Button
-                    key={action}
-                    size="sm"
-                    variant={action === "APPROVE" ? "default" : "outline"}
-                    disabled={busy || (actionNeedsComment(action) && comment.trim() === "")}
-                    onClick={() => decide(action)}
-                  >
-                    {ACTION_LABEL[action]}
-                  </Button>
-                ))}
-              </div>
             </div>
-          )}
-
-          {open && actions.length === 0 && current?.status !== "SAP_EXECUTION_PENDING" && (
-            <p className="mt-2 text-[12px] text-muted-foreground">
-              Only the {current?.pending_role ?? "next approver"} can decide this step.
-            </p>
           )}
 
           {error && (
@@ -274,7 +176,7 @@ export function ConvertToOarSection({ row, onChanged }: { row: ApiReverseRecomme
             </p>
           )}
 
-          <History entries={detail?.history ?? []} />
+          <ReverseRequestHistory entries={detail?.history ?? []} />
           <p className="mt-2 text-[11px] text-muted-foreground">
             A recorded decision only: nothing is written to SAP from this page.
           </p>
